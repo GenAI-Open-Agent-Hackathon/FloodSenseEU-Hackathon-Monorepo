@@ -1,5 +1,6 @@
-"""Agents service: FastAPI on port 8100 inside the compose network (not published). The API container proxies it and adds
-cache, rate limits and replay (Ayush, Mihir). Routes follow the API contract (gameplan v2 §5.5); every response carries
+"""Agents service. FastAPI on port 8100, unpublished; the API container proxies it.
+
+Routes follow the contract in docs/GAMEPLAN.md §5.5. Every response carries
 served_from (live | cache | replay) and cached_at.
 
 GET  /health                       service, graph, flags, fakes in use
@@ -15,9 +16,15 @@ GET  /runs/{id}/events             SSE: TraceEvent json per `trace` event as the
     python -m floodsense_agents            # host: http://127.0.0.1:8100
 """
 from __future__ import annotations
-import asyncio, json, logging, time
+
+import asyncio
+import json
+import logging
+import time
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+
 from floodsense_agents import __version__
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime

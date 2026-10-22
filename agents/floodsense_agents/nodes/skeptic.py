@@ -1,14 +1,16 @@
-"""Skeptic. Tries to disprove each hypothesis with at most three SQL counter-checks against Zetaris, then marks it
-supported or not_supported. Stops after three rounds. A planted false link (a claim whose cited query returned no rows,
-or a link whose timing or magnitude the data contradicts) comes back not_supported.
+"""Skeptic. Tries to disprove each hypothesis before it is trusted.
 
-Counter-checks are deterministic predicates over fresh Zetaris queries, so the verdict is reproducible and every check
-has a query_id (recorded in hypothesis.evidence). The deep lane, when available, only writes the rationale from the same rows.
-
-Owner: Zain, with Ayush.
+Runs at most SKEPTIC_MAX_ROUNDS SQL counter-checks per hypothesis and marks
+it supported or not_supported. Counter-checks are deterministic predicates
+over fresh queries, so a verdict is reproducible and every check has a
+query_id. The deep lane only writes the rationale from the same rows.
 """
+
 from __future__ import annotations
-import logging, time
+
+import logging
+import time
+
 from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import window

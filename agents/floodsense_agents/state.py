@@ -1,16 +1,22 @@
-"""Graph state (gameplan v2 §5.5 "Agent state") and the dependency bundle the nodes close over. Plain dicts cross node
-boundaries (the checkpointer serialises them); the pydantic models in models.py type them at the edges."""
+"""Graph state and the dependency bundle the nodes close over.
+
+Plain dicts cross node boundaries so the checkpointer can serialise them;
+the pydantic models in models.py type them at the edges.
+"""
+
 from __future__ import annotations
+
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol, TypedDict
+
 from floodsense_agents.models import Evidence, TraceEvent
 from floodsense_agents.nightshift import LLM
 from floodsense_agents.zetaris import Zetaris, now_utc
 
 
 class Memory(Protocol):
-    """Ayush's H-MEM / World Model door (FF_HMEM). recall() feeds the Investigator; store() runs on approval only."""
+    """Memory behind FF_HMEM. recall() feeds the Investigator; store() runs on approval only."""
     def recall(self, request: dict[str, Any]) -> list[dict[str, Any]]: ...
     def store(self, run_id: str, request: dict[str, Any], claims: list[dict[str, Any]], approval: dict[str, Any]) -> None: ...
 

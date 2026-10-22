@@ -1,15 +1,24 @@
-"""Evaluation runner (gameplan §11). Headline number: the hallucination rate, the share of claims their own citations do not
-support, as scored by the Judge. Also citation coverage, numeric accuracy, Judge pass rate, Skeptic rejections, expected
-tokens hit and forbidden figures found.
+"""Evaluation runner.
+
+The headline number is the hallucination rate: the share of claims their own
+citations do not support, as scored by the Judge. Also reports citation
+coverage, numeric accuracy, Judge pass rate, Skeptic rejections, and which
+expected and forbidden tokens were found.
 
     python evals/run_evals.py                          # both events, current env (fakes when no credentials)
     python evals/run_evals.py --event EMSR773 --strict --out reports/evals.md
 
-Targets (proposal, gameplan §11): hallucination <= 5 %, citation coverage 100 %, numeric accuracy 100 %.
---strict exits 1 when a target is missed, for CI. Owners: Saleeta and Urvashi (items), Zain and Mihir (metrics).
+Targets (proposal): hallucination <= 5 %, citation coverage 100 %, numeric
+accuracy 100 %.
+--strict exits 1 when a target is missed, for CI.
 """
 from __future__ import annotations
-import argparse, json, os, re, sys, time
+import argparse
+import json
+import os
+import re
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

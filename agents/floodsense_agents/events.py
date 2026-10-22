@@ -1,6 +1,10 @@
-"""The two reference events and their replay windows, keyed by Copernicus EMS activation id (the contract's event_id).
-Owner of the facts: Saleeta / Urvashi; this file only fixes the window the Watchers query and the point ids involved."""
+"""The two reference events, keyed by Copernicus EMS activation id.
+
+Fixes the replay window the Watchers query and the point ids involved.
+"""
+
 from __future__ import annotations
+
 from dataclasses import asdict, dataclass
 
 

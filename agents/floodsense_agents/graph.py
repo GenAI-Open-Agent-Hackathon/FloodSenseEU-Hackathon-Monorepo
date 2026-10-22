@@ -10,11 +10,13 @@ FF_SKEPTIC=false skips the Skeptic, FF_JUDGE=false skips the Judge, FF_HITL=fals
     out["__interrupt__"][0].value            # the approval payload; the run is paused
     graph.invoke(Command(resume={"action": "approve"}), config)
 
-Owners: Zain (graph, HITL, Judge with Mihir), Ayush (Nightshift, memory, World Model). Agents read data through Zetaris only.
+Agents read data through Zetaris only.
 """
 from __future__ import annotations
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+
 from floodsense_agents import hitl as hitl_mod
 from floodsense_agents.nightshift import build_llm
 from floodsense_agents.nodes import exposure, investigator, judge, playbook, skeptic, watchers

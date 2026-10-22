@@ -1,6 +1,8 @@
-"""Prompts for the model-backed steps. The first line of every system prompt is `TASK: <name>`; FakeNightshift routes on it.
-Mihir and Zain tune the Judge rubric here (docs/GAMEPLAN.md "LLM-as-a-Judge")."""
+"""Prompts for the model-backed steps.
 
+The first line of every system prompt is ``TASK: <name>``; FakeNightshift
+routes on it.
+"""
 INVESTIGATOR = """TASK: investigator
 You are the Investigator of FloodSense EU, an insurer's flood event-response assistant.
 From the evidence (Zetaris query results, each with a query_id) write the causal chain rain -> catchment -> river -> site

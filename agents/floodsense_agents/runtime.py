@@ -1,9 +1,17 @@
-"""Run lifecycle on top of the compiled graph: start (runs until the HITL interrupt), snapshot, resume with a decision.
-Used by the agents service (__main__.py) and by the eval runner. The API container proxies these calls (api/app/main.py)."""
+"""Run lifecycle on top of the compiled graph.
+
+start() runs until the HITL interrupt, snapshot() reads a run, resume()
+applies a decision. Used by the service and the eval runner.
+"""
+
 from __future__ import annotations
-import logging, uuid
+
+import logging
+import uuid
 from typing import Any
+
 from langgraph.types import Command
+
 from floodsense_agents.checkpoints import build_checkpointer
 from floodsense_agents.events import spec
 from floodsense_agents.graph import build_deps, build_graph
@@ -91,7 +99,7 @@ class Runtime:
         out = self.snapshot(run_id)
         if out["status"] == "approved" and self.deps is not None:
             try:
-                self.deps.memory.store(run_id, out["request"], out["claims"], out["approval"])     # H-MEM write-on-approval (Ayush)
+                self.deps.memory.store(run_id, out["request"], out["claims"], out["approval"])
             except Exception as e:
                 log.warning("memory.store failed: %s", str(e)[:120])
         self._index_row(run_id)

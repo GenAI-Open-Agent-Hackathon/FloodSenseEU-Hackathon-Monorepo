@@ -1,9 +1,18 @@
-"""Checkpointer for pause / review / resume. SQLite under CHECKPOINT_DIR (the compose volume /data/checkpoints), so a
-paused run survives a restart of the agents container. Memory fallback when the directory cannot be created or
-CHECKPOINTER=memory (tests); the trace says so because a paused run then dies with the process."""
+"""Checkpointer for pause / review / resume.
+
+SQLite under CHECKPOINT_DIR, so a paused run survives a restart. Falls back
+to memory when the directory is unwritable or CHECKPOINTER=memory, in which
+case a paused run dies with the process.
+"""
+
 from __future__ import annotations
-import logging, os, sqlite3
+
+import logging
+import os
+import sqlite3
+
 from langgraph.checkpoint.memory import MemorySaver
+
 from floodsense_agents.settings import settings
 
 log = logging.getLogger("floodsense.checkpoints")

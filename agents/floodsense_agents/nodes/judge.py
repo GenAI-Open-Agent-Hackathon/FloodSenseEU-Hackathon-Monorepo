@@ -1,6 +1,7 @@
-"""LLM-as-a-Judge (docs/GAMEPLAN.md). Runs after the Playbook and before the human. Scores each claim; approves nothing,
-deletes nothing, rewrites nothing. Flagged claims may get one repair round back to the Playbook; the human sees the
-scores and remains the final judge.
+"""LLM-as-a-Judge. Scores each claim between the Playbook and the human.
+
+It approves, deletes and rewrites nothing. Flagged claims may get one repair
+round back to the Playbook; the human sees the scores either way.
 
 Per claim:
   coverage           >= 1 citation                                   deterministic
@@ -13,10 +14,14 @@ Per claim:
 
 State: judge[] = one JudgeScore per claim (contract); judge_summary = overall, hallucination_rate (unsupported / n),
 citation_coverage, numeric_accuracy, passes, flagged ids, model_id (extra).
-Owners: Zain and Mihir.
 """
 from __future__ import annotations
-import hashlib, logging, math, time
+
+import hashlib
+import logging
+import math
+import time
+
 from floodsense_agents.models import Claim, Evidence, JudgeScore, JudgeSummary
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.prompts import JUDGE, rows_block

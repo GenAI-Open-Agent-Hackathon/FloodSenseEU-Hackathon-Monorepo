@@ -1,17 +1,21 @@
-"""Human-in-the-loop. Owner: Zain. Tests with Mihir.
+"""Human-in-the-loop approval gate.
 
-The `hitl` node pauses the run with LangGraph `interrupt()`. The checkpointer (checkpoints.py: SQLite under
-/data/checkpoints, memory fallback) persists the whole state, so the pause survives a restart of the agents process.
-`POST /runs/{id}/approval` resumes it with an ApprovalDecision: approve, edit (the analyst's text replaces our summary),
-or reject (nothing outbound is released). The human sees the Judge scores and is the final judge.
+The ``hitl`` node pauses the run with LangGraph ``interrupt()``. The
+checkpointer persists the whole state, so the pause survives a restart.
+``POST /runs/{id}/approval`` resumes it with an ApprovalDecision: approve,
+edit (the reviewer's text replaces the summary), or reject.
 
-No outbound action without a human decision: PlaybookAction.released stays False until approve / edit. With FF_HITL=false
-the node auto-approves and records `approval.status = "auto"` (dev only; never in the demo). The decision lands in
-`approval{status, decision, edits, reviewer_note}` (contract) and in the trace, so the run carries its own audit log.
+No outbound action is released without a decision: PlaybookAction.released
+stays False until approve or edit. FF_HITL=false auto-approves and records
+``approval.status = "auto"`` for local development.
 """
+
 from __future__ import annotations
+
 from typing import Any
+
 from langgraph.types import interrupt
+
 from floodsense_agents.models import Approval, ApprovalDecision
 from floodsense_agents.settings import settings
 from floodsense_agents.state import FloodState, trace

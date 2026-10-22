@@ -1,15 +1,19 @@
-"""Playbook (deep lane). Actions for the next 6 / 24 / 72 hours that cite the claims they rest on. Outbound actions
-(anything that contacts a person or an authority) are marked and wait for the human. The deterministic path writes a
-standard set from the exposure; the model, when available, writes richer ones and is validated against the claim ids.
+"""Playbook. Actions for the next 6 / 24 / 72 hours, citing the claims they rest on.
 
-Repair: when the Judge flags claims (one round, gameplan §9), the Playbook as author rewrites or shortens those claims to
-what their evidence shows; the model does it when available, the deterministic path shortens the text to the evidence
-it cites and keeps the claim visible as repaired. Nothing is silently deleted.
+Outbound actions (anything that contacts a person or an authority) are marked
+and wait for the human. The deterministic path writes a standard set from the
+exposure; the model, when available, writes richer ones and is validated
+against the claim ids.
 
-Owner: Ayush and Zain (v0.6.0); repair edge with Mihir (v0.10.0).
+It also owns the repair round: when the Judge flags a claim, the Playbook
+rewrites or shortens it to what its evidence shows. Nothing is deleted.
 """
+
 from __future__ import annotations
-import logging, time
+
+import logging
+import time
+
 from floodsense_agents.models import Claim, Evidence, PlaybookAction
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.investigator import numbers_in

@@ -1,9 +1,12 @@
 """FloodSense EU API.
 
-The UI and the demo call this service (host port 18000). It owns the public contract (gameplan v2 §5.5) and proxies the
-run lifecycle to the agents service at AGENTS_URL (http://agents:8100 in compose, http://127.0.0.1:8100 on the host).
-Cache, `served_from: cache | replay`, past-run replay and rate limits are later increments (Ayush, Mihir) and slot in
-here, in front of the proxy; the agents always answer `served_from: live`.
+The UI and the demo call this service on host port 18000. It owns the public
+contract (docs/GAMEPLAN.md §5.5) and proxies the run lifecycle to the agents
+service at AGENTS_URL: http://agents:8100 under Compose, 127.0.0.1:8100 on the
+host.
+
+Cache, replay and rate limits are later increments and slot in here, in front
+of the proxy. The agents themselves always answer served_from: live.
 
 GET  /health                      this service
 GET  /config                      flags and lanes, from the agents

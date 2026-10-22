@@ -1,5 +1,7 @@
-"""Contracts shared by the agents, the API, the Judge, memory and the UI. Shapes follow gameplan v2 §5.5 (Day-1 shared
-contracts) field for field; anything beyond the contract is marked "extra" and is safe for the UI to ignore.
+"""Contracts shared by the agents, the API, the Judge and the UI.
+
+Shapes follow docs/GAMEPLAN.md §5.5 field for field. Anything beyond the
+contract is marked "extra" and the UI may ignore it.
 
 Evidence (layer a)  {query_id, view, sql, rows_sample[<=20], row_count, executed_at_utc}
 Citation record     {citation_id, claim_id, layer a|b|c, source_url, title, publisher, accessed_at, licence, attribution,
@@ -8,10 +10,13 @@ Judge score         {claim_id, grounding supported|partial|unsupported, citation
 Agent state         run_id, thread_id, event_id, customer_id, replay_ts, anomalies[], hypotheses[{id, link, status, evidence[],
                      citations[], rounds}], exposure{}, playbook[], judge[], approval{status, decision, edits, reviewer_note}, trace[]
 Trace event         {run_id, seq, ts, node, lane, model_id, latency_ms, tokens, summary, evidence_ids[]}
-Column names of the Zetaris views are the kickoff proposal until Urvashi and Saleeta confirm them (zetaris.py).
+
+The Zetaris view column names are still a proposal; see zetaris.py.
 """
 from __future__ import annotations
+
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 Layer = Literal["a", "b", "c"]

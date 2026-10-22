@@ -1,11 +1,15 @@
-"""Exposure. Deterministic SQL only: which policies and sites sit inside the mapped flood footprint (exposure_join,
-in_footprint = 1), the sum insured, and the split by segment. Adds the site -> exposure hypothesis with number claims the
-Judge can check exactly. The contract view has no customer column yet; customer_id is carried in the state for the UI.
+"""Exposure. Deterministic SQL only.
 
-Owner: Ayush and Zain (v0.6.0).
+Which policies and sites sit inside the mapped flood footprint, the sum
+insured, and the split by segment. Adds the site exposure hypothesis with
+number claims the Judge can check exactly.
 """
+
 from __future__ import annotations
-import re, time
+
+import re
+import time
+
 from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings

@@ -1,11 +1,14 @@
-"""Watchers (fast lane). Deterministic SQL over hazard_timeline inside the event window, cut at replay_ts, so the
-Investigator starts from anomalies that each carry a query_id. No model call: the fast lane is reserved for an optional
-one-line "why" later. Also loads the provenance view once (layer b citations).
+"""Watchers. Deterministic SQL over hazard_timeline.
 
-Owner: Zain, with Ayush (Nightshift).
+Scans the event window, cut at replay_ts, so the Investigator starts from
+anomalies that each carry a query_id. Also loads the provenance view once
+for layer (b) citations. No model call.
 """
+
 from __future__ import annotations
+
 import time
+
 from floodsense_agents.models import Anomaly
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace

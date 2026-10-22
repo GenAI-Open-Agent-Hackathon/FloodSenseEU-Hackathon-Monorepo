@@ -1,13 +1,16 @@
-"""Zetaris is the only data path for agents. `run_sql(sql) -> Evidence` is the single call every node uses; the Evidence
-it returns is the layer (a) citation (query_id, view, sql, rows_sample, row_count, executed_at_utc).
+"""Zetaris is the only data path for agents.
 
-Live:  POST {ZETARIS_REST_URL}/sql-editor/sqls/run with Authorization: Bearer <API key>, X-Org-ID, fresh X-Request-ID
-       (the only documented call, zetaris/README.md). SELECT / WITH only; nothing else leaves this module.
-Fake:  the same views as in-memory SQLite (`FakeZetaris`) so the graph, the tests and the UI run before the live views
-       exist and on laptops without Zetaris. Rows below are SEED DATA: approximate figures from public reporting on
-       Valencia 2024 and Ahr 2021 plus a synthetic insurer portfolio. Urvashi's migrations replace them.
+`run_sql(sql) -> Evidence` is the single call every node uses, and the Evidence
+it returns is the layer (a) citation.
 
-Views, exactly as in the Day-1 contract (gameplan v2 §5.5, views.yaml); schema floodsense_seed.* or floodsense.* via FF_LIVE_DATA:
+Live  POST {ZETARIS_REST_URL}/sql-editor/sqls/run, the only documented call
+      (zetaris/README.md). SELECT and WITH only; nothing else leaves here.
+Fake  the same views as in-memory SQLite, so the graph, the tests and the UI
+      run without Zetaris. The rows below are SEED DATA: approximate figures
+      from public reporting plus a synthetic portfolio, pending real migrations.
+
+Views, as in the contract; schema floodsense_seed.* or floodsense.* via
+FF_LIVE_DATA:
   hazard_timeline(point_id, ts_utc, rain_mm, discharge_m3s, warning_level)
   discharge_daily(point_id, date, discharge_m3s, source)
   exposure_join(policy_id, site_id, lat, lon, in_footprint, sum_insured_eur, segment)
@@ -15,10 +18,17 @@ Views, exactly as in the Day-1 contract (gameplan v2 §5.5, views.yaml); schema 
 The nodes use nothing else, so switching to the live views is FF_LIVE_DATA plus credentials.
 """
 from __future__ import annotations
-import logging, re, sqlite3, threading, uuid
+
+import logging
+import re
+import sqlite3
+import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Protocol
+
 import httpx
+
 from floodsense_agents.models import Evidence
 from floodsense_agents.settings import settings
 
@@ -86,9 +96,8 @@ class ZetarisClient:
         return js if isinstance(js, list) else []
 
 
-# ---------------------------------------------------------------------------------------------------------------------
-# Fake Zetaris: the contract views in SQLite. ATTACH gives `floodsense_seed.<view>` names so the nodes' SQL is identical.
-# ---------------------------------------------------------------------------------------------------------------------
+# Fake Zetaris: the contract views in SQLite. ATTACH gives the
+# floodsense_seed.<view> names, so the nodes' SQL is identical.
 _DDL = """
 CREATE TABLE {s}.hazard_timeline(point_id TEXT, ts_utc TEXT, rain_mm REAL, discharge_m3s REAL, warning_level TEXT);
 CREATE TABLE {s}.discharge_daily(point_id TEXT, date TEXT, discharge_m3s REAL, source TEXT);

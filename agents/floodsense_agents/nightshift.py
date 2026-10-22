@@ -1,15 +1,22 @@
-"""The one Nightshift client. Owner: Ayush. This version is the minimum the graph needs so the nodes could be written
-against a stable interface; Ayush's client replaces or extends it as long as `LLM.complete` keeps its shape.
+"""Nightshift client. Every model call goes through here.
 
-complete(lane, system, user, *, json=True) -> (text, model_id)       lane: "fast" | "deep"  (pinned Nemotron lanes)
-Headers on every call: Authorization: Bearer <METERLESS_RUNTIME_TOKEN>, meterless-app, meterless-scope: user.
-The model id is returned so every trace line and Judge score records it. No `meterless/auto` in the demo.
-`FakeNightshift` answers offline with deterministic JSON so tests, CI and the UI run without credits.
+    complete(lane, system, user, *, json=True) -> (text, model_id)
+
+``lane`` is "fast" or "deep" and picks a pinned Nemotron model. The model id
+comes back so the trace and the Judge scores can record it. FakeNightshift
+answers offline with deterministic JSON, so tests and the UI need no credits.
 """
+
 from __future__ import annotations
-import json, logging, re, time
+
+import json
+import logging
+import re
+import time
 from typing import Callable, Protocol
+
 import httpx
+
 from floodsense_agents.settings import settings
 
 log = logging.getLogger("floodsense.nightshift")

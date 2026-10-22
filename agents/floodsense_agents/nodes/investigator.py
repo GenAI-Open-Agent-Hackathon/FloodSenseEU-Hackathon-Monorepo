@@ -1,18 +1,20 @@
-"""Investigator (deep lane). Turns the anomalies into a cited causal chain rain -> catchment -> river -> site as
-hypotheses (one per link) backed by claims.
+"""Investigator. Builds the cited causal chain rain -> catchment -> river -> site.
 
-Every claim carries a layer (a) citation (the Zetaris query_id) and, when the provenance view knows the dataset, layer (b)
-citations (publisher, licence, attribution). The deterministic path builds the chain from aggregate queries over the
-contract views, so the graph runs without a model; the deep Nemotron lane, when available, writes the claims and the
-summary from the same evidence and is validated against it (unknown query_ids are dropped; numbers are checked by the Judge).
+One hypothesis per link, backed by claims. Every claim carries a layer (a)
+citation (the Zetaris query_id) and, where the provenance view knows the
+dataset, layer (b) citations.
 
-On the revise edge from the Skeptic, hypotheses marked not_supported are removed with their claims: the Investigator is
-the author of the chain, so it may change it. The Judge never does.
-
-Owner: Zain, with Ayush on the Nightshift client.
+The deterministic path builds the chain from aggregate queries, so the graph
+runs without a model. The deep lane, when available, writes the claims and
+summary from the same evidence; unknown query_ids are dropped.
 """
+
 from __future__ import annotations
-import logging, re, time
+
+import logging
+import re
+import time
+
 from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import window

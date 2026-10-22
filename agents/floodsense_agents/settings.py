@@ -1,6 +1,10 @@
-"""Runtime settings for the agents, read from the environment (agents/.env in Compose). Names match agents/.env.example
-and docs/GAMEPLAN.md. No secrets live here; the NVIDIA provider key is never an application variable."""
+"""Runtime settings, read from the environment (agents/.env under Compose).
+
+Names match agents/.env.example. No secrets are stored here.
+"""
+
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 
