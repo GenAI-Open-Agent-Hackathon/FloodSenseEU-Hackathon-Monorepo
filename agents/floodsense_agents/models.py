@@ -13,6 +13,7 @@ Trace event         {run_id, seq, ts, node, lane, model_id, latency_ms, tokens, 
 
 The Zetaris view column names are still a proposal; see zetaris.py.
 """
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -30,8 +31,8 @@ class Evidence(BaseModel):
     rows_sample: list[dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0
     executed_at_utc: str
-    source: str = "zetaris"              # extra: zetaris | zetaris-fake
-    error: str | None = None             # extra: a failed query is still evidence of a failed query
+    source: str = "zetaris"  # extra: zetaris | zetaris-fake
+    error: str | None = None  # extra: a failed query is still evidence of a failed query
 
 
 class Locator(BaseModel):
@@ -62,21 +63,27 @@ class Claim(BaseModel):
     claim_id: str
     text: str
     kind: Literal["fact", "number", "cause", "action"] = "fact"
-    numbers: list[float] = Field(default_factory=list)      # numbers stated in the text; the Judge checks each against the cited rows
+    numbers: list[float] = Field(
+        default_factory=list
+    )  # numbers stated in the text; the Judge checks each against the cited rows
     citations: list[Citation] = Field(default_factory=list)
-    hypothesis_id: str | None = None                        # which causal link the claim backs
+    hypothesis_id: str | None = None  # which causal link the claim backs
 
 
 class Hypothesis(BaseModel):
-    """One link of the causal chain. `link` names the edge; the Skeptic sets `status` and `rounds`."""
-    id: str                                                  # H1..Hn
+    """One link of the causal chain.
+
+    `link` names the edge; the Skeptic sets `status` and `rounds`.
+    """
+
+    id: str  # H1..Hn
     link: Literal["rain->catchment", "catchment->river", "river->site", "site->exposure"]
     statement: str
     status: Literal["proposed", "supported", "not_supported"] = "proposed"
-    evidence: list[str] = Field(default_factory=list)        # query ids: the Skeptic's counter-checks
-    citations: list[str] = Field(default_factory=list)       # claim ids that back the link
+    evidence: list[str] = Field(default_factory=list)  # query ids: the Skeptic's counter-checks
+    citations: list[str] = Field(default_factory=list)  # claim ids that back the link
     rounds: int = 0
-    rationale: str = ""                                      # extra: Skeptic's reason
+    rationale: str = ""  # extra: Skeptic's reason
 
 
 class Anomaly(BaseModel):
@@ -112,8 +119,8 @@ class PlaybookAction(BaseModel):
     horizon_h: Literal[6, 24, 72]
     text: str
     claim_ids: list[str] = Field(default_factory=list)
-    outbound: bool = False                                   # contacts a person or authority: waits for approval
-    released: bool = False                                   # set by HITL on approve / edit
+    outbound: bool = False  # contacts a person or authority: waits for approval
+    released: bool = False  # set by HITL on approve / edit
 
 
 class JudgeScore(BaseModel):
@@ -124,12 +131,13 @@ class JudgeScore(BaseModel):
     score: float
     rationale: str
     model_id: str
-    coverage: bool = True                                    # extra
-    licence_ok: bool = True                                  # extra
+    coverage: bool = True  # extra
+    licence_ok: bool = True  # extra
 
 
 class JudgeSummary(BaseModel):
     """Extra: run-level metrics next to the per-claim scores (contract: judge[] + overall)."""
+
     overall: float
     n_claims: int
     hallucination_rate: float
@@ -141,17 +149,19 @@ class JudgeSummary(BaseModel):
 
 
 class Approval(BaseModel):
-    status: Literal["not_reached", "awaiting", "approved", "edited", "rejected", "auto"] = "not_reached"
+    status: Literal["not_reached", "awaiting", "approved", "edited", "rejected", "auto"] = (
+        "not_reached"
+    )
     decision: Literal["approve", "edit", "reject"] | None = None
     edits: str | None = None
     reviewer_note: str | None = None
-    reviewer: str | None = None                              # extra
-    decided_at_utc: str | None = None                        # extra
+    reviewer: str | None = None  # extra
+    decided_at_utc: str | None = None  # extra
 
 
 class ApprovalDecision(BaseModel):
     action: Literal["approve", "edit", "reject"]
-    edits: str | None = None                                 # the analyst's summary replaces ours on edit
+    edits: str | None = None  # the analyst's summary replaces ours on edit
     reviewer_note: str | None = None
     reviewer: str | None = None
 
@@ -161,7 +171,7 @@ class TraceEvent(BaseModel):
     seq: int
     ts: str
     node: str
-    lane: str | None = None                                  # fast | deep | sql | none
+    lane: str | None = None  # fast | deep | sql | none
     model_id: str | None = None
     latency_ms: int | None = None
     tokens: int | None = None
@@ -171,8 +181,10 @@ class TraceEvent(BaseModel):
 
 class RunRequest(BaseModel):
     question: str
-    event_id: str = "EMSR773"                                # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
+    event_id: str = "EMSR773"  # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
     customer_id: str = "demo-insurer"
-    replay_ts: str | None = None                             # "now" of the replay, e.g. 2024-10-29T16:00:00Z; null = whole window
+    replay_ts: str | None = (
+        None  # "now" of the replay, e.g. 2024-10-29T16:00:00Z; null = whole window
+    )
     lang: str = "en"
     reviewer: str | None = None

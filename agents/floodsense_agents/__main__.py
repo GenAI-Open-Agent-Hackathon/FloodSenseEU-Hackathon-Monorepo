@@ -15,6 +15,7 @@ GET  /runs/{id}/events             SSE: TraceEvent json per `trace` event as the
 
     python -m floodsense_agents            # host: http://127.0.0.1:8100
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,18 +57,39 @@ def _live(body: dict) -> dict:
 @app.get("/health")
 def health():
     rt = runtime()
-    return _live({"status": "ok", "service": "floodsense-agents", "graph": "compiled", "version": __version__,
-                  "llm": type(getattr(rt.deps, "llm", None)).__name__ if rt.deps else "injected",
-                  "zetaris": type(getattr(rt.deps, "zetaris", None)).__name__ if rt.deps else "injected"})
+    return _live(
+        {
+            "status": "ok",
+            "service": "floodsense-agents",
+            "graph": "compiled",
+            "version": __version__,
+            "llm": type(getattr(rt.deps, "llm", None)).__name__ if rt.deps else "injected",
+            "zetaris": type(getattr(rt.deps, "zetaris", None)).__name__ if rt.deps else "injected",
+        }
+    )
 
 
 @app.get("/config")
 def config():
-    return _live({"flags": {"FF_LIVE_DATA": settings.live_data, "FF_SKEPTIC": settings.ff_skeptic, "FF_JUDGE": settings.ff_judge, "FF_HITL": settings.ff_hitl,
-                            "FF_HMEM": settings.ff_hmem, "FF_RAG_DOCS": settings.ff_rag_docs},
-                  "lanes": {"fast": settings.model_fast, "deep": settings.model_deep}, "schema": settings.schema,
-                  "checkpointer": settings.checkpointer, "skeptic_max_rounds": settings.skeptic_max_rounds, "judge_repair_rounds": settings.judge_repair_rounds,
-                  "judge_min_score": settings.judge_min_score, "events": ["EMSR773", "EMSR517"]})
+    return _live(
+        {
+            "flags": {
+                "FF_LIVE_DATA": settings.live_data,
+                "FF_SKEPTIC": settings.ff_skeptic,
+                "FF_JUDGE": settings.ff_judge,
+                "FF_HITL": settings.ff_hitl,
+                "FF_HMEM": settings.ff_hmem,
+                "FF_RAG_DOCS": settings.ff_rag_docs,
+            },
+            "lanes": {"fast": settings.model_fast, "deep": settings.model_deep},
+            "schema": settings.schema,
+            "checkpointer": settings.checkpointer,
+            "skeptic_max_rounds": settings.skeptic_max_rounds,
+            "judge_repair_rounds": settings.judge_repair_rounds,
+            "judge_min_score": settings.judge_min_score,
+            "events": ["EMSR773", "EMSR517"],
+        }
+    )
 
 
 @app.post("/runs", status_code=201)
@@ -137,14 +159,22 @@ async def events(run_id: str):
                 yield f"event: trace\ndata: {json.dumps(ev)}\n\n"
             sent = len(s["trace"])
             if s["status"] != "running":
-                yield f"event: status\ndata: {json.dumps({'run_id': run_id, 'status': s['status'], 'served_from': s['served_from'], 'cached_at': s['cached_at']})}\n\n"
+                done = {
+                    "run_id": run_id,
+                    "status": s["status"],
+                    "served_from": s["served_from"],
+                    "cached_at": s["cached_at"],
+                }
+                yield f"event: status\ndata: {json.dumps(done)}\n\n"
                 return
             await asyncio.sleep(0.5)
+
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 def main() -> None:
     import uvicorn
+
     uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
 
 

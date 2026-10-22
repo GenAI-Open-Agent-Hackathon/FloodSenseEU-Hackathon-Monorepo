@@ -1,5 +1,9 @@
-"""API proxies the run lifecycle to the agents service. The agents app is mounted in-process through httpx's transport,
-so this test needs no network and no second process."""
+"""API proxies the run lifecycle to the agents service.
+
+The agents app is mounted in-process through httpx's transport, so this needs
+no network and no second process.
+"""
+
 from __future__ import annotations
 
 import os
@@ -22,7 +26,9 @@ from app import main as api  # noqa: E402
 
 try:
     from floodsense_agents import __main__ as agents_service  # noqa: E402
-except ImportError:  # the agents requirements are not installed here; the health test still covers the API
+except (
+    ImportError
+):  # the agents requirements are not installed here; the health test still covers the API
     agents_service = None
 
 
@@ -37,10 +43,14 @@ class ProxyTest(unittest.TestCase):
         from floodsense_agents.zetaris import FakeZetaris
 
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
-        agents_service.set_runtime(Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps))
+        agents_service.set_runtime(
+            Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps)
+        )
         inner = TestClient(agents_service.app)
 
-        def fake_request(method, url, **kw):      # route the proxy's outbound calls into the in-process agents app
+        def fake_request(
+            method, url, **kw
+        ):  # route the proxy's outbound calls into the in-process agents app
             path = url.replace(api.AGENTS_URL, "")
             return inner.request(method, path, json=kw.get("json"), params=kw.get("params"))
 
@@ -50,14 +60,18 @@ class ProxyTest(unittest.TestCase):
         self.c = TestClient(api.app)
 
     def test_start_approve_through_the_api(self) -> None:
-        r = self.c.post("/runs", json={"question": "Which sites are exposed?", "event_id": "EMSR773"})
+        r = self.c.post(
+            "/runs", json={"question": "Which sites are exposed?", "event_id": "EMSR773"}
+        )
         self.assertEqual(r.status_code, 201)
         run = r.json()
         self.assertEqual(run["status"], "awaiting_approval")
         self.assertEqual(run["served_from"], "live")
         rid = run["run_id"]
         self.assertEqual(self.c.get(f"/runs/{rid}/approval").status_code, 200)
-        done = self.c.post(f"/runs/{rid}/approval", json={"action": "approve", "reviewer": "zain"}).json()
+        done = self.c.post(
+            f"/runs/{rid}/approval", json={"action": "approve", "reviewer": "zain"}
+        ).json()
         self.assertEqual(done["status"], "approved")
         self.assertEqual(self.c.get(f"/runs/{rid}/citations").status_code, 200)
         self.assertEqual(self.c.get("/runs/past").json()["runs"][0]["run_id"], rid)

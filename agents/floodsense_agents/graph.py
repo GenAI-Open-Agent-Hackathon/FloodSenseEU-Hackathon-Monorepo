@@ -12,6 +12,7 @@ FF_SKEPTIC=false skips the Skeptic, FF_JUDGE=false skips the Judge, FF_HITL=fals
 
 Agents read data through Zetaris only.
 """
+
 from __future__ import annotations
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -24,14 +25,28 @@ from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, NoMemory
 from floodsense_agents.zetaris import build_zetaris
 
-PLANNED_NODES: tuple[str, ...] = ("watchers", "investigator", "skeptic", "exposure", "playbook", "judge", "hitl")
+PLANNED_NODES: tuple[str, ...] = (
+    "watchers",
+    "investigator",
+    "skeptic",
+    "exposure",
+    "playbook",
+    "judge",
+    "hitl",
+)
 
 
 def build_deps() -> Deps:
     return Deps(zetaris=build_zetaris(), llm=build_llm(), memory=NoMemory())
 
 
-def build_graph(deps: Deps | None = None, checkpointer=None, *, ff_skeptic: bool | None = None, ff_judge: bool | None = None):
+def build_graph(
+    deps: Deps | None = None,
+    checkpointer=None,
+    *,
+    ff_skeptic: bool | None = None,
+    ff_judge: bool | None = None,
+):
     deps = deps or build_deps()
     use_skeptic = settings.ff_skeptic if ff_skeptic is None else ff_skeptic
     use_judge = settings.ff_judge if ff_judge is None else ff_judge
@@ -49,7 +64,9 @@ def build_graph(deps: Deps | None = None, checkpointer=None, *, ff_skeptic: bool
         g.add_node("skeptic", skeptic.make(deps))
         g.add_node("revise", skeptic.bump_revise)
         g.add_edge("investigator", "skeptic")
-        g.add_conditional_edges("skeptic", skeptic.route_after_skeptic, {"revise": "revise", "exposure": "exposure"})
+        g.add_conditional_edges(
+            "skeptic", skeptic.route_after_skeptic, {"revise": "revise", "exposure": "exposure"}
+        )
         g.add_edge("revise", "investigator")
     else:
         g.add_edge("investigator", "exposure")
@@ -58,7 +75,9 @@ def build_graph(deps: Deps | None = None, checkpointer=None, *, ff_skeptic: bool
     if use_judge:
         g.add_node("judge", judge.make(deps))
         g.add_edge("playbook", "judge")
-        g.add_conditional_edges("judge", judge.route_after_judge, {"repair": "playbook", "hitl": "hitl"})
+        g.add_conditional_edges(
+            "judge", judge.route_after_judge, {"repair": "playbook", "hitl": "hitl"}
+        )
     else:
         g.add_edge("playbook", "hitl")
     g.add_edge("hitl", END)

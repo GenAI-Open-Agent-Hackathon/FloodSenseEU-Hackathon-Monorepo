@@ -3,6 +3,7 @@
 The first line of every system prompt is ``TASK: <name>``; FakeNightshift
 routes on it.
 """
+
 INVESTIGATOR = """TASK: investigator
 You are the Investigator of FloodSense EU, an insurer's flood event-response assistant.
 From the evidence (Zetaris query results, each with a query_id) write the causal chain rain -> catchment -> river -> site
@@ -45,7 +46,9 @@ Reply with ONE JSON object: {"claims": [{"claim_id": "C3", "text": "...", "numbe
 def rows_block(evidence_list, max_rows: int = 8) -> str:
     parts = []
     for e in evidence_list:
-        head = f"query_id={e.query_id} view={e.view} rows={e.row_count}" + (f" ERROR={e.error}" if e.error else "")
+        head = f"query_id={e.query_id} view={e.view} rows={e.row_count}" + (
+            f" ERROR={e.error}" if e.error else ""
+        )
         body = "\n".join(str(r) for r in e.rows_sample[:max_rows])
         parts.append(f"{head}\nSQL: {e.sql.strip()}\n{body}")
     return "\n\n".join(parts) or "(no evidence)"

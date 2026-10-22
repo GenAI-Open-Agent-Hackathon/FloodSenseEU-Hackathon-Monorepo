@@ -1,4 +1,5 @@
 """Graph, Skeptic and revise edge on the fake Zetaris and the fake Nightshift. No network."""
+
 from __future__ import annotations
 
 import json
@@ -27,25 +28,88 @@ def deps(llm=None) -> Deps:
     return Deps(zetaris=FakeZetaris(), llm=llm or FakeNightshift(), memory=NoMemory())
 
 
-def start(graph, rid="t1", event_id="EMSR773", question="Why are our Valencia sites at risk?", replay_ts=None):
+def start(
+    graph,
+    rid="t1",
+    event_id="EMSR773",
+    question="Why are our Valencia sites at risk?",
+    replay_ts=None,
+):
     cfg = {"configurable": {"thread_id": rid}}
     ev = spec(event_id)
-    req = {"question": question, "event_id": ev.event_id, "customer_id": "demo-insurer", "replay_ts": replay_ts, "lang": "en", "reviewer": None}
-    out = graph.invoke({"run_id": rid, "thread_id": rid, "event_id": ev.event_id, "customer_id": "demo-insurer", "replay_ts": replay_ts, "request": req,
-                        "event": ev.as_dict(), "served_from": "live", "cached_at": None, "trace": [], "revise_rounds": 0, "repair_rounds": 0, "model_ids": []}, cfg)
+    req = {
+        "question": question,
+        "event_id": ev.event_id,
+        "customer_id": "demo-insurer",
+        "replay_ts": replay_ts,
+        "lang": "en",
+        "reviewer": None,
+    }
+    out = graph.invoke(
+        {
+            "run_id": rid,
+            "thread_id": rid,
+            "event_id": ev.event_id,
+            "customer_id": "demo-insurer",
+            "replay_ts": replay_ts,
+            "request": req,
+            "event": ev.as_dict(),
+            "served_from": "live",
+            "cached_at": None,
+            "trace": [],
+            "revise_rounds": 0,
+            "repair_rounds": 0,
+            "model_ids": [],
+        },
+        cfg,
+    )
     return out, cfg
 
 
 def planted_investigator(system, user):
-    """A model answer with one real claim and one planted false hypothesis whose claim cites nothing with rows."""
+    """A model answer with one real claim and one planted false hypothesis.
+
+    The planted hypothesis cites a claim backed by no rows.
+    """
     blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
     rain = next(q for q, v, n in blocks if v.endswith("hazard_timeline") and int(n) > 0)
-    return json.dumps({
-        "hypotheses": [{"id": "H1", "link": "rain->catchment", "statement": "Extreme rain over the catchment", "claim_ids": ["C1"]},
-                       {"id": "H9", "link": "river->site", "statement": "The river flooded the Valencia city office", "claim_ids": ["C2"]}],
-        "claims": [{"claim_id": "C1", "text": "Point chiva recorded a peak hour of 96 mm.", "kind": "number", "numbers": [96], "query_ids": [rain], "hypothesis_id": "H1"},
-                   {"claim_id": "C2", "text": "Flood water reached the Valencia city office.", "kind": "fact", "numbers": [], "query_ids": [], "hypothesis_id": "H9"}],
-        "summary": "Rain [C1]. City office flooded [C2]."})
+    return json.dumps(
+        {
+            "hypotheses": [
+                {
+                    "id": "H1",
+                    "link": "rain->catchment",
+                    "statement": "Extreme rain over the catchment",
+                    "claim_ids": ["C1"],
+                },
+                {
+                    "id": "H9",
+                    "link": "river->site",
+                    "statement": "The river flooded the Valencia city office",
+                    "claim_ids": ["C2"],
+                },
+            ],
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "text": "Point chiva recorded a peak hour of 96 mm.",
+                    "kind": "number",
+                    "numbers": [96],
+                    "query_ids": [rain],
+                    "hypothesis_id": "H1",
+                },
+                {
+                    "claim_id": "C2",
+                    "text": "Flood water reached the Valencia city office.",
+                    "kind": "fact",
+                    "numbers": [],
+                    "query_ids": [],
+                    "hypothesis_id": "H9",
+                },
+            ],
+            "summary": "Rain [C1]. City office flooded [C2].",
+        }
+    )
 
 
 class GraphTest(unittest.TestCase):
@@ -62,19 +126,31 @@ class GraphTest(unittest.TestCase):
         p = out["__interrupt__"][0].value
         self.assertEqual(p["run_id"], "t1")
         self.assertEqual(p["event_id"], "EMSR773")
-        self.assertEqual([h["link"] for h in p["hypotheses"]], ["rain->catchment", "catchment->river", "river->site", "site->exposure"])
+        self.assertEqual(
+            [h["link"] for h in p["hypotheses"]],
+            ["rain->catchment", "catchment->river", "river->site", "site->exposure"],
+        )
         self.assertTrue(all(h["status"] == "supported" for h in p["hypotheses"]))
         self.assertTrue(all(h["rounds"] <= 3 for h in p["hypotheses"]))
         self.assertTrue(p["claims"])
         for c in p["claims"]:
             self.assertTrue(c["citations"], f"{c['claim_id']} has no citation")
-            self.assertTrue(any(x["layer"] == "a" and x["query_id"] for x in c["citations"]), f"{c['claim_id']} has no layer (a) citation")
-        self.assertTrue(any(x["layer"] == "b" and x["licence"] for c in p["claims"] for x in c["citations"]), "layer (b) from provenance")
+            self.assertTrue(
+                any(x["layer"] == "a" and x["query_id"] for x in c["citations"]),
+                f"{c['claim_id']} has no layer (a) citation",
+            )
+        self.assertTrue(
+            any(x["layer"] == "b" and x["licence"] for c in p["claims"] for x in c["citations"]),
+            "layer (b) from provenance",
+        )
         self.assertTrue(p["judge_summary"]["passes"])
         self.assertEqual(p["judge_summary"]["citation_coverage"], 1.0)
         self.assertEqual(len(p["judge"]), len(p["claims"]))
         self.assertTrue(p["exposure"]["policies"] > 0 and p["exposure"]["sum_insured_eur"] > 0)
-        self.assertTrue(any(a["outbound"] for a in p["playbook"]) and not any(a["released"] for a in p["playbook"]))
+        self.assertTrue(
+            any(a["outbound"] for a in p["playbook"])
+            and not any(a["released"] for a in p["playbook"])
+        )
         self.assertEqual(p["served_from"], "live")
         self.assertEqual(g.get_state(cfg).next, ("hitl",))
 
@@ -84,9 +160,23 @@ class GraphTest(unittest.TestCase):
         tr = g.get_state(cfg).values["trace"]
         self.assertEqual([e["seq"] for e in tr], list(range(1, len(tr) + 1)))
         for e in tr:
-            for k in ("run_id", "seq", "ts", "node", "lane", "model_id", "latency_ms", "tokens", "summary", "evidence_ids"):
+            for k in (
+                "run_id",
+                "seq",
+                "ts",
+                "node",
+                "lane",
+                "model_id",
+                "latency_ms",
+                "tokens",
+                "summary",
+                "evidence_ids",
+            ):
                 self.assertIn(k, e)
-        self.assertEqual([e["node"] for e in tr], ["watchers", "investigator", "skeptic", "exposure", "playbook", "judge"])
+        self.assertEqual(
+            [e["node"] for e in tr],
+            ["watchers", "investigator", "skeptic", "exposure", "playbook", "judge"],
+        )
 
     def test_replay_ts_hides_the_future(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_judge=True)
@@ -94,11 +184,16 @@ class GraphTest(unittest.TestCase):
         p = out["__interrupt__"][0].value
         whens = [a["ts_utc"] for a in p["anomalies"]]
         self.assertTrue(whens and all(w <= "2024-10-29T12:00:00Z" for w in whens))
-        self.assertFalse(any("2282" in c["text"] for c in p["claims"]), "the 17:55 peak is in the future at 12:00")
+        self.assertFalse(
+            any("2282" in c["text"] for c in p["claims"]),
+            "the 17:55 peak is in the future at 12:00",
+        )
 
     def test_ahr_2021_runs_too(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_judge=True)
-        out, _ = start(g, rid="t3", event_id="ahr_2021", question="What happened on the Ahr in July 2021?")
+        out, _ = start(
+            g, rid="t3", event_id="ahr_2021", question="What happened on the Ahr in July 2021?"
+        )
         p = out["__interrupt__"][0].value
         self.assertEqual(p["event_id"], "EMSR517")
         self.assertTrue(any("altenahr" in c["text"] for c in p["claims"]))
@@ -108,11 +203,24 @@ class GraphTest(unittest.TestCase):
         g = build_graph(deps(llm), MemorySaver(), ff_judge=True)
         out, _ = start(g, rid="t4")
         p = out["__interrupt__"][0].value
-        self.assertNotIn("H9", {h["id"] for h in p["hypotheses"]}, "the planted hypothesis must be removed on the revise edge")
-        self.assertFalse(any(c.get("hypothesis_id") == "H9" or "city office" in c["text"] for c in p["claims"]))
+        self.assertNotIn(
+            "H9",
+            {h["id"] for h in p["hypotheses"]},
+            "the planted hypothesis must be removed on the revise edge",
+        )
+        self.assertFalse(
+            any(c.get("hypothesis_id") == "H9" or "city office" in c["text"] for c in p["claims"])
+        )
         skeptic_calls = [c for c in llm.calls if c[1] == "skeptic"]
-        self.assertTrue(any("H9" in c[2] and "not_supported" in c[2] for c in skeptic_calls), "first pass judged H9 not_supported")
-        self.assertEqual(len([c for c in llm.calls if c[1] == "investigator"]), 1, "the revise edge does not call the model again")
+        self.assertTrue(
+            any("H9" in c[2] and "not_supported" in c[2] for c in skeptic_calls),
+            "first pass judged H9 not_supported",
+        )
+        self.assertEqual(
+            len([c for c in llm.calls if c[1] == "investigator"]),
+            1,
+            "the revise edge does not call the model again",
+        )
 
     def test_skeptic_flag_off_skips_the_node(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_skeptic=False, ff_judge=False)
@@ -126,7 +234,9 @@ class HitlTest(unittest.TestCase):
     def test_approve_releases_outbound_actions_and_records_approval(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_judge=True)
         _, cfg = start(g, rid="h1")
-        final = g.invoke(Command(resume={"action": "approve", "reviewer": "zain", "reviewer_note": "ok"}), cfg)
+        final = g.invoke(
+            Command(resume={"action": "approve", "reviewer": "zain", "reviewer_note": "ok"}), cfg
+        )
         self.assertEqual(final["status"], "approved")
         self.assertTrue(all(a["released"] for a in final["playbook"]))
         self.assertEqual(final["approval"]["status"], "approved")
@@ -137,7 +247,10 @@ class HitlTest(unittest.TestCase):
     def test_edit_replaces_summary(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_judge=True)
         _, cfg = start(g, rid="h2")
-        final = g.invoke(Command(resume={"action": "edit", "edits": "Analyst wording.", "reviewer": "mihir"}), cfg)
+        final = g.invoke(
+            Command(resume={"action": "edit", "edits": "Analyst wording.", "reviewer": "mihir"}),
+            cfg,
+        )
         self.assertEqual(final["approval"]["status"], "edited")
         self.assertEqual(final["summary"], "Analyst wording.")
         self.assertEqual(final["approval"]["edits"], "Analyst wording.")
@@ -145,7 +258,9 @@ class HitlTest(unittest.TestCase):
     def test_reject_releases_nothing(self) -> None:
         g = build_graph(deps(), MemorySaver(), ff_judge=True)
         _, cfg = start(g, rid="h3")
-        final = g.invoke(Command(resume={"action": "reject", "reviewer_note": "wrong footprint"}), cfg)
+        final = g.invoke(
+            Command(resume={"action": "reject", "reviewer_note": "wrong footprint"}), cfg
+        )
         self.assertEqual(final["status"], "rejected")
         self.assertEqual(final["approval"]["status"], "rejected")
         self.assertFalse(any(a["released"] for a in final["playbook"]))
@@ -154,7 +269,7 @@ class HitlTest(unittest.TestCase):
         saver = MemorySaver()
         g1 = build_graph(deps(), saver, ff_judge=True)
         _, cfg = start(g1, rid="h4")
-        g2 = build_graph(deps(), saver, ff_judge=True)      # "process restart"
+        g2 = build_graph(deps(), saver, ff_judge=True)  # "process restart"
         final = g2.invoke(Command(resume={"action": "approve"}), cfg)
         self.assertEqual(final["status"], "approved")
 
@@ -162,15 +277,19 @@ class HitlTest(unittest.TestCase):
         import sqlite3
         import tempfile
         from langgraph.checkpoint.sqlite import SqliteSaver
+
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "cp.sqlite")
             c1 = sqlite3.connect(path, check_same_thread=False)
             c2 = sqlite3.connect(path, check_same_thread=False)
             try:
-                s1 = SqliteSaver(c1); s1.setup()
+                s1 = SqliteSaver(c1)
+                s1.setup()
                 _, cfg = start(build_graph(deps(), s1, ff_judge=True), rid="h5")
-                s2 = SqliteSaver(c2)                            # "process restart"
-                final = build_graph(deps(), s2, ff_judge=True).invoke(Command(resume={"action": "approve"}), cfg)
+                s2 = SqliteSaver(c2)  # "process restart"
+                final = build_graph(deps(), s2, ff_judge=True).invoke(
+                    Command(resume={"action": "approve"}), cfg
+                )
                 self.assertEqual(final["status"], "approved")
             finally:
                 # Windows will not unlink an open file, so the temp dir cannot

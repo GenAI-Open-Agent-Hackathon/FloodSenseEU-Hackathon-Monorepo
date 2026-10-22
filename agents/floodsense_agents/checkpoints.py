@@ -23,6 +23,7 @@ def build_checkpointer():
         return MemorySaver()
     try:
         from langgraph.checkpoint.sqlite import SqliteSaver
+
         os.makedirs(settings.checkpoint_dir, exist_ok=True)
         path = os.path.join(settings.checkpoint_dir, "floodsense.sqlite")
         conn = sqlite3.connect(path, check_same_thread=False)
@@ -33,5 +34,9 @@ def build_checkpointer():
     except Exception as e:
         if settings.checkpointer == "sqlite":
             raise
-        log.warning("checkpointer: sqlite unavailable (%s) -> MemorySaver; paused runs will not survive a restart", str(e)[:120])
+        log.warning(
+            "checkpointer: sqlite unavailable (%s) -> MemorySaver; paused runs will not survive a "
+            "restart",
+            str(e)[:120],
+        )
         return MemorySaver()

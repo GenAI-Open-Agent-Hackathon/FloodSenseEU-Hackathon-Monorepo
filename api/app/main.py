@@ -18,6 +18,7 @@ GET  /runs/{id}/approval          the approval payload (409 unless awaiting appr
 POST /runs/{id}/approval          {action: approve | edit | reject, edits?, reviewer_note?, reviewer?}
 GET  /runs/{id}/citations         citation records + evidence + provenance
 """
+
 from __future__ import annotations
 
 import os
@@ -28,11 +29,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 AGENTS_URL = os.environ.get("AGENTS_URL", "http://127.0.0.1:8100").rstrip("/")
-UI_ORIGINS = [o for o in os.environ.get("UI_ORIGINS", "http://localhost:15173,http://127.0.0.1:15173").split(",") if o]
-TIMEOUT = httpx.Timeout(600.0, connect=5.0)      # a run waits for the deep lane; the connect timeout stays short
+UI_ORIGINS = [
+    o
+    for o in os.environ.get("UI_ORIGINS", "http://localhost:15173,http://127.0.0.1:15173").split(
+        ","
+    )
+    if o
+]
+TIMEOUT = httpx.Timeout(
+    600.0, connect=5.0
+)  # a run waits for the deep lane; the connect timeout stays short
 
 app = FastAPI(title="FloodSense EU", version="0.4.0")
-app.add_middleware(CORSMiddleware, allow_origins=UI_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=UI_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"]
+)
 
 
 @app.get("/health")
@@ -40,12 +51,18 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "floodsense-api"}
 
 
-def _forward(method: str, path: str, body: dict | None = None, params: dict | None = None) -> Response:
+def _forward(
+    method: str, path: str, body: dict | None = None, params: dict | None = None
+) -> Response:
     try:
         r = httpx.request(method, f"{AGENTS_URL}{path}", json=body, params=params, timeout=TIMEOUT)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"agents service unreachable at {AGENTS_URL}: {type(e).__name__}")
-    return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/json"),
+    )
 
 
 @app.get("/config")
@@ -90,10 +107,11 @@ async def events(run_id: str) -> StreamingResponse:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 async with client.stream("GET", f"{AGENTS_URL}/runs/{run_id}/events") as r:
                     if r.status_code != 200:
-                        yield f"event: error\ndata: {{\"status\": {r.status_code}}}\n\n"
+                        yield f'event: error\ndata: {{"status": {r.status_code}}}\n\n'
                         return
                     async for chunk in r.aiter_text():
                         yield chunk
         except httpx.HTTPError as e:
-            yield f"event: error\ndata: {{\"error\": \"agents service unreachable: {type(e).__name__}\"}}\n\n"
+            yield f'event: error\ndata: {{"error": "agents service unreachable: {type(e).__name__}"}}\n\n'
+
     return StreamingResponse(gen(), media_type="text/event-stream")

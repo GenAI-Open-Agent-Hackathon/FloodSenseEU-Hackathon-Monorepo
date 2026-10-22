@@ -17,8 +17,15 @@ from floodsense_agents.zetaris import Zetaris, now_utc
 
 class Memory(Protocol):
     """Memory behind FF_HMEM. recall() feeds the Investigator; store() runs on approval only."""
+
     def recall(self, request: dict[str, Any]) -> list[dict[str, Any]]: ...
-    def store(self, run_id: str, request: dict[str, Any], claims: list[dict[str, Any]], approval: dict[str, Any]) -> None: ...
+    def store(
+        self,
+        run_id: str,
+        request: dict[str, Any],
+        claims: list[dict[str, Any]],
+        approval: dict[str, Any],
+    ) -> None: ...
 
 
 class NoMemory:
@@ -43,35 +50,52 @@ class FloodState(TypedDict, total=False):
     event_id: str
     customer_id: str
     replay_ts: str | None
-    anomalies: list[dict[str, Any]]          # Anomaly[]
-    hypotheses: list[dict[str, Any]]         # Hypothesis[]
-    exposure: dict[str, Any]                 # Exposure
-    playbook: list[dict[str, Any]]           # PlaybookAction[]
-    judge: list[dict[str, Any]]              # JudgeScore[]
-    approval: dict[str, Any]                 # Approval
-    trace: list[dict[str, Any]]              # TraceEvent[]
+    anomalies: list[dict[str, Any]]  # Anomaly[]
+    hypotheses: list[dict[str, Any]]  # Hypothesis[]
+    exposure: dict[str, Any]  # Exposure
+    playbook: list[dict[str, Any]]  # PlaybookAction[]
+    judge: list[dict[str, Any]]  # JudgeScore[]
+    approval: dict[str, Any]  # Approval
+    trace: list[dict[str, Any]]  # TraceEvent[]
     # extra
-    request: dict[str, Any]                  # RunRequest
-    event: dict[str, Any]                    # EventSpec
-    evidence: dict[str, dict[str, Any]]      # query_id -> Evidence
-    provenance: list[dict[str, Any]]         # rows of the provenance view (layer b)
-    claims: list[dict[str, Any]]             # Claim[]
+    request: dict[str, Any]  # RunRequest
+    event: dict[str, Any]  # EventSpec
+    evidence: dict[str, dict[str, Any]]  # query_id -> Evidence
+    provenance: list[dict[str, Any]]  # rows of the provenance view (layer b)
+    claims: list[dict[str, Any]]  # Claim[]
     summary: str
-    judge_summary: dict[str, Any]            # JudgeSummary
+    judge_summary: dict[str, Any]  # JudgeSummary
     revise_rounds: int
     repair_rounds: int
-    status: str                              # running | awaiting_approval | approved | rejected | failed
-    served_from: str                         # live | cache | replay (cache/replay are set by the API layer)
+    status: str  # running | awaiting_approval | approved | rejected | failed
+    served_from: str  # live | cache | replay (cache/replay are set by the API layer)
     cached_at: str | None
     model_ids: list[str]
     error: str
 
 
-def trace(state: FloodState, node: str, summary: str, *, lane: str | None = None, model_id: str | None = None,
-          started: float | None = None, evidence_ids: list[str] | None = None) -> list[dict[str, Any]]:
+def trace(
+    state: FloodState,
+    node: str,
+    summary: str,
+    *,
+    lane: str | None = None,
+    model_id: str | None = None,
+    started: float | None = None,
+    evidence_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
     prev = state.get("trace", [])
-    ev = TraceEvent(run_id=state.get("run_id", ""), seq=len(prev) + 1, ts=now_utc(), node=node, lane=lane, model_id=model_id,
-                    latency_ms=int((time.time() - started) * 1000) if started else None, summary=summary, evidence_ids=evidence_ids or [])
+    ev = TraceEvent(
+        run_id=state.get("run_id", ""),
+        seq=len(prev) + 1,
+        ts=now_utc(),
+        node=node,
+        lane=lane,
+        model_id=model_id,
+        latency_ms=int((time.time() - started) * 1000) if started else None,
+        summary=summary,
+        evidence_ids=evidence_ids or [],
+    )
     return [*prev, ev.model_dump()]
 
 
