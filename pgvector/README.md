@@ -4,11 +4,15 @@ Purpose: local Postgres with the `vector` extension for citation chunks and embe
 
 Owner: Urvashi (store and Zetaris registration research). Ayush owns the embedding model choice.
 
+From the repo root:
+
 ```bash
-cp .env.example .env
-docker compose --profile rag up -d
+cp pgvector/.env.example pgvector/.env
+make up-all
 ```
 
-Host port 15432. The password in `.env.example` is a local placeholder. Replace it in the git-ignored `.env`.
+`make up-all` also starts Redis. API, agent, and UI env files must exist (`make` will say so).
+
+Host port `127.0.0.1:15432` (not published on the LAN). The password in `.env.example` is a local placeholder. Replace it in the git-ignored `.env`. `make up-all` is the command that starts this profile. `make down` still works if this file was never copied.
 
 This database is part of the FloodSense compose project. It is not the Zetaris stack. Registering it as a Zetaris JDBC source is a later, optional check.

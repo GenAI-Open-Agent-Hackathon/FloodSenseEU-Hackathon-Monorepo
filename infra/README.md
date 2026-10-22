@@ -9,18 +9,22 @@ Owner: Mihir.
 Our app is its own Compose project (`name: floodsense-app`):
 
 - Own network, `floodsense-app-net`.
-- Own volumes, prefixed `floodsense-app_`.
+- Own volumes, explicitly named `floodsense-app_checkpoints` and `floodsense-app_pgdata`.
 - No `container_name` (a fixed name would collide with someone else's stack).
-- Published ports: API `18000`, UI `15173`, pgvector `15432`, Redis `16379`.
+- Published ports bind to `127.0.0.1`: API `18000`, UI `15173`, pgvector `15432`, Redis `16379`. Redis has no password, and the pgvector password in the example is a shared placeholder, so neither port is on the LAN.
 - Zetaris stays on UI `:3000`, REST `:8888`, JDBC `:10000`. Nightshift stays on `:8088`.
-- Containers reach those host services through `host.docker.internal` and the URLs in each person's `.env`.
+- Containers reach those host services through `host.docker.internal` (`extra_hosts: host-gateway` on the API and agents) and the URLs in `agents/.env`.
 
-`make up` and `make down` affect this project only. They do not start, stop, or modify Zetaris. Do not run `docker system prune` or `docker volume prune` on a machine that also hosts Zetaris.
+`make up` and `make down` pass `-p floodsense-app`. An exported `COMPOSE_PROJECT_NAME` overrides the compose file's `name:` and would put these containers in that other project (verified with Compose 2.40: `COMPOSE_PROJECT_NAME=zetaris-stack` renamed the project and the checkpoint volume). `-p` wins. Do not start this stack with a bare `docker compose up`.
+
+They do not start, stop, or modify Zetaris. Do not run `docker system prune` or `docker volume prune` on a machine that also hosts Zetaris.
+
+`make down` includes the rag and cache profiles so those containers stop too. Their env files are optional at parse time (`env_file.required: false`, Compose v2.24+). A missing `pgvector/.env` must not make `make down` fail and push someone toward `docker system prune`. `make up-all` still asks for `pgvector/.env` before starting the profile.
 
 Optional profiles:
 
 ```bash
-docker compose --profile rag --profile cache up -d --build
+make up-all
 ```
 
 `rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model, Ayush) is not in this skeleton.

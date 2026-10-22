@@ -35,17 +35,19 @@ curl -s http://127.0.0.1:18000/health
 make down
 ```
 
-`make up` builds and starts the API (host port 18000), the agent runtime (no host port), and the UI (host port 15173). Optional profiles:
+`make up` builds and starts the API (`127.0.0.1:18000`), the agent runtime (no host port), and the UI (`127.0.0.1:15173`). Published ports bind to loopback. Optional profiles:
 
 ```bash
-docker compose --profile rag --profile cache up -d --build
+make up-all
 ```
 
-That adds pgvector on 15432 and Redis on 16379. `make down` stops this project only, including those profiles. It does not remove volumes and it does not stop Zetaris.
+That adds pgvector on `127.0.0.1:15432` and Redis on `127.0.0.1:16379`. Copy `pgvector/.env.example` to `pgvector/.env` first. `make down` stops this project only, including those profiles, even when `pgvector/.env` was never created. It does not remove volumes and it does not stop Zetaris.
 
-`make zetaris-sync` is a stub. It prints a TODO and applies no SQL. `make test` compiles the Python packages and runs the skeleton unit tests (install API deps first: `pip install -r api/requirements.txt`). `make lint` is a TODO until the CI branch.
+`make up` passes `-p floodsense-app`. An exported `COMPOSE_PROJECT_NAME` overrides the `name:` field in `compose.yaml` and would otherwise attach this stack to another Compose project. If you run `docker compose` yourself, pass the same `-p`.
 
-Containers call Zetaris and Nightshift at `host.docker.internal`. Host-side scripts use `127.0.0.1`. Both URLs are configuration.
+`make zetaris-sync` is a stub. It prints a TODO and applies no SQL. When it is implemented it should read `ingestion/.env` (`127.0.0.1`), not `agents/.env`. `make test` compiles the Python packages and runs the skeleton unit tests. On a clean machine, install API deps into a virtualenv first (`python3 -m venv .venv && .venv/bin/pip install -r api/requirements.txt`, then run `make test` with that interpreter, or `pip install -r api/requirements.txt` if the environment allows it). `make lint` is a TODO until the CI branch.
+
+Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`). Host-side scripts use `127.0.0.1` (`ingestion/.env`, and the host-side copies in the root `.env`). The root file is not injected into containers. `host.docker.internal` is wired with `extra_hosts: host-gateway` so Linux and WSL Docker Engine can resolve it. A service bound only to `127.0.0.1` on the host may still be unreachable from a container; that check is Ayush and Urvashi's.
 
 ## Layout
 

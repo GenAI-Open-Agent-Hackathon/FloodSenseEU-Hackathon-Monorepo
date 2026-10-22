@@ -18,3 +18,12 @@ checkpoints/
 .env
 .env.*
 !.env.example
+
+# Staged downloads. Commit a small fixture later if one is needed.
+/raw/
+/data/
+*.zip
+*.tif
+*.tiff
+*.gpkg
+*.pbf

@@ -4,6 +4,8 @@ Purpose: fetch and stage the datasets the agent will cite — Copernicus EMS foo
 
 Owner: Saleeta (prep, seed data, lineage) and Urvashi (Zetaris sources and any ingestion issue during the hackathon).
 
-Zetaris objects are not created from this folder. Numbered SQL migrations live in [`zetaris/migrations/`](../zetaris/migrations/) and are applied with `make zetaris-sync` (stub today). Keep credentials in a local `ingestion/.env` copied from `.env.example`. SQL that needs a secret uses a `${VAR}` placeholder, never a literal.
+Zetaris objects are not created from this folder. Numbered SQL migrations live in [`zetaris/migrations/`](../zetaris/migrations/) and are applied with `make zetaris-sync` (stub today). Keep credentials in a local `ingestion/.env` copied from `.env.example`. That file is the host-side Zetaris env (`127.0.0.1`). `agents/.env` is for containers and uses `host.docker.internal`. SQL that needs a secret uses a `${VAR}` placeholder, never a literal.
+
+Put downloads (EMS rasters, OSM extracts, archives) in `raw/` or `data/`. Those paths are git-ignored. Do not commit them.
 
 Terms for every source are recorded later in `docs/legal/sources.md` (not in this skeleton). Anything we cannot clear stays pointer-only. See [docs/GAMEPLAN.md](../docs/GAMEPLAN.md).

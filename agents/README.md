@@ -6,7 +6,7 @@ Owner: Ayush (Nightshift client, H-MEM, World Model, memory, embeddings) and Zai
 
 This skeleton is placeholders. `python -m floodsense_agents` serves a tiny JSON health check on port 8100 so compose has a process to run. It does not call Nightshift or Zetaris. `build_graph()` raises `NotImplementedError`.
 
-Copy `.env.example` to `.env` before `make up`. From inside the container, Zetaris and Nightshift are reached at `host.docker.internal`. Checkpoints for a later SqliteSaver mount at `/data/checkpoints`.
+Copy `.env.example` to `.env` before `make up`. From inside the container, Zetaris and Nightshift are reached at `host.docker.internal`. Host-side sync uses `ingestion/.env` and `127.0.0.1` instead. Checkpoints for a later SqliteSaver mount at `/data/checkpoints`. The image installs `requirements.txt` (comments only, until the LangGraph dependencies land).
 
 The NVIDIA provider key is not a variable in `.env`. It lives only in Nightshift's Providers tab. Calls send `Authorization: Bearer <METERLESS_RUNTIME_TOKEN>`, `meterless-app`, and `meterless-scope: user`.
 

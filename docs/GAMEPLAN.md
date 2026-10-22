@@ -158,7 +158,7 @@ The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This skeleton k
 
 Each of us runs Zetaris locally. Objects stay in sync because they are code.
 
-`make zetaris-sync` will run `python3 scripts/zetaris_sync.py`, apply pending migrations in order through each person's own `.env`, record SHA-256 and time in `.zetaris-sync/ledger.json`, and run verify queries. CI will run the same command. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
+`make zetaris-sync` will run `python3 scripts/zetaris_sync.py`, apply pending migrations in order through each person's own `ingestion/.env` (host URL `127.0.0.1`, not `agents/.env`), record SHA-256 and time in `.zetaris-sync/ledger.json`, and run verify queries. CI will run the same command. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
 
 **TODO:** `scripts/zetaris_sync.py` is a stub. It exits successfully and sends no SQL.
 
@@ -166,11 +166,11 @@ Verify output should match on every machine. That is the definition of "in sync"
 
 ## Running our app
 
-`make up` is `docker compose up -d --build` in this repo. It starts the API, the agent runtime, and the UI. pgvector and Redis start only with `--profile rag` and `--profile cache`.
+`make up` runs `docker compose -p floodsense-app up -d --build` in this repo. The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. It starts the API, the agent runtime, and the UI. pgvector and Redis start with `make up-all` (`--profile rag` and `--profile cache`).
 
 The stack reaches Zetaris and Nightshift through the host, as a normal client. Inside a container, `127.0.0.1` is the container itself, so URLs use `host.docker.internal`. With Docker Engine on WSL, `host-gateway` may not reach a service bound only to `127.0.0.1`. Ayush (Nightshift) and Urvashi (Zetaris) check that on Thursday. Fallback: run the API and agents on the host, and keep UI, pgvector, and Redis in compose. The `.env` URLs make that a configuration change.
 
-Published ports are `18000` (API), `15173` (UI), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is not in this compose file yet.
+Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is not in this compose file yet. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
 
 `make down` stops our project only. It does not remove named volumes. It does not stop Zetaris.
 
