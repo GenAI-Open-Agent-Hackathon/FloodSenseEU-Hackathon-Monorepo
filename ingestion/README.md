@@ -1,0 +1,9 @@
+# Ingestion
+
+Purpose: fetch and stage the datasets the agent will cite — Copernicus EMS footprints, OpenStreetMap site extracts, the synthetic insurer portfolio, and seed rows — plus the data README and licence notes that go with them.
+
+Owner: Saleeta (prep, seed data, lineage) and Urvashi (Zetaris sources and any ingestion issue during the hackathon).
+
+Zetaris objects are not created from this folder. Numbered SQL migrations live in [`zetaris/migrations/`](../zetaris/migrations/) and are applied with `make zetaris-sync` (stub today). Keep credentials in a local `ingestion/.env` copied from `.env.example`. SQL that needs a secret uses a `${VAR}` placeholder, never a literal.
+
+Terms for every source are recorded later in `docs/legal/sources.md` (not in this skeleton). Anything we cannot clear stays pointer-only. See [docs/GAMEPLAN.md](../docs/GAMEPLAN.md).
