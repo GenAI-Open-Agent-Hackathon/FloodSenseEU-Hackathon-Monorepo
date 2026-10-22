@@ -3,9 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FloodSense EU mock UI: cited flood-risk explanations for citizens and insurers." />
+    <meta name="color-scheme" content="light dark" />
     <title>FloodSense EU</title>
+    <script>
+      // Apply the theme before first paint to avoid a flash. Keep the storage
+      // key in sync with src/lib/theme.ts.
+      (function () {
+        var theme;
+        try {
+          theme = localStorage.getItem("floodsense.theme");
+        } catch (e) {
+          theme = null;
+        }
+        if (theme !== "light" && theme !== "dark") {
+          theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <style>
+      /* Loading screen: inline so it shows before the JS bundle arrives. */
+      #splash {
+        position: fixed; inset: 0; z-index: 1000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+        background: #f3f6fa; color: #13233a;
+        font: 15px/1.5 "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+        transition: opacity 0.35s ease;
+      }
+      [data-theme="dark"] #splash { background: #0e1622; color: #e6edf6; }
+      #splash.is-hidden { opacity: 0; pointer-events: none; }
+      #splash .splash__drop { width: 56px; height: 56px; color: #0b5cad; animation: splash-bob 1.6s ease-in-out infinite; }
+      [data-theme="dark"] #splash .splash__drop { color: #4c9be8; }
+      #splash .splash__title { font-weight: 700; font-size: 1.15rem; }
+      #splash .splash__status { font-size: 0.85rem; opacity: 0.7; }
+      #splash .splash__wave { width: 180px; height: 4px; border-radius: 99px; overflow: hidden; background: rgb(127 140 160 / 25%); }
+      #splash .splash__wave span { display: block; width: 40%; height: 100%; border-radius: 99px; background: currentColor; opacity: 0.6; animation: splash-slide 1.2s ease-in-out infinite; }
+      @keyframes splash-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      @keyframes splash-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash .splash__drop, #splash .splash__wave span { animation: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-live="polite">
+      <svg class="splash__drop" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3c5 7 9 11.5 9 16.5a9 9 0 0 1-18 0C7 14.5 11 10 16 3z" fill="currentColor" />
+        <path d="M10 21c2 1.5 4 1.5 6 0s4-1.5 6 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      </svg>
+      <div class="splash__title">FloodSense EU</div>
+      <div class="splash__wave" aria-hidden="true"><span></span></div>
+      <div class="splash__status" id="splash-status">Loading the app…</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
