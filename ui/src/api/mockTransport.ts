@@ -11,7 +11,3 @@ export function respond<T>(value: T, latencyMs = 150): Promise<T> {
 export function notFound(kind: string, id: string): Error {
   return new Error(`${kind} not found: ${id}`);
 }
-
-export function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
