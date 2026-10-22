@@ -10,9 +10,11 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | --- | --- | --- |
 | `*` | Mihir | Architecture, docs, CI/CD, security review |
 | `/docs/` | Mihir | Gameplan, ADRs, later legal notes and release notes |
-| `/infra/` | Mihir | Local runtime notes. Workflows are a later branch |
+| `/infra/` | Mihir | Local runtime notes. The CI runner choice is ADR 0008 |
 | `/compose.yaml` | Mihir | Our app only. Isolated from Zetaris |
 | `/tasks.py` | Mihir | Task runner. `zetaris-sync` behaviour is Urvashi's |
+| `/contracts/` | Mihir | JSON Schema and the Python and TypeScript mirrors |
+| `/.github/` | Mihir | Workflows |
 | `/ingestion/` | Urvashi, Saleeta | Prep, footprints, portfolio, seed content |
 | `/zetaris/` | Urvashi | Migrations, sync, views |
 | `/scripts/zetaris_sync.py` | Urvashi | The one sync command |
@@ -25,4 +27,4 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/evals/` | Saleeta, Zain, Mihir | Not in the skeleton yet. Ahr/NRW 2021 and Valencia 2024 |
 | `/demo/` | Saleeta | Not in the skeleton yet. Deck, script, video |
 
-Planned paths that have no folder yet (`contracts/`, `knowledge/`, `engines/`, `evals/`, `demo/`, `.github/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+Planned paths that have no folder yet (`knowledge/`, `engines/`, `evals/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).

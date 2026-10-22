@@ -1,6 +1,6 @@
 # Contracts
 
-Owner: Mihir. Shared shapes for `agents/`, `api/`, and `ui/`. The choice is a proposal for the team to accept or change at stand-up. The ADR that records it is `docs/adr/0007-json-schema-contracts.md`.
+Owner: Mihir. Shared shapes for `agents/`, `api/`, and `ui/`. The choice is a proposal for the team to accept or change at stand-up. The record is [ADR 0007](../docs/adr/0007-json-schema-contracts.md).
 
 ## Source of truth
 

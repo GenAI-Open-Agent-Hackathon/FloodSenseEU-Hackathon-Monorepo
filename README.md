@@ -2,7 +2,7 @@
 
 Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, Track 02). It explains why an area is at risk, with cited, grounded claims. A Skeptic challenges the chain, an LLM-as-a-Judge scores it, and a human approves any outbound action.
 
-The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md).
+The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
 
 ## Team
 
@@ -63,7 +63,7 @@ That adds pgvector on `127.0.0.1:15432` and Redis on `127.0.0.1:16379`. `init-en
 
 Compose is always `docker compose -p floodsense-app` with this repo's `compose.yaml`. An exported `COMPOSE_PROJECT_NAME` or `COMPOSE_FILE` cannot point the task script at another Compose project. If you run `docker compose` yourself, pass the same `-p`.
 
-`zetaris-sync` is a stub. It prints a TODO and applies no SQL. When it is implemented it should read `ingestion/.env` (`127.0.0.1`), not `agents/.env`. `test` compiles the Python packages and runs the unit tests with the current interpreter. Install API deps into a virtualenv first, then run `test` with that interpreter.
+`zetaris-sync` is a stub. It prints a TODO and applies no SQL. When it is implemented it should read `ingestion/.env` (`127.0.0.1`), not `agents/.env`. `test` compiles the Python packages and runs the unit tests with the current interpreter. Install the API, contract, and dev requirements into a virtualenv first, then run `test` and `lint` with that interpreter.
 
 PowerShell:
 
@@ -107,12 +107,14 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 | `api/` | FastAPI. `/health` only | Zain, Ayush |
 | `ui/` | Vite + React + TSX placeholder | Mihir, then Zain |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |
-| `tasks.py` | Cross-platform task runner (`up`, `down`, `test`, …) | Mihir |
-| `docs/` | Gameplan, ownership, ADRs | Mihir |
+| `contracts/` | JSON Schema for claims, citations, answers, approvals | Mihir |
+| `tasks.py` | Cross-platform task runner (`up`, `down`, `test`, `lint`) | Mihir |
+| `.github/workflows/` | Lint, tests, and secret scan on pull requests | Mihir |
+| `docs/` | Gameplan, ownership, C4 diagrams, ADRs | Mihir |
 
 ## Branching
 
-`main` is the integration branch. This skeleton is that base. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Release tags are `v0.x` (increments), `v0.x.y` (fixes), and `v1.0.0-rc.N` (candidates). Tags are not moved. See the gameplan for the increment list. GitHub Actions is a later feature branch, not part of this commit.
+`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Release tags are `v0.x` (increments), `v0.x.y` (fixes), and `v1.0.0-rc.N` (candidates). Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
 
 ## Secrets
 
@@ -121,3 +123,4 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 - The NVIDIA provider key lives only in Nightshift's Providers tab. Do not put it in an app env var, a workflow secret, a fixture, or Cursor's model settings.
 - Examples contain placeholders. SQL uses `${VAR}` placeholders, never literal keys.
 - If a real secret is committed, rotate it. Removing the file is not enough.
+- CI rejects a tracked `.env` file other than `.env.example`, and it fails if gitleaks finds an NVIDIA `nvapi-` key or another secret. See [docs/adr/0008-ci-runner-github-hosted.md](docs/adr/0008-ci-runner-github-hosted.md).
