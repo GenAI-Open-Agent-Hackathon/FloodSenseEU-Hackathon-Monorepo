@@ -60,9 +60,12 @@ export function LeafletMap({ bounds, markers, selectedId, onSelect, onReady, ari
       return;
     }
     const map = L.map(container, { zoomSnap: 1, attributionControl: false, scrollWheelZoom: false });
+    const report = mapTiles.reportIssueUrl
+      ? ` · <a href="${mapTiles.reportIssueUrl}" target="_blank" rel="noopener">Report a map issue</a>`
+      : "";
     L.control
       .attribution({ prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' })
-      .addAttribution(`${mapTiles.attributionHtml} · <a href="${mapTiles.reportIssueUrl}" target="_blank" rel="noopener">Report a map issue</a>`)
+      .addAttribution(`${mapTiles.attributionHtml}${report}`)
       .addTo(map);
     const tiles = L.tileLayer(mapTiles.url, { maxZoom: mapTiles.maxZoom });
     tiles.once("load tileerror", () => onReadyRef.current?.());

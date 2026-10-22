@@ -17,8 +17,11 @@ export interface MapTileConfig {
   /** HTML attribution shown on the map. Required by the tile provider; never hide it. */
   attributionHtml: string;
   maxZoom: number;
-  /** "Report a map issue" link recommended by the OSM tile usage policy. */
-  reportIssueUrl: string;
+  /**
+   * "Report a map issue" link. Set for OpenStreetMap, whose tile policy asks
+   * for one. Omitted for any other provider.
+   */
+  reportIssueUrl?: string;
 }
 
 /**
@@ -28,12 +31,36 @@ export interface MapTileConfig {
  * VITE_MAP_TILE_URL and VITE_MAP_ATTRIBUTION to a hosted or commercial
  * provider together; the attribution must match the provider.
  */
-export const mapTiles: MapTileConfig = {
-  url: env.VITE_MAP_TILE_URL ?? OSM_TILE_URL,
-  attributionHtml: env.VITE_MAP_ATTRIBUTION ?? OSM_ATTRIBUTION,
+const OSM_REPORT_ISSUE_URL = "https://www.openstreetmap.org/fixthemap";
+
+const osmTiles: MapTileConfig = {
+  url: OSM_TILE_URL,
+  attributionHtml: OSM_ATTRIBUTION,
   maxZoom: 19,
-  reportIssueUrl: "https://www.openstreetmap.org/fixthemap",
+  reportIssueUrl: OSM_REPORT_ISSUE_URL,
 };
+
+function readMapTiles(): MapTileConfig {
+  const url = (env.VITE_MAP_TILE_URL ?? "").trim();
+  const attribution = (env.VITE_MAP_ATTRIBUTION ?? "").trim();
+  // Blank means the public OSM tiles. Their credit is fixed: a custom
+  // attribution string must not replace it while those tiles are in use.
+  if (!url || url === OSM_TILE_URL) {
+    if (attribution && attribution !== OSM_ATTRIBUTION) {
+      console.warn("OpenStreetMap tiles keep their own attribution. Set an HTTPS VITE_MAP_TILE_URL to use VITE_MAP_ATTRIBUTION.");
+    }
+    return osmTiles;
+  }
+  // A custom provider must be HTTPS and must bring its own attribution.
+  // Otherwise stay on OSM rather than ship an uncredited or non-HTTPS URL.
+  if (!url.startsWith("https://") || !attribution) {
+    console.warn("Ignoring VITE_MAP_TILE_URL. A custom tile URL must be HTTPS and VITE_MAP_ATTRIBUTION must be set. Using OpenStreetMap.");
+    return osmTiles;
+  }
+  return { url, attributionHtml: attribution, maxZoom: 19 };
+}
+
+export const mapTiles: MapTileConfig = readMapTiles();
 
 export interface PegelonlineConfig {
   baseUrl: string;
