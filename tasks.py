@@ -193,12 +193,15 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
                 "scripts",
                 "tests",
                 "tasks.py",
+                "contracts/python",
+                "contracts/tests",
             ],
         ),
         (root / "api", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root / "agents", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
+        (root, [exe, "-m", "unittest", "discover", "-s", "contracts/tests", "-v"]),
     ]
 
 

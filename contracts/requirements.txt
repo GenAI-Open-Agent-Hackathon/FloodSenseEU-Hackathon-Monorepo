@@ -1,0 +1,4 @@
+# Direct deps for the shared contract package and its tests.
+# Not installed into the API or agent images.
+pydantic>=2.9,<3
+jsonschema>=4.23,<5

@@ -155,6 +155,10 @@ class TaskTest(unittest.TestCase):
         self.assertIn((self.root / "api", "tests"), starts)
         self.assertIn((self.root, "scripts/tests"), starts)
         self.assertIn((self.root, "tests"), starts)
+        self.assertIn((self.root, "contracts/tests"), starts)
+        compile_argv = steps[0][1]
+        self.assertIn("contracts/python", compile_argv)
+        self.assertIn("contracts/tests", compile_argv)
 
     def test_lint_is_a_zero_exit_stub(self) -> None:
         out = io.StringIO()
