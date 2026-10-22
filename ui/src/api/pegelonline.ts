@@ -49,16 +49,37 @@ interface PoMeasurement {
 
 // --- Requests ----------------------------------------------------------------
 
-async function getJson<T>(path: string): Promise<T> {
+/** The request failed. Callers may show sample data. Mapping bugs are not this error. */
+export class PegelonlineError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "PegelonlineError";
+  }
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function getJson(path: string): Promise<unknown> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), pegelonline.timeoutMs);
   try {
-    // Default browser caching and Referer behaviour; no extra headers.
-    const response = await fetch(`${pegelonline.baseUrl}${path}`, { signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(`PEGELONLINE responded ${response.status}`);
+    let response: Response;
+    try {
+      // Default browser caching and Referer. No cache-busting and no extra headers.
+      response = await fetch(`${pegelonline.baseUrl}${path}`, { signal: controller.signal });
+    } catch (error) {
+      throw new PegelonlineError(isAbort(error) ? "request timed out" : error instanceof Error ? error.message : "request failed");
     }
-    return (await response.json()) as T;
+    if (!response.ok) {
+      throw new PegelonlineError(`PEGELONLINE responded ${response.status}`);
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      throw new PegelonlineError(isAbort(error) ? "request timed out" : "PEGELONLINE returned invalid JSON");
+    }
   } finally {
     window.clearTimeout(timer);
   }
@@ -96,13 +117,27 @@ export async function fetchStationsInBounds(bounds: BoundingBox): Promise<PoStat
     longitude: lon.toFixed(4),
     radius: String(radiusKm),
   });
-  const stations = await getJson<PoStation[]>(`/stations.json?${query.toString()}`);
+  const payload = await getJson(`/stations.json?${query.toString()}`);
+  if (!Array.isArray(payload)) {
+    throw new PegelonlineError("PEGELONLINE stations response was not a list");
+  }
+  const stations = payload as PoStation[];
   return stations.filter((s) => s.latitude !== undefined && s.longitude !== undefined && contains(bounds, s.latitude, s.longitude));
 }
 
 /** Water-level measurements for the last `hours`, downsampled to one point per hour. */
 export async function fetchHourlyLevels(stationUuid: string, hours: number): Promise<LevelPoint[]> {
-  const raw = await getJson<PoMeasurement[]>(`/stations/${encodeURIComponent(stationUuid)}/W/measurements.json?start=PT${hours}H`);
+  const payload = await getJson(`/stations/${encodeURIComponent(stationUuid)}/W/measurements.json?start=PT${hours}H`);
+  if (!Array.isArray(payload)) {
+    throw new PegelonlineError("PEGELONLINE measurements response was not a list");
+  }
+  const raw = payload.filter((item): item is PoMeasurement => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const measurement = item as { timestamp?: unknown; value?: unknown };
+    return typeof measurement.timestamp === "string" && typeof measurement.value === "number";
+  });
   const byHour = new Map<string, LevelPoint>();
   for (const m of raw) {
     const hour = new Date(m.timestamp);

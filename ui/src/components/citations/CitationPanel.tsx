@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { formatDate, formatTime } from "../../lib/format";
 import type { Citation, SourceLocator } from "../../types";
 import { MockBadge } from "../shared/MockBadge";
+import { ProvenanceBadge } from "../shared/ProvenanceBadge";
 import { useCitationPanel } from "./CitationContext";
 
 function describeLocator(locator: SourceLocator): string {
@@ -52,7 +53,11 @@ export function CitationPanel() {
       </header>
 
       <div className="citation-panel__body">
-        <MockBadge label="MOCK CITATION · SAMPLE QUOTE" />
+        {citation.quoteIsSample ? (
+          <MockBadge label="MOCK CITATION · SAMPLE QUOTE" />
+        ) : (
+          <ProvenanceBadge provenance="live" />
+        )}
 
         <section>
           <h3>Source</h3>
@@ -80,7 +85,13 @@ export function CitationPanel() {
 
         <section>
           <h3>
-            Quote {citation.quoteIsSample && <span className="chip chip--sample">sample text, not a real quote</span>}
+            {citation.quoteIsSample ? (
+              <>
+                Quote <span className="chip chip--sample">sample text, not a real quote</span>
+              </>
+            ) : (
+              "Measurement"
+            )}
           </h3>
           <blockquote className="quote">{citation.quote}</blockquote>
           <p className="hash">

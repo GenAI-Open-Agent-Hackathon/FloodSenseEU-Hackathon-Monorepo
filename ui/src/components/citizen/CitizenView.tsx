@@ -81,7 +81,7 @@ function LocationDashboard({ locations, location, onSelect, map }: LocationDashb
           <h1>Is my area at risk, and why?</h1>
           <p className="muted">Plain-language flood risk with a source behind every sentence. Click a number to see the evidence.</p>
         </div>
-        <MockBadge />
+        <MockBadge label="MOCK UI" title="Mock interface. Figures are sample unless a Live badge says otherwise." />
       </div>
 
       <LocationPicker locations={locations} selectedId={location.id} onSelect={onSelect} />

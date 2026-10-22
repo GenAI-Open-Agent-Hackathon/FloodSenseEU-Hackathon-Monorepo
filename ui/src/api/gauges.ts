@@ -16,6 +16,7 @@ import { contentHash, registerCitation } from "./citations";
 import { pegelonline } from "./config";
 import { notFound, respond } from "./mockTransport";
 import {
+  PegelonlineError,
   fetchHourlyLevels,
   fetchStationsInBounds,
   proxyThresholds,
@@ -62,7 +63,7 @@ function liveStatus(station: PoStation, levelCm: number | null, thresholds: Gaug
 
 async function toLiveStation(station: PoStation, fetchedAt: string): Promise<GaugeStation | null> {
   const series = waterLevelSeries(station);
-  if (!series || station.latitude === undefined || station.longitude === undefined) {
+  if (!series || station.latitude === undefined || station.longitude === undefined || !station.water?.longname || !station.longname) {
     return null;
   }
   const current = series.currentMeasurement;
@@ -91,7 +92,7 @@ async function toLiveStation(station: PoStation, fetchedAt: string): Promise<Gau
     id: `${LIVE_ID_PREFIX}${station.uuid}`,
     stationName: titleCase(station.longname),
     river: titleCase(station.water.longname),
-    operator: `WSV ${titleCase(station.agency)} (PEGELONLINE)`,
+    operator: station.agency ? `WSV ${titleCase(station.agency)} (PEGELONLINE)` : "WSV (PEGELONLINE)",
     lat: station.latitude,
     lon: station.longitude,
     levelCm,
@@ -110,11 +111,8 @@ async function loadLiveStations(region: Region): Promise<GaugeStation[]> {
   return mapped.filter((s): s is GaugeStation => s !== null);
 }
 
-function describeError(error: unknown): string {
-  if (error instanceof DOMException && error.name === "AbortError") {
-    return "request timed out";
-  }
-  return error instanceof Error ? error.message : String(error);
+function liveAttribution(): string {
+  return `Federal gauges: ${pegelonline.attribution}, licence ${pegelonline.licenceName} (${pegelonline.licenceUrl}). Raw data, unchecked; marker colours use a proxy threshold, not official warnings.`;
 }
 
 // --- Public functions -----------------------------------------------------
@@ -141,28 +139,31 @@ export async function getRegionGauges(regionId: string): Promise<RegionGauges> {
         provenance: "live",
         fetchedAt: new Date(storedAt).toISOString(),
         fromCache,
-        attribution: `Federal gauges: ${pegelonline.attribution} (${pegelonline.licenceName}, unchecked raw data)`,
+        attribution: liveAttribution(),
       };
     } catch (error) {
-      return sampleRegionGauges(regionId, `PEGELONLINE could not be reached (${describeError(error)}).`);
+      if (error instanceof PegelonlineError) {
+        return sampleRegionGauges(region, `PEGELONLINE could not be reached (${error.message}).`);
+      }
+      throw error;
     }
   }
   const reason = region.gaugeFeed === "pegelonline" ? "Live feed disabled (VITE_GAUGE_FEED=mock)." : undefined;
-  return sampleRegionGauges(regionId, reason);
+  return sampleRegionGauges(region, reason);
 }
 
-function sampleRegionGauges(regionId: string, fallbackReason: string | undefined): Promise<RegionGauges> {
-  const stations = [...(sampleFederalStations[regionId] ?? []), ...(sampleStateStations[regionId] ?? [])];
+function sampleRegionGauges(region: Region, fallbackReason?: string): Promise<RegionGauges> {
+  const stations = [...(sampleFederalStations[region.id] ?? []), ...(sampleStateStations[region.id] ?? [])];
   remember(stations);
   return respond(
     {
-      regionId,
+      regionId: region.id,
       stations,
       provenance: "sample",
       fetchedAt: new Date().toISOString(),
       fromCache: false,
       fallbackReason,
-      attribution: regionId === "valencia" ? "SAIH Júcar (CHJ): sample values" : "Sample values",
+      attribution: region.sampleAttribution,
     },
     200,
   );
@@ -198,7 +199,10 @@ export async function getGaugeObservations(stationId: string): Promise<GaugeObse
     }));
     return value;
   } catch (error) {
-    return sampleObservations(station, `PEGELONLINE measurements could not be loaded (${describeError(error)}).`);
+    if (error instanceof PegelonlineError) {
+      return sampleObservations(station, `PEGELONLINE measurements could not be loaded (${error.message}).`);
+    }
+    throw error;
   }
 }
 

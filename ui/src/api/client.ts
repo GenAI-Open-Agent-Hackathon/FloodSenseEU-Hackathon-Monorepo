@@ -13,4 +13,4 @@ export { RateLimitError, getRateLimitSnapshot, subscribeRateLimit } from "./rate
 export { getReplayScenario, listReplayScenarios, type ReplaySummary } from "./replay";
 export { getCurrentUser } from "./session";
 export { startAlertSimulation, submitSimulatedApproval } from "./simulation";
-export { apiBaseUrl, mapTiles, pegelonline as pegelonlineConfig } from "./config";
+export { apiBaseUrl, mapTiles } from "./config";

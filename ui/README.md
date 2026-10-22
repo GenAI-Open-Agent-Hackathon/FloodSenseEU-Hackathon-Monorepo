@@ -1,6 +1,6 @@
 # UI: FloodSense EU mock (v2)
 
-> **SAMPLE DATA, with one exception.** Everything in this UI comes from `src/mocks/` and is labelled *Sample* or *Reconstructed sample*, **except** river gauges marked *Live*: those are fetched from the public PEGELONLINE API (German federal waterways) in the browser. Nothing calls the FloodSense API, Zetaris or any model. Quotes are marked `SAMPLE:` and are not real text from the publishers they point to.
+> **SAMPLE DATA, with one exception.** Everything in this UI comes from `src/mocks/` and is labelled *Sample* or *Reconstructed sample*, **except** river gauges marked *Live*: those are fetched from the public PEGELONLINE API (German federal waterways) in the browser. Nothing calls the FloodSense API, Zetaris or any model. Sample quotes are marked `SAMPLE:` and are not real text from the publishers they point to. A live gauge citation is a measurement sentence built from the response and is labelled *Live*, not a sample quote.
 
 This is a clickable mock of the FloodSense EU front end for the Open Agent Hackathon 2026 (Track 02). Its job is to agree on screens and data contracts before the real pipeline (Investigator → Skeptic → LLM-as-a-Judge → human approval) is wired in. If the team adopts it as the real UI, mocks are replaced by real data one `src/api` module at a time (see [Swapping mocks for real data](#swapping-mocks-for-real-data)).
 
@@ -69,11 +69,11 @@ All optional. Vite exposes `VITE_*` values to the browser, so never put secrets 
 | Variable | Default | Effect |
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:18000` | FloodSense API base URL (shown in the footer; not called yet) |
-| `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Base-map tile template. Must be HTTPS. |
-| `VITE_MAP_ATTRIBUTION` | `© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>` | Attribution HTML for the tile provider. Change it together with the URL. |
+| `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Base-map tile template. A custom value must be HTTPS and needs `VITE_MAP_ATTRIBUTION`; otherwise the map stays on the OpenStreetMap default. |
+| `VITE_MAP_ATTRIBUTION` | `© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>` | Attribution HTML for the tile provider. Required together with a custom URL. |
 | `VITE_GAUGE_FEED` | `live` | `mock` never calls PEGELONLINE (offline demos, CI screenshots). |
 
-The tile URL, attribution and "report a map issue" link live in one place: `mapTiles` in `src/api/config.ts`. PEGELONLINE settings (base URL, cache TTL, timeout, licence) are `pegelonline` in the same file.
+The tile URL and attribution live in one place: `mapTiles` in `src/api/config.ts`. The OpenStreetMap default also adds a "Report a map issue" link; a custom provider does not. PEGELONLINE settings (base URL, cache TTL, timeout, licence) are `pegelonline` in the same file. Components read gauge credit from the data (`RegionGauges.attribution`), not from that config.
 
 ## Map tiles: OpenStreetMap tile usage policy
 
@@ -93,8 +93,8 @@ In dark mode the tile pane gets a subtle CSS filter (`--map-tile-filter` in `glo
 
 **PEGELONLINE** (Wasserstraßen- und Schifffahrtsverwaltung des Bundes, WSV), REST API v2, `https://www.pegelonline.wsv.de/webservices/rest-api/v2`:
 
-- Licence: [Datenlizenz Deutschland – Zero – Version 2.0 (DL-DE->Zero-2.0)](https://www.govdata.de/dl-de/zero-2-0). Attribution is not required by the licence; we show the recommended source note "© www.pegelonline.wsv.de" and the licence link in the map footer and in each gauge citation anyway.
-- The data are **raw and unchecked** ("Rohdaten, ungeprüft"); the UI says so next to the attribution.
+- Licence: [Datenlizenz Deutschland – Zero – Version 2.0 (DL-DE->Zero-2.0)](https://www.govdata.de/dl-de/zero-2-0). Attribution is not required by the licence. When federal gauges are actually live, the map footer and each gauge citation show "© www.pegelonline.wsv.de", the licence name and the licence URL. Valencia, a disabled feed, and a failed request do not carry that credit: the footer uses the region's `sampleAttribution`, so invented numbers are not presented as PEGELONLINE data.
+- The data are **raw and unchecked** ("Rohdaten, ungeprüft"); the live footer says so.
 - The browser calls the API directly (it sends `Access-Control-Allow-Origin: *`): one `stations.json` request per region (cached 5 min, concurrent requests share one fetch) and one `measurements.json?start=PT48H` request per opened gauge (cached 5 min).
 - PEGELONLINE has no official warning levels in the API. Marker colours use a **proxy** from the characteristic values: red at or above MHW (mean high water), amber from MW + 0.75 × (MHW − MW), grey when no values exist. The UI labels this "proxy threshold, not official warnings". **Decision needed:** replace with official reporting levels per state.
 - Federal gauges only cover federal waterways. Smaller rivers (for example the Ahr) are state gauges.

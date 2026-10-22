@@ -27,7 +27,7 @@ export function AppHeader({ route, onNavigate }: AppHeaderProps) {
           <strong>FloodSense EU</strong>
           <span className="app-header__tagline">Cited flood-risk explanations</span>
         </div>
-        <MockBadge label="MOCK UI · SAMPLE DATA" />
+        <MockBadge label="MOCK UI" title="Mock interface. Figures are sample unless a Live badge says otherwise." />
       </div>
       <nav className="role-switch" aria-label="Choose a view">
         {tabs.map((tab) => (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getRegionGauges, getReplayScenario, listReplayScenarios, pegelonlineConfig } from "../../api/client";
+import { getRegionGauges, getReplayScenario, listReplayScenarios } from "../../api/client";
 import { useAsync } from "../../hooks/useAsync";
 import { useReplayPlayer } from "../../hooks/useReplayPlayer";
 import { gaugeStatus } from "../../lib/gaugeStatus";
@@ -168,15 +168,9 @@ function FeedFooter({ gauges }: { gauges: RegionGauges }) {
   return (
     <div className="feed-footer small">
       <ProvenanceBadge provenance={gauges.provenance} detail={gauges.provenance === "live" ? `${live} federal gauges, fetched ${fetched}${gauges.fromCache ? " (cached)" : ""}` : undefined} />
-      {gauges.stations.length > live && <ProvenanceBadge provenance="sample" detail="state-portal gauges (dashed)" />}
+      {gauges.provenance === "live" && gauges.stations.length > live && <ProvenanceBadge provenance="sample" detail="state-portal gauges (dashed)" />}
       {gauges.fallbackReason && <span className="notice">{gauges.fallbackReason}</span>}
-      <span className="muted">
-        Federal gauges: {pegelonlineConfig.attribution}, licence{" "}
-        <a href={pegelonlineConfig.licenceUrl} target="_blank" rel="noopener noreferrer">
-          {pegelonlineConfig.licenceName}
-        </a>
-        . Raw data, unchecked; colours use a proxy threshold, not official warnings.
-      </span>
+      <span className="muted">{gauges.attribution}</span>
     </div>
   );
 }

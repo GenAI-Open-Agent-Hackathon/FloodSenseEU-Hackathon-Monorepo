@@ -22,7 +22,7 @@ export function ReplayControls({ scenario, player }: ReplayControlsProps) {
           {player.playing ? "❚❚ Pause" : "▶ Play"}
         </button>
         <label className="replay__slider">
-          <span className="sr-only">Replay hour</span>
+          <span className="visually-hidden">Replay hour</span>
           <input
             type="range"
             min={0}
