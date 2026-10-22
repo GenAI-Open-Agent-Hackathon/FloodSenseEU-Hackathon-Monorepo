@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -160,12 +161,134 @@ class TaskTest(unittest.TestCase):
         self.assertIn("contracts/python", compile_argv)
         self.assertIn("contracts/tests", compile_argv)
 
-    def test_lint_is_a_zero_exit_stub(self) -> None:
+    def _git(self, *args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(self.root), *args],
+            check=True,
+            capture_output=True,
+        )
+
+    def _install_fake_tsc(self) -> None:
+        tsc = self.root / "ui" / "node_modules" / "typescript" / "bin" / "tsc"
+        tsc.parent.mkdir(parents=True, exist_ok=True)
+        tsc.write_text("", encoding="utf-8")
+
+    def test_forbidden_env_paths(self) -> None:
+        self.assertTrue(tasks.is_forbidden_env_path("api/.env"))
+        self.assertTrue(tasks.is_forbidden_env_path(".env.local"))
+        self.assertTrue(tasks.is_forbidden_env_path("API/.ENV"))
+        self.assertTrue(tasks.is_forbidden_env_path(".env.example.bak"))
+        self.assertFalse(tasks.is_forbidden_env_path(".env.example"))
+        self.assertFalse(tasks.is_forbidden_env_path("api/.env.example"))
+        self.assertFalse(tasks.is_forbidden_env_path("Foo.env.example"))
+        self.assertFalse(tasks.is_forbidden_env_path("notes/readme.md"))
+        self.assertFalse(tasks.is_forbidden_env_path(".environment"))
+
+    def test_check_tracked_env_rejects_a_staged_env_file(self) -> None:
+        self._git("init")
+        env = self.root / "api" / ".env"
+        env.write_text("TOKEN=example\n", encoding="utf-8")
+        self._git("add", "-A")
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            code = tasks.check_tracked_env(self.root)
+        self.assertEqual(code, 1)
+        listed = [
+            line.strip()
+            for line in err.getvalue().splitlines()
+            if line.startswith("  ")
+        ]
+        self.assertEqual(listed, ["api/.env"])
+
+    def test_this_repository_tracks_no_env_file(self) -> None:
         out = io.StringIO()
         with redirect_stdout(out):
-            code = tasks.main(["lint"], root=self.root, runner=self._fail_runner)
+            code = tasks.check_tracked_env(tasks.ROOT)
         self.assertEqual(code, 0)
-        self.assertIn("TODO", out.getvalue())
+        self.assertIn("no tracked .env files", out.getvalue())
+
+    def test_lint_runs_ruff_and_typecheck_without_gitleaks(self) -> None:
+        self._git("init")
+        self._git("add", "-A")
+        self._install_fake_tsc()
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            calls.append(argv)
+            return 0
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = tasks.cmd_lint(
+                self.root,
+                runner,
+                node="node",
+                gitleaks=None,
+                resolve_tools=False,
+                require_gitleaks=False,
+            )
+        self.assertEqual(code, 0)
+        self.assertIn("gitleaks not on PATH", out.getvalue())
+        flat = [" ".join(argv) for argv in calls]
+        self.assertTrue(any("-m ruff check" in text for text in flat))
+        self.assertTrue(any("ui/tsconfig.json" in text.replace("\\", "/") for text in flat))
+        self.assertTrue(
+            any("contracts/tsconfig.json" in text.replace("\\", "/") for text in flat)
+        )
+        self.assertFalse(any(text.startswith("gitleaks") for text in flat))
+
+    def test_lint_includes_gitleaks_when_it_is_on_path(self) -> None:
+        self._git("init")
+        self._install_fake_tsc()
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            calls.append(argv)
+            return 0
+
+        with redirect_stdout(io.StringIO()):
+            code = tasks.cmd_lint(
+                self.root,
+                runner,
+                node="node",
+                gitleaks="gitleaks",
+                resolve_tools=False,
+                require_gitleaks=False,
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[0][0], "gitleaks")
+        self.assertIn("detect", calls[0])
+        self.assertIn("--redact", calls[0])
+
+    def test_lint_fails_when_gitleaks_is_required_and_missing(self) -> None:
+        self._git("init")
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            code = tasks.cmd_lint(
+                self.root,
+                self._fail_runner,
+                node="node",
+                gitleaks=None,
+                resolve_tools=False,
+                require_gitleaks=True,
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("FLOODSENSE_REQUIRE_GITLEAKS", err.getvalue())
+
+    def test_lint_names_npm_ci_when_typescript_is_missing(self) -> None:
+        self._git("init")
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            code = tasks.cmd_lint(
+                self.root,
+                self._fail_runner,
+                node="node",
+                gitleaks=None,
+                resolve_tools=False,
+                require_gitleaks=False,
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("npm ci", err.getvalue())
 
     def test_unknown_command_exits_nonzero(self) -> None:
         with self.assertRaises(SystemExit) as caught, redirect_stderr(io.StringIO()):

@@ -70,7 +70,13 @@ PowerShell:
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r contracts\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe tasks.py test
+cd ui
+npm ci
+cd ..
+.\.venv\Scripts\python.exe tasks.py lint
 ```
 
 bash:
@@ -78,10 +84,16 @@ bash:
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r api/requirements.txt
+.venv/bin/python -m pip install -r contracts/requirements.txt
+.venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python tasks.py test
+cd ui
+npm ci
+cd ..
+.venv/bin/python tasks.py lint
 ```
 
-Calling the venv interpreter directly avoids PowerShell's script execution policy, which can block `Activate.ps1`. `lint` is a TODO until the CI branch.
+Calling the venv interpreter directly avoids PowerShell's script execution policy, which can block `Activate.ps1`. `lint` checks that no filled `.env` file is tracked, runs Ruff, and typechecks `ui/` and `contracts/`. If `gitleaks` is on `PATH`, `lint` runs it too. If it is not, `lint` prints one line and continues. One command per line. Do not join them with `&&`.
 
 Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`). Host-side scripts use `127.0.0.1` (`ingestion/.env`, and the host-side copies in the root `.env`). The root file is not injected into containers. `host.docker.internal` is wired with `extra_hosts: host-gateway` so Linux and WSL Docker Engine can resolve it. Docker Desktop on Windows already resolves that name. A service bound only to `127.0.0.1` on the host may still be unreachable from a container; that check is Ayush and Urvashi's.
 
