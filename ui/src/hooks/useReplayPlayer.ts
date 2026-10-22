@@ -28,17 +28,17 @@ export function useReplayPlayer(hours: number, resetKey: string): ReplayPlayer {
     if (!playing) {
       return;
     }
+    // Stop here, not inside the setHour updater. Updaters must be pure, and
+    // Strict Mode runs them twice.
+    if (hour >= lastHour) {
+      setPlaying(false);
+      return;
+    }
     const timer = window.setInterval(() => {
-      setHourState((h) => {
-        if (h >= lastHour) {
-          setPlaying(false);
-          return h;
-        }
-        return h + 1;
-      });
+      setHourState((h) => (h >= lastHour ? h : h + 1));
     }, 1000 / speed);
     return () => window.clearInterval(timer);
-  }, [playing, speed, lastHour]);
+  }, [playing, speed, lastHour, hour]);
 
   const setHour = useCallback((next: number) => setHourState(Math.min(lastHour, Math.max(0, next))), [lastHour]);
 
