@@ -5,6 +5,16 @@
 - Branch with fixes: `review/skeleton-fixes` (not pushed to `main`)
 - Checked: every tracked file, `git check-ignore`, `make test`, `docker compose config` (Compose 2.40.3), UI `tsc --noEmit`, `vite build`, and `npm ci`
 
+## Follow-up: Windows task runner
+
+The owner asked whether this works on Windows, where most of the team does not have Make. The Makefile described below has been removed. The same commands are `python tasks.py <command>` (`py tasks.py <command>` on Windows): `init-env`, `check-env`, `up`, `up-all`, `down`, `config`, `zetaris-sync`, `test`, `lint`.
+
+`tasks.py` is stdlib only. It uses `pathlib` and `subprocess` argument lists, never a shell, and the current interpreter instead of a hard-coded `python3`. `init-env` copies each missing `.env.example` to `.env` and does not overwrite. Compose is still `docker compose -p floodsense-app`, and the script also pins `--project-directory` and `-f compose.yaml`. `down` still has no `-v` and does not require `pgvector/.env`. PowerShell 5.x has no `&&`, so the README shows one command per line. In PowerShell, `curl` is an alias of `Invoke-WebRequest`; the health check is `Invoke-RestMethod`. Virtualenv binaries are `.venv\Scripts\` on Windows and `.venv/bin/` on Unix. `npm run build` still contains `&&`, which npm runs via `cmd.exe` on Windows, not via PowerShell.
+
+Checked on Linux: `python tasks.py test` (the new task tests plus the API, agent, and sync tests), `lint`, `check-env` with nothing copied (exit 1, names the three files), and `config` with `COMPOSE_PROJECT_NAME=zetaris-stack` and a hostile `COMPOSE_FILE` (still project `floodsense-app`). `down` with no env files reaches Docker and fails here because the daemon is not running, not because `pgvector/.env` is missing. Native Windows PowerShell 5, PowerShell 7, cmd, and Docker Desktop were not executed.
+
+The findings below are the original review. Where they say `make`, read `python tasks.py`.
+
 Severity used below:
 
 - **High** — can attach this stack to someone else's Compose project, or can block the only safe way to stop it.
@@ -19,7 +29,7 @@ Severity used below:
 - File: `compose.yaml`, `Makefile`
 - What: Compose 2.40 resolves the project name as `-p`, then `COMPOSE_PROJECT_NAME`, then the file's `name:`. `COMPOSE_PROJECT_NAME=zetaris-stack docker compose config` rendered `name: zetaris-stack` and, before the volume fix, `zetaris-stack_checkpoints`. Those containers would show up in the other project. `docker compose down --remove-orphans` from a Zetaris checkout could remove them. The network stayed `floodsense-app-net` only because that name is explicit.
 - Fix applied: every Makefile Compose invocation passes `-p floodsense-app`. Re-checked: the same exported variable with `make config` stays `name: floodsense-app`. Volume names are now explicit (`floodsense-app_checkpoints`, `floodsense-app_pgdata`), so a bare `docker compose` no longer creates `zetaris-stack_*` volumes. README, `infra/README.md`, and `docs/GAMEPLAN.md` say not to run a bare `docker compose up`.
-- Still true: a bare `docker compose up` while that variable is exported still joins the other project. The file's `name:` cannot win over the variable. Use `make up` or pass `-p floodsense-app`.
+- Still true: a bare `docker compose up` while that variable is exported still joins the other project. The file's `name:` cannot win over the variable. Use `python tasks.py up` or pass `-p floodsense-app`.
 
 ### H2. `make down` could not parse when `pgvector/.env` was absent
 
@@ -98,7 +108,7 @@ Severity used below:
 ### L6. Git did not enforce LF
 
 - File: `.gitattributes` (added), `.editorconfig`
-- What: editorconfig asks for LF. Without a gitattributes file, a Windows checkout can rewrite `Makefile` to CRLF and break `make`. The skeleton itself had no CR bytes.
+- What: editorconfig asks for LF. Without a gitattributes file, a Windows checkout can rewrite scripts to CRLF. The skeleton itself had no CR bytes. The Makefile that this finding protected has since been removed; `tasks.py` is covered by `* text=auto eol=lf`.
 - Fix applied: `* text=auto eol=lf`, with binary marks for images, archives, and raster types.
 
 ### L7. Ingestion had nowhere safe to put downloads
@@ -202,8 +212,8 @@ Severity used below:
 
 ### I14. What was executed
 
-- `make test` passes (API health, agent placeholders, sync stub).
-- `make config` passes with no env files, project name `floodsense-app`, loopback publishes, and explicit volume names.
-- `make up` with no env files exits before Docker and names the missing file.
+- `make test` passed at review time (API health, agent placeholders, sync stub). The same suite is now `python tasks.py test`, which also runs `tests/test_tasks.py`.
+- `make config` passed with no env files, project name `floodsense-app`, loopback publishes, and explicit volume names. The same render is `python tasks.py config`.
+- `make up` with no env files exited before Docker and named the missing file. `python tasks.py up` does the same, and `init-env` creates the copies.
 - UI `tsc --noEmit`, `vite build`, and `npm ci` pass.
-- `docker compose config` was run. Image builds and `make down` against a running engine were not: there is no Docker daemon in this environment.
+- `docker compose config` was run on Linux. Image builds and `down` against a running engine were not: there is no Docker daemon in this environment. Native Windows PowerShell and cmd were not executed here.

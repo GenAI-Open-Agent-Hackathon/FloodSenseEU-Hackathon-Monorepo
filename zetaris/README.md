@@ -19,13 +19,17 @@ Seed views (`floodsense_seed.*`) share the schemas of the live views so the agen
 
 ## Sync command
 
-```bash
-make zetaris-sync
+```powershell
+py tasks.py zetaris-sync
 ```
 
-That runs `python3 scripts/zetaris_sync.py` on the host.
+```bash
+python3 tasks.py zetaris-sync
+```
 
-**TODO:** the script is a stub. It prints a message and applies nothing. Urvashi implements the ledger (`.zetaris-sync/ledger.json`, git-ignored, one per machine), the dry run, and the verify step. Planned siblings, not in this skeleton: `make zetaris-status`, `make verify`, `make zetaris-reset`.
+That runs `scripts/zetaris_sync.py` on the host with the current interpreter. There is no Makefile.
+
+**TODO:** the script is a stub. It prints a message and applies nothing. Urvashi implements the ledger (`.zetaris-sync/ledger.json`, git-ignored, one per machine), the dry run, and the verify step. Planned siblings, not in this skeleton: `zetaris-status`, `verify`, `zetaris-reset` subcommands.
 
 Each person creates their own Zetaris API key in their own UI and stores it in `ingestion/.env` (host URL `127.0.0.1`). Do not point this command at `agents/.env`: that file is for containers and uses `host.docker.internal`, which usually does not resolve on the host. The root `.env` is not injected into containers and is not read by the stub. Nobody shares keys.
 

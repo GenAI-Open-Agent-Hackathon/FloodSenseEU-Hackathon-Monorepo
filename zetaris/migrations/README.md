@@ -11,4 +11,4 @@ Rules (see [../README.md](../README.md)):
 - No passwords, tokens, or cloud keys in SQL. Use `${VAR}` placeholders.
 - Put a `-- statement` line between statements so the sync tool can send them one at a time.
 
-`make zetaris-sync` is still a stub and will not apply these files until `scripts/zetaris_sync.py` is implemented.
+`python tasks.py zetaris-sync` is still a stub and will not apply these files until `scripts/zetaris_sync.py` is implemented. On Windows, `py tasks.py zetaris-sync`.

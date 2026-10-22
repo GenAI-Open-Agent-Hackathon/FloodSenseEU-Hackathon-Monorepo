@@ -36,7 +36,7 @@ Five peers. The Architect is one role among them, not a team lead. Scope changes
 | Person | Role | Owns |
 | --- | --- | --- |
 | Mihir | Architect | Architecture, `docs/` and ADRs, CI/CD, security review, compose, contracts. Builds the Judge with Zain. Carries the UI until Zain finishes LangGraph and HITL. |
-| Urvashi | Zetaris | Ingestion with Saleeta, every Zetaris issue, migrations and `make zetaris-sync`, vector-search research. Then tracing and the citation pipeline with Saleeta and Mihir. |
+| Urvashi | Zetaris | Ingestion with Saleeta, every Zetaris issue, migrations and `python tasks.py zetaris-sync`, vector-search research. Then tracing and the citation pipeline with Saleeta and Mihir. |
 | Saleeta | Ingestion, citations, story | EMS footprint, OSM, portfolio, seed views, citation records, both the slide deck and the demo (video and live script). |
 | Ayush | Nightshift, memory | Nightshift client, pinned lanes, H-MEM, World Model, short- and long-term memory, embeddings research, semantic cache, past-runs endpoint. |
 | Zain | LangGraph, HITL, Judge, UI | Graph and nodes with Ayush, `interrupt()` and the checkpointer, the Judge with Mihir, then the UI. |
@@ -74,7 +74,7 @@ Slots are a guide (Berlin time, AM ≈ 09:30–14:00, PM ≈ 14:30–20:00). Thu
 
 ### Saturday (sync day)
 
-Everyone pulls main, runs `make zetaris-sync`, and runs our compose stack without touching Zetaris. Urvashi runs the Zetaris desk. Agents move to live views. Saleeta wires dataset → source citations. Ayush and Zain add Exposure and Playbook, then Zain starts HITL. Mihir ships interim UI v1 (`v0.7.0`).
+Everyone pulls main, runs `python tasks.py zetaris-sync` (`py tasks.py zetaris-sync` on Windows), and runs our compose stack without touching Zetaris. Urvashi runs the Zetaris desk. Agents move to live views. Saleeta wires dataset → source citations. Ayush and Zain add Exposure and Playbook, then Zain starts HITL. Mihir ships interim UI v1 (`v0.7.0`).
 
 ### Sunday and Monday
 
@@ -90,7 +90,7 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 - 14:00 optional pair check-in: contract changes are announced here.
 - 19:30 merge window: green branches merge to main. Unfinished work goes in behind a feature flag. Nothing stays unmerged overnight.
 - 20:00 increment demo (2 min each) and tag. Mihir creates the tag as CI/CD owner.
-- After every pull of main: `make zetaris-sync` before starting work.
+- After every pull of main: `python tasks.py zetaris-sync` before starting work. On Windows, `py tasks.py zetaris-sync`. One command per line. PowerShell 5.x has no `&&`.
 
 ## Increments
 
@@ -139,7 +139,7 @@ What is in the skeleton today:
 ```text
 README.md
 compose.yaml          # our app only
-Makefile              # up, down, zetaris-sync, test, lint
+tasks.py              # up, down, zetaris-sync, test, lint. No Make.
 .env.example
 ingestion/            # Saleeta, Urvashi — prep and seed content
 zetaris/migrations/   # Urvashi — numbered SQL
@@ -158,7 +158,7 @@ The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This skeleton k
 
 Each of us runs Zetaris locally. Objects stay in sync because they are code.
 
-`make zetaris-sync` will run `python3 scripts/zetaris_sync.py`, apply pending migrations in order through each person's own `ingestion/.env` (host URL `127.0.0.1`, not `agents/.env`), record SHA-256 and time in `.zetaris-sync/ledger.json`, and run verify queries. CI will run the same command. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
+`python tasks.py zetaris-sync` runs `scripts/zetaris_sync.py` with the same interpreter, applies pending migrations in order through each person's own `ingestion/.env` (host URL `127.0.0.1`, not `agents/.env`), records SHA-256 and time in `.zetaris-sync/ledger.json`, and runs verify queries. CI will run the same command. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
 
 **TODO:** `scripts/zetaris_sync.py` is a stub. It exits successfully and sends no SQL.
 
@@ -166,13 +166,13 @@ Verify output should match on every machine. That is the definition of "in sync"
 
 ## Running our app
 
-`make up` runs `docker compose -p floodsense-app up -d --build` in this repo. The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. It starts the API, the agent runtime, and the UI. pgvector and Redis start with `make up-all` (`--profile rag` and `--profile cache`).
+`python tasks.py up` runs `docker compose -p floodsense-app up -d --build` in this repo (Windows: `py tasks.py up`). The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. The task script also pins `--project-directory` and `-f compose.yaml`, so `COMPOSE_FILE` cannot select another compose file. It starts the API, the agent runtime, and the UI. pgvector and Redis start with `python tasks.py up-all` (`--profile rag` and `--profile cache`). No Make, and no `&&`, so PowerShell 5.x can run it.
 
 The stack reaches Zetaris and Nightshift through the host, as a normal client. Inside a container, `127.0.0.1` is the container itself, so URLs use `host.docker.internal`. With Docker Engine on WSL, `host-gateway` may not reach a service bound only to `127.0.0.1`. Ayush (Nightshift) and Urvashi (Zetaris) check that on Thursday. Fallback: run the API and agents on the host, and keep UI, pgvector, and Redis in compose. The `.env` URLs make that a configuration change.
 
 Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is not in this compose file yet. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
 
-`make down` stops our project only. It does not remove named volumes. It does not stop Zetaris.
+`python tasks.py down` stops our project only. It does not remove named volumes. It does not stop Zetaris. It still runs when `pgvector/.env` was never created.
 
 ## Citations
 
@@ -350,4 +350,4 @@ Not verified yet. Owners in parentheses.
 - The UI is a Vite placeholder, not the console.
 - No `engines/` sidecar, no `contracts/`, no eval items, no demo script.
 - No GitHub Actions, no pre-commit hook, no enforced CODEOWNERS file.
-- `make lint` prints a TODO.
+- `python tasks.py lint` prints a TODO.

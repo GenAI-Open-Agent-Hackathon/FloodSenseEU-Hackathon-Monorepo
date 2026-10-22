@@ -1,13 +1,14 @@
 # compose.yaml — runs OUR app only.
 # It never starts, stops, joins, or modifies a Zetaris stack.
 # Do not add a Zetaris service, image, volume, network, or container_name.
-# Run `make down` in this repo. Do not docker system prune or docker volume prune.
+# Run `python tasks.py down` in this repo. Do not docker system prune or docker volume prune.
 #
 # `name` below is not enough on its own: an exported COMPOSE_PROJECT_NAME
-# overrides it. The Makefile always passes `-p floodsense-app`, which wins.
-# env_file `required: false` needs Compose v2.24+. A missing file must not
-# block `make down` (the rag profile is optional). `make up` still refuses
-# to start until api/.env, agents/.env, and ui/.env exist.
+# overrides it. tasks.py always passes `-p floodsense-app`, which wins.
+# It also passes `--project-directory` and `-f` so COMPOSE_FILE cannot
+# select another file. env_file `required: false` needs Compose v2.24+.
+# A missing file must not block `down` (the rag profile is optional).
+# `up` still refuses to start until api/.env, agents/.env, and ui/.env exist.
 
 name: floodsense-app
 
