@@ -18,34 +18,72 @@ Five peers. The Architect is one role among them, not a team lead.
 
 ## Quick start
 
+You need Python 3.10+ and Docker Desktop. You do not need Make, WSL, or Git Bash. Tasks live in `tasks.py` (stdlib only):
+
+```text
+python tasks.py <command>
+py tasks.py <command>
+```
+
+`py` is the Windows launcher. `python` or `python3` is the same script. Run one command per line. PowerShell 5.x does not support `&&`.
+
 Zetaris (UI `:3000`, REST `:8888/api/v1.0`, JDBC `:10000`) and Nightshift (`http://127.0.0.1:8088/v1`) are each person's own processes. This repository does not start them.
 
-```bash
-cp .env.example .env
-cp api/.env.example api/.env
-cp agents/.env.example agents/.env
-cp ui/.env.example ui/.env
-cp ingestion/.env.example ingestion/.env
-# optional, only with --profile rag:
-cp pgvector/.env.example pgvector/.env
+PowerShell 5.x or 7:
 
-# fill the copies locally, then:
-make up
+```powershell
+py tasks.py init-env
+py tasks.py up
+Invoke-RestMethod http://127.0.0.1:18000/health
+py tasks.py down
+```
+
+bash (macOS or Linux):
+
+```bash
+python3 tasks.py init-env
+python3 tasks.py up
 curl -s http://127.0.0.1:18000/health
-make down
+python3 tasks.py down
 ```
 
-`make up` builds and starts the API (host port 18000), the agent runtime (no host port), and the UI (host port 15173). Optional profiles:
+`init-env` copies each missing `.env.example` to `.env` and does not overwrite a file that is already there. Fill `agents/.env` and `ingestion/.env` locally. In PowerShell, `curl` is an alias of `Invoke-WebRequest` and does not accept `-s`. Use `Invoke-RestMethod`, or `curl.exe` if you want the real curl.
+
+`up` builds and starts the API (`127.0.0.1:18000`), the agent runtime (no host port), and the UI (`127.0.0.1:15173`). Published ports bind to loopback. It refuses to start until `api/.env`, `agents/.env`, and `ui/.env` exist. Optional profiles:
+
+```powershell
+py tasks.py up-all
+```
 
 ```bash
-docker compose --profile rag --profile cache up -d --build
+python3 tasks.py up-all
 ```
 
-That adds pgvector on 15432 and Redis on 16379. `make down` stops this project only, including those profiles. It does not remove volumes and it does not stop Zetaris.
+That adds pgvector on `127.0.0.1:15432` and Redis on `127.0.0.1:16379`. `init-env` also copies `pgvector/.env.example`. `down` stops this project only, including those profiles, even when `pgvector/.env` was never created. It does not remove volumes and it does not stop Zetaris.
 
-`make zetaris-sync` is a stub. It prints a TODO and applies no SQL. `make test` compiles the Python packages and runs the skeleton unit tests (install API deps first: `pip install -r api/requirements.txt`). `make lint` is a TODO until the CI branch.
+Compose is always `docker compose -p floodsense-app` with this repo's `compose.yaml`. An exported `COMPOSE_PROJECT_NAME` or `COMPOSE_FILE` cannot point the task script at another Compose project. If you run `docker compose` yourself, pass the same `-p`.
 
-Containers call Zetaris and Nightshift at `host.docker.internal`. Host-side scripts use `127.0.0.1`. Both URLs are configuration.
+`zetaris-sync` is a stub. It prints a TODO and applies no SQL. When it is implemented it should read `ingestion/.env` (`127.0.0.1`), not `agents/.env`. `test` compiles the Python packages and runs the unit tests with the current interpreter. Install API deps into a virtualenv first, then run `test` with that interpreter.
+
+PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
+.\.venv\Scripts\python.exe tasks.py test
+```
+
+bash:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r api/requirements.txt
+.venv/bin/python tasks.py test
+```
+
+Calling the venv interpreter directly avoids PowerShell's script execution policy, which can block `Activate.ps1`. `lint` is a TODO until the CI branch.
+
+Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`). Host-side scripts use `127.0.0.1` (`ingestion/.env`, and the host-side copies in the root `.env`). The root file is not injected into containers. `host.docker.internal` is wired with `extra_hosts: host-gateway` so Linux and WSL Docker Engine can resolve it. Docker Desktop on Windows already resolves that name. A service bound only to `127.0.0.1` on the host may still be unreachable from a container; that check is Ayush and Urvashi's.
 
 ## Layout
 
@@ -57,6 +95,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal`. Host-side scri
 | `api/` | FastAPI. `/health` only | Zain, Ayush |
 | `ui/` | Vite + React + TSX placeholder | Mihir, then Zain |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |
+| `tasks.py` | Cross-platform task runner (`up`, `down`, `test`, …) | Mihir |
 | `docs/` | Gameplan, ownership, ADRs | Mihir |
 
 ## Branching

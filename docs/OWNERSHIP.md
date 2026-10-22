@@ -12,7 +12,7 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/docs/` | Mihir | Gameplan, ADRs, later legal notes and release notes |
 | `/infra/` | Mihir | Local runtime notes. Workflows are a later branch |
 | `/compose.yaml` | Mihir | Our app only. Isolated from Zetaris |
-| `/Makefile` | Mihir | `zetaris-sync` behaviour is Urvashi's |
+| `/tasks.py` | Mihir | Task runner. `zetaris-sync` behaviour is Urvashi's |
 | `/ingestion/` | Urvashi, Saleeta | Prep, footprints, portfolio, seed content |
 | `/zetaris/` | Urvashi | Migrations, sync, views |
 | `/scripts/zetaris_sync.py` | Urvashi | The one sync command |
