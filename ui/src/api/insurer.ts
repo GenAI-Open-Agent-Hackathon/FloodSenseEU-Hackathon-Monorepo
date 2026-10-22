@@ -46,11 +46,31 @@ export function enqueueApprovalRequest(request: ApprovalRequest): void {
   pushNotification({ kind: "approval-needed", title: "Approval needed", detail: request.title, approvalId: request.id });
 }
 
+/** One in-flight decision per request, so a double click cannot spend two agent calls. */
+const decisionsInFlight = new Map<string, Promise<ApprovalRequest>>();
+
 /** Records a human decision. In the real system this resumes the LangGraph interrupt. */
-export async function decideApproval(decision: ApprovalDecision): Promise<ApprovalRequest> {
+export function decideApproval(decision: ApprovalDecision): Promise<ApprovalRequest> {
+  const current = decisionsInFlight.get(decision.requestId);
+  if (current) {
+    return current;
+  }
+  const pending = applyDecision(decision).finally(() => {
+    decisionsInFlight.delete(decision.requestId);
+  });
+  decisionsInFlight.set(decision.requestId, pending);
+  return pending;
+}
+
+async function applyDecision(decision: ApprovalDecision): Promise<ApprovalRequest> {
   const request = approvalStore.getSnapshot().find((r) => r.id === decision.requestId);
   if (!request) {
     throw notFound("Approval request", decision.requestId);
+  }
+  // The queue and the simulation can both offer the same request. The first
+  // decision wins; a repeat must not notify again or consume another call.
+  if (request.status !== "pending") {
+    return request;
   }
   consumeRequest();
   const updated: ApprovalRequest = { ...request, status: decision.decision, reviewerNote: decision.note || undefined };

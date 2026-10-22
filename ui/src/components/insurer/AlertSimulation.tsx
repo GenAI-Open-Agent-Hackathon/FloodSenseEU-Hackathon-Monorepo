@@ -32,6 +32,8 @@ interface AlertSimulationProps {
 /** Plays one alert end to end so the human-in-the-loop step is visible. Nothing is sent. */
 export function AlertSimulation({ onShowInQueue }: AlertSimulationProps) {
   const [run, setRun] = useState<RunState>({ status: "idle" });
+  const [deciding, setDeciding] = useState(false);
+  const [decisionError, setDecisionError] = useState<{ message: string; rateLimited: boolean } | null>(null);
   const queue = useStore(approvals);
   const request: ApprovalRequest | undefined = run.status === "running" && run.requestId ? queue.find((r) => r.id === run.requestId) : undefined;
   const stepId = run.status === "running" ? steps[run.step]?.id : undefined;
@@ -70,6 +72,7 @@ export function AlertSimulation({ onShowInQueue }: AlertSimulationProps) {
   }, [run, stepId, request]);
 
   const start = async () => {
+    setDecisionError(null);
     setRun({ status: "starting" });
     try {
       const script = await startAlertSimulation();
@@ -81,9 +84,17 @@ export function AlertSimulation({ onShowInQueue }: AlertSimulationProps) {
   };
 
   const decide = (decision: "approved" | "rejected") => {
-    if (request) {
-      void decideApproval({ requestId: request.id, decision, note: "Decided from the alert simulation." });
+    if (!request || deciding) {
+      return;
     }
+    setDeciding(true);
+    setDecisionError(null);
+    void decideApproval({ requestId: request.id, decision, note: "Decided from the alert simulation." })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Decision failed.";
+        setDecisionError({ message, rateLimited: error instanceof RateLimitError });
+      })
+      .finally(() => setDeciding(false));
   };
 
   const finished = run.status === "running" && stepId === "notified";
@@ -113,8 +124,13 @@ export function AlertSimulation({ onShowInQueue }: AlertSimulationProps) {
               </li>
             ))}
           </ol>
+          {decisionError && (
+            <p className={decisionError.rateLimited ? "error error--rate-limit" : "error"} role="alert">
+              {decisionError.message}
+            </p>
+          )}
           <div className="simulation__detail" aria-live="polite">
-            <StepDetail script={run.script} stepIndex={run.step} request={request} onDecide={decide} onShowInQueue={onShowInQueue} />
+            <StepDetail script={run.script} stepIndex={run.step} request={request} deciding={deciding} onDecide={decide} onShowInQueue={onShowInQueue} />
           </div>
         </>
       )}
@@ -126,11 +142,12 @@ interface StepDetailProps {
   script: SimulationScript;
   stepIndex: number;
   request: ApprovalRequest | undefined;
+  deciding: boolean;
   onDecide: (decision: "approved" | "rejected") => void;
   onShowInQueue: (id: string) => void;
 }
 
-function StepDetail({ script, stepIndex, request, onDecide, onShowInQueue }: StepDetailProps) {
+function StepDetail({ script, stepIndex, request, deciding, onDecide, onShowInQueue }: StepDetailProps) {
   const { gauge } = script;
   const reached = (id: SimulationStepId) => steps.findIndex((s) => s.id === id) <= stepIndex;
   return (
@@ -163,10 +180,10 @@ function StepDetail({ script, stepIndex, request, onDecide, onShowInQueue }: Ste
             <>
               <span className="muted small">Waiting for a human. Decide here or in the approval queue.</span>
               <div className="approval__actions">
-                <button type="button" className="button button--primary" onClick={() => onDecide("approved")}>
+                <button type="button" className="button button--primary" disabled={deciding} onClick={() => onDecide("approved")}>
                   Approve
                 </button>
-                <button type="button" className="button button--danger" onClick={() => onDecide("rejected")}>
+                <button type="button" className="button button--danger" disabled={deciding} onClick={() => onDecide("rejected")}>
                   Reject
                 </button>
                 <button type="button" className="button" onClick={() => onShowInQueue(request.id)}>
