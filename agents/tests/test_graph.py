@@ -164,11 +164,19 @@ class HitlTest(unittest.TestCase):
         from langgraph.checkpoint.sqlite import SqliteSaver
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "cp.sqlite")
-            s1 = SqliteSaver(sqlite3.connect(path, check_same_thread=False)); s1.setup()
-            _, cfg = start(build_graph(deps(), s1, ff_judge=True), rid="h5")
-            s2 = SqliteSaver(sqlite3.connect(path, check_same_thread=False))
-            final = build_graph(deps(), s2, ff_judge=True).invoke(Command(resume={"action": "approve"}), cfg)
-            self.assertEqual(final["status"], "approved")
+            c1 = sqlite3.connect(path, check_same_thread=False)
+            c2 = sqlite3.connect(path, check_same_thread=False)
+            try:
+                s1 = SqliteSaver(c1); s1.setup()
+                _, cfg = start(build_graph(deps(), s1, ff_judge=True), rid="h5")
+                s2 = SqliteSaver(c2)                            # "process restart"
+                final = build_graph(deps(), s2, ff_judge=True).invoke(Command(resume={"action": "approve"}), cfg)
+                self.assertEqual(final["status"], "approved")
+            finally:
+                # Windows will not unlink an open file, so the temp dir cannot
+                # be cleaned up while either connection is still held.
+                c1.close()
+                c2.close()
 
 
 if __name__ == "__main__":
