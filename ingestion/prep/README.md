@@ -46,3 +46,13 @@ Zetaris cannot read files on a laptop. Proposal: put these CSVs in the S3 bucket
 - Loading `provenance.csv` into `floodsense.provenance`.
 - AEMET observations. They need an API key.
 - The EMS Citation Guidelines wording (see `docs/legal/sources.md`).
+
+## Zetaris seed source (local stack)
+
+`zetaris/migrations/010_seed_sources.sql` creates the `floodsense_seed` database with one FILESTORE table per CSV above. Zetaris reads files only from inside its own volume, so stage them first:
+
+```powershell
+.\.venv\Scripts\python.exe ingestion\prep\stage_local_zetaris.py
+```
+
+Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, 6 and 8, and the join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
