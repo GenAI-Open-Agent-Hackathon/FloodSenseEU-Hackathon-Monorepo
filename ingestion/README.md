@@ -8,4 +8,4 @@ Zetaris objects are not created from this folder. Numbered SQL migrations live i
 
 Put downloads (EMS rasters, OSM extracts, archives) in `raw/` or `data/`. Those paths are git-ignored. Do not commit them.
 
-Terms for every source are recorded later in `docs/legal/sources.md` (not in this skeleton). Anything we cannot clear stays pointer-only. See [docs/GAMEPLAN.md](../docs/GAMEPLAN.md).
+Terms for every source are recorded in `docs/legal/sources.md`. Prep tables and lineage are in `prep/README.md`. Anything we cannot clear stays pointer-only. See [docs/GAMEPLAN.md](../docs/GAMEPLAN.md).
