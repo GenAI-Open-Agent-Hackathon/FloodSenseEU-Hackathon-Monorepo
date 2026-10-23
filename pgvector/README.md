@@ -18,4 +18,4 @@ python3 tasks.py up-all
 
 Host port `127.0.0.1:15432` (not published on the LAN). The password in `.env.example` is a local placeholder. Replace it in the git-ignored `.env`. `up-all` is the command that starts this profile. `python tasks.py down` still works if this file was never copied.
 
-This database is part of the FloodSense compose project. It is not the Zetaris stack. Registering it as a Zetaris JDBC source is a later, optional check.
+This database is part of the FloodSense compose project. It is not the Zetaris stack. `python tasks.py up-db` starts only this service. The PEGELONLINE poller creates schema `live` in this database. Registering it from Zetaris is `zetaris/migrations/020_live_gauges.sql` (untested on a live Zetaris). See [ingestion/live/README.md](../ingestion/live/README.md).

@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Added
+
+- PEGELONLINE live gauge poller in `ingestion/live/`. It upserts station metadata and raw unchecked water-level readings into Postgres `live.gauge_station` and `live.gauge_measurement` on the existing pgvector service (`127.0.0.1:15432`). `python tasks.py up-db` starts that database alone. `zetaris/migrations/020_live_gauges.sql` registers the tables for Zetaris and adds one Lightning REST example for the Bonn gauge. That Zetaris SQL is untested against a live Zetaris. LANUK NRW is not included.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.

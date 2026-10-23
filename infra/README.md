@@ -33,6 +33,18 @@ python3 tasks.py up-all
 
 `rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model, Ayush) is not in this skeleton.
 
+Postgres alone, without building the API or the UI:
+
+```powershell
+py tasks.py up-db
+```
+
+```bash
+python3 tasks.py up-db
+```
+
+`up-db` needs `pgvector/.env` and does not need `api/.env`. It starts the `rag` profile service `pgvector` on `127.0.0.1:15432`. `down` still stops it. A Zetaris container can join the named network `floodsense-app-net` and use the DNS name `pgvector` on port 5432. The host port stays on loopback. `host.docker.internal:15432` is the Docker Desktop alternative when the Zetaris container is not on that network. Details are in [ingestion/live/README.md](../ingestion/live/README.md).
+
 ## CI
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. It rejects a tracked `.env`, runs gitleaks (default rules plus an `nvapi-` rule), then `python tasks.py lint` and `python tasks.py test`.

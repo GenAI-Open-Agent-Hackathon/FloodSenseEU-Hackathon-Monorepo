@@ -72,6 +72,7 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
 .\.venv\Scripts\python.exe -m pip install -r contracts\requirements.txt
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install -r ingestion\live\requirements.txt
 .\.venv\Scripts\python.exe tasks.py test
 cd ui
 npm ci
@@ -86,6 +87,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r api/requirements.txt
 .venv/bin/python -m pip install -r contracts/requirements.txt
 .venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pip install -r ingestion/live/requirements.txt
 .venv/bin/python tasks.py test
 cd ui
 npm ci

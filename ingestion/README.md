@@ -9,3 +9,7 @@ Zetaris objects are not created from this folder. Numbered SQL migrations live i
 Put downloads (EMS rasters, OSM extracts, archives) in `raw/` or `data/`. Those paths are git-ignored. Do not commit them.
 
 Terms for every source are recorded later in `docs/legal/sources.md` (not in this skeleton). Anything we cannot clear stays pointer-only. See [docs/GAMEPLAN.md](../docs/GAMEPLAN.md).
+
+## Live gauges
+
+PEGELONLINE polling lives in [`live/`](live/README.md). It writes `live.gauge_station` and `live.gauge_measurement` and does not create Zetaris objects. The Zetaris registration is [`zetaris/migrations/020_live_gauges.sql`](../zetaris/migrations/020_live_gauges.sql). LANUK NRW is out of scope until its portal licence is verified. Attribution for PEGELONLINE is in the live README and should be copied into `docs/legal/sources.md` when that file exists. Do not add that file on this branch.
