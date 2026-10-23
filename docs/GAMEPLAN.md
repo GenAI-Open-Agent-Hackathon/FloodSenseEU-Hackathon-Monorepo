@@ -14,7 +14,7 @@ The demo replays the Valencia floods of 29 Oct 2024 (Copernicus EMS activation E
 
 Mandatory stack: Zetaris (each person runs their own local Docker Compose), Meterless Nightshift (all LLM calls, NVIDIA Nemotron lanes), at least one Meterless engine in working code (H-MEM and World Model), Cursor.
 
-Our stack: Python and LangGraph (agents, human-in-the-loop), FastAPI, React with TSX on Vite, GitHub, docker compose for our app, optional pgvector and Redis. GitHub Actions comes later, on its own branch.
+Our stack: Python and LangGraph (agents, human-in-the-loop), FastAPI, React with TSX on Vite, GitHub, docker compose for our app, optional pgvector and Redis. GitHub Actions runs lint, tests, and secret scans on pull requests and on pushes to `main` ([adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md)).
 
 ## How we want the demo to score
 
@@ -96,7 +96,7 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 
 Thirteen product increments, a release candidate, and the release. Each merges through a pull request, is demoed at 20:00, and is tagged. Tags are immutable: `v0.MINOR.0` for an increment, `v0.MINOR.PATCH` for a fix, `v1.0.0-rc.N` for candidates. A slipped increment merges behind its flag. The tag records what actually works.
 
-This skeleton is the folder half of `v0.0.0` only. It does not create the tag. The guardrails half (GitHub Actions, secret detection, first unit tests beyond this health check) is the next feature branch.
+The folder half and the guardrails half of `v0.0.0` are in this tree: CI, secret detection, contracts, C4 diagrams, and proposed ADRs. This repository does not create the `v0.0.0` tag. Mihir tags a green `main` after the guardrails pull request merges.
 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
@@ -147,12 +147,14 @@ agents/               # Ayush, Zain — LangGraph package skeleton
 api/                  # Zain, Ayush — FastAPI, /health only
 ui/                   # Mihir, then Zain — Vite + React + TSX placeholder
 infra/                # Mihir — how the local stack stays isolated
-docs/                 # Mihir — this file, ownership, ADRs
+docs/                 # Mihir — this file, ownership, C4, ADRs
+contracts/            # Mihir — JSON Schema shared by agents, API, and UI
+.github/workflows/    # Mihir — lint, test, secret scan
 scripts/zetaris_sync.py   # stub
 pgvector/.env.example     # optional RAG profile
 ```
 
-The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This skeleton keeps prep in `ingestion/` and SQL in `zetaris/migrations/` so the sync command has one obvious directory. Later folders, not created yet: `contracts/`, `knowledge/`, `engines/` (TypeScript sidecar for H-MEM and World Model), `evals/`, `demo/`, `.github/workflows/`.
+The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This skeleton keeps prep in `ingestion/` and SQL in `zetaris/migrations/` so the sync command has one obvious directory. Later folders, not created yet: `knowledge/`, `engines/` (TypeScript sidecar for H-MEM and World Model), `evals/`, `demo/`.
 
 ## Zetaris sync
 
@@ -302,7 +304,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix gets a new tag. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Patches become `rc.2`, `rc.3`, and so on.
 
-The repo stays private during the build and switches to public before submission, after the security review. On GitHub Free, rulesets and enforced code owners apply once the repo is public. Until then the team rules above are the protection, together with the CI guard that lands on the next branch.
+The repo stays private during the build and switches to public before submission, after the security review. On GitHub Free, rulesets and enforced code owners apply once the repo is public. Until then the team rules above are the protection, together with the CI workflow in `.github/workflows/ci.yml`.
 
 ## Secrets
 
@@ -311,7 +313,7 @@ The repo stays private during the build and switches to public before submission
 - The NVIDIA provider key lives only in Nightshift's Providers tab. It is not an application env var, a GitHub secret, a test fixture, or a Cursor model setting.
 - SQL, logs, screenshots, and prompts do not contain tokens. Placeholders in examples are empty or obvious stand-ins.
 - If a secret is committed, rotate it. Deleting the file is not enough.
-- CI on the next branch will reject a tracked `.env` and an NVIDIA key string. That workflow is not in this commit.
+- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
 
 ## Open points and proposals
 
@@ -347,7 +349,8 @@ Not verified yet. Owners in parentheses.
 - No SQL migrations yet.
 - LangGraph graph, Nightshift client, HITL checkpointer, and Judge are placeholders.
 - The API implements `/health` only.
-- The UI is a Vite placeholder, not the console.
-- No `engines/` sidecar, no `contracts/`, no eval items, no demo script.
-- No GitHub Actions, no pre-commit hook, no enforced CODEOWNERS file.
-- `python tasks.py lint` prints a TODO.
+- The UI on `main` is a Vite placeholder, not the console. The mock on `spike/mock-ui` is not merged.
+- No `engines/` sidecar, no eval items, no demo script.
+- No pre-commit hook. `python tasks.py lint` is the local check. No enforced CODEOWNERS file.
+- ADRs 0002–0008 are Proposed. The team has not accepted them.
+- `agents/`, `api/`, and `ui/` do not import `contracts/` yet.

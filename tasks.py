@@ -15,6 +15,7 @@ cannot attach this stack to another project, such as a local Zetaris stack.
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import shutil
 import subprocess
@@ -193,12 +194,15 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
                 "scripts",
                 "tests",
                 "tasks.py",
+                "contracts/python",
+                "contracts/tests",
             ],
         ),
         (root / "api", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root / "agents", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
+        (root, [exe, "-m", "unittest", "discover", "-s", "contracts/tests", "-v"]),
     ]
 
 
@@ -210,8 +214,138 @@ def cmd_test(root: Path, runner: Runner) -> int:
     return 0
 
 
-def cmd_lint() -> int:
-    print("TODO: lint is not wired yet (ruff, mypy, ui tsc). CI is a later branch.")
+def is_forbidden_env_path(path: str) -> bool:
+    """True for a tracked .env file. `.env.example` and `*.env.example` are allowed."""
+    name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if name == ".env.example" or name.endswith(".env.example"):
+        return False
+    return name == ".env" or name.startswith(".env.")
+
+
+def tracked_paths(root: Path) -> list[str] | None:
+    completed = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        sys.stderr.buffer.write(completed.stderr)
+        print("git ls-files failed.", file=sys.stderr)
+        return None
+    raw = completed.stdout.decode("utf-8", errors="surrogateescape")
+    return [part for part in raw.split("\0") if part]
+
+
+def check_tracked_env(root: Path) -> int:
+    """Fail if git tracks a filled env file. Examples named `.env.example` stay allowed."""
+    paths = tracked_paths(root)
+    if paths is None:
+        return 1
+    bad = [path for path in paths if is_forbidden_env_path(path)]
+    if not bad:
+        print("no tracked .env files")
+        return 0
+    print(
+        "Tracked env files are not allowed. Commit .env.example only.",
+        file=sys.stderr,
+    )
+    for rel in bad:
+        print(f"  {rel}", file=sys.stderr)
+    return 1
+
+
+def typescript_bin(root: Path) -> Path:
+    return root / "ui" / "node_modules" / "typescript" / "bin" / "tsc"
+
+
+def lint_commands(
+    root: Path,
+    *,
+    node: str,
+    gitleaks: str | None,
+) -> list[tuple[Path, list[str]]]:
+    """Argument lists for ruff, tsc, and gitleaks. No shell."""
+    tsc = typescript_bin(root)
+    exe = sys.executable
+    commands: list[tuple[Path, list[str]]] = []
+    if gitleaks:
+        commands.append(
+            (
+                root,
+                [
+                    gitleaks,
+                    "detect",
+                    "--source",
+                    str(root),
+                    "--redact",
+                    "--no-banner",
+                ],
+            )
+        )
+    commands.append((root, [exe, "-m", "ruff", "check"]))
+    commands.append(
+        (root, [node, str(tsc), "--noEmit", "-p", str(root / "ui" / "tsconfig.json")])
+    )
+    commands.append(
+        (
+            root,
+            [node, str(tsc), "--noEmit", "-p", str(root / "contracts" / "tsconfig.json")],
+        )
+    )
+    return commands
+
+
+def _gitleaks_required(flag: bool | None) -> bool:
+    if flag is None:
+        return os.environ.get("FLOODSENSE_REQUIRE_GITLEAKS") == "1"
+    return flag
+
+
+def cmd_lint(
+    root: Path,
+    runner: Runner,
+    *,
+    node: str | None = None,
+    gitleaks: str | None = None,
+    resolve_tools: bool = True,
+    require_gitleaks: bool | None = None,
+) -> int:
+    """Tracked-env check, ruff, and TypeScript. Gitleaks runs when it is on PATH.
+
+    CI sets FLOODSENSE_REQUIRE_GITLEAKS=1 so a missing scanner fails the job.
+    Locally a missing scanner prints one line and the rest of lint still runs.
+    """
+    code = check_tracked_env(root)
+    if code != 0:
+        return code
+    if resolve_tools:
+        if node is None:
+            node = shutil.which("node")
+        if gitleaks is None:
+            gitleaks = shutil.which("gitleaks")
+    if _gitleaks_required(require_gitleaks) and not gitleaks:
+        print(
+            "gitleaks is required (FLOODSENSE_REQUIRE_GITLEAKS=1) but it is not on PATH.",
+            file=sys.stderr,
+        )
+        return 1
+    if not gitleaks:
+        print("gitleaks not on PATH; CI runs the secret scan. Install is optional.")
+    tsc = typescript_bin(root)
+    if not tsc.is_file():
+        print("TypeScript is not installed. From the ui directory, run:", file=sys.stderr)
+        print("  npm ci", file=sys.stderr)
+        return 1
+    if not node:
+        print(
+            "node is not on PATH. Install Node.js 20, then run npm ci in ui/.",
+            file=sys.stderr,
+        )
+        return 1
+    for cwd, argv in lint_commands(root, node=node, gitleaks=gitleaks):
+        code = runner(argv, cwd)
+        if code != 0:
+            return code
     return 0
 
 
@@ -232,7 +366,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
     sub.add_parser("zetaris-sync", help="Run the Zetaris sync stub. Applies no SQL.")
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
-    sub.add_parser("lint", help="TODO stub. Exits 0 until the CI branch.")
+    sub.add_parser(
+        "lint",
+        help="Tracked-.env check, ruff, and TypeScript. Gitleaks when it is on PATH.",
+    )
     return parser
 
 
@@ -262,7 +399,7 @@ def main(
     if command == "test":
         return cmd_test(root, run)
     if command == "lint":
-        return cmd_lint()
+        return cmd_lint(root, run)
     print(f"Unknown command: {command}", file=sys.stderr)
     return 2
 
