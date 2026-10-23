@@ -2,7 +2,7 @@
 
 Owner: Urvashi.
 
-No migrations have been added yet. The first file will be `001_<short_name>.sql`.
+`020_live_gauges.sql` registers the PEGELONLINE Postgres tables and one REST example. Numbers below 020 are free for earlier sources (Saleeta's seed file is expected at `010_seed_sources.sql` and is not in this branch). Do not edit `020` after it has been applied. Add `021_...sql`.
 
 Rules (see [../README.md](../README.md)):
 
