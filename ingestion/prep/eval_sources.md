@@ -6,8 +6,8 @@ Each eval item needs a question, the facts a good answer contains, the allowed s
 
 | Source | Use in the eval | Layer | Licence | Status |
 | --- | --- | --- | --- | --- |
-| Copernicus EMS EMSR773 delineation and grading layers | Flood extent, flooded hectares per AOI, sites inside the footprint | (a) + (b) | Copernicus EMS terms | Staged in `ems_footprint.csv`. Licence to confirm |
-| Copernicus EMSR773 activation record (reason, event and activation time) | Event timeline: rain event 2024-10-29 14:30 UTC, activation 16:40 UTC | (b) | Copernicus EMS terms | Fetched from the public API |
+| Copernicus EMS EMSR773 delineation and grading layers | Flood extent, flooded hectares per AOI, sites inside the footprint | (a) + (b) | CEMS On-Demand Mapping terms | Staged in `ems_footprint.csv`. Terms read; citation wording to check |
+| Copernicus EMSR773 activation record (reason, event and activation time) | Event timeline: rain event 2024-10-29 14:30 UTC, activation 16:40 UTC | (b) | CEMS On-Demand Mapping terms | Fetched from the public API |
 | Open-Meteo Flood (GloFAS) and rain archive | Discharge and rainfall before the event | (a) + (b) | CC BY 4.0 | Urvashi loads |
 | AEMET observations and alert history | Rain totals, alert timeline | (b) | AEMET reuse terms | Not staged |
 | OSM sites and the synthetic portfolio | Exposure questions ("which insured sites were flooded") | (a) | ODbL / generated | Staged in `osm_sites.csv`, `portfolio_synthetic.csv` |

@@ -7,7 +7,7 @@ Small, committable tables for the Valencia 2024 demo. Large downloads stay in `i
 | File | What it is | Made by | Source and licence |
 | --- | --- | --- | --- |
 | `valencia_points.csv` | 8 Valencia points checked against the EMSR773 footprint (`in_flood`, `dist_m_to_flood`) | `ems_footprint.py` | Copernicus EMS. Coordinates are approximate town centres |
-| `ems_footprint.csv` | One row per EMSR773 layer: features, flooded hectares, bbox, download URL | `ems_footprint.py` | Copernicus EMS. Licence text to confirm |
+| `ems_footprint.csv` | One row per EMSR773 layer: features, flooded hectares, bbox, download URL | `ems_footprint.py` | Copernicus EMS. Terms read; citation wording to check |
 | `osm_sites.csv` | 961 OSM sites (industrial, retail, school, health, emergency) in the Horta Sud bbox, tagged `in_flood_footprint` | `osm_sites.py` + `osm_query.overpassql` | OpenStreetMap, ODbL 1.0 |
 | `portfolio_synthetic.csv` | 359 invented commercial-property policies on the industrial and retail sites | `synthetic_portfolio.py` (seed 773) | Generated. **Synthetic.** No personal data |
 | `provenance.csv` | Dataset, source URL, licence, attribution, access date for each dataset | by hand | See `docs/legal/sources.md` |
@@ -45,4 +45,4 @@ Zetaris cannot read files on a laptop. Proposal: put these CSVs in the S3 bucket
 - Seed view migrations in `zetaris/migrations/`. Waiting on Urvashi's check of the Lightning SQL syntax and on the S3 bucket.
 - Loading `provenance.csv` into `floodsense.provenance`.
 - AEMET observations. They need an API key.
-- The EMS licence text (see `docs/legal/sources.md`).
+- The EMS Citation Guidelines wording (see `docs/legal/sources.md`).
