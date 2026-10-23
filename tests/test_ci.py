@@ -22,6 +22,7 @@ class CiTests(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, homelab]", self.workflow)
         self.assertIn("python tasks.py lint", self.workflow)
         self.assertIn("python tasks.py test", self.workflow)
+        self.assertIn("ingestion/live/requirements.txt", self.workflow)
         self.assertIn('FLOODSENSE_REQUIRE_GITLEAKS: "1"', self.workflow)
         self.assertNotIn("uses: gitleaks/gitleaks-action", self.workflow)
         self.assertNotIn("docker://", self.workflow)

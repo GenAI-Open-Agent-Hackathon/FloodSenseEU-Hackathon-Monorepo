@@ -1,0 +1,4 @@
+# Host-side PEGELONLINE poller. CI installs this file before `python tasks.py test`.
+# The HTTP client uses the standard library. Postgres is the only extra dependency.
+psycopg==3.2.13
+psycopg-binary==3.2.13

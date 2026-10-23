@@ -65,6 +65,8 @@ services:
       - "127.0.0.1:${FLOODSENSE_PGVECTOR_PORT:-15432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Empty data volumes only. The poller applies the same file on every run.
+      - ./ingestion/live/sql/001_live_gauges.sql:/docker-entrypoint-initdb.d/001_live_gauges.sql:ro
     networks:
       - floodsense
 
@@ -79,6 +81,8 @@ services:
 
 networks:
   floodsense:
+    # Explicit name so a Zetaris container can join this network.
+    # This file does not attach to or modify the Zetaris stack.
     name: floodsense-app-net
 
 # Explicit names so a wrong project name cannot create zetaris-stack_* volumes.

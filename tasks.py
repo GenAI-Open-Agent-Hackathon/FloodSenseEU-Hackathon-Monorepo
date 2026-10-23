@@ -33,6 +33,7 @@ ENV_EXAMPLES: tuple[str, ...] = (
     "agents/.env.example",
     "ui/.env.example",
     "ingestion/.env.example",
+    "ingestion/live/.env.example",
     "pgvector/.env.example",
 )
 REQUIRED_ENV: tuple[str, ...] = ("api/.env", "agents/.env", "ui/.env")
@@ -74,6 +75,11 @@ def up_all_argv(root: Path) -> list[str]:
     )
 
 
+def up_db_argv(root: Path) -> list[str]:
+    """Postgres only. No --build: pgvector is an image, not a local Dockerfile."""
+    return compose_argv(root, "--profile", "rag", "up", "-d", "pgvector")
+
+
 def down_argv(root: Path) -> list[str]:
     # Profiles so optional containers stop too. No -v / --volumes.
     return compose_argv(root, "--profile", "rag", "--profile", "cache", "down")
@@ -83,15 +89,29 @@ def config_argv(root: Path) -> list[str]:
     return compose_argv(root, "--profile", "rag", "--profile", "cache", "config")
 
 
-def missing_env(root: Path, *, require_pgvector: bool = False) -> list[str]:
-    needed = list(REQUIRED_ENV)
-    if require_pgvector:
-        needed.append(PGVECTOR_ENV)
+def missing_env(
+    root: Path,
+    *,
+    require_pgvector: bool = False,
+    only: tuple[str, ...] | None = None,
+) -> list[str]:
+    if only is not None:
+        needed = list(only)
+    else:
+        needed = list(REQUIRED_ENV)
+        if require_pgvector:
+            needed.append(PGVECTOR_ENV)
     return [rel for rel in needed if not (root / rel).is_file()]
 
 
-def check_env(root: Path, *, require_pgvector: bool = False, quiet_ok: bool = False) -> int:
-    missing = missing_env(root, require_pgvector=require_pgvector)
+def check_env(
+    root: Path,
+    *,
+    require_pgvector: bool = False,
+    quiet_ok: bool = False,
+    only: tuple[str, ...] | None = None,
+) -> int:
+    missing = missing_env(root, require_pgvector=require_pgvector, only=only)
     if not missing:
         if not quiet_ok:
             print("env files present")
@@ -161,6 +181,14 @@ def cmd_up_all(root: Path, runner: Runner) -> int:
     return runner(up_all_argv(root), root)
 
 
+def cmd_up_db(root: Path, runner: Runner) -> int:
+    # Postgres only. The API, agent, and UI env files are not required.
+    code = check_env(root, only=(PGVECTOR_ENV,), quiet_ok=True)
+    if code != 0:
+        return code
+    return runner(up_db_argv(root), root)
+
+
 def cmd_down(root: Path, runner: Runner) -> int:
     # No env check. A missing pgvector/.env must not trap a running stack.
     return runner(down_argv(root), root)
@@ -196,7 +224,13 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
                 "tasks.py",
                 "contracts/python",
                 "contracts/tests",
+                "ingestion/live/floodsense_live",
+                "ingestion/live/tests",
             ],
+        ),
+        (
+            root / "ingestion" / "live",
+            [exe, "-m", "unittest", "discover", "-s", "tests", "-v"],
         ),
         (root / "api", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root / "agents", [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
@@ -362,6 +396,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check-env", help="Exit 1 if api/.env, agents/.env, or ui/.env is missing.")
     sub.add_parser("up", help="Build and start API, agents, and UI. Does not start Zetaris.")
     sub.add_parser("up-all", help="up, plus the rag (pgvector) and cache (Redis) profiles.")
+    sub.add_parser("up-db", help="Start only Postgres (pgvector) on 127.0.0.1:15432.")
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
     sub.add_parser("zetaris-sync", help="Run the Zetaris sync stub. Applies no SQL.")
@@ -390,6 +425,8 @@ def main(
         return cmd_up(root, run)
     if command == "up-all":
         return cmd_up_all(root, run)
+    if command == "up-db":
+        return cmd_up_db(root, run)
     if command == "down":
         return cmd_down(root, run)
     if command == "config":

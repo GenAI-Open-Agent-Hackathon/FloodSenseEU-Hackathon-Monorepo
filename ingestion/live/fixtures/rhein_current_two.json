@@ -1,0 +1,68 @@
+[
+  {
+    "uuid": "593647aa-9fea-43ec-a7d6-6476a76ae868",
+    "number": "2710080",
+    "shortname": "BONN",
+    "longname": "BONN",
+    "km": 654.8,
+    "agency": "STANDORT KÖLN",
+    "longitude": 7.108045,
+    "latitude": 50.736398,
+    "water": {
+      "shortname": "RHEIN",
+      "longname": "RHEIN"
+    },
+    "timeseries": [
+      {
+        "shortname": "W",
+        "longname": "WASSERSTAND ROHDATEN",
+        "unit": "cm",
+        "equidistance": 15,
+        "currentMeasurement": {
+          "timestamp": "2026-10-23T18:15:00+02:00",
+          "value": 83.0,
+          "stateMnwMhw": "low",
+          "stateNswHsw": "unknown"
+        },
+        "gaugeZero": {
+          "unit": "m. ü. NHN",
+          "value": 42.713,
+          "validFrom": "2019-11-01"
+        }
+      }
+    ]
+  },
+  {
+    "uuid": "a6ee8177-107b-47dd-bcfd-30960ccc6e9c",
+    "number": "2730010",
+    "shortname": "KÖLN",
+    "longname": "KÖLN",
+    "km": 688.0,
+    "agency": "STANDORT KÖLN",
+    "longitude": 6.9633,
+    "latitude": 50.936949,
+    "water": {
+      "shortname": "RHEIN",
+      "longname": "RHEIN"
+    },
+    "timeseries": [
+      {
+        "shortname": "W",
+        "longname": "WASSERSTAND ROHDATEN",
+        "unit": "cm",
+        "equidistance": 15,
+        "currentMeasurement": {
+          "timestamp": "2026-10-23T18:15:00+02:00",
+          "value": 65.0,
+          "stateMnwMhw": "low",
+          "stateNswHsw": "normal"
+        },
+        "gaugeZero": {
+          "unit": "m. ü. NHN",
+          "value": 35.038,
+          "validFrom": "2019-11-01"
+        }
+      }
+    ]
+  }
+]

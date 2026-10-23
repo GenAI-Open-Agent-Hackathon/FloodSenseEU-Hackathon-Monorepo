@@ -42,8 +42,8 @@ class TaskTest(unittest.TestCase):
             self.assertTrue(dest.is_file(), rel)
         root_env = (self.root / ".env").read_bytes()
         self.assertEqual(root_env, b"example .env.example\n")
-        self.assertIn("copied 5, kept 1", out.getvalue())
-        self.assertIn("copied 0, kept 6", out.getvalue())
+        self.assertIn("copied 6, kept 1", out.getvalue())
+        self.assertIn("copied 0, kept 7", out.getvalue())
 
     def test_init_env_stops_when_an_example_is_missing(self) -> None:
         (self.root / "ui" / ".env.example").unlink()
@@ -135,6 +135,36 @@ class TaskTest(unittest.TestCase):
         self.assertIn("-p", seen[0])
         self.assertIn("floodsense-app", seen[0])
 
+    def test_up_db_starts_only_pgvector(self) -> None:
+        (self.root / "pgvector" / ".env").write_bytes(b"x\n")
+        seen: list[list[str]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            seen.append(argv)
+            return 0
+
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(tasks.cmd_up_db(self.root, runner), 0)
+        self.assertEqual(len(seen), 1)
+        argv = seen[0]
+        self.assertEqual(argv[:4], ["docker", "compose", "-p", "floodsense-app"])
+        self.assertIn("--profile", argv)
+        self.assertIn("rag", argv)
+        self.assertEqual(argv[-3:], ["up", "-d", "pgvector"])
+        self.assertNotIn("--build", argv)
+
+    def test_up_db_requires_only_the_pgvector_env_file(self) -> None:
+        def runner(argv: list[str], cwd: Path) -> int:
+            raise AssertionError(argv)
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = tasks.cmd_up_db(self.root, runner)
+        text = err.getvalue()
+        self.assertEqual(code, 1)
+        self.assertIn(tasks.PGVECTOR_ENV, text)
+        self.assertNotIn("api/.env", text)
+
     def test_zetaris_sync_uses_this_interpreter(self) -> None:
         seen: list[list[str]] = []
 
@@ -157,9 +187,11 @@ class TaskTest(unittest.TestCase):
         self.assertIn((self.root, "scripts/tests"), starts)
         self.assertIn((self.root, "tests"), starts)
         self.assertIn((self.root, "contracts/tests"), starts)
+        self.assertIn((self.root / "ingestion" / "live", "tests"), starts)
         compile_argv = steps[0][1]
         self.assertIn("contracts/python", compile_argv)
         self.assertIn("contracts/tests", compile_argv)
+        self.assertIn("ingestion/live/floodsense_live", compile_argv)
 
     def _git(self, *args: str) -> None:
         subprocess.run(

@@ -62,7 +62,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r api/requirements.txt -r contracts/requirements.txt -r requirements-dev.txt
+          python -m pip install -r api/requirements.txt -r contracts/requirements.txt -r requirements-dev.txt -r ingestion/live/requirements.txt
 
       - name: Set up Node
         uses: actions/setup-node@v7
