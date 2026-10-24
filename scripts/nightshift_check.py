@@ -6,26 +6,39 @@ on both lanes.
 
     py scripts/nightshift_check.py
     py scripts/nightshift_check.py --out nightshift-check.md
+    py scripts/nightshift_check.py --probe
 
 Reads the root .env (host URLs on 127.0.0.1, not agents/.env). A non-empty
 environment variable overrides the file. MODEL_FAST and MODEL_DEEP are
 Nightshift routing modes (meterless/fast, meterless/deep): Nightshift picks
-the lane, and each reply names the model that answered. Checks, in order:
+the lane, and each reply names the model that answered. Each tier has a
+wanted model: EXPECT_MODEL_FAST (default Nemotron 3.5 Lightning 30B A3B) and
+EXPECT_MODEL_DEEP (default Nemotron 3.5 Super VL 120B A12B). Set one to
+"any" to accept whichever model answers. Checks, in order:
 
-  1. GET  /models            MODEL_FAST and MODEL_DEEP are both listed.
-  2. POST /chat/completions  one tiny JSON reply per lane, with the agents
+  1. GET  /models            MODEL_FAST and MODEL_DEEP are listed. A
+                             missing model name fails; a missing meterless/
+                             routing mode is a warning, because Nightshift
+                             also takes composed ids (meterless/text.fast).
+  2. POST /chat/completions  one tiny JSON reply per tier, with the agents
                              client's body: temperature 0.1, thinking off,
-                             JSON mode, and the same 400 fallback. A
-                             concrete model id answered by another model is
-                             a warning (pin not honoured), and so is fast
-                             and deep answered by the same model.
+                             JSON mode, and the same 400 fallback. A reply
+                             from a model other than the tier's wanted one
+                             is a warning, and so is fast and deep answered
+                             by the same model.
   3. POST /embeddings        optional probe for the semantic cache. No
                              embedding model is reported, not failed.
+
+--probe sends every candidate id (the listed text routing modes, the
+composed fast/deep variants and the wanted model names) --probe-rounds times
+each, shows which model answered, and suggests MODEL_FAST and MODEL_DEEP
+values that reached the wanted model every time. It skips local, fusion,
+cluster, embedding and media modes, so it never starts a local model load.
 
 Prints a markdown summary that is safe to paste into a PR. The runtime token
 is never printed and is scrubbed from any error text the server returns.
 Exit 0 when no required check fails (warnings included), 1 when one fails,
-2 on a config error.
+2 on a config error. --probe exits 0 when both tiers have a suggestion.
 """
 
 from __future__ import annotations
@@ -35,13 +48,15 @@ import http.client
 import json
 import os
 import re
+import statistics
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -56,6 +71,8 @@ KEYS: tuple[str, ...] = (
     "MODEL_DEEP",
     "LLM_TIMEOUT_S",
     "MODEL_EMBED",
+    "EXPECT_MODEL_FAST",
+    "EXPECT_MODEL_DEEP",
 )
 REQUIRED: tuple[str, ...] = (
     "METERLESS_BASE_URL",
@@ -69,6 +86,31 @@ LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 ROUTING_PREFIX = "meterless/"
 SYSTEM_PROMPT = "TASK: healthcheck\nReply with one JSON object and nothing else."
 EMBED_PROBE = "Valencia flash flood, Poyo ravine, 29 October 2024"
+# The models each tier should land on (docs/GAMEPLAN.md, "Two Nemotron lanes").
+WANT_FAST = "nvidia/nemotron-3.5-lightning-30b-a3b"
+WANT_DEEP = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+ANY_MODEL = "any"
+# Probe candidates beyond what /models lists. Composed ids are documented as
+# meterless/<class>.<disposition>; Nightshift does not list every combination.
+PROBE_SEEDS: tuple[str, ...] = (
+    "meterless/fast",
+    "meterless/deep",
+    "meterless/auto",
+    "meterless/cheap",
+    "meterless/text",
+    "meterless/text.fast",
+    "meterless/text.deep",
+    "meterless/vision",
+    "meterless/vision.fast",
+    "meterless/vision.deep",
+)
+# Never probe these: local can start a model download, fusion and cluster fan
+# out to several routes, and embedding or media modes are not chat.
+PROBE_SKIP = re.compile(
+    r"^meterless/(local|fusion|cluster|embed|image|video|speech|audio|tts|stt|music|voice"
+    r"|transcribe)\b|\.(local|fusion|cluster)$"
+)
+PROBE_MAX_IDS = 20
 
 
 # --- config -----------------------------------------------------------------
@@ -113,6 +155,11 @@ class Config:
     model_deep: str
     timeout_s: float
     model_embed: str = ""
+    want_fast: str = WANT_FAST  # "" accepts any model
+    want_deep: str = WANT_DEEP
+
+    def want(self, lane: str) -> str:
+        return self.want_fast if lane == "fast" else self.want_deep
 
     def public_url(self) -> str:
         """Base URL without any user:password part."""
@@ -153,6 +200,11 @@ def build_config(
             timeout_s = 180.0
     if problems:
         return None, problems
+
+    def want(key: str, default: str) -> str:
+        value = get[key] or default
+        return "" if value.lower() == ANY_MODEL else value
+
     return (
         Config(
             base_url=base,
@@ -163,6 +215,8 @@ def build_config(
             model_deep=get["MODEL_DEEP"],
             timeout_s=timeout_s,
             model_embed=get["MODEL_EMBED"],
+            want_fast=want("EXPECT_MODEL_FAST", WANT_FAST),
+            want_deep=want("EXPECT_MODEL_DEEP", WANT_DEEP),
         ),
         [],
     )
@@ -282,24 +336,23 @@ def check_models(client: Client) -> tuple[Check, list[str], Reply]:
     data = reply.json()
     rows = data.get("data", []) if isinstance(data, dict) else []
     ids = [str(row.get("id", "")) for row in rows if isinstance(row, dict)]
-    missing = [m for m in (cfg.model_fast, cfg.model_deep) if m not in ids]
-    if missing:
-        listed = ", ".join(f"`{m}`" for m in ids[:8]) or "none"
+    missing = [m for m in dict.fromkeys((cfg.model_fast, cfg.model_deep)) if m not in ids]
+    if not missing:
         return (
-            Check(
-                "GET /models",
-                "FAIL",
-                f"{len(ids)} listed; missing {', '.join(f'`{m}`' for m in missing)}. "
-                f"Listed: {listed}",
-            ),
+            Check("GET /models", "PASS", f"{len(ids)} listed; MODEL_FAST and MODEL_DEEP present"),
             ids,
             reply,
         )
-    return (
-        Check("GET /models", "PASS", f"{len(ids)} listed; both pinned models present"),
-        ids,
-        reply,
-    )
+    modes = [m for m in ids if m.startswith(ROUTING_PREFIX)]
+    listed = ", ".join(f"`{m}`" for m in (modes or ids)[:24]) or "none"
+    names = ", ".join(f"`{m}`" for m in missing)
+    if all(m.startswith(ROUTING_PREFIX) for m in missing):
+        # Composed modes (meterless/<class>.<disposition>) are valid without a listing.
+        status, why = "WARN", "not listed, but composed routing modes can still route"
+    else:
+        status, why = "FAIL", "missing"
+    detail = f"{len(ids)} listed; {why}: {names}. Routing modes listed: {listed}"
+    return Check("GET /models", status, detail), ids, reply
 
 
 def lane_body(model: str, lane: str) -> dict:
@@ -316,17 +369,29 @@ def lane_body(model: str, lane: str) -> dict:
     }
 
 
-def check_lane(client: Client, lane: str, model: str) -> Check:
-    cfg = client.cfg
-    name = f"{lane} lane"
+def send_chat(client: Client, model: str, lane: str, *, timeout: float) -> tuple[Reply, str]:
+    """One chat call with the agents client's body and its JSON-mode fallback."""
     body = lane_body(model, lane)
-    json_mode = "on"
-    reply = client.call("POST", "/chat/completions", body, timeout=cfg.timeout_s)
+    reply = client.call("POST", "/chat/completions", body, timeout=timeout)
     if reply.status == 400 and "response_format" in reply.body:
         # The agents client drops JSON mode on exactly this error, so do the same.
         body.pop("response_format")
-        json_mode = "off (runtime rejected response_format; agents fall back the same way)"
-        reply = client.call("POST", "/chat/completions", body, timeout=cfg.timeout_s)
+        reply = client.call("POST", "/chat/completions", body, timeout=timeout)
+        return reply, "off (runtime rejected response_format; agents fall back the same way)"
+    return reply, "on"
+
+
+def answering_model(reply: Reply) -> str:
+    """The model a 200 reply says answered, or "" when it does not say."""
+    data = reply.json()
+    return str(data.get("model") or "") if isinstance(data, dict) else ""
+
+
+def check_lane(client: Client, lane: str, model: str) -> Check:
+    cfg = client.cfg
+    name = f"{lane} lane"
+    want = cfg.want(lane)
+    reply, json_mode = send_chat(client, model, lane, timeout=cfg.timeout_s)
     if reply.status != 200:
         return Check(name, "FAIL", f"`{model}`: {explain(reply, cfg)}")
     data = reply.json()
@@ -366,6 +431,14 @@ def check_lane(client: Client, lane: str, model: str) -> Check:
     if returned != model:
         # Routing modes are expected to resolve to a real model; record which one.
         facts += f"; routed by `{model}`"
+    if want and returned != want:
+        return Check(
+            name,
+            "WARN",
+            f"{facts}. Wrong model for the {lane} tier: it should be `{want}`. "
+            "Run with --probe to find an id that reaches it.",
+            answered_by=returned,
+        )
     return Check(name, "PASS", facts, answered_by=returned)
 
 
@@ -391,8 +464,9 @@ def check_embeddings(client: Client, ids: list[str], *, enabled: bool, reachable
         return Check(
             name,
             "WARN",
-            f"`{model}` is listed, but POST /embeddings returned HTTP {reply.status}: this "
-            "runtime does not serve embeddings. The semantic cache needs another source.",
+            f"`{model}` is listed, but POST /embeddings returned HTTP {reply.status}. "
+            "Nightshift answers embeddings from a lane with the embed duty (for example "
+            "Nemotron 3 Embed 1B); add one, then run this again.",
             required=False,
         )
     if reply.status != 200:
@@ -419,19 +493,144 @@ def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
             checks.append(check_lane(client, lane, model))
     fast, deep = checks[1], checks[2]
     if (
-        fast.status == "PASS"
-        and deep.status == "PASS"
+        fast.status in ("PASS", "WARN")
         and fast.answered_by
         and fast.answered_by == deep.answered_by
         and cfg.model_fast != cfg.model_deep
     ):
         # Both tiers collapsed onto one model, as a single race lane does.
         fast.status = "WARN"
+        stop = "" if fast.detail.endswith(".") else "."
         fast.detail += (
-            f". Fast and deep were both answered by `{fast.answered_by}`: tiers not separate."
+            f"{stop} Fast and deep were both answered by `{fast.answered_by}`: tiers not separate."
         )
     checks.append(check_embeddings(client, ids, enabled=embeddings, reachable=not blocked))
     return checks
+
+
+# --- probe ------------------------------------------------------------------
+
+
+@dataclass
+class Probe:
+    model: str
+    listed: bool
+    answers: list[str] = field(default_factory=list)  # a model name, or "(HTTP 400)" and such
+    seconds: list[float] = field(default_factory=list)
+
+    def always(self, want: str) -> bool:
+        return bool(self.answers) and all(a == want for a in self.answers)
+
+    def summary(self) -> str:
+        n = len(self.answers)
+        parts = [
+            f"{a} {c}/{n}" if a.startswith("(") else f"`{a}` {c}/{n}"
+            for a, c in Counter(self.answers).most_common()
+        ]
+        return ", ".join(parts) or "-"
+
+
+def probe_candidates(cfg: Config, ids: list[str]) -> list[str]:
+    """Seeds, then the configured ids, the wanted model names and other listed modes."""
+    listed_modes = [m for m in ids if m.startswith(ROUTING_PREFIX)]
+    pool = [*PROBE_SEEDS, cfg.model_fast, cfg.model_deep, cfg.want_fast, cfg.want_deep]
+    pool += listed_modes
+    keep = [m for m in dict.fromkeys(pool) if m and not PROBE_SKIP.search(m)]
+    return keep[:PROBE_MAX_IDS]
+
+
+def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
+    cfg = client.cfg
+    models, ids, reply = check_models(client)
+    if reply.status != 200:
+        return models, []
+    timeout = min(cfg.timeout_s, 90.0)
+    probes: list[Probe] = []
+    for model in probe_candidates(cfg, ids):
+        probe = Probe(model, model in ids)
+        for _ in range(rounds):
+            got, _json_mode = send_chat(client, model, "probe", timeout=timeout)
+            if got.status == 200:
+                probe.answers.append(answering_model(got) or "(model not named)")
+                probe.seconds.append(got.seconds)
+                continue
+            # A refusal or no answer will not change on the next round.
+            probe.answers.append("(no reply)" if got.status == 0 else f"(HTTP {got.status})")
+            break
+        probes.append(probe)
+    return models, probes
+
+
+def suggest(probes: list[Probe], want: str, lane: str) -> str:
+    """First id that reached `want` every round.
+
+    Routing modes before model names, then ids that name the tier (so deep
+    gets meterless/deep rather than meterless/fast when both land there), then
+    listed ids, then candidate order.
+    """
+    if not want:
+        return ""
+    good = [p for p in probes if p.always(want)]
+    good.sort(
+        key=lambda p: (
+            not p.model.startswith(ROUTING_PREFIX),
+            lane not in p.model.removeprefix(ROUTING_PREFIX),
+            not p.listed,
+        )
+    )
+    return good[0].model if good else ""
+
+
+def render_probe(
+    cfg: Config, models: Check, probes: list[Probe], *, rounds: int, now: datetime, env_name: str
+) -> tuple[str, bool]:
+    lines = [
+        "## Nightshift routing probe",
+        "",
+        f"- When: {now.strftime('%Y-%m-%d %H:%M')} UTC{now.strftime('%z')}",
+        f"- Runtime: {cfg.public_url()} (app `{cfg.app}`, scope `{cfg.scope}`)",
+        f"- Wanted: fast `{cfg.want_fast or ANY_MODEL}`, deep `{cfg.want_deep or ANY_MODEL}`",
+        f"- Each id sent up to {rounds} times with the agents client's request body",
+        f"- Token: read from {env_name}, not shown",
+        "",
+    ]
+    if not probes:
+        lines += [
+            "| Check | Result | Detail |",
+            "|---|---|---|",
+            f"| {models.name} | {models.status} | {models.detail.replace('|', '/')} |",
+            "",
+            "**Result: probe not run** (/models gave no list)",
+        ]
+        return "\n".join(lines), False
+    lines += ["| Model id sent | Listed | Answered by | Median time |", "|---|---|---|---|"]
+    for p in probes:
+        median = f"{statistics.median(p.seconds):.1f} s" if p.seconds else "-"
+        lines.append(f"| `{p.model}` | {'yes' if p.listed else 'no'} | {p.summary()} | {median} |")
+    picks, gaps = [], []
+    for lane, want in (("fast", cfg.want_fast), ("deep", cfg.want_deep)):
+        if not want:
+            continue
+        pick = suggest(probes, want, lane)
+        if pick:
+            picks.append(f"MODEL_{lane.upper()}={pick}")
+        else:
+            gaps.append(
+                f"**{lane.capitalize()}: no id reached `{want}` every time.** Nightshift's "
+                "lane setup decides which model answers; change the lanes and probe again."
+            )
+    lines.append("")
+    if picks:
+        lines += ["**Suggested settings** (every round reached the wanted model):", "", "```"]
+        lines += [*picks, "```", ""]
+    lines += [*gaps, *([""] if gaps else [])]
+    if gaps:
+        lines.append(
+            f"**Result: {len(gaps)} tier{'s' if len(gaps) > 1 else ''} without a reliable id**"
+        )
+    else:
+        lines.append("**Result: every tier has a reliable id**")
+    return "\n".join(lines), not gaps
 
 
 # --- report -----------------------------------------------------------------
@@ -452,7 +651,7 @@ def scrub(text: str, secrets: list[str]) -> str:
     return text.encode("ascii", "replace").decode("ascii")
 
 
-def render(cfg: Config, checks: list[Check], *, now: datetime) -> str:
+def render(cfg: Config, checks: list[Check], *, now: datetime, env_name: str = ".env") -> str:
     ok, passed, total = verdict(checks)
     warned = sum(c.status == "WARN" for c in checks if c.required)
     if not ok:
@@ -470,7 +669,8 @@ def render(cfg: Config, checks: list[Check], *, now: datetime) -> str:
         f"- When: {now.strftime('%Y-%m-%d %H:%M')} UTC{now.strftime('%z')}",
         f"- Runtime: {cfg.public_url()} (app `{cfg.app}`, scope `{cfg.scope}`)",
         f"- Lanes: fast `{cfg.model_fast}`, deep `{cfg.model_deep}`",
-        "- Token: read from .env, not shown",
+        f"- Wanted: fast `{cfg.want_fast or ANY_MODEL}`, deep `{cfg.want_deep or ANY_MODEL}`",
+        f"- Token: read from {env_name}, not shown",
         "",
         "| Check | Result | Detail |",
         "|---|---|---|",
@@ -493,6 +693,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", type=Path, help="Also write the markdown summary to this file.")
     parser.add_argument("--no-embeddings", action="store_true", help="Skip the embeddings probe.")
     parser.add_argument("--timeout", type=float, help="Seconds per chat call (LLM_TIMEOUT_S)")
+    parser.add_argument(
+        "--probe",
+        action="store_true",
+        help="Find which model ids reach each tier's wanted model, and suggest settings.",
+    )
+    parser.add_argument(
+        "--probe-rounds", type=int, default=3, help="Times to send each id (default 3)."
+    )
     return parser
 
 
@@ -513,13 +721,20 @@ def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = N
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 2
-    checks = run_checks(Client(cfg), embeddings=not args.no_embeddings)
-    report = scrub(render(cfg, checks, now=datetime.now().astimezone()), [cfg.token])
+    now = datetime.now().astimezone()
+    if args.probe:
+        rounds = max(1, min(args.probe_rounds, 10))
+        models, probes = run_probe(Client(cfg), rounds=rounds)
+        text, ok = render_probe(cfg, models, probes, rounds=rounds, now=now, env_name=env_path.name)
+    else:
+        checks = run_checks(Client(cfg), embeddings=not args.no_embeddings)
+        text, ok = render(cfg, checks, now=now, env_name=env_path.name), verdict(checks)[0]
+    report = scrub(text, [cfg.token])
     print(report)
     if args.out:
         args.out.write_text(report + "\n", encoding="utf-8")
         print(f"\nWrote {args.out}")
-    return 0 if verdict(checks)[0] else 1
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
