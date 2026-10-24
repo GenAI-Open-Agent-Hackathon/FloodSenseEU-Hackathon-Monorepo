@@ -78,10 +78,12 @@ class FakeRuntime(BaseHTTPRequestHandler):
                 return
             lane = "fast" if body["model"] == FAST else "deep"
             content = scenario.get("reply", json.dumps({"ok": True, "lane": lane}))
+            # Routing can answer a lane with another model, as Nightshift AUTO did live.
+            answered = scenario.get("answered_by", {}).get(body["model"], body["model"])
             self._send(
                 200,
                 {
-                    "model": body["model"],
+                    "model": answered,
                     "choices": [
                         {
                             "message": {"role": "assistant", "content": content},
@@ -92,6 +94,9 @@ class FakeRuntime(BaseHTTPRequestHandler):
                 },
             )
         elif self.path == "/v1/embeddings":
+            if not scenario.get("embeddings", True):
+                self._send(404, {"error": {"message": "not_found"}})
+                return
             self._send(200, {"data": [{"embedding": [0.1] * 2048}], "model": body["model"]})
         else:
             self._send(404, {"error": "not found"})
@@ -208,6 +213,24 @@ class NightshiftCheckTest(unittest.TestCase):
         code, text = self.run_check()
         self.assertEqual(code, 0, text)
         self.assertIn("| embeddings (optional) | SKIP | no embedding model listed", text)
+
+    def test_lane_answered_by_another_model_is_a_warning(self) -> None:
+        self.server.scenario["answered_by"] = {DEEP: FAST}
+        code, text = self.run_check("--no-embeddings")
+        self.assertEqual(code, 0, text)
+        self.assertIn("| fast lane | PASS |", text)
+        self.assertIn("| deep lane | WARN |", text)
+        self.assertIn(f"Pin not honoured: asked for `{DEEP}`, answered by `{FAST}`", text)
+        self.assertIn("**Result: PASS with 1 warning**", text)
+
+    def test_listed_embedding_model_without_the_route(self) -> None:
+        self.server.scenario["embeddings"] = False
+        code, text = self.run_check()
+        self.assertEqual(code, 0, text)
+        self.assertIn("| embeddings (optional) | WARN |", text)
+        self.assertIn("this runtime does not serve embeddings", text)
+        self.assertNotIn("ends in /v1", text)
+        self.assertIn("**Result: PASS** (3/3 required checks passed)", text)
 
     def test_config_problems_send_nothing(self) -> None:
         code, text = self.run_check(env=self.write_env(METERLESS_RUNTIME_TOKEN=""))
