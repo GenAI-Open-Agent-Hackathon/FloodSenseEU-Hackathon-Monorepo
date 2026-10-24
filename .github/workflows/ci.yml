@@ -82,3 +82,8 @@ jobs:
 
       - name: Test
         run: python tasks.py test
+
+      # Parses and lints zetaris/migrations (file names, numbering, view headers, literal
+      # secrets). Sends nothing and needs no key. The full sync runs in integration.yml.
+      - name: Zetaris migrations (dry run)
+        run: python scripts/zetaris_sync.py sync --dry-run
