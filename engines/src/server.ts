@@ -15,13 +15,21 @@
 import http from "node:http";
 import { FloodsenseEngines, InputError } from "./floodsense.ts";
 
-const MAX_BODY_BYTES = 1_000_000;
+export const MAX_BODY_BYTES = 1_000_000;
+
+/** A body over MAX_BODY_BYTES: answered with 413, then the connection is closed. */
+class BodyTooLarge extends InputError {}
 
 export function createServer(engines: FloodsenseEngines): http.Server {
   return http.createServer((req, res) => {
     handle(engines, req, res).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
-      if (err instanceof InputError || err instanceof SyntaxError) {
+      if (err instanceof BodyTooLarge) {
+        // Do not read the rest of an oversized upload: answer, then close the socket.
+        res.setHeader("Connection", "close");
+        res.on("finish", () => req.destroy());
+        send(res, 413, { error: message });
+      } else if (err instanceof InputError || err instanceof SyntaxError) {
         send(res, 400, { error: message });
       } else {
         console.error("engines: unexpected error:", message);
@@ -65,21 +73,39 @@ async function handle(engines: FloodsenseEngines, req: http.IncomingMessage, res
   }
 }
 
-async function readJson(req: http.IncomingMessage): Promise<any> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new InputError("request body is larger than 1 MB");
-    chunks.push(chunk as Buffer);
-  }
-  const text = Buffer.concat(chunks).toString("utf-8");
-  if (!text.trim()) throw new InputError("request body must be JSON");
-  const value = JSON.parse(text);
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new InputError("request body must be a JSON object");
-  }
-  return value;
+function readJson(req: http.IncomingMessage): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+      if (tooLarge) return;
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        // Stop collecting and answer now; the handler closes the socket after the 413.
+        tooLarge = true;
+        chunks.length = 0;
+        reject(new BodyTooLarge("request body is larger than 1 MB"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("error", reject);
+    req.on("end", () => {
+      if (tooLarge) return;
+      try {
+        const text = Buffer.concat(chunks).toString("utf-8");
+        if (!text.trim()) throw new InputError("request body must be JSON");
+        const value = JSON.parse(text);
+        if (value === null || typeof value !== "object" || Array.isArray(value)) {
+          throw new InputError("request body must be a JSON object");
+        }
+        resolve(value);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
 }
 
 function send(res: http.ServerResponse, status: number, payload: unknown): void {
