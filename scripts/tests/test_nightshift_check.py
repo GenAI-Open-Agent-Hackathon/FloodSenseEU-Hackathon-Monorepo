@@ -30,9 +30,11 @@ class FakeRuntime(BaseHTTPRequestHandler):
     def log_message(self, *_args: object) -> None:  # keep test output clean
         pass
 
-    def _send(self, status: int, payload: object) -> None:
+    def _send(self, status: int, payload: object, headers: dict | None = None) -> None:
         raw = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
         self.send_response(status)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
@@ -41,8 +43,10 @@ class FakeRuntime(BaseHTTPRequestHandler):
     def _authorised(self) -> bool:
         auth = self.headers.get("Authorization", "")
         if auth != f"Bearer {self.server.scenario.get('token', TOKEN)}":
-            # A careless runtime echoes what it got. The check must scrub it.
-            self._send(401, {"error": f"unauthorized: {auth}"})
+            # A careless runtime echoes what it got. The check must scrub it,
+            # even where the report cuts the message short.
+            pad = "x" * self.server.scenario.get("echo_pad", 0)
+            self._send(401, {"error": f"unauthorized: {pad}{auth}"})
             return False
         return True
 
@@ -96,19 +100,22 @@ class FakeRuntime(BaseHTTPRequestHandler):
                 turn = self.server.turns.get(model, 0)
                 self.server.turns[model] = turn + 1
                 answered = answered[turn % len(answered)]
-            self._send(
-                200,
-                {
-                    "model": answered,
-                    "choices": [
-                        {
-                            "message": {"role": "assistant", "content": content},
-                            "finish_reason": "stop",
-                        }
-                    ],
-                    "usage": {"prompt_tokens": 31, "completion_tokens": 9},
-                },
-            )
+            reply = {
+                "model": answered,
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": content},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 31, "completion_tokens": 9},
+            }
+            extra = {}
+            if scenario.get("details"):
+                # What a runtime might add about the route: a receipt, the lanes that raced.
+                extra = {"meterless-lane": "race:super-vl"}
+                reply["meterless"] = {"raced": [FAST, DEEP], "winner": answered}
+            self._send(200, reply, extra)
         elif self.path == "/v1/embeddings":
             if not scenario.get("embeddings", True):
                 self._send(404, {"error": {"message": "not_found"}})
@@ -150,6 +157,8 @@ class NightshiftCheckTest(unittest.TestCase):
             "METERLESS_RUNTIME_TOKEN": TOKEN,
             "MODEL_FAST": FAST,
             "MODEL_DEEP": DEEP,
+            "EXPECT_MODEL_FAST": FAST,
+            "EXPECT_MODEL_DEEP": DEEP,
             "LLM_TIMEOUT_S": "5",
         }
         values.update(overrides)
@@ -389,6 +398,51 @@ class NightshiftCheckTest(unittest.TestCase):
         self.assertIn("**Result: probe not run**", text)
         self.assertEqual(self.chats(), [])
         self.assertNotIn(TOKEN, text)
+
+    def test_defaults_expect_super_vl_on_both_tiers(self) -> None:
+        # Nightshift answers both tiers with Super VL 120B, the faster and stronger lane.
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answer_all"] = DEEP
+        env = self.write_env(
+            MODEL_FAST="meterless/fast",
+            MODEL_DEEP="meterless/deep",
+            EXPECT_MODEL_FAST="",
+            EXPECT_MODEL_DEEP="",
+        )
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn(f"- Wanted: fast `{DEEP}`, deep `{DEEP}`", text)
+        self.assertIn("| fast lane | PASS |", text)
+        self.assertIn("| deep lane | PASS |", text)
+        self.assertNotIn("tiers not separate", text)
+        self.assertIn("**Result: PASS** (3/3 required checks passed)", text)
+
+    def test_token_cut_short_in_an_error_is_still_scrubbed(self) -> None:
+        # The report keeps 137 characters of a server error. Put the token
+        # across that cut: no piece of it may reach the report.
+        self.server.scenario["token"] = "the-right-one"
+        self.server.scenario["echo_pad"] = 98
+        code, text = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("HTTP 401", text)
+        for size in range(4, len(TOKEN) + 1):
+            self.assertNotIn(TOKEN[:size], text, size)
+
+    def test_probe_lists_routing_details_the_runtime_returns(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answer_all"] = DEEP
+        self.server.scenario["details"] = True
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--probe", "--probe-rounds", "1", env=env)
+        self.assertIn("**Runtime details**", text)
+        self.assertIn("`meterless-lane` = race:super-vl", text)
+        self.assertIn(f'`meterless` = {{"raced":["{FAST}","{DEEP}"]', text)
+
+    def test_probe_says_when_there_are_no_routing_details(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--probe", "--probe-rounds", "1", env=env)
+        self.assertIn("Nightshift returned no routing details beyond the model name.", text)
 
 
 class ParseEnvTest(unittest.TestCase):
