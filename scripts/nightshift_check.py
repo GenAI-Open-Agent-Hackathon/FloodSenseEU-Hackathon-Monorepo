@@ -24,7 +24,9 @@ to "any" to accept whichever model answers. Checks, in order:
                              also takes composed ids (meterless/text.fast).
   2. POST /chat/completions  one tiny JSON reply per tier, with the agents
                              client's body: temperature 0.1, thinking off,
-                             JSON mode, and the same 400 fallback. A reply
+                             JSON mode, and the same 400 fallback. Only the
+                             check caps the reply (CHECK_MAX_TOKENS); the
+                             client sets no cap. A reply
                              from a model other than the tier's wanted one
                              is a warning. When the tiers want different
                              models, so is both answered by one model.
@@ -125,6 +127,15 @@ PROBE_SKIP = re.compile(
     r"|transcribe)\b|\.(local|fusion|cluster)$"
 )
 PROBE_MAX_IDS = 20
+PROBE_MAX_ROUNDS = 10
+# Timeouts in seconds. Chat calls use LLM_TIMEOUT_S (or --timeout); the probe
+# caps each call at PROBE_TIMEOUT_CAP_S so a hung id cannot stall it for long.
+MODELS_TIMEOUT_S = 30
+EMBED_TIMEOUT_S = 60
+PROBE_TIMEOUT_CAP_S = 90
+# The check asks for a one-line JSON reply, so it caps the answer; the agents
+# client sends the same body without a cap.
+CHECK_MAX_TOKENS = 256
 
 
 # --- config -----------------------------------------------------------------
@@ -201,7 +212,7 @@ def build_config(
     if "host.docker.internal" in base:
         problems.append(
             "METERLESS_BASE_URL uses host.docker.internal, the container URL. "
-            "Host scripts need http://127.0.0.1:8088/v1."
+            "Host scripts need the 127.0.0.1 URL from the root .env.example."
         )
     elif base and not base.startswith(("http://", "https://")):
         problems.append("METERLESS_BASE_URL must start with http:// or https://.")
@@ -381,7 +392,7 @@ def parse_json_reply(text: str) -> object:
 
 def check_models(client: Client) -> tuple[Check, list[str], Reply]:
     cfg = client.cfg
-    reply = client.call("GET", "/models", timeout=30)
+    reply = client.call("GET", "/models", timeout=MODELS_TIMEOUT_S)
     if reply.status != 200:
         return Check("GET /models", "FAIL", explain(reply, cfg)), [], reply
     data = reply.json()
@@ -416,7 +427,7 @@ def lane_body(model: str, lane: str) -> dict:
         ],
         "chat_template_kwargs": {"enable_thinking": False},
         "response_format": {"type": "json_object"},
-        "max_tokens": 256,
+        "max_tokens": CHECK_MAX_TOKENS,
     }
 
 
@@ -509,7 +520,8 @@ def check_embeddings(client: Client, ids: list[str], *, enabled: bool, reachable
             "set MODEL_EMBED to probe a specific id.",
             required=False,
         )
-    reply = client.call("POST", "/embeddings", {"model": model, "input": [EMBED_PROBE]}, timeout=60)
+    body = {"model": model, "input": [EMBED_PROBE]}
+    reply = client.call("POST", "/embeddings", body, timeout=EMBED_TIMEOUT_S)
     if reply.status in (404, 405):
         # /models answered on the same base URL, so the path is right; the route is missing.
         return Check(
@@ -535,14 +547,15 @@ def check_embeddings(client: Client, ids: list[str], *, enabled: bool, reachable
 def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
     cfg = client.cfg
     models, ids, reply = check_models(client)
-    checks = [models]
     blocked = reply.status in (0, 401, 403)
-    for lane, model in (("fast", cfg.model_fast), ("deep", cfg.model_deep)):
+
+    def lane_check(lane: str, model: str) -> Check:
         if blocked:
-            checks.append(Check(f"{lane} lane", "SKIP", "not run: /models got no usable answer"))
-        else:
-            checks.append(check_lane(client, lane, model))
-    fast, deep = checks[1], checks[2]
+            return Check(f"{lane} lane", "SKIP", "not run: /models got no usable answer")
+        return check_lane(client, lane, model)
+
+    fast = lane_check("fast", cfg.model_fast)
+    deep = lane_check("deep", cfg.model_deep)
     if (
         fast.status in ("PASS", "WARN")
         and fast.answered_by
@@ -556,8 +569,8 @@ def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
         fast.detail += (
             f"{stop} Fast and deep were both answered by `{fast.answered_by}`: tiers not separate."
         )
-    checks.append(check_embeddings(client, ids, enabled=embeddings, reachable=not blocked))
-    return checks
+    embed = check_embeddings(client, ids, enabled=embeddings, reachable=not blocked)
+    return [models, fast, deep, embed]
 
 
 # --- probe ------------------------------------------------------------------
@@ -604,7 +617,7 @@ def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
     models, ids, reply = check_models(client)
     if reply.status != 200:
         return models, []
-    timeout = min(cfg.timeout_s, 90.0)
+    timeout = min(cfg.timeout_s, PROBE_TIMEOUT_CAP_S)
     probes: list[Probe] = []
     for model in probe_candidates(cfg, ids):
         probe = Probe(model, model in ids)
@@ -662,7 +675,7 @@ def render_probe(
     lines = [
         "## Nightshift routing probe",
         "",
-        f"- When: {now.strftime('%Y-%m-%d %H:%M')} UTC{now.strftime('%z')}",
+        f"- When: {when_label(now)}",
         f"- Runtime: {cfg.public_url()} (app `{cfg.app}`, scope `{cfg.scope}`)",
         f"- Wanted: fast `{cfg.want_fast or ANY_MODEL}`, deep `{cfg.want_deep or ANY_MODEL}`",
         f"- Each id sent up to {rounds} times with the agents client's request body",
@@ -720,6 +733,11 @@ def render_probe(
 # --- report -----------------------------------------------------------------
 
 
+def when_label(now: datetime) -> str:
+    """Local time with its offset, e.g. 2026-10-25 02:16 UTC+0530."""
+    return f"{now.strftime('%Y-%m-%d %H:%M')} UTC{now.strftime('%z')}"
+
+
 def verdict(checks: list[Check]) -> tuple[bool, int, int]:
     """(no required check failed, required checks passed or warned, required total)."""
     required = [c for c in checks if c.required]
@@ -750,7 +768,7 @@ def render(cfg: Config, checks: list[Check], *, now: datetime, env_name: str = "
     lines = [
         "## Nightshift live check",
         "",
-        f"- When: {now.strftime('%Y-%m-%d %H:%M')} UTC{now.strftime('%z')}",
+        f"- When: {when_label(now)}",
         f"- Runtime: {cfg.public_url()} (app `{cfg.app}`, scope `{cfg.scope}`)",
         f"- Lanes: fast `{cfg.model_fast}`, deep `{cfg.model_deep}`",
         f"- Wanted: fast `{cfg.want_fast or ANY_MODEL}`, deep `{cfg.want_deep or ANY_MODEL}`",
@@ -780,10 +798,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--probe",
         action="store_true",
-        help="Find which model ids reach each tier's wanted model, and suggest settings.",
+        help=(
+            "Find which model ids reach each tier's wanted model, and suggest settings. "
+            f"Worst case: {PROBE_MAX_IDS} ids x --probe-rounds cloud calls, each capped at "
+            f"{PROBE_TIMEOUT_CAP_S} s; a healthy runtime answers each in about a second."
+        ),
     )
     parser.add_argument(
-        "--probe-rounds", type=int, default=3, help="Times to send each id (default 3)."
+        "--probe-rounds",
+        type=int,
+        default=3,
+        help=f"Times to send each id (default 3, at most {PROBE_MAX_ROUNDS}).",
     )
     return parser
 
@@ -807,7 +832,13 @@ def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = N
         return 2
     now = datetime.now().astimezone()
     if args.probe:
-        rounds = max(1, min(args.probe_rounds, 10))
+        rounds = max(1, min(args.probe_rounds, PROBE_MAX_ROUNDS))
+        if rounds != args.probe_rounds:
+            print(
+                f"note: --probe-rounds {args.probe_rounds} is outside 1 to {PROBE_MAX_ROUNDS}; "
+                f"using {rounds}.",
+                file=sys.stderr,
+            )
         models, probes = run_probe(Client(cfg), rounds=rounds)
         text, ok = render_probe(cfg, models, probes, rounds=rounds, now=now, env_name=env_path.name)
     else:
