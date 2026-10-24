@@ -11,7 +11,7 @@ The engines are the Meterless reference implementations, copied unchanged into `
 
 Needs **Node.js 22.18 or newer**. It runs the TypeScript directly, so there is nothing to install or build. CI and the other docs use Node 20, which cannot run this; see "Not done yet".
 
-```powershell
+```
 cd engines
 npm start
 ```
@@ -20,7 +20,7 @@ That serves `http://127.0.0.1:8300` and keeps data in `engines/.data/` (git-igno
 
 ## Configuration
 
-Defaults work as they are. To change one, copy `.env.example` to `.env` in this folder; `npm start` reads it when it exists. There are no secrets and no authentication, so keep the service on loopback or on the compose network.
+Defaults work as they are. `python tasks.py init-env` copies `.env.example` to `.env` in this folder along with the other env files, and `npm start` reads it when it exists. There are no secrets and no authentication, so keep the service on loopback or on the compose network.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -40,12 +40,12 @@ The Python client that reads `ENGINES_URL` lands with the agents after PR #4, an
 
 ## Check it
 
-```powershell
-npm test            # 17 unit and HTTP tests (node:test)
+```
+npm test            # 18 unit and HTTP tests (node:test)
 npm run conformance # both Meterless conformance suites
 ```
 
-`npm run typecheck` needs TypeScript and `@types/node` on the machine; it is not required to run the service.
+`npm run typecheck` needs the two dev dependencies, TypeScript and `@types/node`: run `npm install` once, then `npm run typecheck`. Nothing else needs an install; `npm start`, `npm test` and `npm run conformance` run on Node alone.
 
 ## Vocabulary
 
@@ -62,7 +62,7 @@ Wire names are snake_case and come from the agents' models (`agents/floodsense_a
 
 ## HTTP contract
 
-JSON in, JSON out. Bad input is a 400 with `{ "error": ... }`, and a write is checked in full before anything is stored, so a 400 has written nothing.
+JSON in, JSON out. Bad input is a 400 with `{ "error": ... }`, and a write is checked in full before anything is stored, so a 400 has written nothing. A body over 1 MB is a 413, and the server closes the connection instead of reading the rest.
 
 | Method and path | Body or query | Returns |
 | --- | --- | --- |
