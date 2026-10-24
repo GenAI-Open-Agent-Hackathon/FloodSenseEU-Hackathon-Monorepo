@@ -93,4 +93,16 @@ describe("engines HTTP", () => {
     }
     assert.equal((await call("GET", "/nope")).status, 404);
   });
+
+  it("an oversized body is a 413, the connection closes, and the server keeps serving", async () => {
+    const res = await fetch(base + "/hmem/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "x".repeat(1_200_000) }),
+    });
+    assert.equal(res.status, 413);
+    assert.equal(res.headers.get("connection"), "close");
+    assert.match((await res.json()).error, /larger than 1 MB/);
+    assert.equal((await call("GET", "/health")).status, 200);
+  });
 });
