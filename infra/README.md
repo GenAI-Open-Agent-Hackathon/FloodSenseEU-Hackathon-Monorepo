@@ -35,7 +35,7 @@ python3 tasks.py up-all
 
 ## CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. It rejects a tracked `.env`, runs gitleaks (default rules plus an `nvapi-` rule), then `python tasks.py lint` and `python tasks.py test`.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. `python tasks.py lint` rejects a tracked `.env` and runs gitleaks (default rules plus an `nvapi-` rule). On a pull request the scan is that pull request's commits (`base..head`). On a push to `main` it is the pushed range, or `HEAD` when the previous SHA is all zeros. `python tasks.py test` follows. A laptop with the binary on `PATH` scans the checked-out ref (`--log-opts=HEAD`), not every local branch. `.gitleaksignore` lists two commit-specific fingerprints for deliberate fake fixtures in `scripts/tests/test_zetaris_sync.py`. It is not a path or rule allowlist.
 
 The job uses `runs-on: ubuntu-latest`. The homelab runner (`self-hosted`, `homelab`, 512Mi, no Docker assumed) is the commented line above that. One line moves the whole job. It does not call Zetaris or Nightshift, and it does not use Docker. The trade-off is [ADR 0008](../docs/adr/0008-ci-runner-github-hosted.md).
 

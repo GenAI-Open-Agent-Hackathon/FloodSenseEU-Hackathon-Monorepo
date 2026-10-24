@@ -13,6 +13,11 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 - `engines/`, a TypeScript sidecar that runs the Meterless H-MEM and World Model reference engines (Apache-2.0, copied unchanged into `engines/vendor/` from Meterless commit `1742dec`) behind a small HTTP API for the agents. H-MEM stores approved claims with their Zetaris `queryId`s (write-on-approval: rejected runs write nothing), recalls them, takes feedback, and returns the trust-ledger trace for a memory. World Model holds the hypothesis board, with status changes kept as facts that survive a restart, and ingests observations idempotently. Node.js 22.18 or newer, no dependencies: `npm start`, `npm test` (12 tests), `npm run conformance` (H-MEM 13/13, World Model 8/8). Not yet in compose or CI.
 
+### Fixed
+
+- The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.
+- `.gitleaksignore` records two fingerprints from commit `83abb6d` in `scripts/tests/test_zetaris_sync.py`: the fake local-server `API_KEY` used by `test_applies_in_order_one_statement_per_call_with_documented_headers` (`generic-api-key`), and the fake AWS key inside `test_lint_flags_literal_secrets_but_not_placeholders` (`aws-access-token`). Each entry is that commit only. There is no path or rule allowlist.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.

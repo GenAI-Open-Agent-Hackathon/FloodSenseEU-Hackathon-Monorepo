@@ -258,11 +258,27 @@ def typescript_bin(root: Path) -> Path:
     return root / "ui" / "node_modules" / "typescript" / "bin" / "tsc"
 
 
+def resolve_gitleaks_log_opts(explicit: str | None = None) -> str:
+    """Arguments for `gitleaks detect --log-opts`.
+
+    An empty `--log-opts` makes gitleaks 8.30 run `git log --all`, which
+    scans every fetched branch. CI sets FLOODSENSE_GITLEAKS_LOG_OPTS to the
+    pull request range or the pushed range. Unset means the checked-out ref.
+    """
+    if explicit is not None:
+        return explicit
+    configured = os.environ.get("FLOODSENSE_GITLEAKS_LOG_OPTS", "").strip()
+    if configured:
+        return configured
+    return "HEAD"
+
+
 def lint_commands(
     root: Path,
     *,
     node: str,
     gitleaks: str | None,
+    gitleaks_log_opts: str = "HEAD",
 ) -> list[tuple[Path, list[str]]]:
     """Argument lists for ruff, tsc, and gitleaks. No shell."""
     tsc = typescript_bin(root)
@@ -279,6 +295,8 @@ def lint_commands(
                     str(root),
                     "--redact",
                     "--no-banner",
+                    "--log-opts",
+                    gitleaks_log_opts,
                 ],
             )
         )
@@ -309,11 +327,14 @@ def cmd_lint(
     gitleaks: str | None = None,
     resolve_tools: bool = True,
     require_gitleaks: bool | None = None,
+    gitleaks_log_opts: str | None = None,
 ) -> int:
     """Tracked-env check, ruff, and TypeScript. Gitleaks runs when it is on PATH.
 
     CI sets FLOODSENSE_REQUIRE_GITLEAKS=1 so a missing scanner fails the job.
     Locally a missing scanner prints one line and the rest of lint still runs.
+    The scan passes `--log-opts` from FLOODSENSE_GITLEAKS_LOG_OPTS, or `HEAD`
+    when that variable is unset, so other fetched branches are not scanned.
     """
     code = check_tracked_env(root)
     if code != 0:
@@ -342,7 +363,10 @@ def cmd_lint(
             file=sys.stderr,
         )
         return 1
-    for cwd, argv in lint_commands(root, node=node, gitleaks=gitleaks):
+    log_opts = resolve_gitleaks_log_opts(gitleaks_log_opts)
+    for cwd, argv in lint_commands(
+        root, node=node, gitleaks=gitleaks, gitleaks_log_opts=log_opts
+    ):
         code = runner(argv, cwd)
         if code != 0:
             return code
@@ -368,7 +392,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
         "lint",
-        help="Tracked-.env check, ruff, and TypeScript. Gitleaks when it is on PATH.",
+        help=(
+            "Tracked-.env check, ruff, and TypeScript. "
+            "Gitleaks, when it is on PATH, scans the checked-out ref "
+            "(or FLOODSENSE_GITLEAKS_LOG_OPTS)."
+        ),
     )
     return parser
 
