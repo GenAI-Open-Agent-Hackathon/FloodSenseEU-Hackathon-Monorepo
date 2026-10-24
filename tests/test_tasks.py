@@ -43,8 +43,8 @@ class TaskTest(unittest.TestCase):
             self.assertTrue(dest.is_file(), rel)
         root_env = (self.root / ".env").read_bytes()
         self.assertEqual(root_env, b"example .env.example\n")
-        self.assertIn("copied 5, kept 1", out.getvalue())
-        self.assertIn("copied 0, kept 6", out.getvalue())
+        self.assertIn("copied 6, kept 1", out.getvalue())
+        self.assertIn("copied 0, kept 7", out.getvalue())
 
     def test_init_env_stops_when_an_example_is_missing(self) -> None:
         (self.root / "ui" / ".env.example").unlink()
