@@ -17,6 +17,11 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 - `MODEL_FAST` and `MODEL_DEEP` in `.env.example` and `agents/.env.example` are now `meterless/fast` and `meterless/deep`. Nightshift model ids are routing modes: a request that named a model was answered by whichever lane Nightshift picked, and both tiers came back from the 120B model. Fast is now answered by `nvidia/nemotron-3.5-lightning-30b-a3b` and deep by `nvidia/nemotron-3.5-super-vl-120b-a12b`. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint, which returns 502 "Function not found". The gameplan and the C4 page say the same.
 
+### Fixed
+
+- The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.
+- `.gitleaksignore` records two fingerprints from commit `83abb6d` in `scripts/tests/test_zetaris_sync.py`: the fake local-server `API_KEY` used by `test_applies_in_order_one_statement_per_call_with_documented_headers` (`generic-api-key`), and the fake AWS key inside `test_lint_flags_literal_secrets_but_not_placeholders` (`aws-access-token`). Each entry is that commit only. There is no path or rule allowlist.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.
