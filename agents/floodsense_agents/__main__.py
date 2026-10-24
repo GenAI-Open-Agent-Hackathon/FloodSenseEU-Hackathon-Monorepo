@@ -3,7 +3,9 @@
 Routes follow the contract in docs/GAMEPLAN.md §5.5. Every response carries
 served_from (live | cache | replay) and cached_at.
 
-GET  /health                       service, graph, flags, fakes in use
+GET  /health                       liveness: service, graph, version. Touches nothing.
+GET  /ready                        readiness: Zetaris answers a trivial query (503 if not)
+GET  /version                      build sha and timestamp
 GET  /config                       flags, lanes, schema, checkpointer (no secrets)
 POST /runs                         RunRequest -> runs until the HITL interrupt; returns the run snapshot (status awaiting_approval)
 GET  /runs/past                    runs started by this process, newest first (the checkpointer holds every run's state)
@@ -54,19 +56,42 @@ def _live(body: dict) -> dict:
     return body
 
 
+def _dep_name(rt: Runtime, attr: str) -> str:
+    return type(getattr(rt.deps, attr, None)).__name__ if rt.deps else "injected"
+
+
 @app.get("/health")
 def health():
-    rt = runtime()
+    # Liveness only. A slow probe here marks every app on the node unhealthy.
     return _live(
         {
             "status": "ok",
             "service": "floodsense-agents",
             "graph": "compiled",
             "version": __version__,
-            "llm": type(getattr(rt.deps, "llm", None)).__name__ if rt.deps else "injected",
-            "zetaris": type(getattr(rt.deps, "zetaris", None)).__name__ if rt.deps else "injected",
         }
     )
+
+
+@app.get("/ready")
+def ready():
+    rt = runtime()
+    try:
+        rt.deps.zetaris.run_sql("SELECT 1")
+    except Exception as e:
+        raise HTTPException(503, f"zetaris unreachable: {type(e).__name__}")
+    return _live(
+        {
+            "status": "ready",
+            "llm": _dep_name(rt, "llm"),
+            "zetaris": _dep_name(rt, "zetaris"),
+        }
+    )
+
+
+@app.get("/version")
+def version():
+    return _live({"sha": settings.git_sha, "built": settings.built_at, "version": __version__})
 
 
 @app.get("/config")

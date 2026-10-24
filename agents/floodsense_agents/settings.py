@@ -67,6 +67,10 @@ class Settings:
     checkpointer: str = _env("CHECKPOINTER", "auto")  # auto | sqlite | memory
 
     # Agents service (internal to the compose network; the API proxies it)
+    # Build identity for GET /version; the image build sets these.
+    git_sha: str = _env("GIT_SHA", "unknown")
+    built_at: str = _env("BUILT_AT", "unknown")
+
     host: str = _env("AGENTS_HOST", "0.0.0.0")
     port: int = int(_env("AGENTS_PORT", "8100"))
 

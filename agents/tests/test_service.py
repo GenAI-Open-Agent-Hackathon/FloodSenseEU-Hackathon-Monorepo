@@ -43,6 +43,14 @@ class ServiceTest(unittest.TestCase):
         self.assertIn("FF_HITL", cfg["flags"])
         self.assertIn("nemotron", cfg["lanes"]["deep"])
 
+    def test_ready_and_version(self) -> None:
+        ready = self.c.get("/ready").json()
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(ready["zetaris"], "FakeZetaris")
+        ver = self.c.get("/version").json()
+        self.assertIn("sha", ver)
+        self.assertIn("built", ver)
+
     def test_run_review_approve(self) -> None:
         r = self.c.post(
             "/runs",
