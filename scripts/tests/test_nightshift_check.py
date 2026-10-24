@@ -19,7 +19,8 @@ from nightshift_check import load_values, main, parse_env_file  # noqa: E402
 
 TOKEN = "fakefakefakefake"
 FAST = "nvidia/nemotron-3.5-lightning-30b-a3b"
-DEEP = "nvidia/nemotron-3-super-120b-a12b"
+DEEP = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+OTHER = "nvidia/some-other-model"
 EMBED = "nvidia/llama-nemotron-embed-1b-v2"
 
 
@@ -76,10 +77,20 @@ class FakeRuntime(BaseHTTPRequestHandler):
             if "response_format" in body and not scenario.get("json_mode", True):
                 self._send(400, {"error": "response_format is not supported"})
                 return
-            lane = "fast" if body["model"] == FAST else "deep"
+            model = body["model"]
+            if model in scenario.get("reject", ()):
+                self._send(400, {"error": f"unknown model {model}"})
+                return
+            lane = "fast" if model == FAST else "deep"
             content = scenario.get("reply", json.dumps({"ok": True, "lane": lane}))
-            # Routing can answer a lane with another model, as Nightshift AUTO did live.
-            answered = scenario.get("answered_by", {}).get(body["model"], body["model"])
+            # Routing can answer a lane with another model, as Nightshift did live.
+            # A list rotates per call, like a race between two lanes.
+            routes = scenario.get("answered_by", {})
+            answered = scenario.get("answer_all") or routes.get(model, model)
+            if isinstance(answered, list):
+                turn = self.server.turns.get(model, 0)
+                self.server.turns[model] = turn + 1
+                answered = answered[turn % len(answered)]
             self._send(
                 200,
                 {
@@ -113,6 +124,7 @@ class NightshiftCheckTest(unittest.TestCase):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeRuntime)
         self.server.scenario = {}
         self.server.seen = []
+        self.server.turns = {}
         threading.Thread(
             target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
         ).start()
@@ -168,7 +180,7 @@ class NightshiftCheckTest(unittest.TestCase):
         self.server.scenario["models"] = [FAST]
         code, text = self.run_check("--no-embeddings")
         self.assertEqual(code, 1)
-        self.assertIn(f"missing `{DEEP}`", text)
+        self.assertIn(f"missing: `{DEEP}`", text)
         self.assertIn("**Result: FAIL**", text)
 
     def test_json_mode_rejected_falls_back_like_the_agents_client(self) -> None:
@@ -218,10 +230,12 @@ class NightshiftCheckTest(unittest.TestCase):
         self.server.scenario["answered_by"] = {DEEP: FAST}
         code, text = self.run_check("--no-embeddings")
         self.assertEqual(code, 0, text)
-        self.assertIn("| fast lane | PASS |", text)
         self.assertIn("| deep lane | WARN |", text)
         self.assertIn(f"Pin not honoured: asked for `{DEEP}`, answered by `{FAST}`", text)
-        self.assertIn("**Result: PASS with 1 warning**", text)
+        # Both tiers came back from one model, as in the live run at 15:29.
+        self.assertIn("| fast lane | WARN |", text)
+        self.assertIn(f"Fast and deep were both answered by `{FAST}`: tiers not separate.", text)
+        self.assertIn("**Result: PASS with 2 warnings**", text)
 
     def test_routing_modes_answered_by_real_models_pass(self) -> None:
         self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
@@ -240,7 +254,9 @@ class NightshiftCheckTest(unittest.TestCase):
         code, text = self.run_check("--no-embeddings", env=env)
         self.assertEqual(code, 0, text)
         self.assertIn("| fast lane | WARN |", text)
+        self.assertIn(f"Wrong model for the fast tier: it should be `{FAST}`", text)
         self.assertIn("tiers not separate", text)
+        self.assertIn("| deep lane | PASS |", text)
         self.assertIn("**Result: PASS with 1 warning**", text)
 
     def test_listed_embedding_model_without_the_route(self) -> None:
@@ -248,7 +264,7 @@ class NightshiftCheckTest(unittest.TestCase):
         code, text = self.run_check()
         self.assertEqual(code, 0, text)
         self.assertIn("| embeddings (optional) | WARN |", text)
-        self.assertIn("this runtime does not serve embeddings", text)
+        self.assertIn("a lane with the embed duty", text)
         self.assertNotIn("ends in /v1", text)
         self.assertIn("**Result: PASS** (3/3 required checks passed)", text)
 
@@ -274,6 +290,95 @@ class NightshiftCheckTest(unittest.TestCase):
         saved = out.read_text(encoding="utf-8")
         self.assertIn("## Nightshift live check", saved)
         self.assertNotIn(TOKEN, saved)
+
+    def chats(self) -> list[str]:
+        return [r["body"]["model"] for r in self.server.seen if r["path"] == "/v1/chat/completions"]
+
+    def test_wrong_model_for_a_tier_is_a_warning(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answered_by"] = {"meterless/fast": OTHER, "meterless/deep": DEEP}
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn(f"| fast lane | WARN | `{OTHER}`", text)
+        self.assertIn(f"it should be `{FAST}`. Run with --probe", text)
+        self.assertIn("| deep lane | PASS |", text)
+        self.assertNotIn("tiers not separate", text)
+
+    def test_expect_any_accepts_whichever_model_answers(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answered_by"] = {"meterless/fast": OTHER, "meterless/deep": DEEP}
+        env = self.write_env(
+            MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep", EXPECT_MODEL_FAST="any"
+        )
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn(f"| fast lane | PASS | `{OTHER}`", text)
+        self.assertIn("- Wanted: fast `any`", text)
+
+    def test_unlisted_composed_routing_mode_warns_instead_of_failing(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep", FAST, DEEP]
+        self.server.scenario["answered_by"] = {"meterless/text.fast": FAST, "meterless/deep": DEEP}
+        env = self.write_env(MODEL_FAST="meterless/text.fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn("| GET /models | WARN |", text)
+        self.assertIn("composed routing modes can still route: `meterless/text.fast`", text)
+        self.assertIn("Routing modes listed: `meterless/fast`, `meterless/deep` |", text)
+        self.assertIn("| fast lane | PASS |", text)
+
+    def test_probe_suggests_one_reliable_id_per_tier(self) -> None:
+        self.server.scenario["models"] = [
+            "meterless/auto",
+            "meterless/fast",
+            "meterless/deep",
+            "meterless/local",
+            "meterless/image",
+            "meterless/embed",
+            FAST,
+            DEEP,
+        ]
+        self.server.scenario["answered_by"] = {
+            "meterless/fast": [DEEP, FAST, DEEP],  # a race: not reliable
+            "meterless/text.fast": FAST,
+            "meterless/deep": DEEP,
+            "meterless/auto": DEEP,
+        }
+        self.server.scenario["reject"] = ["meterless/vision.fast"]
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--probe", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn("## Nightshift routing probe", text)
+        self.assertIn(f"| `meterless/fast` | yes | `{DEEP}` 2/3, `{FAST}` 1/3 |", text)
+        self.assertIn(f"| `meterless/text.fast` | no | `{FAST}` 3/3 |", text)
+        self.assertIn("| `meterless/vision.fast` | no | (HTTP 400) 1/1 | - |", text)
+        self.assertIn("MODEL_FAST=meterless/text.fast\nMODEL_DEEP=meterless/deep", text)
+        self.assertIn("**Result: every tier has a reliable id**", text)
+        sent = self.chats()
+        self.assertEqual(sent.count("meterless/vision.fast"), 1)
+        self.assertEqual(sent.count("meterless/deep"), 3)
+        for skipped in ("meterless/local", "meterless/image", "meterless/embed"):
+            self.assertNotIn(skipped, sent)
+        self.assertNotIn(TOKEN, text)
+
+    def test_probe_reports_a_tier_nothing_reaches(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep", FAST, DEEP]
+        self.server.scenario["answer_all"] = DEEP
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--probe", "--probe-rounds", "2", env=env)
+        self.assertEqual(code, 1, text)
+        self.assertIn(f"**Fast: no id reached `{FAST}` every time.**", text)
+        self.assertIn("MODEL_DEEP=meterless/deep", text)
+        self.assertNotIn("MODEL_FAST=", text)
+        self.assertIn("**Result: 1 tier without a reliable id**", text)
+
+    def test_probe_with_a_wrong_token_sends_no_chat(self) -> None:
+        self.server.scenario["token"] = "the-right-one"
+        code, text = self.run_check("--probe")
+        self.assertEqual(code, 1)
+        self.assertIn("**Result: probe not run**", text)
+        self.assertEqual(self.chats(), [])
+        self.assertNotIn(TOKEN, text)
 
 
 class ParseEnvTest(unittest.TestCase):
