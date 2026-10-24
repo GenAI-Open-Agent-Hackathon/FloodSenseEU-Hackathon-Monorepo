@@ -11,7 +11,11 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Added
 
-- `scripts/nightshift_check.py`, a standard-library live check of the local Nightshift runtime. It reads the root `.env` (`127.0.0.1`), confirms that `/models` lists `MODEL_FAST` and `MODEL_DEEP`, sends one JSON chat completion per lane with the agents client's request body (temperature 0.1, thinking off, JSON mode with the same 400 fallback), warns when Nightshift answers a lane with a model other than the pinned one, probes `/embeddings` when an embedding model is listed, and prints a markdown summary for pull requests. It never prints the runtime token and scrubs it from server errors. Exit 0 when no required check fails (warnings included), 1 on a failed check, 2 on a config error. Run it with `py scripts/nightshift_check.py`. Tests in `scripts/tests/test_nightshift_check.py` use a fake runtime on `127.0.0.1`.
+- `scripts/nightshift_check.py`, a standard-library live check of the local Nightshift runtime. It reads the root `.env` (`127.0.0.1`), confirms that `/models` lists `MODEL_FAST` and `MODEL_DEEP`, sends one JSON chat completion per lane with the agents client's request body (temperature 0.1, thinking off, JSON mode with the same 400 fallback), accepts a routing mode such as `meterless/deep` answered by a real model, warns when a named model is answered by a different one or when fast and deep come back from the same model, probes `/embeddings` when an embedding model is listed, and prints a markdown summary for pull requests. It never prints the runtime token and scrubs it from server errors. Exit 0 when no required check fails (warnings included), 1 on a failed check, 2 on a config error. Run it with `py scripts/nightshift_check.py`. Tests in `scripts/tests/test_nightshift_check.py` use a fake runtime on `127.0.0.1`.
+
+### Changed
+
+- `MODEL_FAST` and `MODEL_DEEP` in `.env.example` and `agents/.env.example` are now `meterless/fast` and `meterless/deep`. Nightshift model ids are routing modes: a request that named a model was answered by whichever lane Nightshift picked, and both tiers came back from the 120B model. Fast is now answered by `nvidia/nemotron-3.5-lightning-30b-a3b` and deep by `nvidia/nemotron-3.5-super-vl-120b-a12b`. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint, which returns 502 "Function not found". The gameplan and the C4 page say the same.
 
 ## [0.0.0] - 2026-10-23
 
