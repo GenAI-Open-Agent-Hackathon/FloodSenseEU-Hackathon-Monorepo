@@ -9,7 +9,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "start": "node --experimental-transform-types --no-warnings src/main.ts",
+    "start": "node --env-file-if-exists=.env --experimental-transform-types --no-warnings src/main.ts",
     "test": "node --experimental-transform-types --no-warnings --test test/floodsense.test.ts test/server.test.ts",
     "conformance": "node --experimental-transform-types --no-warnings scripts/conformance.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"

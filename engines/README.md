@@ -2,14 +2,14 @@
 
 A small HTTP service next to the agents. It runs two Meterless engines and maps FloodSense onto them:
 
-- **H-MEM** keeps what an analyst approved and recalls it on the next run. Every memory carries the Zetaris `queryId`s it came from, and the trust ledger explains why it is remembered.
+- **H-MEM** keeps what an analyst approved and recalls it on the next run. Every memory carries the Zetaris `query_id`s it came from, and the trust ledger explains why it is remembered.
 - **World Model** holds the hypothesis board and the observations behind it as an append-only event log. Re-ingesting the same readings changes nothing, which is what makes the replay safe.
 
 The engines are the Meterless reference implementations, copied unchanged into `vendor/` (Apache-2.0, see `NOTICE`). Both conformance suites pass: H-MEM 13/13, World Model 8/8.
 
 ## Run it
 
-Needs Node.js 22.18 or newer. There are no dependencies to install.
+Needs **Node.js 22.18 or newer**. It runs the TypeScript directly, so there is nothing to install or build. CI and the other docs use Node 20, which cannot run this; see "Not done yet".
 
 ```powershell
 cd engines
@@ -18,49 +18,80 @@ npm start
 
 That serves `http://127.0.0.1:8300` and keeps data in `engines/.data/` (git-ignored).
 
+## Configuration
+
+Defaults work as they are. To change one, copy `.env.example` to `.env` in this folder; `npm start` reads it when it exists. There are no secrets and no authentication, so keep the service on loopback or on the compose network.
+
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `ENGINES_HOST` | `127.0.0.1` | Bind address. Use `0.0.0.0` only inside a container. |
-| `ENGINES_PORT` | `8300` | Port. |
+| `ENGINES_PORT` | `8300` | Port. Anything that is not a port number stops the service at start. |
 | `ENGINES_DATA_DIR` | `engines/.data` | Persistence directory. `memory` keeps nothing on disk. |
 
-There is no authentication. Keep it on loopback or on the compose network.
+The agents find the service through **`ENGINES_URL`** in their own env:
+
+| Agents run | `ENGINES_URL` |
+| --- | --- |
+| On the host | `http://127.0.0.1:8300` |
+| In compose, today | `http://host.docker.internal:8300` |
+| In compose, once engines is a service | `http://engines:8300` |
+
+The Python client that reads `ENGINES_URL` lands with the agents after PR #4, and adds the key to `agents/.env.example` then.
 
 ## Check it
 
 ```powershell
-npm test            # 12 unit and HTTP tests (node:test)
+npm test            # 17 unit and HTTP tests (node:test)
 npm run conformance # both Meterless conformance suites
 ```
 
 `npm run typecheck` needs TypeScript and `@types/node` on the machine; it is not required to run the service.
 
+## Vocabulary
+
+Wire names are snake_case and come from the agents' models (`agents/floodsense_agents/models.py`, PR #4) and `contracts/schemas/floodsense.schema.json`, so the agents can post their pydantic objects as they are (`model_dump()`). Fields the engines do not use are ignored.
+
+| Engines field | Comes from | Notes |
+| --- | --- | --- |
+| `claims[]`: `claim_id`, `text`, `citations[].query_id` | contracts `claim`, `citation` | The agents' `Claim` extras (`kind`, `numbers`, `hypothesis_id`) are accepted. |
+| `approval`: `status`, `reviewer`, `reviewer_note` | agents `Approval` (the run-level approval) | Only `approved` and `edited` are remembered. `rejected`, `not_reached`, `awaiting` and `auto` write nothing: memory keeps a human yes. The per-action `approval` in contracts releases playbook actions and is not an engines concern. |
+| `question`, `run_id`, `event_id` | agents `RunRequest` and state | |
+| `hypotheses[]`: `id`, `link`, `statement`, `status`, `evidence`, `citations`, `rounds`, `rationale` | agents `Hypothesis` | `status` is `proposed`, `supported` or `not_supported`. contracts has no hypothesis yet. |
+| `anomalies[]`: `id`, `kind`, `point_id`, `ts_utc`, `value`, `unit`, `why`, `query_id` | agents `Anomaly` | Keyed by what was measured (`kind`, `point_id`, `ts_utc`), so the same reading from another run is the same observation. |
+| `confidence`, `entities` on a claim; `confidence`, `concerns` on a hypothesis | engines extras | Optional. Confidence is 0 to 1. |
+
 ## HTTP contract
 
-JSON in, JSON out. Bad input is a 400 with `{ "error": ... }`.
+JSON in, JSON out. Bad input is a 400 with `{ "error": ... }`, and a write is checked in full before anything is stored, so a 400 has written nothing.
 
 | Method and path | Body or query | Returns |
 | --- | --- | --- |
-| `GET /health` | | Memory, ledger, event and hypothesis counts |
-| `POST /hmem/store` | `{ runId, request, approval: { decision, by }, claims: [{ text, confidence?, citations?: [{ queryId }], entities? }] }` | `{ stored: [ids], skipped }`. `decision` is `approved`, `edited` or `rejected`; rejected runs write nothing. |
-| `POST /hmem/recall` | `{ query, topN?, threshold? }` | `{ memories: [{ id, content, relevance, confidence, source, provenance }], trace }` |
-| `POST /hmem/feedback` | `{ memoryId, kind }` with `kind` = `helpful`, `not_helpful` or `wrong` | New confidence |
-| `GET /hmem/ledger?memoryId=` | | Ledger entries for one memory, oldest first |
-| `POST /wm/observations` | `{ observations: [{ externalId, title, at, source: { kind }, type?, text?, entities? }] }` | Ingest report; `changed` is `false` on a replay |
-| `POST /wm/hypotheses` | `{ runId, at, by?, hypotheses: [{ id, text, status, confidence?, concerns?: [{ type, name }], evidence? }] }` | `{ board }`. `status` is `proposed`, `supported`, `refuted` or `revised`. |
-| `GET /wm/board?runId=` | | `{ board }` for one run, or all runs |
-| `GET /wm/timeline?limit=` | | Latest World Model events |
+| `GET /health` | | `{ ok, hmem: { memories, ledger_entries }, world_model: { events, hypotheses } }` |
+| `POST /hmem/store` | `{ run_id, question, event_id?, approval: { status, reviewer? }, claims: [...] }` | `{ stored, already_stored, skipped, reason? }`; each stored item is `{ claim_id, memory_id }` |
+| `POST /hmem/recall` | `{ query, top_n?, threshold? }`: `top_n` 1 to 50 (default 5), `threshold` 0 to 1 (default 0.35) | `{ memories: [{ memory_id, content, relevance, confidence, run_id, claim_id, query_ids, provenance }], trace }` |
+| `POST /hmem/feedback` | `{ memory_id, kind }` with `kind` = `helpful`, `not_helpful` or `wrong` | `{ memory_id, confidence }` |
+| `GET /hmem/ledger?memory_id=` | | `{ entries }`, oldest first, each with `action`, `actor` and `at` |
+| `POST /wm/observations` | `{ anomalies?: [...], observations?: [{ external_id, title, at, source: { kind }, type?, text?, entities? }] }` | Ingest report; `changed` is `false` on a replay |
+| `POST /wm/hypotheses` | `{ run_id, at, by?, hypotheses: [...] }` | `{ board }` |
+| `GET /wm/board?run_id=` | | `{ board }` for one run, or all runs |
+| `GET /wm/timeline?limit=` | `limit` 1 to 1000 (default 100) | Latest World Model events |
 
 `at` is the scenario clock (the replay time), not the wall clock, so a replayed run produces the same events.
 
+### Retries are safe
+
+- A memory is keyed by `(run_id, claim_id)`. Sending a run again stores only the claims that are not remembered yet and lists the rest in `already_stored`, so a run that failed half way is finished by a retry, and nothing is stored twice.
+- A hypothesis is keyed by `(run_id, id)`. An unchanged hypothesis, an unchanged status and an existing concern write nothing, so the same call twice appends no events.
+
 ## How the agents use it
 
-- **Investigator** calls `/hmem/recall` with the question before it builds the chain, and posts hypotheses to `/wm/hypotheses`.
-- **Skeptic** posts status changes (`supported`, `refuted`, `revised`) for the same hypothesis ids.
-- **Learn** (after the human approves) calls `/hmem/store` with the approved claims and their citations. This is the `Memory.store` side of the `Memory` protocol in `agents/`; `Memory.recall` maps to `/hmem/recall`. The Python client lands with the agents once PR #4 is merged.
+- **Watchers** post `state["anomalies"]` to `/wm/observations`.
+- **Investigator** calls `/hmem/recall` with the question before it builds the chain, and posts its hypotheses to `/wm/hypotheses`.
+- **Skeptic** posts the same hypothesis ids with their new `status`, `rounds` and `rationale`.
+- **Learn** (after the human decision) posts `run_id`, the question, `state["approval"]` and the claims to `/hmem/store`. This is the `Memory.store` side of the `Memory` protocol in `agents/`; `Memory.recall` maps to `/hmem/recall`.
 
 ## Not done yet
 
 - A compose service, so the agents container reaches it as `http://engines:8300`.
-- A `tasks.py` step and CI job for `npm test` and `npm run conformance`.
+- A `tasks.py` step and a CI job for `npm test` and `npm run conformance`. That job needs `actions/setup-node` with Node 22.18 or newer; the current CI job uses Node 20.
 - The reference embedder is a deterministic hash, not semantic. Swapping in real embeddings is part of the semantic cache work.
