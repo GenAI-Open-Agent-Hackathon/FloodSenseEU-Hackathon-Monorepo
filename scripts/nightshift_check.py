@@ -328,10 +328,28 @@ def snippet(text: str, limit: int = 140) -> str:
     return flat if len(flat) <= limit else flat[: limit - 3] + "..."
 
 
+def error_fields(body: str) -> str:
+    """A JSON error object in full (message, code, and Nightshift's own fields), or ""."""
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return ""
+    err = data.get("error") if isinstance(data, dict) else None
+    if not isinstance(err, dict):
+        return ""
+    parts = []
+    for key, value in err.items():
+        if value in (None, "", [], {}):
+            continue
+        text = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
+        parts.append(f"{key}={text}")
+    return snippet("; ".join(parts), 600)
+
+
 def explain(reply: Reply, cfg: Config) -> str:
     if reply.status == 0:
         return f"no response from {cfg.public_url()} ({reply.error}). Is Nightshift running?"
-    body = snippet(reply.body)
+    body = error_fields(reply.body) or snippet(reply.body)
     if reply.status in (401, 403):
         return (
             f"HTTP {reply.status}: token rejected or app not allowed. Check "
