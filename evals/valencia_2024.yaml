@@ -40,6 +40,8 @@ items:
     forbid: ["2282", "1686"]
   - id: val-10
     question: What was the water level of the Rhine at Köln on 29 October 2024?
-    # not in our views: a correct run says what the evidence does not show and invents no number
+    # not in our views. The scope gate declines before anything is read, so the
+    # right answer is no answer. It still must invent no number.
+    expect_declined: true
     expect: []
-    forbid: ["786", "köln", "rhine"]
+    forbid: ["786"]

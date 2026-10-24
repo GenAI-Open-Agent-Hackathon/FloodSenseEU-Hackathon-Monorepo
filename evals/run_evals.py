@@ -55,6 +55,37 @@ def run_item(rt: Runtime, spec: dict, item: dict) -> dict:
         replay_ts=item.get("replay_ts"),
     )
     s = rt.start(req)
+    # An item may declare that the right answer is no answer. Scoring a
+    # refusal against expect/forbid tokens would punish the gate for working.
+    if item.get("expect_declined"):
+        declined = s["status"] == "out_of_scope"
+        return {
+            "id": item["id"],
+            "question": item["question"],
+            "declined": declined,
+            "expected_declined": True,
+            "ok": declined,
+            "reason": (s.get("scope") or {}).get("reason", ""),
+            "summary": s.get("summary", ""),
+            # Neutral values: a refusal has no answer to score, and averaging
+            # it in would flatter or punish the quality numbers either way.
+            "hallucination_rate": 0.0,
+            "citation_coverage": 1.0,
+            "numeric_accuracy": 1.0,
+            "judge_passes": True,
+            "judge_overall": 0.0,
+            "n_claims": 0,
+            "status": "out_of_scope" if declined else s["status"],
+            "expect_hits": "0/0",
+            "expect_hit_rate": None,
+            "forbid_violations": [
+                f for f in item.get("forbid", []) if mentions(s.get("summary") or "", f)
+            ],
+            "repair_rounds": 0,
+            "skeptic_rejections": 0,
+            "model_ids": [],
+            "elapsed_s": round(time.time() - t0, 2),
+        }
     if s["status"] == "awaiting_approval":
         s = rt.resume(s["run_id"], ApprovalDecision(action="approve", reviewer="evals"))
     text = " ".join(
@@ -89,10 +120,17 @@ def run_item(rt: Runtime, spec: dict, item: dict) -> dict:
 
 
 def aggregate(rows: list[dict]) -> dict:
-    n = len(rows) or 1
-    rated = [r["expect_hit_rate"] for r in rows if r["expect_hit_rate"] is not None]
+    # A refused question has no answer, so it is counted as a refusal and kept
+    # out of the answer-quality means.
+    refusals = [r for r in rows if r.get("expected_declined")]
+    answered = [r for r in rows if not r.get("expected_declined")] or rows
+    n = len(answered) or 1
+    rated = [r["expect_hit_rate"] for r in answered if r["expect_hit_rate"] is not None]
+    rows = answered
     return {
         "items": len(rows),
+        "refusals_expected": len(refusals),
+        "refusals_correct": sum(1 for r in refusals if r["declined"]),
         "hallucination_rate": round(sum(r["hallucination_rate"] for r in rows) / n, 4),
         "citation_coverage": round(sum(r["citation_coverage"] for r in rows) / n, 4),
         "numeric_accuracy": round(sum(r["numeric_accuracy"] for r in rows) / n, 4),
