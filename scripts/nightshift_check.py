@@ -103,6 +103,8 @@ PROBE_SEEDS: tuple[str, ...] = (
     "meterless/vision",
     "meterless/vision.fast",
     "meterless/vision.deep",
+    "meterless/judge",
+    "meterless/verify",
 )
 # Never probe these: local can start a model download, fusion and cluster fan
 # out to several routes, and embedding or media modes are not chat.
@@ -519,7 +521,14 @@ class Probe:
     seconds: list[float] = field(default_factory=list)
 
     def always(self, want: str) -> bool:
-        return bool(self.answers) and all(a == want for a in self.answers)
+        """Every reply came from `want`, and at least half the rounds got a reply.
+
+        An upstream 502 is the provider failing, not a routing decision, so it
+        does not count against the route unless it is most of the rounds.
+        """
+        replies = [a for a in self.answers if not a.startswith("(")]
+        enough = len(replies) * 2 >= len(self.answers)
+        return bool(replies) and enough and all(a == want for a in replies)
 
     def summary(self) -> str:
         n = len(self.answers)
@@ -554,9 +563,11 @@ def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
                 probe.answers.append(answering_model(got) or "(model not named)")
                 probe.seconds.append(got.seconds)
                 continue
-            # A refusal or no answer will not change on the next round.
             probe.answers.append("(no reply)" if got.status == 0 else f"(HTTP {got.status})")
-            break
+            if got.status < 500:
+                # A refusal (4xx) or no runtime will not change on the next round.
+                # A 5xx is usually the upstream provider; try again.
+                break
         probes.append(probe)
     return models, probes
 
