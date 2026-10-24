@@ -13,13 +13,16 @@ environment variable overrides the file. Checks, in order:
   1. GET  /models            MODEL_FAST and MODEL_DEEP are both listed.
   2. POST /chat/completions  one tiny JSON reply per lane, with the agents
                              client's body: temperature 0.1, thinking off,
-                             JSON mode, and the same 400 fallback.
+                             JSON mode, and the same 400 fallback. A lane
+                             answered by another model is a warning: the
+                             pin was not honoured.
   3. POST /embeddings        optional probe for the semantic cache. No
                              embedding model is reported, not failed.
 
 Prints a markdown summary that is safe to paste into a PR. The runtime token
 is never printed and is scrubbed from any error text the server returns.
-Exit 0 when the required checks pass, 1 when one fails, 2 on a config error.
+Exit 0 when no required check fails (warnings included), 1 when one fails,
+2 on a config error.
 """
 
 from __future__ import annotations
@@ -335,8 +338,6 @@ def check_lane(client: Client, lane: str, model: str) -> Check:
         f"`{returned}`, {reply.seconds:.1f} s, {tokens} tokens, finish {finish}, "
         f"JSON mode {json_mode}"
     )
-    if returned != model:
-        facts += f"; note: asked for `{model}`"
     if not content.strip():
         hint = ""
         if isinstance(message, dict) and message.get("reasoning_content"):
@@ -349,6 +350,13 @@ def check_lane(client: Client, lane: str, model: str) -> Check:
         facts += "; reply carried a <think> block"
     if parsed.get("ok") is not True:
         return Check(name, "WARN", f"{facts}. JSON parsed, ok is not true: {snippet(content, 80)}")
+    if returned != model:
+        # The runtime answered, but not on the pinned model: routing overrode the lane.
+        return Check(
+            name,
+            "WARN",
+            f"{facts}. Pin not honoured: asked for `{model}`, answered by `{returned}`.",
+        )
     return Check(name, "PASS", facts)
 
 
@@ -369,6 +377,15 @@ def check_embeddings(client: Client, ids: list[str], *, enabled: bool, reachable
             required=False,
         )
     reply = client.call("POST", "/embeddings", {"model": model, "input": [EMBED_PROBE]}, timeout=60)
+    if reply.status in (404, 405):
+        # /models answered on the same base URL, so the path is right; the route is missing.
+        return Check(
+            name,
+            "WARN",
+            f"`{model}` is listed, but POST /embeddings returned HTTP {reply.status}: this "
+            "runtime does not serve embeddings. The semantic cache needs another source.",
+            required=False,
+        )
     if reply.status != 200:
         return Check(name, "WARN", f"`{model}`: {explain(reply, cfg)}", required=False)
     data = reply.json()
@@ -399,9 +416,10 @@ def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
 
 
 def verdict(checks: list[Check]) -> tuple[bool, int, int]:
+    """(no required check failed, required checks passed or warned, required total)."""
     required = [c for c in checks if c.required]
-    passed = sum(c.status == "PASS" for c in required)
-    return passed == len(required), passed, len(required)
+    ok = sum(c.status in ("PASS", "WARN") for c in required)
+    return ok == len(required), ok, len(required)
 
 
 def scrub(text: str, secrets: list[str]) -> str:
@@ -414,6 +432,16 @@ def scrub(text: str, secrets: list[str]) -> str:
 
 def render(cfg: Config, checks: list[Check], *, now: datetime) -> str:
     ok, passed, total = verdict(checks)
+    warned = sum(c.status == "WARN" for c in checks if c.required)
+    if not ok:
+        result = f"**Result: FAIL** ({passed}/{total} required checks passed)"
+    elif warned:
+        result = (
+            f"**Result: PASS with {warned} warning{'s' if warned > 1 else ''}** "
+            f"({passed}/{total} required checks answered; see WARN rows)"
+        )
+    else:
+        result = f"**Result: PASS** ({passed}/{total} required checks passed)"
     lines = [
         "## Nightshift live check",
         "",
@@ -427,10 +455,7 @@ def render(cfg: Config, checks: list[Check], *, now: datetime) -> str:
     ]
     for c in checks:
         lines.append(f"| {c.name} | {c.status} | {c.detail.replace('|', '/')} |")
-    lines += [
-        "",
-        f"**Result: {'PASS' if ok else 'FAIL'}** ({passed}/{total} required checks passed)",
-    ]
+    lines += ["", result]
     return "\n".join(lines)
 
 
