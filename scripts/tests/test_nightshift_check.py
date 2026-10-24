@@ -81,6 +81,11 @@ class FakeRuntime(BaseHTTPRequestHandler):
             if model in scenario.get("reject", ()):
                 self._send(400, {"error": f"unknown model {model}"})
                 return
+            if model in scenario.get("fail_first", ()) and model not in self.server.failed:
+                # The upstream provider fails once, as NVIDIA did live with a 502.
+                self.server.failed.add(model)
+                self._send(502, {"error": "upstream error"})
+                return
             lane = "fast" if model == FAST else "deep"
             content = scenario.get("reply", json.dumps({"ok": True, "lane": lane}))
             # Routing can answer a lane with another model, as Nightshift did live.
@@ -125,6 +130,7 @@ class NightshiftCheckTest(unittest.TestCase):
         self.server.scenario = {}
         self.server.seen = []
         self.server.turns = {}
+        self.server.failed = set()
         threading.Thread(
             target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
         ).start()
@@ -345,6 +351,7 @@ class NightshiftCheckTest(unittest.TestCase):
             "meterless/auto": DEEP,
         }
         self.server.scenario["reject"] = ["meterless/vision.fast"]
+        self.server.scenario["fail_first"] = ["meterless/deep"]
         env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
         code, text = self.run_check("--probe", env=env)
         self.assertEqual(code, 0, text)
@@ -352,6 +359,9 @@ class NightshiftCheckTest(unittest.TestCase):
         self.assertIn(f"| `meterless/fast` | yes | `{DEEP}` 2/3, `{FAST}` 1/3 |", text)
         self.assertIn(f"| `meterless/text.fast` | no | `{FAST}` 3/3 |", text)
         self.assertIn("| `meterless/vision.fast` | no | (HTTP 400) 1/1 | - |", text)
+        # One upstream 502 neither stops the rounds nor disqualifies the route.
+        self.assertIn(f"| `meterless/deep` | yes | `{DEEP}` 2/3, (HTTP 502) 1/3 |", text)
+        self.assertIn("| `meterless/judge` | no |", text)
         self.assertIn("MODEL_FAST=meterless/text.fast\nMODEL_DEEP=meterless/deep", text)
         self.assertIn("**Result: every tier has a reliable id**", text)
         sent = self.chats()
