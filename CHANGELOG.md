@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Changed
+
+- Docs name the Nightshift lanes `meterless/fast` and `meterless/deep`. The model each routing name answers is the table at the top of [ADR 0004](docs/adr/0004-nightshift-only-llm-calls.md) (as of 24 Oct 2026); a later model change edits that table only. Nemotron 3 (`nvidia/nemotron-3-super-120b-a12b`) is recorded there as discontinued and replaced. [docs/OWNERSHIP.md](docs/OWNERSHIP.md) sets `/engines/` to Ayush (@AyushSinghNegi).
+
 ### Fixed
 
 - The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.

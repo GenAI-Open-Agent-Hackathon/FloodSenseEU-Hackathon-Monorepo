@@ -4,7 +4,7 @@ This is the team's ownership table. It is not an enforced `.github/CODEOWNERS` f
 
 Ownership means: this person reviews changes on the path and keeps it working. It does not mean they are the only person who may edit it. Last matching row wins when two rows overlap, same as CODEOWNERS.
 
-GitHub usernames are not filled in yet. Replace the names with real logins when the team adds a CODEOWNERS file.
+GitHub usernames are not filled in yet, except `/engines/`. Replace the remaining names with real logins when the team adds a CODEOWNERS file.
 
 | Path | Owners | Notes |
 | --- | --- | --- |
@@ -21,10 +21,11 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/agents/` | Ayush, Zain | Nightshift, graph, memory |
 | `/agents/floodsense_agents/hitl.py` | Zain | Approval interrupt and checkpointer |
 | `/agents/floodsense_agents/nodes/judge.py` | Zain, Mihir | LLM-as-a-Judge |
+| `/engines/` | Ayush (@AyushSinghNegi) | TypeScript sidecar for the Meterless H-MEM memory engine and World Model engine. Not in the skeleton yet |
 | `/api/` | Zain, Ayush | Runs, SSE, approval; cache is Ayush's |
 | `/ui/` | Mihir, Zain | Mihir until LangGraph and HITL are done, then Zain |
 | `/pgvector/` | Urvashi | Optional citation store. Ayush on embeddings |
 | `/evals/` | Saleeta, Zain, Mihir | Not in the skeleton yet. Ahr/NRW 2021 and Valencia 2024 |
 | `/demo/` | Saleeta | Not in the skeleton yet. Deck, script, video |
 
-Planned paths that have no folder yet (`knowledge/`, `engines/`, `evals/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+Planned paths that have no folder yet (`knowledge/`, `evals/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md). `/engines/` is assigned in the table above.
