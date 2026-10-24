@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Added
+
+- `engines/`, a TypeScript sidecar that runs the Meterless H-MEM and World Model reference engines (Apache-2.0, copied unchanged into `engines/vendor/` from Meterless commit `1742dec`) behind a small HTTP API for the agents. H-MEM stores approved claims with their Zetaris `queryId`s (write-on-approval: rejected runs write nothing), recalls them, takes feedback, and returns the trust-ledger trace for a memory. World Model holds the hypothesis board, with status changes kept as facts that survive a restart, and ingests observations idempotently. Node.js 22.18 or newer, no dependencies: `npm start`, `npm test` (12 tests), `npm run conformance` (H-MEM 13/13, World Model 8/8). Not yet in compose or CI.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.
