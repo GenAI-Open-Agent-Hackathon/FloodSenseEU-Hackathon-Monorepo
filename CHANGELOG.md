@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/nightshift_check.py`, a standard-library live check of the local Nightshift runtime. It reads the root `.env` (`127.0.0.1`), confirms that `/models` lists `MODEL_FAST` and `MODEL_DEEP`, sends one JSON chat completion per lane with the agents client's request body (temperature 0.1, thinking off, JSON mode with the same 400 fallback), probes `/embeddings` when an embedding model is listed, and prints a markdown summary for pull requests. It never prints the runtime token and scrubs it from server errors. Exit 0 on pass, 1 on a failed check, 2 on a config error. Run it with `py scripts/nightshift_check.py`. Tests in `scripts/tests/test_nightshift_check.py` use a fake runtime on `127.0.0.1`.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.
