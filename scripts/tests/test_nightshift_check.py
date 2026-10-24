@@ -85,6 +85,21 @@ class FakeRuntime(BaseHTTPRequestHandler):
             if model in scenario.get("reject", ()):
                 self._send(400, {"error": f"unknown model {model}"})
                 return
+            if model in scenario.get("provider_error", ()):
+                # Nightshift's shape when the cloud provider sends nothing back.
+                self._send(
+                    502,
+                    {
+                        "error": {
+                            "message": f"/{model.split('/')[-1]}_empty_response",
+                            "type": "api_error",
+                            "code": "provider_error",
+                            "param": None,
+                            "meterless_detail": {"lane": "lightning", "provider": "nvidia"},
+                        }
+                    },
+                )
+                return
             if model in scenario.get("fail_first", ()) and model not in self.server.failed:
                 # The upstream provider fails once, as NVIDIA did live with a 502.
                 self.server.failed.add(model)
@@ -443,6 +458,17 @@ class NightshiftCheckTest(unittest.TestCase):
         env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
         code, text = self.run_check("--probe", "--probe-rounds", "1", env=env)
         self.assertIn("Nightshift returned no routing details beyond the model name.", text)
+
+    def test_provider_error_is_shown_in_full(self) -> None:
+        # A long Nightshift error must not be cut before its own detail fields.
+        self.server.scenario["provider_error"] = [FAST]
+        code, text = self.run_check("--no-embeddings")
+        self.assertEqual(code, 1)
+        self.assertIn("| fast lane | FAIL |", text)
+        self.assertIn("HTTP 502: message=/nemotron-3.5-lightning-30b-a3b_empty_response", text)
+        self.assertIn("code=provider_error", text)
+        self.assertIn('meterless_detail={"lane":"lightning","provider":"nvidia"}', text)
+        self.assertNotIn("param=", text)
 
 
 class ParseEnvTest(unittest.TestCase):
