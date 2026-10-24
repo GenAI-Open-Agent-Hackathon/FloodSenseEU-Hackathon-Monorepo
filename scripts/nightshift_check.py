@@ -8,14 +8,17 @@ on both lanes.
     py scripts/nightshift_check.py --out nightshift-check.md
 
 Reads the root .env (host URLs on 127.0.0.1, not agents/.env). A non-empty
-environment variable overrides the file. Checks, in order:
+environment variable overrides the file. MODEL_FAST and MODEL_DEEP are
+Nightshift routing modes (meterless/fast, meterless/deep): Nightshift picks
+the lane, and each reply names the model that answered. Checks, in order:
 
   1. GET  /models            MODEL_FAST and MODEL_DEEP are both listed.
   2. POST /chat/completions  one tiny JSON reply per lane, with the agents
                              client's body: temperature 0.1, thinking off,
-                             JSON mode, and the same 400 fallback. A lane
-                             answered by another model is a warning: the
-                             pin was not honoured.
+                             JSON mode, and the same 400 fallback. A
+                             concrete model id answered by another model is
+                             a warning (pin not honoured), and so is fast
+                             and deep answered by the same model.
   3. POST /embeddings        optional probe for the semantic cache. No
                              embedding model is reported, not failed.
 
@@ -63,6 +66,7 @@ REQUIRED: tuple[str, ...] = (
     "MODEL_DEEP",
 )
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+ROUTING_PREFIX = "meterless/"
 SYSTEM_PROMPT = "TASK: healthcheck\nReply with one JSON object and nothing else."
 EMBED_PROBE = "Valencia flash flood, Poyo ravine, 29 October 2024"
 
@@ -229,6 +233,7 @@ class Check:
     status: str  # PASS, FAIL, WARN or SKIP
     detail: str
     required: bool = True
+    answered_by: str = ""
 
 
 def snippet(text: str, limit: int = 140) -> str:
@@ -350,14 +355,18 @@ def check_lane(client: Client, lane: str, model: str) -> Check:
         facts += "; reply carried a <think> block"
     if parsed.get("ok") is not True:
         return Check(name, "WARN", f"{facts}. JSON parsed, ok is not true: {snippet(content, 80)}")
-    if returned != model:
-        # The runtime answered, but not on the pinned model: routing overrode the lane.
+    if returned != model and not model.startswith(ROUTING_PREFIX):
+        # A concrete model id answered by another model: routing overrode the pin.
         return Check(
             name,
             "WARN",
             f"{facts}. Pin not honoured: asked for `{model}`, answered by `{returned}`.",
+            answered_by=returned,
         )
-    return Check(name, "PASS", facts)
+    if returned != model:
+        # Routing modes are expected to resolve to a real model; record which one.
+        facts += f"; routed by `{model}`"
+    return Check(name, "PASS", facts, answered_by=returned)
 
 
 def check_embeddings(client: Client, ids: list[str], *, enabled: bool, reachable: bool) -> Check:
@@ -408,6 +417,19 @@ def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
             checks.append(Check(f"{lane} lane", "SKIP", "not run: /models got no usable answer"))
         else:
             checks.append(check_lane(client, lane, model))
+    fast, deep = checks[1], checks[2]
+    if (
+        fast.status == "PASS"
+        and deep.status == "PASS"
+        and fast.answered_by
+        and fast.answered_by == deep.answered_by
+        and cfg.model_fast != cfg.model_deep
+    ):
+        # Both tiers collapsed onto one model, as a single race lane does.
+        fast.status = "WARN"
+        fast.detail += (
+            f". Fast and deep were both answered by `{fast.answered_by}`: tiers not separate."
+        )
     checks.append(check_embeddings(client, ids, enabled=embeddings, reachable=not blocked))
     return checks
 
