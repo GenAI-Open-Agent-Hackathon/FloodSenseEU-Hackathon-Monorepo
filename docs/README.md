@@ -18,5 +18,6 @@ ADRs. `0001` is accepted. `0002` onward are proposed. The team accepts or change
 - [adr/0006-labelled-cache-and-replay.md](adr/0006-labelled-cache-and-replay.md) — `served_from` and `cached_at`.
 - [adr/0007-json-schema-contracts.md](adr/0007-json-schema-contracts.md) — JSON Schema is the shared contract.
 - [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md) — CI runs on GitHub-hosted runners.
+- [adr/0009-vector-search-next-to-zetaris.md](adr/0009-vector-search-next-to-zetaris.md) — vector search runs in pgvector, metadata through Zetaris (gameplan ADR-008).
 
 CI is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). The runner switch is the `runs-on` line in that file.
