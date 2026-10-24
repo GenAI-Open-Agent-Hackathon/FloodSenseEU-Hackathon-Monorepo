@@ -223,6 +223,26 @@ class NightshiftCheckTest(unittest.TestCase):
         self.assertIn(f"Pin not honoured: asked for `{DEEP}`, answered by `{FAST}`", text)
         self.assertIn("**Result: PASS with 1 warning**", text)
 
+    def test_routing_modes_answered_by_real_models_pass(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answered_by"] = {"meterless/fast": FAST, "meterless/deep": DEEP}
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn(f"| fast lane | PASS | `{FAST}`", text)
+        self.assertIn("routed by `meterless/deep`", text)
+        self.assertIn("**Result: PASS** (3/3 required checks passed)", text)
+
+    def test_both_tiers_answered_by_one_model_is_a_warning(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        self.server.scenario["answered_by"] = {"meterless/fast": DEEP, "meterless/deep": DEEP}
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--no-embeddings", env=env)
+        self.assertEqual(code, 0, text)
+        self.assertIn("| fast lane | WARN |", text)
+        self.assertIn("tiers not separate", text)
+        self.assertIn("**Result: PASS with 1 warning**", text)
+
     def test_listed_embedding_model_without_the_route(self) -> None:
         self.server.scenario["embeddings"] = False
         code, text = self.run_check()
