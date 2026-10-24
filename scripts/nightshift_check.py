@@ -4,17 +4,19 @@ Proves that this machine's Meterless Nightshift runtime answers the same
 request the agents client (agents/floodsense_agents/nightshift.py) sends,
 on both lanes.
 
-    py scripts/nightshift_check.py
-    py scripts/nightshift_check.py --out nightshift-check.md
-    py scripts/nightshift_check.py --probe
+    python scripts/nightshift_check.py
+    python scripts/nightshift_check.py --out nightshift-check.md
+    python scripts/nightshift_check.py --probe
 
 Reads the root .env (host URLs on 127.0.0.1, not agents/.env). A non-empty
 environment variable overrides the file. MODEL_FAST and MODEL_DEEP are
 Nightshift routing modes (meterless/fast, meterless/deep): Nightshift picks
 the lane, and each reply names the model that answered. Each tier has a
-wanted model: EXPECT_MODEL_FAST (default Nemotron 3.5 Lightning 30B A3B) and
-EXPECT_MODEL_DEEP (default Nemotron 3.5 Super VL 120B A12B). Set one to
-"any" to accept whichever model answers. Checks, in order:
+wanted model, EXPECT_MODEL_FAST and EXPECT_MODEL_DEEP. Both default to
+Nemotron 3.5 Super VL 120B A12B, which Nightshift picks for both tiers today
+because it is the faster lane as well as the stronger one. Set
+EXPECT_MODEL_FAST to the Lightning 30B id to hold fast to it, or set either
+to "any" to accept whichever model answers. Checks, in order:
 
   1. GET  /models            MODEL_FAST and MODEL_DEEP are listed. A
                              missing model name fails; a missing meterless/
@@ -24,8 +26,8 @@ EXPECT_MODEL_DEEP (default Nemotron 3.5 Super VL 120B A12B). Set one to
                              client's body: temperature 0.1, thinking off,
                              JSON mode, and the same 400 fallback. A reply
                              from a model other than the tier's wanted one
-                             is a warning, and so is fast and deep answered
-                             by the same model.
+                             is a warning. When the tiers want different
+                             models, so is both answered by one model.
   3. POST /embeddings        optional probe for the semantic cache. No
                              embedding model is reported, not failed.
 
@@ -34,9 +36,12 @@ composed fast/deep variants and the wanted model names) --probe-rounds times
 each, shows which model answered, and suggests MODEL_FAST and MODEL_DEEP
 values that reached the wanted model every time. It skips local, fusion,
 cluster, embedding and media modes, so it never starts a local model load.
+It also lists any routing details Nightshift returns beyond the model name
+(meterless-* headers and extra reply fields), such as which lanes raced.
 
 Prints a markdown summary that is safe to paste into a PR. The runtime token
-is never printed and is scrubbed from any error text the server returns.
+is never printed: it is scrubbed from every server reply as it arrives,
+before any text is cut short for the report.
 Exit 0 when no required check fails (warnings included), 1 when one fails,
 2 on a config error. --probe exits 0 when both tiers have a suggestion.
 """
@@ -86,9 +91,16 @@ LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 ROUTING_PREFIX = "meterless/"
 SYSTEM_PROMPT = "TASK: healthcheck\nReply with one JSON object and nothing else."
 EMBED_PROBE = "Valencia flash flood, Poyo ravine, 29 October 2024"
-# The models each tier should land on (docs/GAMEPLAN.md, "Two Nemotron lanes").
-WANT_FAST = "nvidia/nemotron-3.5-lightning-30b-a3b"
+# The model each tier should land on. Nightshift answers both tiers with
+# Super VL 120B today: it replied in about 0.5 s against 2.6 s for Lightning
+# 30B, and it is the stronger model. EXPECT_MODEL_FAST overrides the fast one.
 WANT_DEEP = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+WANT_FAST = WANT_DEEP
+# Reply fields every OpenAI-compatible server sends; anything else is a detail
+# the runtime added (a receipt, the lanes that raced) and the probe lists it.
+STANDARD_REPLY_KEYS = frozenset(
+    {"id", "object", "created", "model", "choices", "usage", "system_fingerprint", "service_tier"}
+)
 ANY_MODEL = "any"
 # Probe candidates beyond what /models lists. Composed ids are documented as
 # meterless/<class>.<disposition>; Nightshift does not list every combination.
@@ -233,6 +245,7 @@ class Reply:
     body: str
     seconds: float
     error: str = ""
+    headers: dict[str, str] = field(default_factory=dict)  # lower-case names
 
     def json(self) -> object:
         try:
@@ -271,13 +284,31 @@ class Client:
         try:
             with self._opener.open(req, timeout=timeout) as resp:
                 text = resp.read().decode("utf-8", errors="replace")
-                return Reply(resp.status, text, time.monotonic() - t0)
+                return Reply(
+                    resp.status,
+                    self.scrub(text),
+                    time.monotonic() - t0,
+                    headers=self.header_map(resp.headers),
+                )
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8", errors="replace")
-            return Reply(exc.code, text, time.monotonic() - t0)
+            return Reply(
+                exc.code,
+                self.scrub(text),
+                time.monotonic() - t0,
+                headers=self.header_map(exc.headers),
+            )
         except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
-            reason = getattr(exc, "reason", exc)
-            return Reply(0, "", time.monotonic() - t0, error=str(reason) or type(exc).__name__)
+            reason = str(getattr(exc, "reason", exc)) or type(exc).__name__
+            return Reply(0, "", time.monotonic() - t0, error=self.scrub(reason))
+
+    def scrub(self, text: str) -> str:
+        """Drop the token from server text before anything cuts it short."""
+        return text.replace(self.cfg.token, "***") if self.cfg.token else text
+
+    def header_map(self, headers: object) -> dict[str, str]:
+        items = headers.items() if hasattr(headers, "items") else []
+        return {str(k).lower(): self.scrub(str(v)) for k, v in items}
 
 
 # --- checks -----------------------------------------------------------------
@@ -499,8 +530,9 @@ def run_checks(client: Client, *, embeddings: bool = True) -> list[Check]:
         and fast.answered_by
         and fast.answered_by == deep.answered_by
         and cfg.model_fast != cfg.model_deep
+        and cfg.want_fast != cfg.want_deep
     ):
-        # Both tiers collapsed onto one model, as a single race lane does.
+        # The tiers want different models but collapsed onto one, as a single race lane does.
         fast.status = "WARN"
         stop = "" if fast.detail.endswith(".") else "."
         fast.detail += (
@@ -519,6 +551,7 @@ class Probe:
     listed: bool
     answers: list[str] = field(default_factory=list)  # a model name, or "(HTTP 400)" and such
     seconds: list[float] = field(default_factory=list)
+    details: dict[str, str] = field(default_factory=dict)  # routing details from the first reply
 
     def always(self, want: str) -> bool:
         """Every reply came from `want`, and at least half the rounds got a reply.
@@ -562,6 +595,8 @@ def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
             if got.status == 200:
                 probe.answers.append(answering_model(got) or "(model not named)")
                 probe.seconds.append(got.seconds)
+                if not probe.details:
+                    probe.details = routing_details(got)
                 continue
             probe.answers.append("(no reply)" if got.status == 0 else f"(HTTP {got.status})")
             if got.status < 500:
@@ -570,6 +605,17 @@ def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
                 break
         probes.append(probe)
     return models, probes
+
+
+def routing_details(reply: Reply) -> dict[str, str]:
+    """What the runtime says about the route beyond the model name."""
+    found = {k: v for k, v in reply.headers.items() if "meterless" in k or "nightshift" in k}
+    data = reply.json()
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key not in STANDARD_REPLY_KEYS:
+                found[key] = json.dumps(value, separators=(",", ":"))
+    return {k: snippet(v, 160) for k, v in sorted(found.items())}
 
 
 def suggest(probes: list[Probe], want: str, lane: str) -> str:
@@ -635,6 +681,15 @@ def render_probe(
         lines += ["**Suggested settings** (every round reached the wanted model):", "", "```"]
         lines += [*picks, "```", ""]
     lines += [*gaps, *([""] if gaps else [])]
+    detailed = [p for p in probes if p.details]
+    if detailed:
+        lines += ["**Runtime details** (first reply per id, beyond the model name):", ""]
+        for p in detailed[:20]:
+            facts = "; ".join(f"`{k}` = {v.replace('|', '/')}" for k, v in p.details.items())
+            lines.append(f"- `{p.model}`: {facts}")
+        lines.append("")
+    else:
+        lines += ["Nightshift returned no routing details beyond the model name.", ""]
     if gaps:
         lines.append(
             f"**Result: {len(gaps)} tier{'s' if len(gaps) > 1 else ''} without a reliable id**"
@@ -722,7 +777,7 @@ def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = N
     if not env_path.is_file() and not any(env.get(k) for k in REQUIRED):
         print(f"No env file at {env_path}. Nothing was sent.", file=sys.stderr)
         print(
-            "Create it with: py tasks.py init-env, then fill METERLESS_RUNTIME_TOKEN.",
+            "Create it with: python tasks.py init-env, then fill METERLESS_RUNTIME_TOKEN.",
             file=sys.stderr,
         )
         return 2
