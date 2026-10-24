@@ -34,6 +34,7 @@ ENV_EXAMPLES: tuple[str, ...] = (
     "ui/.env.example",
     "ingestion/.env.example",
     "pgvector/.env.example",
+    "engines/.env.example",
 )
 REQUIRED_ENV: tuple[str, ...] = ("api/.env", "agents/.env", "ui/.env")
 PGVECTOR_ENV = "pgvector/.env"
