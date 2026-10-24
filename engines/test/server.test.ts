@@ -22,47 +22,75 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
   return { status: res.status, json: await res.json() };
 }
 
+const run = {
+  run_id: "run-1",
+  question: "Why Paiporta?",
+  approval: { status: "edited", reviewer: "analyst" },
+  claims: [{ claim_id: "C1", text: "Paiporta sits on the Poyo ravine outflow.", citations: [{ query_id: "q-1" }] }],
+};
+
 describe("engines HTTP", () => {
   it("health reports both engines", async () => {
     const { status, json } = await call("GET", "/health");
     assert.equal(status, 200);
     assert.equal(json.ok, true);
-    assert.ok("hmem" in json && "worldModel" in json);
+    assert.ok("hmem" in json && "world_model" in json);
   });
 
-  it("store, recall, ledger round trip", async () => {
-    const stored = await call("POST", "/hmem/store", {
-      runId: "run-1",
-      request: "Why Paiporta?",
-      approval: { decision: "edited", by: "analyst" },
-      claims: [{ text: "Paiporta sits on the Poyo ravine outflow.", citations: [{ queryId: "q-1" }] }],
-    });
+  it("store, retry, recall, ledger round trip", async () => {
+    const stored = await call("POST", "/hmem/store", run);
     assert.equal(stored.status, 200);
-    const id = stored.json.stored[0];
+    const id = stored.json.stored[0].memory_id;
+    const retry = await call("POST", "/hmem/store", run);
+    assert.deepEqual(retry.json.stored, []);
+    assert.equal(retry.json.already_stored[0].memory_id, id);
     const recalled = await call("POST", "/hmem/recall", { query: "Paiporta Poyo ravine", threshold: 0 });
-    assert.equal(recalled.json.memories[0].id, id);
-    const ledger = await call("GET", `/hmem/ledger?memoryId=${id}`);
+    assert.equal(recalled.json.memories[0].memory_id, id);
+    assert.deepEqual(recalled.json.memories[0].query_ids, ["q-1"]);
+    const ledger = await call("GET", `/hmem/ledger?memory_id=${id}`);
     assert.equal(ledger.json.entries[0].action, "create");
+    const fb = await call("POST", "/hmem/feedback", { memory_id: id, kind: "helpful" });
+    assert.equal(fb.status, 200);
   });
 
-  it("hypotheses and board", async () => {
+  it("hypotheses, anomalies, board and timeline", async () => {
     const res = await call("POST", "/wm/hypotheses", {
-      runId: "run-1",
+      run_id: "run-1",
       at: "2024-10-29T17:25:00Z",
-      hypotheses: [{ id: "h1", text: "Upstream rain", status: "proposed" }],
+      hypotheses: [{ id: "H1", link: "rain->catchment", statement: "Upstream rain", status: "proposed" }],
     });
     assert.equal(res.status, 200);
     assert.equal(res.json.board[0].status, "proposed");
-    const board = await call("GET", "/wm/board?runId=run-1");
+    const obs = await call("POST", "/wm/observations", {
+      anomalies: [
+        { id: "A1", kind: "rain", point_id: "p1", ts_utc: "2024-10-29T16:00:00Z", value: 42, unit: "mm/h", why: "rain >= 30 mm/h", query_id: "q-2" },
+      ],
+    });
+    assert.equal(obs.status, 200);
+    assert.equal(obs.json.changed, true);
+    const board = await call("GET", "/wm/board?run_id=run-1");
     assert.equal(board.json.board.length, 1);
     const timeline = await call("GET", "/wm/timeline?limit=5");
     assert.ok(timeline.json.events.length > 0);
   });
 
   it("bad input is a 400 and unknown routes are a 404", async () => {
-    assert.equal((await call("POST", "/hmem/recall", "{not json")).status, 400);
-    assert.equal((await call("POST", "/hmem/recall", [1, 2])).status, 400);
-    assert.equal((await call("POST", "/hmem/store", { runId: "x" })).status, 400);
+    const bad: [string, string, unknown][] = [
+      ["POST", "/hmem/recall", "{not json"],
+      ["POST", "/hmem/recall", [1, 2]],
+      ["POST", "/hmem/recall", { query: "x", top_n: 0 }],
+      ["POST", "/hmem/recall", { query: "x", threshold: 3 }],
+      ["POST", "/hmem/store", { run_id: "x" }],
+      ["POST", "/hmem/store", { ...run, claims: [{ ...run.claims[0], confidence: -1 }] }],
+      ["POST", "/wm/hypotheses", { run_id: "r", at: "2024-10-29T17:25:00Z", hypotheses: [{ id: "H1", text: "x", status: "refuted" }] }],
+      ["GET", "/wm/timeline?limit=-3", undefined],
+      ["GET", "/wm/timeline?limit=abc", undefined],
+    ];
+    for (const [method, path, body] of bad) {
+      const { status, json } = await call(method, path, body);
+      assert.equal(status, 400, `${method} ${path} ${JSON.stringify(body)}`);
+      assert.equal(typeof json.error, "string");
+    }
     assert.equal((await call("GET", "/nope")).status, 404);
   });
 });
