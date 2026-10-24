@@ -1,0 +1,11 @@
+# Deliberate fake test fixture in scripts/tests/test_zetaris_sync.py.
+# API_KEY is the bearer token for the in-process fake Zetaris server (FakeZetaris),
+# asserted by test_applies_in_order_one_statement_per_call_with_documented_headers.
+# Not a real credential. This fingerprint matches commit 83abb6d only.
+83abb6d305fb540221662fcbe30a9c1483f637c4:scripts/tests/test_zetaris_sync.py:generic-api-key:20
+
+# Deliberate fake test fixture in test_lint_flags_literal_secrets_but_not_placeholders
+# (scripts/tests/test_zetaris_sync.py). The sync linter is proven to flag a pasted
+# AWS access key that sits in a SQL comment. Not a real credential.
+# This fingerprint matches commit 83abb6d only.
+83abb6d305fb540221662fcbe30a9c1483f637c4:scripts/tests/test_zetaris_sync.py:aws-access-token:131
