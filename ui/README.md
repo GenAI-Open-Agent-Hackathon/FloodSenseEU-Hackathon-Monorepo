@@ -25,3 +25,14 @@ Compose publishes the dev server on host port 15173 (container port 5173). `VITE
 Do not put tokens in this env file. Vite exposes `VITE_*` values to the browser. The NVIDIA provider key lives only in Nightshift's Providers tab.
 
 Cached or replayed answers, when the console exists, are labelled `cached at HH:MM` and are never shown as live.
+
+## Static mock
+
+`ui/mock/index.html` is a design reference for the console: one replayed run, seed
+figures, no build step and no network. Serve the folder and open it.
+
+```bash
+python -m http.server 8777 --directory ui/mock
+```
+
+It is a mock, not the app. The real console still goes in the Vite app above.
