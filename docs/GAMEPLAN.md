@@ -313,7 +313,7 @@ The repo stays private during the build and switches to public before submission
 - The NVIDIA provider key lives only in Nightshift's Providers tab. It is not an application env var, a GitHub secret, a test fixture, or a Cursor model setting.
 - SQL, logs, screenshots, and prompts do not contain tokens. Placeholders in examples are empty or obvious stand-ins.
 - If a secret is committed, rotate it. Deleting the file is not enough.
-- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags in that pull request's commits (on a push to `main`, in the pushed commits). See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
+- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags in that pull request's commits (on a push to `main`, in the pushed commits). `.gitleaksignore` may name a single finding by fingerprint. It is not a path or rule allowlist. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
 
 ## Open points and proposals
 
