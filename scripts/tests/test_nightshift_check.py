@@ -305,7 +305,7 @@ class NightshiftCheckTest(unittest.TestCase):
         docker_url = "http://host.docker.internal:8088/v1"
         code, text = self.run_check(env=self.write_env(METERLESS_BASE_URL=docker_url))
         self.assertEqual(code, 2)
-        self.assertIn("127.0.0.1:8088", text)
+        self.assertIn("127.0.0.1 URL from the root .env.example", text)
         self.assertEqual(self.server.seen, [])
 
     def test_missing_env_file(self) -> None:
@@ -469,6 +469,18 @@ class NightshiftCheckTest(unittest.TestCase):
         self.assertIn("code=provider_error", text)
         self.assertIn('meterless_detail={"lane":"lightning","provider":"nvidia"}', text)
         self.assertNotIn("param=", text)
+
+    def test_probe_rounds_outside_the_range_are_noted_not_silently_capped(self) -> None:
+        self.server.scenario["models"] = ["meterless/fast", "meterless/deep"]
+        env = self.write_env(MODEL_FAST="meterless/fast", MODEL_DEEP="meterless/deep")
+        code, text = self.run_check("--probe", "--probe-rounds", "25", env=env)
+        self.assertIn("note: --probe-rounds 25 is outside 1 to 10; using 10.", text)
+        self.assertIn("Each id sent up to 10 times", text)
+
+    def test_the_check_caps_the_reply_and_says_so(self) -> None:
+        self.run_check("--no-embeddings")
+        chats = [r["body"] for r in self.server.seen if r["path"] == "/v1/chat/completions"]
+        self.assertEqual({c["max_tokens"] for c in chats}, {256})
 
 
 class ParseEnvTest(unittest.TestCase):
