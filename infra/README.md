@@ -33,6 +33,12 @@ python3 tasks.py up-all
 
 `rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model, Ayush) is not in this skeleton.
 
-## Not here yet
+## CI
 
-GitHub Actions (lint, test, secret guard, integration, release) land on a later feature branch. Do not add `.github/workflows` in the skeleton.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. It rejects a tracked `.env`, runs gitleaks (default rules plus an `nvapi-` rule), then `python tasks.py lint` and `python tasks.py test`.
+
+The job uses `runs-on: ubuntu-latest`. The homelab runner (`self-hosted`, `homelab`, 512Mi, no Docker assumed) is the commented line above that. One line moves the whole job. It does not call Zetaris or Nightshift, and it does not use Docker. The trade-off is [ADR 0008](../docs/adr/0008-ci-runner-github-hosted.md).
+
+There is no pre-commit hook. `python tasks.py lint` is the local check. Gitleaks is optional on a laptop and required in CI (`FLOODSENSE_REQUIRE_GITLEAKS=1`).
+
+Do not log `python tasks.py config` in CI. It prints resolved environment values.

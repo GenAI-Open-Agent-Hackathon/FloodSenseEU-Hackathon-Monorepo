@@ -1,0 +1,13 @@
+title = "FloodSense EU"
+
+# Default rules, plus the NVIDIA provider-key prefix. The gameplan forbids
+# that key anywhere in the repo.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "nvidia-api-key"
+description = "NVIDIA provider key"
+regex = '''nvapi-[A-Za-z0-9_-]{20,}'''
+keywords = ["nvapi-"]
+tags = ["nvidia", "secret"]
