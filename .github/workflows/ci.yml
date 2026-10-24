@@ -28,6 +28,9 @@ jobs:
     # or newer). The homelab runner's version and memory were not measured.
     runs-on: ubuntu-latest
     steps:
+      # Full history so the pull-request base and the previous push commit
+      # exist locally. The secret scan must not use that whole fetch:
+      # gitleaks detect with an empty --log-opts runs `git log --all`.
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -74,6 +77,29 @@ jobs:
       - name: Install UI dependencies
         working-directory: ui
         run: npm ci
+
+      # `python tasks.py lint` reads this and passes it to
+      # `gitleaks detect --log-opts`. A pull request scans base..head only.
+      # A push scans the commits just pushed. The all-zero before SHA is a
+      # new ref; scan the checked-out history instead of every branch.
+      - name: Scope the secret scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          zero="0000000000000000000000000000000000000000"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ "${before}" = "${zero}" ]; then
+              range="HEAD"
+            else
+              range="${before}..${{ github.sha }}"
+            fi
+          else
+            range="HEAD"
+          fi
+          echo "FLOODSENSE_GITLEAKS_LOG_OPTS=${range}" >> "${GITHUB_ENV}"
 
       - name: Lint
         env:

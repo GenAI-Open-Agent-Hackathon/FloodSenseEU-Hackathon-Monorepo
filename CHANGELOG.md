@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Fixed
+
+- The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.
+
 ## [0.0.0] - 2026-10-23
 
 Skeleton and guardrails on `eacf34c`. The product described in the gameplan (live answers, ingestion, human approval, the insurer console) is not in this tag.

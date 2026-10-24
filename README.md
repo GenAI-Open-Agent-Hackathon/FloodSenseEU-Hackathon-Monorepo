@@ -93,7 +93,7 @@ cd ..
 .venv/bin/python tasks.py lint
 ```
 
-Calling the venv interpreter directly avoids PowerShell's script execution policy, which can block `Activate.ps1`. `lint` checks that no filled `.env` file is tracked, runs Ruff, and typechecks `ui/` and `contracts/`. If `gitleaks` is on `PATH`, `lint` runs it too. If it is not, `lint` prints one line and continues. One command per line. Do not join them with `&&`.
+Calling the venv interpreter directly avoids PowerShell's script execution policy, which can block `Activate.ps1`. `lint` checks that no filled `.env` file is tracked, runs Ruff, and typechecks `ui/` and `contracts/`. If `gitleaks` is on `PATH`, `lint` runs it on the checked-out ref (`--log-opts=HEAD`), not on every local branch. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to the pull request's commits, or to the pushed range on `main`. If the binary is missing, `lint` prints one line and continues. One command per line. Do not join them with `&&`.
 
 Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`). Host-side scripts use `127.0.0.1` (`ingestion/.env`, and the host-side copies in the root `.env`). The root file is not injected into containers. `host.docker.internal` is wired with `extra_hosts: host-gateway` so Linux and WSL Docker Engine can resolve it. Docker Desktop on Windows already resolves that name. A service bound only to `127.0.0.1` on the host may still be unreachable from a container; that check is Ayush and Urvashi's.
 
@@ -123,4 +123,4 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 - The NVIDIA provider key lives only in Nightshift's Providers tab. Do not put it in an app env var, a workflow secret, a fixture, or Cursor's model settings.
 - Examples contain placeholders. SQL uses `${VAR}` placeholders, never literal keys.
 - If a real secret is committed, rotate it. Removing the file is not enough.
-- CI rejects a tracked `.env` file other than `.env.example`, and it fails if gitleaks finds an NVIDIA `nvapi-` key or another secret. See [docs/adr/0008-ci-runner-github-hosted.md](docs/adr/0008-ci-runner-github-hosted.md).
+- CI rejects a tracked `.env` file other than `.env.example`, and it fails if gitleaks finds an NVIDIA `nvapi-` key or another secret in that pull request's commits (on a push to `main`, in the pushed commits). See [docs/adr/0008-ci-runner-github-hosted.md](docs/adr/0008-ci-runner-github-hosted.md).

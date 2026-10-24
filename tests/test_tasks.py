@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -246,19 +247,54 @@ class TaskTest(unittest.TestCase):
             calls.append(argv)
             return 0
 
-        with redirect_stdout(io.StringIO()):
-            code = tasks.cmd_lint(
-                self.root,
-                runner,
-                node="node",
-                gitleaks="gitleaks",
-                resolve_tools=False,
-                require_gitleaks=False,
-            )
+        previous = os.environ.pop("FLOODSENSE_GITLEAKS_LOG_OPTS", None)
+        try:
+            with redirect_stdout(io.StringIO()):
+                code = tasks.cmd_lint(
+                    self.root,
+                    runner,
+                    node="node",
+                    gitleaks="gitleaks",
+                    resolve_tools=False,
+                    require_gitleaks=False,
+                )
+        finally:
+            if previous is not None:
+                os.environ["FLOODSENSE_GITLEAKS_LOG_OPTS"] = previous
         self.assertEqual(code, 0)
         self.assertEqual(calls[0][0], "gitleaks")
         self.assertIn("detect", calls[0])
         self.assertIn("--redact", calls[0])
+        self.assertEqual(calls[0][calls[0].index("--log-opts") + 1], "HEAD")
+
+    def test_lint_scopes_gitleaks_to_the_env_range(self) -> None:
+        self._git("init")
+        self._install_fake_tsc()
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            calls.append(argv)
+            return 0
+
+        previous = os.environ.get("FLOODSENSE_GITLEAKS_LOG_OPTS")
+        os.environ["FLOODSENSE_GITLEAKS_LOG_OPTS"] = "abc123..def456"
+        try:
+            with redirect_stdout(io.StringIO()):
+                code = tasks.cmd_lint(
+                    self.root,
+                    runner,
+                    node="node",
+                    gitleaks="gitleaks",
+                    resolve_tools=False,
+                    require_gitleaks=False,
+                )
+        finally:
+            if previous is None:
+                os.environ.pop("FLOODSENSE_GITLEAKS_LOG_OPTS", None)
+            else:
+                os.environ["FLOODSENSE_GITLEAKS_LOG_OPTS"] = previous
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[0][calls[0].index("--log-opts") + 1], "abc123..def456")
 
     def test_lint_fails_when_gitleaks_is_required_and_missing(self) -> None:
         self._git("init")
