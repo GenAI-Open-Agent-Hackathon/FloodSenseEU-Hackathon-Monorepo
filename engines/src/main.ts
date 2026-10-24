@@ -1,4 +1,4 @@
-// Entry point: node --experimental-transform-types src/main.ts
+// Entry point: npm start (reads engines/.env when it exists; see .env.example)
 //
 // ENGINES_HOST      bind address (default 127.0.0.1; use 0.0.0.0 inside a container)
 // ENGINES_PORT      port (default 8300)
@@ -12,6 +12,10 @@ import { createServer } from "./server.ts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const host = process.env.ENGINES_HOST || "127.0.0.1";
 const port = Number(process.env.ENGINES_PORT || "8300");
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  console.error(`engines: ENGINES_PORT must be a port number, got ${JSON.stringify(process.env.ENGINES_PORT)}`);
+  process.exit(2);
+}
 const dataSetting = process.env.ENGINES_DATA_DIR || path.join(here, "..", ".data");
 const dataDir = dataSetting === "memory" ? undefined : path.resolve(dataSetting);
 

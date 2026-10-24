@@ -1,14 +1,16 @@
-// HTTP surface for the agents. JSON in, JSON out, Node built-ins only.
+// HTTP surface for the agents. JSON in, JSON out, snake_case, Node built-ins only.
 //
-//   GET  /health                      engine counts
-//   POST /hmem/recall                 { query, topN?, threshold? }
-//   POST /hmem/store                  { runId, request, approval: { decision, by }, claims: [...] }
-//   POST /hmem/feedback               { memoryId, kind: helpful | not_helpful | wrong }
-//   GET  /hmem/ledger?memoryId=...    trust-ledger trace for one memory
-//   POST /wm/observations             { observations: [...] }  (idempotent ingest)
-//   POST /wm/hypotheses               { runId, at, by?, hypotheses: [...] }
-//   GET  /wm/board?runId=...          hypothesis board
-//   GET  /wm/timeline?limit=...       latest World Model events
+//   GET  /health                       engine counts
+//   POST /hmem/recall                  { query, top_n?, threshold? }
+//   POST /hmem/store                   { run_id, question, event_id?, approval: { status, reviewer? }, claims: [...] }
+//   POST /hmem/feedback                { memory_id, kind: helpful | not_helpful | wrong }
+//   GET  /hmem/ledger?memory_id=...    trust-ledger trace for one memory
+//   POST /wm/observations              { anomalies?: [...], observations?: [...] }  (idempotent ingest)
+//   POST /wm/hypotheses                { run_id, at, by?, hypotheses: [...] }
+//   GET  /wm/board?run_id=...          hypothesis board
+//   GET  /wm/timeline?limit=...        latest World Model events
+//
+// Field names follow agents/floodsense_agents/models.py and contracts/; see README.md.
 
 import http from "node:http";
 import { FloodsenseEngines, InputError } from "./floodsense.ts";
@@ -37,27 +39,26 @@ async function handle(engines: FloodsenseEngines, req: http.IncomingMessage, res
       return send(res, 200, { ok: true, ...engines.stats() });
     case "POST /hmem/recall": {
       const body = await readJson(req);
-      return send(res, 200, engines.recall(body.query, { topN: body.topN, threshold: body.threshold }));
+      return send(res, 200, engines.recall(body.query, { top_n: body.top_n, threshold: body.threshold }));
     }
     case "POST /hmem/store":
       return send(res, 200, engines.storeRun(await readJson(req)));
     case "POST /hmem/feedback": {
       const body = await readJson(req);
-      return send(res, 200, engines.feedback(body.memoryId, body.kind));
+      return send(res, 200, engines.feedback(body.memory_id, body.kind));
     }
     case "GET /hmem/ledger":
-      return send(res, 200, { entries: engines.ledger(url.searchParams.get("memoryId") ?? "") });
-    case "POST /wm/observations": {
-      const body = await readJson(req);
-      return send(res, 200, await engines.observe(body.observations));
-    }
+      return send(res, 200, { entries: engines.ledger(url.searchParams.get("memory_id") ?? "") });
+    case "POST /wm/observations":
+      return send(res, 200, await engines.observe(await readJson(req)));
     case "POST /wm/hypotheses":
       return send(res, 200, { board: await engines.upsertHypotheses(await readJson(req)) });
     case "GET /wm/board":
-      return send(res, 200, { board: engines.board(url.searchParams.get("runId") ?? undefined) });
+      return send(res, 200, { board: engines.board(url.searchParams.get("run_id")) });
     case "GET /wm/timeline": {
-      const limit = Number(url.searchParams.get("limit") ?? "100");
-      return send(res, 200, { events: engines.timeline(Number.isFinite(limit) && limit > 0 ? limit : 100) });
+      const raw = url.searchParams.get("limit");
+      const limit = raw === null ? 100 : /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+      return send(res, 200, { events: engines.timeline(limit) });
     }
     default:
       return send(res, 404, { error: `no route for ${route}` });
