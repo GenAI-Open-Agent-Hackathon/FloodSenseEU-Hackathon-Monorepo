@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FloodSense EU — your sites and this flood</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fafaf8;
+        --ink: #1b1f24;
+        --ink-soft: #5c636c;
+        --rule: #dcdcd6;
+        --river: #35607a;
+        --river-pale: #a9c3d0;
+        --gauge: #9a6b1f;
+        --done: #40674f;
+        --wash: #f2f2ee;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+        font-size: 17px;
+        line-height: 1.55;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--river);
+        outline-offset: 3px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p,
+      ol,
+      ul,
+      li,
+      figure {
+        margin: 0;
+      }
+
+      ol,
+      ul {
+        padding: 0;
+        list-style: none;
+      }
+
+      .shell {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Top bar ----------------------------------------------------------- */
+
+      .top {
+        display: flex;
+        align-items: baseline;
+        gap: 16px;
+        padding: 18px 0;
+      }
+
+      .wordmark {
+        font-size: 15px;
+        font-weight: 600;
+        margin-right: auto;
+      }
+
+      .switch {
+        font-size: 14px;
+        color: var(--ink-soft);
+        text-decoration: none;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .switch:hover {
+        color: var(--ink);
+        border-bottom-color: var(--ink);
+      }
+
+      /* Verdict ------------------------------------------------------------ */
+
+      .verdict {
+        padding: 40px 0 44px;
+      }
+
+      .verdict h1 {
+        font-size: 40px;
+        font-weight: 500;
+        line-height: 1.12;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+      }
+
+      .verdict p {
+        margin-top: 18px;
+        color: var(--ink-soft);
+        max-width: 46ch;
+      }
+
+      .where {
+        font-size: 14px;
+        color: var(--ink-soft);
+        margin-bottom: 14px;
+      }
+
+      /* Steps -------------------------------------------------------------- */
+
+      .steps > li {
+        border-top: 1px solid var(--rule);
+        padding: 28px 0;
+      }
+
+      .step-n {
+        font-size: 13px;
+        color: var(--ink-soft);
+      }
+
+      .step-head {
+        font-size: 22px;
+        font-weight: 500;
+        line-height: 1.25;
+        letter-spacing: -0.01em;
+        margin-top: 2px;
+        max-width: 24ch;
+      }
+
+      .step-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 190px;
+        gap: 24px;
+        align-items: start;
+        margin-top: 16px;
+      }
+
+      .figure {
+        font-size: 34px;
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+
+      .figure-unit {
+        display: block;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--ink-soft);
+        letter-spacing: 0;
+        margin-top: 6px;
+      }
+
+      .step-plain {
+        margin-top: 14px;
+        font-size: 16px;
+        color: var(--ink-soft);
+      }
+
+      .viz {
+        display: block;
+        width: 100%;
+      }
+
+      .viz-note {
+        font-size: 12.5px;
+        color: var(--ink-soft);
+        margin-top: 8px;
+        min-height: 2.6em;
+      }
+
+      /* Checklist ---------------------------------------------------------- */
+
+      .todo {
+        border-top: 1px solid var(--ink);
+        padding-top: 28px;
+        margin-top: 12px;
+      }
+
+      .todo-head {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+
+      .todo-head h2 {
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        margin-right: auto;
+      }
+
+      .count {
+        font-size: 14px;
+        color: var(--ink-soft);
+      }
+
+      .when {
+        font-size: 13px;
+        color: var(--ink-soft);
+        margin: 24px 0 4px;
+      }
+
+      .task {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 12px 0;
+        border-top: 1px solid var(--rule);
+        cursor: pointer;
+      }
+
+      .task input {
+        appearance: none;
+        flex: none;
+        width: 19px;
+        height: 19px;
+        margin: 2px 0 0;
+        border: 1px solid var(--ink-soft);
+        border-radius: 3px;
+        background: #fff;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .task input:checked {
+        background: var(--done);
+        border-color: var(--done);
+      }
+
+      .task input:checked::after {
+        content: "";
+        position: absolute;
+        left: 5px;
+        top: 1px;
+        width: 5px;
+        height: 10px;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+
+      .task span {
+        font-size: 16.5px;
+        line-height: 1.5;
+      }
+
+      .task input:checked + span {
+        color: var(--ink-soft);
+        text-decoration: line-through;
+        text-decoration-color: var(--rule);
+      }
+
+      /* Trust -------------------------------------------------------------- */
+
+      .trust {
+        border-top: 1px solid var(--ink);
+        margin-top: 36px;
+        padding: 28px 0 56px;
+      }
+
+      .trust h2 {
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .trust p {
+        margin-top: 10px;
+        font-size: 16px;
+        color: var(--ink-soft);
+        max-width: 52ch;
+      }
+
+      .sources {
+        margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 10px;
+      }
+
+      .source {
+        font-size: 13px;
+        padding: 3px 10px;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        color: var(--ink-soft);
+      }
+
+      .source.open {
+        border-color: var(--gauge);
+        color: var(--gauge);
+      }
+
+      .more {
+        display: inline-block;
+        margin-top: 24px;
+        font-size: 16px;
+        color: var(--ink);
+        text-decoration: none;
+        border-bottom: 1px solid var(--ink);
+        padding-bottom: 2px;
+      }
+
+      .more:hover {
+        color: var(--river);
+        border-bottom-color: var(--river);
+      }
+
+      .fineprint {
+        font-size: 13px;
+        color: var(--ink-soft);
+        padding-bottom: 48px;
+        max-width: 54ch;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition-duration: 1ms !important;
+        }
+      }
+
+      @media (max-width: 560px) {
+        body {
+          font-size: 16px;
+        }
+
+        .verdict h1 {
+          font-size: 30px;
+        }
+
+        .step-body {
+          grid-template-columns: 1fr;
+          gap: 18px;
+        }
+
+        .figure {
+          font-size: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top shell">
+      <span class="wordmark">FloodSense EU</span>
+      <a class="switch" href="analyst.html">Analyst view</a>
+    </header>
+
+    <main class="shell">
+      <section class="verdict">
+        <p class="where" id="where"></p>
+        <h1 id="headline"></h1>
+        <p id="standfirst"></p>
+      </section>
+
+      <ol class="steps" id="steps"></ol>
+
+      <section class="todo">
+        <div class="todo-head">
+          <h2>What to do</h2>
+          <span class="count" id="count"></span>
+        </div>
+        <div id="tasks"></div>
+      </section>
+
+      <section class="trust">
+        <h2>How we know</h2>
+        <p>
+          Every number on this page was read from an official record, not estimated. You can open
+          the analyst view to see the exact query behind any of them.
+        </p>
+        <div class="sources" id="sources"></div>
+        <a class="more" href="analyst.html">See the full working</a>
+      </section>
+
+      <p class="fineprint">
+        Sample of one replayed event, 29 October 2024. Figures come from the seed the agents
+        service runs on and are awaiting validation. The river gauge stopped reporting at 18:00
+        UTC, so the peak shown is the last reading taken, not the highest the river reached.
+      </p>
+    </main>
+
+    <script src="data.js"></script>
+    <script src="readiness.js"></script>
+    <script>
+      "use strict";
+
+      const $ = (id) => document.getElementById(id);
+
+      /* Verdict ----------------------------------------------------------- */
+
+      $("where").textContent = EVENT.place + ", " + EVENT.date;
+      $("headline").textContent =
+        "Seven of your ten sites are inside the flooded area.";
+      $("standfirst").textContent =
+        "That is " +
+        fmt.format(TOTALS.sum) +
+        " EUR of cover. Here is what happened, and what to do in the next few hours.";
+
+      /* Steps -------------------------------------------------------------- */
+
+      $("steps").innerHTML = STEPS.map(
+        (s) =>
+          '<li><p class="step-n">Step ' +
+          s.n +
+          '</p><h2 class="step-head">' +
+          esc(s.head) +
+          '</h2><div class="step-body"><div><p class="figure">' +
+          esc(s.figure) +
+          '<span class="figure-unit">' +
+          esc(s.unit) +
+          '</span></p><p class="step-plain">' +
+          esc(s.plain) +
+          '</p></div><figure><svg class="viz" id="viz-' +
+          s.viz +
+          '"></svg><figcaption class="viz-note" id="note-' +
+          s.viz +
+          '"></figcaption></figure></div></li>'
+      ).join("");
+
+      const W = 190;
+      const H = 64;
+
+      function frame(id, label) {
+        const svg = $("viz-" + id);
+        svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+        svg.setAttribute("height", H);
+        svg.setAttribute("role", "img");
+        svg.setAttribute("aria-label", label);
+        return svg;
+      }
+
+      // Step 1: the two rain gauges, hour by hour, hanging from the top.
+      (function rain() {
+        const svg = frame(
+          "rain",
+          "Hourly rain at Chiva and Turís. Turís peaks at 185 mm in the hour to 16:00."
+        );
+        const hours = [];
+        for (let h = 9; h <= 18; h++) hours.push(h);
+        const bw = W / hours.length / 2 - 1.5;
+        hours.forEach((h, i) => {
+          const x0 = (i * W) / hours.length;
+          [
+            [RAIN_CHIVA[h], "var(--river-pale)", 0],
+            [RAIN_TURIS[h], "var(--river)", bw + 1.5],
+          ].forEach(([mm, fill, dx]) => {
+            if (!mm) return;
+            svg.appendChild(
+              svgEl("rect", {
+                x: x0 + dx,
+                y: 0,
+                width: bw,
+                height: Math.max(1.5, (mm / 185) * (H - 14)),
+                fill: fill,
+              })
+            );
+          });
+        });
+        svg.appendChild(
+          svgEl("line", { x1: 0, x2: W, y1: H - 13, y2: H - 13, stroke: "var(--rule)" })
+        );
+        svg.appendChild(
+          svgEl("text", { x: 0, y: H - 2, class: "t" }, "09:00")
+        );
+        svg.appendChild(
+          svgEl("text", { x: W, y: H - 2, "text-anchor": "end", class: "t" }, "18:00")
+        );
+        $("note-rain").textContent = "Each pair is one hour. Pale is Chiva, dark is Turís.";
+        style(svg);
+      })();
+
+      // Step 2: discharge, with the gauge dropping out drawn as a gap.
+      (function river() {
+        const svg = frame(
+          "river",
+          "Discharge in the Poyo ravine rises from 6 to 2282 cubic metres a second, then stops."
+        );
+        const hours = Object.keys(DISCHARGE).map(Number).sort((a, b) => a - b);
+        const x = (h) => ((h - 12) / (GAUGE_LOST + 1 - 12)) * W;
+        const y = (q) => H - 13 - (q / 2400) * (H - 20);
+        svg.appendChild(
+          svgEl("polyline", {
+            points: hours.map((h) => x(h) + "," + y(DISCHARGE[h])).join(" "),
+            fill: "none",
+            stroke: "var(--ink)",
+            "stroke-width": 1.75,
+          })
+        );
+        const last = hours[hours.length - 1];
+        svg.appendChild(
+          svgEl("line", {
+            x1: x(last),
+            x2: x(GAUGE_LOST),
+            y1: y(DISCHARGE[last]),
+            y2: y(DISCHARGE[last]),
+            stroke: "var(--gauge)",
+            "stroke-width": 1.5,
+            "stroke-dasharray": "3 3",
+          })
+        );
+        svg.appendChild(
+          svgEl("circle", {
+            cx: x(GAUGE_LOST),
+            cy: y(DISCHARGE[last]),
+            r: 3,
+            fill: "var(--paper)",
+            stroke: "var(--gauge)",
+            "stroke-width": 1.5,
+          })
+        );
+        svg.appendChild(
+          svgEl("line", { x1: 0, x2: W, y1: H - 13, y2: H - 13, stroke: "var(--rule)" })
+        );
+        svg.appendChild(svgEl("text", { x: 0, y: H - 2, class: "t" }, "12:00"));
+        svg.appendChild(
+          svgEl("text", { x: W, y: H - 2, "text-anchor": "end", class: "t gauge" }, "gauge lost")
+        );
+        $("note-river").textContent = "The dotted end is where the reading stops, not the river.";
+        style(svg);
+      })();
+
+      // Step 3: ten sites, seven of them inside the footprint.
+      (function sites() {
+        const svg = frame(
+          "sites",
+          "Ten insured sites. Seven fall inside the mapped flood footprint."
+        );
+        const r = 9;
+        const perRow = 5;
+        SITES.forEach((s, i) => {
+          const cx = r + 2 + (i % perRow) * (r * 2 + 10);
+          const cy = r + 4 + Math.floor(i / perRow) * (r * 2 + 10);
+          const dot = svgEl("circle", {
+            cx: cx,
+            cy: cy,
+            r: r,
+            fill: s.inside ? "var(--river)" : "var(--paper)",
+            stroke: s.inside ? "var(--river)" : "var(--rule)",
+            "stroke-width": 1.5,
+            tabindex: "0",
+            role: "button",
+            "aria-label":
+              s.policy + ", " + s.segment + ", " + (s.inside ? "inside" : "outside") + " the flood",
+          });
+          const tell = () => {
+            $("note-sites").textContent =
+              s.policy +
+              ", " +
+              s.segment +
+              ", " +
+              fmt.format(s.sum) +
+              " EUR — " +
+              (s.inside ? "inside the flood" : "outside it");
+          };
+          dot.addEventListener("pointerenter", tell);
+          dot.addEventListener("focus", tell);
+          svg.appendChild(dot);
+        });
+        $("note-sites").textContent = "Filled circles are the seven affected sites. Pick one.";
+        style(svg);
+      })();
+
+      function style(svg) {
+        const s = svgEl("style");
+        s.textContent =
+          ".t{font:11px Archivo,sans-serif;fill:var(--ink-soft)}.gauge{fill:var(--gauge)}" +
+          "circle[role=button]{cursor:pointer}";
+        svg.appendChild(s);
+      }
+
+      /* Checklist ---------------------------------------------------------- */
+
+      let html = "";
+      let lastWhen = null;
+      PLAYBOOK.forEach((a, i) => {
+        if (a.when !== lastWhen) {
+          html += '<p class="when">' + esc(a.when) + "</p>";
+          lastWhen = a.when;
+        }
+        html +=
+          '<label class="task"><input type="checkbox" data-i="' +
+          i +
+          '" /><span>' +
+          esc(a.plain) +
+          "</span></label>";
+      });
+      $("tasks").innerHTML = html;
+
+      function recount() {
+        const done = document.querySelectorAll(".task input:checked").length;
+        $("count").textContent = done + " of " + PLAYBOOK.length + " done";
+      }
+
+      $("tasks").addEventListener("change", recount);
+      recount();
+
+      /* Sources ------------------------------------------------------------ */
+
+      $("sources").innerHTML = Object.values(VIEWS)
+        .map(
+          (v) =>
+            '<span class="source' +
+            (v.settled ? "" : " open") +
+            '">' +
+            esc(v.publisher.split(",")[0]) +
+            (v.settled ? "" : " — licence not confirmed") +
+            "</span>"
+        )
+        .join("");
+    </script>
+  </body>
+</html>
