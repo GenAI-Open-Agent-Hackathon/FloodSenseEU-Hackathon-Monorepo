@@ -167,11 +167,12 @@ class ParallelSqlTest(unittest.TestCase):
     def test_watchers_keep_hazard_then_provenance_order(self) -> None:
         out = make_watchers(_deps())(_event_state())
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 4)
+        self.assertEqual(len(sqls), 5)
         self.assertIn("rain_mm", sqls[0])
         self.assertIn("discharge_m3s", sqls[1])
         self.assertIn("warning_level", sqls[2])
-        self.assertIn("provenance", sqls[3])
+        self.assertIn("gauge_levels", sqls[3])
+        self.assertIn("provenance", sqls[4])
         kinds = [item["kind"] for item in out["anomalies"]]
         self.assertLess(kinds.index("rain"), kinds.index("discharge"))
         self.assertLess(kinds.index("discharge"), kinds.index("warning"))

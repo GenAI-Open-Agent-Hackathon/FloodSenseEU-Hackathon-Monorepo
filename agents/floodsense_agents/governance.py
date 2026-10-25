@@ -14,10 +14,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# Rung 06. The agents read these four and nothing else. zetaris.py builds them
+# Rung 06. The agents read these and nothing else. zetaris.py builds them
 # in the fake and expects them in the live warehouse; readiness checks that no
-# executed query reached past them.
-CONTRACT_VIEWS = ("hazard_timeline", "discharge_daily", "exposure_join", "provenance")
+# executed query reached past them. gauge_levels is the PEGELONLINE contract.
+# FF_LIVE_DATA stays off until v0.5, so the default schema is floodsense_seed.
+CONTRACT_VIEWS = (
+    "hazard_timeline",
+    "discharge_daily",
+    "exposure_join",
+    "gauge_levels",
+    "provenance",
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,12 @@ OWNERS: dict[str, Owner] = {
         view="exposure_join",
         owner="portfolio lead",
         steward="portfolio ops",
+        releases="duty underwriter",
+    ),
+    "gauge_levels": Owner(
+        view="gauge_levels",
+        owner="hazard data lead",
+        steward="ingestion",
         releases="duty underwriter",
     ),
     "provenance": Owner(
