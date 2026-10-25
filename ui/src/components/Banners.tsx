@@ -1,4 +1,4 @@
-import { servingLabel } from "../lib/format";
+import { servingLabel, servingQualifier } from "../lib/format";
 import { useConsole } from "../context/ConsoleContext";
 import type { ProvenanceRow } from "../types/views";
 
@@ -8,8 +8,10 @@ export function CacheBanner() {
   return (
     <p className={`banner banner-${serving.kind}`} data-serving={serving.servedFrom} role="status">
       <strong>{serving.kind === "cached" ? `${serving.text} UTC` : serving.text}</strong>
-      {serving.kind !== "live" && <span> · not live · {serving.servedFrom} · run {serving.runId}</span>}
-      {serving.kind === "live" && <span> · run {serving.runId}</span>}
+      <span>
+        {" "}
+        · {servingQualifier(serving)} · run {serving.runId}
+      </span>
     </p>
   );
 }

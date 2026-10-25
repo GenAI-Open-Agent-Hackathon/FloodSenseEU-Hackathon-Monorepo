@@ -13,7 +13,7 @@ export function ReviewColumn() {
   const judge = desk.answer.judge;
   const action = desk.answer.playbook_actions?.[0];
   const locked = desk.approval.status !== "pending";
-  const fixtureRows = desk.discharge.origin === "fixture";
+  const recordedRows = desk.discharge.origin !== "live";
   const tabs = [
     ["chain", "Causal chain"],
     ["skeptic", "Skeptic"],
@@ -86,8 +86,11 @@ export function ReviewColumn() {
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === "chain" && (
           <ol className="chain">
-            {!fixtureRows && (
-              <li className="note">The chain quotes the recorded fixture answer, not the live discharge rows.</li>
+            {desk.discharge.origin === "live" && (
+              <li className="note">The chain quotes the recorded fixture answer. Discharge rows on the map are live.</li>
+            )}
+            {desk.discharge.origin === "seed" && (
+              <li className="note">The chain quotes the seed extract on this desk.</li>
             )}
             {causalChain.map((link) => {
               const claim = desk.answer.claims.find((item) => item.claim_id === link.claim_id);
@@ -108,12 +111,12 @@ export function ReviewColumn() {
             })}
           </ol>
         )}
-        {tab === "skeptic" && !fixtureRows && (
+        {tab === "skeptic" && !recordedRows && (
           <p className="note">
             Skeptic counter-checks quote the fixture answer. They stay hidden while discharge rows are live.
           </p>
         )}
-        {tab === "skeptic" && fixtureRows && (
+        {tab === "skeptic" && recordedRows && (
           <ul className="stack">
             {skepticVerdicts.map((verdict) => {
               const claim = desk.answer.claims.find((item) => item.claim_id === verdict.claim_id);

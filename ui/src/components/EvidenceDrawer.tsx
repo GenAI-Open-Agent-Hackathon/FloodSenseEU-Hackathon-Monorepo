@@ -79,7 +79,7 @@ function EvidenceBlock({ evidence }: { evidence: Evidence }) {
           <dd>{evidence.executed_at_utc}</dd>
         </div>
       </dl>
-      <p className="note">Fixture SQL, not sent to Zetaris from this screen. query_id is not a live Zetaris id.</p>
+      <p className="note">Fixture SQL, not sent to Zetaris from this screen. query_id is a fixture id.</p>
       <pre className="sql">{evidence.sql}</pre>
       <SampleTable rows={evidence.rows_sample} />
     </article>
@@ -184,8 +184,8 @@ export function EvidenceDrawer() {
           <section id="why-rain">
             <h3>Rain and warning_level</h3>
             <p>
-              Hourly rain is hazard_timeline, joined to that day’s discharge. warning_level is null in the seed and
-              in the live view until another source fills it. This screen does not invent that column.
+              Hourly rain is hazard_timeline, joined to that day’s discharge. warning_level is null in the loaded
+              hazard rows until another source fills it. This screen does not invent that column.
             </p>
             {rainProvenance ? (
               <ProvenanceList row={rainProvenance} />
@@ -196,8 +196,7 @@ export function EvidenceDrawer() {
           <section>
             <h3>Answer evidence</h3>
             <p className="note">
-              These blocks follow the shared evidence contract. They were packed with the fixture answer, not queried
-              live.
+              These blocks follow the shared evidence contract. They were packed with the fixture answer.
             </p>
             {desk.answer.evidence.map((evidence) => (
               <EvidenceBlock key={evidence.query_id} evidence={evidence} />

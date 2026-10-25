@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { adoptView } from "../api/adopt";
+import { adoptView, markBatchSeed } from "../api/adopt";
 import { loadLiveViews } from "../api/client";
 import {
   DEFAULT_DATE,
@@ -22,7 +22,7 @@ import {
 import { loadFixtures, type FixtureBundle } from "../fixtures/load";
 import { datesOf, isModelledGlofasSource, pointById, pointsCrossing, rowAt } from "../lib/series";
 import { formatDay } from "../lib/format";
-import { fixtureDischargeNotice, replayNotice } from "../lib/notices";
+import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
 import type {
@@ -167,27 +167,39 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       if (cancelled) return;
       setHealthOk(live.health.ok);
       setHealthDetail(live.health.detail);
-      const adopt = <T,>(
-        parsed: T[] | null,
-        miss: string,
-        fixtureRows: T[],
-        fixtureDetail: string,
-        setSlice: (value: ViewSlice<T[]>) => void,
-      ) => {
-        setSlice(
-          adoptView({
-            healthOk: live.health.ok,
-            parsed,
-            fixtureRows,
-            fixtureDetail,
-            missDetail: miss,
-          }),
-        );
-      };
-      adopt(live.discharge_daily, live.details.discharge_daily, bundle.discharge, FIXTURE_DETAILS.discharge_daily, setDischarge);
-      adopt(live.hazard_timeline, live.details.hazard_timeline, bundle.hazard, FIXTURE_DETAILS.hazard_timeline, setHazard);
-      adopt(live.exposure_join, live.details.exposure_join, bundle.exposure, FIXTURE_DETAILS.exposure_join, setExposure);
-      adopt(live.provenance, live.details.provenance, bundle.provenance, FIXTURE_DETAILS.provenance, setProvenance);
+      const take = <T,>(parsed: T[] | null, miss: string, fixtureRows: T[], fixtureDetail: string) =>
+        adoptView({
+          healthOk: live.health.ok,
+          parsed,
+          fixtureRows,
+          fixtureDetail,
+          missDetail: miss,
+        });
+      const dischargeSlice = take(
+        live.discharge_daily,
+        live.details.discharge_daily,
+        bundle.discharge,
+        FIXTURE_DETAILS.discharge_daily,
+      );
+      setDischarge(dischargeSlice);
+      setHazard(
+        markBatchSeed(
+          dischargeSlice,
+          take(live.hazard_timeline, live.details.hazard_timeline, bundle.hazard, FIXTURE_DETAILS.hazard_timeline),
+        ),
+      );
+      setExposure(
+        markBatchSeed(
+          dischargeSlice,
+          take(live.exposure_join, live.details.exposure_join, bundle.exposure, FIXTURE_DETAILS.exposure_join),
+        ),
+      );
+      setProvenance(
+        markBatchSeed(
+          dischargeSlice,
+          take(live.provenance, live.details.provenance, bundle.provenance, FIXTURE_DETAILS.provenance),
+        ),
+      );
     });
     return () => {
       cancelled = true;
@@ -195,13 +207,16 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   }, []);
 
   useEffect(() => {
-    if (discharge.origin === "fixture") return;
-    setNotices((list) =>
-      list.some((notice) => notice.id === "seed-loaded")
-        ? list.filter((notice) => notice.id !== "seed-loaded")
-        : list,
-    );
-  }, [discharge.origin]);
+    setNotices((list) => {
+      const rest = list.filter((notice) => notice.id !== "seed-loaded");
+      if (discharge.origin === "live") return rest;
+      const notice =
+        discharge.origin === "seed" ? seedRowsNotice(discharge.rows) : fixtureDischargeNotice(discharge.rows);
+      const current = list.find((item) => item.id === "seed-loaded");
+      if (current && current.title === notice.title && current.body === notice.body) return list;
+      return [notice, ...rest];
+    });
+  }, [discharge.origin, discharge.rows]);
 
   useEffect(() => {
     if (!playing) return;

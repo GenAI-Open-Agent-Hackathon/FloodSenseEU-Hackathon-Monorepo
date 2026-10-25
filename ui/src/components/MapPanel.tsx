@@ -14,6 +14,7 @@ import {
   SIMULATED_ALERT_M3S,
 } from "../config/scenario";
 import { formatDay, formatEur, formatM3s } from "../lib/format";
+import { statusLabel } from "../lib/origin";
 import {
   dischargeBand,
   exposureStats,
@@ -138,7 +139,7 @@ export function MapPanel({
             </button>
           );
         })}
-        <span className="map-caption sea-caption">Mediterranean · schematic</span>
+        <span className="map-caption sea-caption">{statusLabel(desk.discharge.origin)} · schematic</span>
       </div>
       <div className="slider-block">
         <div className="slider-labels">

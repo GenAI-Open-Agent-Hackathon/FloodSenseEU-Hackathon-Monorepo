@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Answer } from "../types/contract";
-import { formatHour, formatUtcHm, servingLabel } from "./format";
+import { formatHour, formatUtcHm, servingLabel, servingQualifier } from "./format";
 import { parseUtc } from "./time";
 
 function answer(partial: Pick<Answer, "served_from" | "run_id"> & { cached_at?: string | null }): Answer {
@@ -30,20 +30,25 @@ describe("servingLabel", () => {
     expect(cached.kind).toBe("cached");
     expect(cached.text).toBe("cached at 14:32");
     expect(cached.text).not.toMatch(/live/);
+    expect(servingQualifier(cached)).toBe("cache");
     expect(replay.kind).toBe("cached");
     expect(replay.text).toBe("cached at 14:32");
-    expect(replay.text).not.toMatch(/\blive\b/);
+    expect(replay.text).not.toMatch(/live/);
+    expect(servingQualifier(replay)).toBe("replay");
   });
 
-  it("leaves a broken combination unlabelled", () => {
+  it("leaves a broken combination unlabelled and does not call it live", () => {
     const liveWithCache = servingLabel(
       answer({ served_from: "live", run_id: "run_4", cached_at: "2026-10-24T14:32:00Z" }),
     );
     const cacheWithoutTime = servingLabel(answer({ served_from: "cache", run_id: "run_5" }));
     expect(liveWithCache.kind).toBe("unlabelled");
-    expect(liveWithCache.text).not.toBe("live");
+    expect(liveWithCache.text).toBe("unlabelled · cached_at is set");
+    expect(liveWithCache.text).not.toMatch(/live/);
+    expect(servingQualifier(liveWithCache)).toBe("unlabelled");
     expect(cacheWithoutTime.kind).toBe("unlabelled");
-    expect(cacheWithoutTime.text).toMatch(/not live/);
+    expect(cacheWithoutTime.text).toBe("cache · cached time missing");
+    expect(cacheWithoutTime.text).not.toMatch(/live/);
   });
 });
 

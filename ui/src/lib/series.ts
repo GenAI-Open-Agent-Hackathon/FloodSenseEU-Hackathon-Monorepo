@@ -204,11 +204,10 @@ export function markerText(pointId: string): string {
 
 export function sourceExplanation(source: string): string {
   if (source.startsWith("seed:")) {
-    const live = source.slice("seed:".length);
-    return `The source column is "${source}". The seed view stamps every frozen row this way. The live discharge view uses "${live}" for the same series.`;
+    return `The source column is "${source}". That stamp means these rows are seed.`;
   }
   if (source === "open-meteo-flood-glofas") {
-    return `The source column is "${source}", the stamp on the live discharge_daily view for Open-Meteo Flood (GloFAS).`;
+    return `The source column is "${source}", the Open-Meteo Flood (GloFAS) stamp on discharge_daily.`;
   }
   return `The source column is "${source}".`;
 }

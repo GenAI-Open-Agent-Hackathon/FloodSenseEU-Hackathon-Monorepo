@@ -1,6 +1,6 @@
 import { useConsole } from "../context/ConsoleContext";
 import { formatDay, formatHour, formatM3s, formatMm } from "../lib/format";
-import { allSourcesAreSeed } from "../lib/origin";
+import { statusLabel } from "../lib/origin";
 import {
   glofasDischargeNote,
   hazardOnDate,
@@ -24,12 +24,7 @@ export function CitizenView() {
   const peak = peakRow(series);
   const rain = rainSummary(hazardOnDate(desk.hazard.rows, desk.pointId, desk.date));
   const provenance = row ? provenanceForSource(row.source, desk.provenance.rows) : undefined;
-  const origin =
-    desk.discharge.origin === "live" && allSourcesAreSeed(desk.discharge.rows)
-      ? "API · seed rows"
-      : desk.discharge.origin === "live"
-        ? "Live view row"
-        : "Fixture · not live";
+  const origin = statusLabel(desk.discharge.origin);
   const modelled = row ? glofasDischargeNote(row.source) : null;
 
   return (

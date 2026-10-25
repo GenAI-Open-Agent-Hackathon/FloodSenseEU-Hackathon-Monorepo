@@ -149,7 +149,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   white-space: nowrap;
 }
-.pill-fixture { background: var(--warn-soft); color: var(--warn); }
+.pill-fixture, .pill-seed { background: var(--warn-soft); color: var(--warn); }
 .pill-live { background: var(--ok-soft); color: var(--ok); }
 .pill-mixed { background: var(--accent-soft); color: var(--accent-strong); }
 

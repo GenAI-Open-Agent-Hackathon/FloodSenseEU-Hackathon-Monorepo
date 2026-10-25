@@ -1,20 +1,26 @@
 import type { DataOrigin } from "../types/views";
 
-export function allSourcesAreSeed(rows: { source: string }[]): boolean {
-  return rows.length > 0 && rows.every((row) => row.source.startsWith("seed:"));
+export type PillTone = "fixture" | "seed" | "live" | "mixed";
+
+/** Visible status word. Green “live” is reserved for a non-seed view response. */
+export function statusLabel(origin: DataOrigin): "Fixture" | "Seed" | "Live" {
+  if (origin === "seed") return "Seed";
+  if (origin === "live") return "Live";
+  return "Fixture";
 }
 
-export function originPill(
-  origins: DataOrigin[],
-  discharge?: { origin: DataOrigin; rows: { source: string }[] },
-): { tone: "fixture" | "live" | "mixed"; label: string } {
-  const live = origins.filter((origin) => origin === "live").length;
-  if (live === 0) return { tone: "fixture", label: "Fixture · not live" };
-  if (live === origins.length) {
-    if (discharge?.origin === "live" && allSourcesAreSeed(discharge.rows)) {
-      return { tone: "live", label: "API · seed rows" };
-    }
-    return { tone: "live", label: "Live view rows" };
+export function originPill(origins: DataOrigin[]): { tone: PillTone; label: string } {
+  const kinds = new Set(origins);
+  if (kinds.size <= 1) {
+    const only = origins[0] ?? "fixture";
+    return { tone: only, label: statusLabel(only) };
   }
-  return { tone: "mixed", label: "Mixed view rows" };
+  const order: DataOrigin[] = ["seed", "fixture", "live"];
+  return {
+    tone: "mixed",
+    label: order
+      .filter((item) => kinds.has(item))
+      .map((item) => statusLabel(item))
+      .join(" · "),
+  };
 }

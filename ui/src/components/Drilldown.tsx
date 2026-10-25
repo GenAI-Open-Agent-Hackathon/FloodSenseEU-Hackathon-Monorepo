@@ -1,4 +1,5 @@
 import { DRILLDOWN_RADIUS_KM } from "../config/scenario";
+import { statusLabel } from "../lib/origin";
 import { useConsole } from "../context/ConsoleContext";
 import { formatDay, formatEur, formatHour, formatM3s, formatMm } from "../lib/format";
 import {
@@ -144,7 +145,7 @@ export function Drilldown() {
       <div className="table-wrap">
         <table>
           <caption>
-            {desk.discharge.origin === "live" ? "Live discharge rows" : "Fixture discharge_daily columns"} for{" "}
+            {statusLabel(desk.discharge.origin)} discharge rows for{" "}
             {desk.pointId}
           </caption>
           <thead>

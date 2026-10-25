@@ -15,10 +15,12 @@ export function Header() {
   const profileTitle = useId();
   const unread = desk.notices.filter((notice) => !notice.read).length;
   const markNotificationsRead = desk.markNotificationsRead;
-  const pill = originPill(
-    [desk.discharge.origin, desk.hazard.origin, desk.exposure.origin, desk.provenance.origin],
-    desk.discharge,
-  );
+  const pill = originPill([
+    desk.discharge.origin,
+    desk.hazard.origin,
+    desk.exposure.origin,
+    desk.provenance.origin,
+  ]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

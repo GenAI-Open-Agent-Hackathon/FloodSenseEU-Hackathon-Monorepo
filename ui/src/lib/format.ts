@@ -31,7 +31,7 @@ export function servingLabel(answer: Answer): ServingLabel {
     if (answer.cached_at) {
       return {
         kind: "unlabelled",
-        text: "served_from is live but cached_at is set · not shown as live",
+        text: "unlabelled · cached_at is set",
         servedFrom: answer.served_from,
         runId,
       };
@@ -42,7 +42,7 @@ export function servingLabel(answer: Answer): ServingLabel {
   if (!hm) {
     return {
       kind: "unlabelled",
-      text: `${answer.served_from} · cached time missing · not live`,
+      text: `${answer.served_from} · cached time missing`,
       servedFrom: answer.served_from,
       runId,
     };
@@ -53,6 +53,14 @@ export function servingLabel(answer: Answer): ServingLabel {
     servedFrom: answer.served_from,
     runId,
   };
+}
+
+/** Banner word next to the time. Cache and replay never use the word live. */
+export function servingQualifier(label: ServingLabel): "live" | "cache" | "replay" | "unlabelled" {
+  if (label.kind === "live") return "live";
+  if (label.servedFrom === "cache") return "cache";
+  if (label.servedFrom === "replay") return "replay";
+  return "unlabelled";
 }
 
 export function formatHour(ts: string): string {

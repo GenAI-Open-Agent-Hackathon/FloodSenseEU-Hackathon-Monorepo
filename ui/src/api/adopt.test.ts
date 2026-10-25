@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptView } from "./adopt";
+import { adoptView, markBatchSeed } from "./adopt";
 
 const fixture = [{ point_id: "VAL01" }];
 const fixtureDetail = "Fixture copy.";
@@ -53,10 +53,52 @@ describe("adoptView", () => {
       fixtureDetail,
       missDetail: "GET /views/discharge_daily",
     });
-    expect(adopted).toEqual({
-      rows,
-      origin: "live",
-      detail: "GET /views/discharge_daily",
+    expect(adopted.origin).toBe("live");
+    expect(adopted.rows).toEqual(rows);
+    expect(adopted.detail).toContain("GET /views/discharge_daily");
+  });
+
+  it("labels seed-stamped view rows as seed, not live", () => {
+    const adopted = adoptView({
+      healthOk: true,
+      parsed: [{ source: "seed:open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
     });
+    expect(adopted.origin).toBe("seed");
+    expect(adopted.detail).not.toMatch(/\blive\b/);
+  });
+
+  it("does not treat a health success with no view body as live", () => {
+    const adopted = adoptView({
+      healthOk: true,
+      parsed: null,
+      fixtureRows: fixture,
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily returned 404",
+    });
+    expect(adopted.origin).toBe("fixture");
+  });
+
+  it("marks sibling view responses seed when discharge is seed", () => {
+    const discharge = adoptView({
+      healthOk: true,
+      parsed: [{ source: "seed:open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    const hazard = markBatchSeed(
+      discharge,
+      adoptView({
+        healthOk: true,
+        parsed: [{ point_id: "VAL01" }],
+        fixtureRows: [],
+        fixtureDetail,
+        missDetail: "GET /views/hazard_timeline",
+      }),
+    );
+    expect(hazard.origin).toBe("seed");
   });
 });
