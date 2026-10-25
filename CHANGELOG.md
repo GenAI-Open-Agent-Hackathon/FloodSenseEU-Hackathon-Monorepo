@@ -26,6 +26,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Fixed
 
+- The exposure node accepts `sum_insured_eur` and segment `policies` when Zetaris returns them as strings or `Decimal`. A numeric string used to crash the segment claim (`Unknown format code 'f' for object of type 'str'`). Unreadable cells format as 0.
 - Status chrome says Fixture, Seed, or Live. Seed-stamped view rows, local fixtures, and cache or replay answers do not say “live” and do not use the green live colour. Live is only a successful view response that is not seed. `GET /health` alone leaves the desk on Fixture.
 - The insurer desk treats an empty API array as an empty view response, labels seed-stamped API rows as seed, and only says “modelled GloFAS” when the row source is that series. Zone-less `ts_utc` values are read as UTC. Provenance and citation links accept http(s) only. The provenance fixture is the six migration 017 datasets. `npm test` (Vitest) runs from `python tasks.py test`.
 - The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.
