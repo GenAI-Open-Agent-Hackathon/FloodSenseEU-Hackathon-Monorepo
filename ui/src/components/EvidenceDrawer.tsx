@@ -158,7 +158,7 @@ export function EvidenceDrawer() {
               <>
                 <p>
                   {point ? `${point.name} (${row.point_id})` : row.point_id} on {formatDay(row.date)}.{" "}
-                  {sourceExplanation(row.source)}
+                  {sourceExplanation(row.source, desk.discharge.origin)}
                   {modelled ? ` ${modelled}` : ""}
                 </p>
                 <dl className="kv">

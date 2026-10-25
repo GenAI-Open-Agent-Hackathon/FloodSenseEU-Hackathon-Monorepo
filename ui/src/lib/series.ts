@@ -1,4 +1,5 @@
 import type {
+  DataOrigin,
   DischargeDailyRow,
   ExposureJoinRow,
   HazardTimelineRow,
@@ -202,9 +203,12 @@ export function markerText(pointId: string): string {
   return stripped.length > 0 && stripped.length <= 3 ? stripped : pointId.slice(0, 3);
 }
 
-export function sourceExplanation(source: string): string {
+export function sourceExplanation(source: string, origin?: DataOrigin): string {
   if (source.startsWith("seed:")) {
-    return `The source column is "${source}". That stamp means these rows are seed.`;
+    if (origin === "seed") {
+      return `The source column is "${source}". These rows are seed.`;
+    }
+    return `The source column is "${source}". That is a seed stamp in the source column.`;
   }
   if (source === "open-meteo-flood-glofas") {
     return `The source column is "${source}", the Open-Meteo Flood (GloFAS) stamp on discharge_daily.`;

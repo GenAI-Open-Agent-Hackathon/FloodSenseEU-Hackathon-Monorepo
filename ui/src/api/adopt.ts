@@ -12,9 +12,12 @@ function sourceOf(row: unknown): string | null {
   return typeof source === "string" ? source : null;
 }
 
-/** Seed when every adopted row is seed-stamped. An empty view response is live, not seed. */
+/**
+ * Seed when any adopted row is seed-stamped. A mix is not Live.
+ * An empty view response, or rows with no source stamp, is live.
+ */
 export function originForRows(rows: unknown[]): "seed" | "live" {
-  if (rows.length > 0 && rows.every((row) => (sourceOf(row) ?? "").startsWith("seed:"))) return "seed";
+  if (rows.some((row) => (sourceOf(row) ?? "").startsWith("seed:"))) return "seed";
   return "live";
 }
 
@@ -45,7 +48,10 @@ export function adoptView<T>(input: {
 /** Sibling views have no source stamp. A seed discharge response marks them seed too. */
 export function markBatchSeed<T>(discharge: AdoptedView<unknown>, slice: AdoptedView<T>): AdoptedView<T> {
   if (discharge.origin === "seed" && slice.origin === "live") {
-    return { ...slice, origin: "seed" };
+    const detail = slice.detail.endsWith(" · live")
+      ? `${slice.detail.slice(0, -" · live".length)} · seed`
+      : slice.detail;
+    return { ...slice, origin: "seed", detail };
   }
   return slice;
 }

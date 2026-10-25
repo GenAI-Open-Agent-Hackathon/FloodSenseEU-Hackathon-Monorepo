@@ -33,7 +33,7 @@ function dischargeSpan(rows: DischargeDailyRow[]): { points: number; span: strin
 export function fixtureDischargeNotice(rows: DischargeDailyRow[]): Notice {
   const { points, span, sourceText } = dischargeSpan(rows);
   return {
-    id: "seed-loaded",
+    id: "fixture-loaded",
     tone: "info",
     read: false,
     title: "Discharge fixture loaded",

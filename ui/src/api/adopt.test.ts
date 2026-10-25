@@ -58,6 +58,18 @@ describe("adoptView", () => {
     expect(adopted.detail).toContain("GET /views/discharge_daily");
   });
 
+  it("does not label a mix of seed and non-seed rows as live", () => {
+    const adopted = adoptView({
+      healthOk: true,
+      parsed: [{ source: "seed:open-meteo-flood-glofas" }, { source: "open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    expect(adopted.origin).toBe("seed");
+    expect(adopted.detail).not.toMatch(/\blive\b/);
+  });
+
   it("labels seed-stamped view rows as seed, not live", () => {
     const adopted = adoptView({
       healthOk: true,
@@ -100,5 +112,7 @@ describe("adoptView", () => {
       }),
     );
     expect(hazard.origin).toBe("seed");
+    expect(hazard.detail).toBe("GET /views/hazard_timeline · seed");
+    expect(hazard.detail).not.toMatch(/\blive\b/);
   });
 });

@@ -1,4 +1,5 @@
 import { servingLabel, servingQualifier } from "../lib/format";
+import { statusLabel } from "../lib/origin";
 import { useConsole } from "../context/ConsoleContext";
 import type { ProvenanceRow } from "../types/views";
 
@@ -29,7 +30,7 @@ export function OriginBanner() {
       {parts.map(([name, slice], index) => (
         <span key={name}>
           {index > 0 && " · "}
-          <span className="origin-name">{name}</span> {slice.origin}
+          <span className="origin-name">{name}</span> {statusLabel(slice.origin)}
         </span>
       ))}
       <span> · {desk.healthDetail}</span>

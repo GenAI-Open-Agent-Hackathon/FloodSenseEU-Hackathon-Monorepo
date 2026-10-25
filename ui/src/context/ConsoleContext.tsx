@@ -208,11 +208,11 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   useEffect(() => {
     setNotices((list) => {
-      const rest = list.filter((notice) => notice.id !== "seed-loaded");
+      const rest = list.filter((notice) => notice.id !== "seed-loaded" && notice.id !== "fixture-loaded");
       if (discharge.origin === "live") return rest;
       const notice =
         discharge.origin === "seed" ? seedRowsNotice(discharge.rows) : fixtureDischargeNotice(discharge.rows);
-      const current = list.find((item) => item.id === "seed-loaded");
+      const current = list.find((item) => item.id === notice.id);
       if (current && current.title === notice.title && current.body === notice.body) return list;
       return [notice, ...rest];
     });
