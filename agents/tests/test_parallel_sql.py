@@ -74,12 +74,12 @@ def _deps(zetaris: FakeZetaris | None = None) -> Deps:
     return Deps(zetaris=zetaris or FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
 
 
-def _event_state() -> dict:
+def _event_state(event_id: str = "EMSR773") -> dict:
     return {
         "run_id": "parallel",
-        "event_id": "EMSR773",
-        "event": EVENTS["EMSR773"].as_dict(),
-        "request": {"question": "Why are our Valencia sites at risk?", "lang": "en"},
+        "event_id": event_id,
+        "event": EVENTS[event_id].as_dict(),
+        "request": {"question": EVENTS[event_id].name, "lang": "en"},
         "provenance": [],
         "evidence": {},
         "anomalies": [],
@@ -165,7 +165,15 @@ class ParallelSqlTest(unittest.TestCase):
         self.assertGreater(out[2].row_count, 0)
 
     def test_watchers_keep_hazard_then_provenance_order(self) -> None:
-        out = make_watchers(_deps())(_event_state())
+        valencia = make_watchers(_deps())(_event_state("EMSR773"))
+        valencia_sql = [row["sql"] for row in valencia["evidence"].values()]
+        self.assertEqual(len(valencia_sql), 4)
+        self.assertIn("rain_mm", valencia_sql[0])
+        self.assertIn("discharge_m3s", valencia_sql[1])
+        self.assertIn("warning_level", valencia_sql[2])
+        self.assertIn("provenance", valencia_sql[3])
+        self.assertFalse(any("gauge_levels" in sql for sql in valencia_sql))
+        out = make_watchers(_deps())(_event_state("EMSR517"))
         sqls = [row["sql"] for row in out["evidence"].values()]
         self.assertEqual(len(sqls), 5)
         self.assertIn("rain_mm", sqls[0])

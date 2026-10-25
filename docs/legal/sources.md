@@ -18,7 +18,7 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 - Terms page: https://open-meteo.com/en/terms. Licence page: https://open-meteo.com/en/licence.
 - Upstream GloFAS and Copernicus licences are linked from the licence page and were not read. Open: read them before we cite GloFAS values as such.
 - The terms do not address storing or caching. Open: ask info@open-meteo.com if we keep copies beyond the demo.
-- `floodsense.hazard_now` reads the forecast API (past hours and forecast hours in one rolling window) and the rolling GloFAS table. Each hour is labelled `observed` or `forecast`. The same attribution string applies. Provenance row `ds_open_meteo_forecast`. The seed twin is the frozen 28–30 Oct 2024 extract, labelled `replay`, not a present.
+- `floodsense.hazard_now` reads the forecast API (past hours and forecast hours in one rolling window) and the rolling GloFAS table. Each hour is labelled `past` or `forecast`. `past` is Open-Meteo `past_days` plus GloFAS model output, not a station measurement. The same attribution string applies. Provenance row `ds_open_meteo_forecast`. The seed twin is the frozen 28–30 Oct 2024 extract, labelled `replay`, not a present.
 
 ### 2. Copernicus EMS EMSR773
 - Activation facts from the public rapid-mapping API: "Flood in Valencia Region, Spain", event 2024-10-29 14:30 UTC, activation 2024-10-29 16:40 UTC, requested by Spain's Ministry of Interior (CENEM). AOI 1 is Valencia province. Product type DEL (delineation, monitoring). Source: https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=EMSR773
@@ -42,7 +42,7 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 
 ### 6. PEGELONLINE
 - https://www.pegelonline.wsv.de/gast/nutzungsbedingungen: licence DL-DE->Zero-2.0 (govdata.de/dl-de/zero-2-0). Commercial use allowed. No attribution wording given.
-- `floodsense.gauge_levels` and `floodsense_seed.gauge_levels` cite this source. Show `Quelle: WSV, PEGELONLINE`. The live view reads `pegel_levels_staged` (Bonn, Köln, Koblenz). The seed view names those gauges and does not invent a water level.
+- `floodsense.gauge_levels` and `floodsense_seed.gauge_levels` cite this source. Show `Quelle: WSV, PEGELONLINE`. The live view reads `pegel_levels_staged` (Bonn, Köln, Koblenz). The seed view names those gauges for the Ahr event only and does not invent a water level. EMSR773 has no PEGELONLINE station.
 
 ### 7. DWD via Bright Sky
 - https://github.com/jdemaeyer/brightsky: code is MIT, data licence not stated, no usage limits stated. DWD terms not confirmed.

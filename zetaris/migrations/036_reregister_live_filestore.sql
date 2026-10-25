@@ -9,7 +9,8 @@
 -- No view in this file, so no -- view / -- columns / -- min_rows header. The gauge view is 037.
 -- DWD stays unregistered while docs/legal/sources.md marks it Hold.
 -- Applying this file before the CSVs exist breaks the new names the same way, and they
--- cannot be dropped either.
+-- cannot be dropped either. zetaris_sync refuses this file when a staged directory has
+-- no CSV header. A header-only live.csv is enough. An empty directory is not.
 CREATE LIGHTNING FILESTORE TABLE discharge_daily_staged FROM floodsense_live_src
 FORMAT csv
 OPTIONS (path "file:///home/zetaris/customer-data/shared/floodsense_live/discharge_daily", header "true", inferSchema "true");

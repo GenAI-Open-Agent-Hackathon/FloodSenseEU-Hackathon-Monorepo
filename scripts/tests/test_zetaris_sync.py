@@ -12,6 +12,7 @@ import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -243,6 +244,67 @@ class SyncTest(unittest.TestCase):
         self.assertIn("nothing to apply", out)
         self.assertIn("OK   floodsense.discharge_daily", out)
         self.assertGreater(len(self.fake.requests), sent)
+
+    def test_036_is_refused_when_a_staged_directory_has_no_csv_header(self) -> None:
+        path = "/home/zetaris/customer-data/shared/floodsense_live/pegel_levels"
+        sql = (
+            "CREATE LIGHTNING FILESTORE TABLE pegel_levels_staged FROM floodsense_live_src\n"
+            "FORMAT csv\n"
+            f'OPTIONS (path "file://{path}", header "true");\n'
+        )
+        self.ws.add("036_reregister_live_filestore.sql", sql)
+        with patch.object(zs, "read_staged_csv_headers", return_value={path: ""}):
+            code, out, _ = self.ws.run("sync")
+        self.assertEqual(code, 1, out)
+        self.assertIn("refuse 036", out)
+        self.assertIn(path, out)
+        self.assertEqual(self.fake.requests, [])
+
+    def test_036_applies_when_each_staged_directory_has_a_csv_header(self) -> None:
+        path = "/home/zetaris/customer-data/shared/floodsense_live/pegel_levels"
+        sql = (
+            "CREATE LIGHTNING FILESTORE TABLE pegel_levels_staged FROM floodsense_live_src\n"
+            "FORMAT csv\n"
+            f'OPTIONS (path "file://{path}", header "true");\n'
+        )
+        self.ws.add("036_reregister_live_filestore.sql", sql)
+        with patch.object(
+            zs, "read_staged_csv_headers", return_value={path: "station,water,time"}
+        ):
+            code, out, _ = self.ws.run("sync")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(self.fake.requests), 1)
+
+    def test_dry_run_does_not_ask_docker_about_036_headers(self) -> None:
+        path = "/home/zetaris/customer-data/shared/floodsense_live/pegel_levels"
+        sql = (
+            "CREATE LIGHTNING FILESTORE TABLE pegel_levels_staged FROM floodsense_live_src\n"
+            f'OPTIONS (path "file://{path}", header "true");\n'
+        )
+        self.ws.add("036_reregister_live_filestore.sql", sql)
+
+        def _boom(*_args, **_kwargs):
+            raise AssertionError("dry run must not inspect staged headers")
+
+        with patch.object(zs, "read_staged_csv_headers", _boom):
+            code, out, _ = self.ws.run("sync", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("nothing sent", out)
+        self.assertEqual(self.fake.requests, [])
+
+    def test_a_blank_header_line_is_refused_and_a_name_line_is_kept(self) -> None:
+        self.assertEqual(
+            zs.csv_header_problems({"/data/pegel_levels": ""}),
+            ["/data/pegel_levels: no CSV header"],
+        )
+        self.assertEqual(
+            zs.csv_header_problems({"/data/pegel_levels": None}),
+            ["/data/pegel_levels: no CSV header"],
+        )
+        self.assertEqual(
+            zs.csv_header_problems({"/data/pegel_levels": "station,water,time"}),
+            [],
+        )
 
     def test_dry_run_does_not_verify(self) -> None:
         self.ws.env_file.unlink()

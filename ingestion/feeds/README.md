@@ -14,8 +14,8 @@ python ingestion/feeds/feeds.py pull --stage --interval 900
 answer `COUNT(*)` and fail a named column. `DROP` was refused. `036_reregister_live_filestore.sql`
 registers `*_staged` on the same paths after the CSVs are in place. `floodsense.gauge_levels` reads
 `pegel_levels_staged`. Migrations 030-032 add two REST tables that Zetaris fills by calling Open-Meteo
-at query time (rolling window, so always current). `hazard_now` labels each of those hours `observed`
-or `forecast`.
+at query time (rolling window, so always current). `hazard_now` labels each of those hours `past`
+or `forecast`. `past` is model output from `past_days` and GloFAS, not a station measurement.
 
 | Source | Table | Notes |
 | --- | --- | --- |

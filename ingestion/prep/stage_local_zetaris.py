@@ -72,6 +72,7 @@ def main():
     try:
         for t in TABLES:
             docker("exec", "-u", "0", container, "mkdir", "-p", f"{DEST}/{t}")
+            # docker cp overwrites a seed CSV already in the container.
             docker("cp", os.path.join(HERE, f"{t}.csv"), f"{container}:{DEST}/{t}/{t}.csv")
         for table, header in LIVE_HEADERS.items():
             remote = f"{LIVE_DEST}/{table}"

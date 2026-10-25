@@ -4,7 +4,9 @@
 -- Replaces the select list of 034. Same 1152 rows (8 points x 144 hours). Adds horizon so a
 -- rolling-window hour is labelled, not left looking like the pinned 2024 archive in 007.
 -- 032 asks the forecast API for past_days=3 and forecast_days=3. The payload has no flag on
--- the hour. An hour at or before the engine clock is observed. An hour after it is forecast.
+-- the hour. An hour at or before the engine clock is past. An hour after it is forecast.
+-- past_days and the GloFAS discharge joined onto that hour are model output, not a station
+-- measurement, so the label is past.
 -- The local stack session zone is GMT (007, current_timezone()), and 032 requests timezone=GMT,
 -- so current_timestamp() and ts_utc are the same clock.
 -- horizon follows the rain hour. The day's river_discharge is still joined for every hour of
@@ -21,7 +23,7 @@ SELECT
   CAST(NULL AS STRING) AS warning_level,
   CASE
     WHEN r.ts_utc > current_timestamp() THEN 'forecast'
-    ELSE 'observed'
+    ELSE 'past'
   END AS horizon
 FROM (
   SELECT

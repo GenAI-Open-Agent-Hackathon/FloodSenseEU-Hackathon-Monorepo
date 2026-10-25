@@ -18,7 +18,8 @@ views:
     - {name: discharge_m3s, type: double}
     - {name: warning_level, type: string}
   # min_rows: live 1152 (8 points x 144 hours, rolling), seed 576.
-  # horizon is the rolling-window label (039): observed or forecast. Seed rows are replay (040).
+  # horizon is the rolling-window label (039): past or forecast. Seed rows are replay (040).
+  # past is Open-Meteo past_days plus GloFAS model output, not a station measurement.
   hazard_now:
     - {name: point_id, type: string}
     - {name: ts_utc, type: timestamp}
@@ -26,7 +27,7 @@ views:
     - {name: discharge_m3s, type: double}
     - {name: warning_level, type: string}
     - {name: horizon, type: string}
-  # min_rows: live 0 until a PEGELONLINE pull replaces the header, seed 6 (no invented levels).
+  # min_rows: live 0 until a PEGELONLINE pull replaces the header, seed 3 (Ahr Rhine gauges, no invented levels).
   gauge_levels:
     - {name: station, type: string}
     - {name: water, type: string}

@@ -302,17 +302,17 @@ CREATE TABLE {s}.gauge_levels(station TEXT, water TEXT, ts_utc TEXT, level_cm RE
 CREATE TABLE {s}.provenance(dataset TEXT, source_url TEXT, publisher TEXT, licence TEXT, attribution TEXT, fetched_at TEXT);
 """
 
-# PEGELONLINE gauges feeds.py pulls. Timestamps are the event windows, not a new clock.
-_GAUGE_STATIONS = (("BONN", "RHEIN"), ("KÖLN", "RHEIN"), ("KOBLENZ", "RHEIN"))
-
-
 def _gauge_seed_rows() -> list[tuple]:
-    """One row per gauge at each event's window_from_utc. level_cm stays empty."""
+    """One row per station on each event that lists gauges. level_cm stays empty.
+
+    The station names are EventSpec.gauges, which for the Ahr is RHINE_GAUGES.
+    Events with an empty list contribute nothing. There is no second copy of
+    the station names here.
+    """
     rows: list[tuple] = []
-    for event_id in ("EMSR773", "EMSR517"):
-        ts = EVENTS[event_id].window_from_utc
-        for station, water in _GAUGE_STATIONS:
-            rows.append((station, water, ts, None, "seed:pegelonline"))
+    for event in EVENTS.values():
+        for station, water in event.gauges:
+            rows.append((station, water, event.window_from_utc, None, "seed:pegelonline"))
     return rows
 
 

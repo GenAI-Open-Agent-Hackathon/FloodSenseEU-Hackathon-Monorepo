@@ -61,16 +61,28 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertIn(f"-- columns: {columns}", live)
         self.assertIn(f"-- columns: {columns}", seed)
         self.assertIn("-- min_rows: 0", live)
-        self.assertIn("-- min_rows: 6", seed)
+        gauge_rows = [
+            (event.event_id, station, water)
+            for event in EVENTS.values()
+            for station, water in event.gauges
+        ]
+        self.assertEqual(len(gauge_rows), 3)
+        self.assertEqual([row[0] for row in gauge_rows], ["EMSR517", "EMSR517", "EMSR517"])
+        self.assertIn("-- min_rows: 3", seed)
         self.assertIn("pegel_levels_staged", sql_body("037_create_view_gauge_levels.sql"))
         self.assertIn("Quelle: WSV, PEGELONLINE", live)
         body = sql_body("038_create_seed_view_gauge_levels.sql")
         self.assertIn("seed:pegelonline", body)
         self.assertIn("CAST(NULL AS DOUBLE)", body)
-        for event_id in ("EMSR773", "EMSR517"):
-            self.assertIn(sql_stamp(EVENTS[event_id].window_from_utc), body)
-        for station in ("BONN", "KÖLN", "KOBLENZ"):
+        for event in EVENTS.values():
+            stamp = sql_stamp(event.window_from_utc)
+            if event.gauges:
+                self.assertIn(stamp, body)
+            else:
+                self.assertNotIn(stamp, body)
+        for _event_id, station, water in gauge_rows:
             self.assertIn(station, body)
+            self.assertIn(water, body)
 
     def test_hazard_now_labels_the_rolling_window_and_the_seed_does_not_invent_one(self) -> None:
         live = sql_body("039_label_hazard_now_horizon.sql")
@@ -85,7 +97,9 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertIn("-- min_rows: 1152", text("039_label_hazard_now_horizon.sql"))
         self.assertIn("-- min_rows: 576", seed_file)
         self.assertIn("'forecast'", live)
-        self.assertIn("'observed'", live)
+        self.assertIn("'past'", live)
+        self.assertNotIn("observed", text("039_label_hazard_now_horizon.sql"))
+        self.assertNotIn("observed", seed_file)
         self.assertIn("current_timestamp()", live)
         self.assertIn("'replay'", seed_sql)
         self.assertNotIn("current_timestamp", seed_sql)
@@ -114,12 +128,20 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertEqual(prov.count("-- min_rows: 8"), 2)
         self.assertEqual(prov.count("dataset_id <> 'ds_dwd_brightsky'"), 2)
         self.assertIn("ds_open_meteo_forecast", prov)
+        self.assertIn("docker cp", prov)
+        self.assertNotIn("does not overwrite", prov)
+        self.assertIn("skip-if-present", prov)
         sources = (ROOT / "docs" / "legal" / "sources.md").read_text(encoding="utf-8")
         self.assertIn("floodsense.gauge_levels", sources)
         self.assertIn("Quelle: WSV, PEGELONLINE", sources)
         readme = (ROOT / "ingestion" / "prep" / "README.md").read_text(encoding="utf-8")
         self.assertIn("Stage before any FILESTORE registration", readme)
         self.assertIn("036", readme)
+        self.assertIn("docker cp", readme)
+        self.assertIn("skip-if-present", readme)
+        self.assertNotIn("does not overwrite", readme)
+        self.assertNotIn("labelled `observed`", sources)
+        self.assertIn("`past`", sources)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass
@@ -60,6 +61,9 @@ VIEW_HEADER = re.compile(r"^--\s*view:\s*(\S+)\s*$")
 COLUMNS_HEADER = re.compile(r"^--\s*columns:\s*(.+?)\s*$")
 MIN_ROWS_HEADER = re.compile(r"^--\s*min_rows:\s*(\d+)\s*$")
 VIEW_NAME = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
+FILESTORE_PATH = re.compile(r'path "file://([^"]+)"')
+FILESTORE_REREGISTER = "036_reregister_live_filestore.sql"
+DEFAULT_CONTAINER = "zetaris-driver-1"
 
 
 class SyncError(Exception):
@@ -296,6 +300,76 @@ def check_files(migrations: list[Migration], problems: list[str]) -> bool:
     return not problems
 
 
+def filestore_directories(migration: Migration) -> list[str]:
+    found: list[str] = []
+    for sql in migration.statements:
+        found.extend(FILESTORE_PATH.findall(sql))
+    return found
+
+
+def csv_header_problems(headers: dict[str, str | None]) -> list[str]:
+    """Directories whose staged CSV has no header line."""
+    problems = []
+    for directory, line in headers.items():
+        header = (line or "").strip()
+        if not header:
+            problems.append(f"{directory}: no CSV header")
+    return problems
+
+
+def read_staged_csv_headers(directories: list[str], container: str) -> dict[str, str | None]:
+    """First line of one CSV in each directory inside the Zetaris container.
+
+    None means the directory has no csv. A blank string means the first line is empty.
+    Paths come from migration files, and only the Zetaris volume is inspected.
+    """
+    if not directories:
+        return {}
+    parts: list[str] = []
+    for directory in directories:
+        if not directory.startswith("/home/zetaris/"):
+            raise SyncError(f"refusing to inspect a path outside the Zetaris volume: {directory}")
+        quoted = "'" + directory.replace("'", "'\\''") + "'"
+        parts.append(
+            f"d={quoted}; f=$(find \"$d\" -maxdepth 1 -type f -name '*.csv' -print -quit); "
+            f"if [ -z \"$f\" ]; then printf '%s\\t\\n' \"$d\"; "
+            f"else printf '%s\\t%s\\n' \"$d\" \"$(head -n 1 \"$f\" | tr -d '\\r')\"; fi"
+        )
+    try:
+        proc = subprocess.run(
+            ["docker", "exec", container, "bash", "-c", "; ".join(parts)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        raise SyncError(
+            "036 needs docker to check staged CSV headers, and docker is not on PATH"
+        ) from error
+    except subprocess.TimeoutExpired as error:
+        raise SyncError(f"036 header check timed out talking to container {container}") from error
+    if proc.returncode != 0:
+        detail = " ".join((proc.stderr or proc.stdout or "").split())[:200]
+        raise SyncError(
+            f"036 header check could not read {container} (docker exit {proc.returncode}). {detail}"
+        )
+    found: dict[str, str | None] = {directory: None for directory in directories}
+    for raw in proc.stdout.splitlines():
+        directory, sep, header = raw.partition("\t")
+        if sep and directory in found:
+            found[directory] = header
+    return found
+
+
+def refuse_036_without_headers(migration: Migration, container: str) -> list[str]:
+    """Empty when this file is not 036, or every staged directory has a CSV header."""
+    if migration.name != FILESTORE_REREGISTER:
+        return []
+    headers = read_staged_csv_headers(filestore_directories(migration), container)
+    return csv_header_problems(headers)
+
+
 def apply_one(migration: Migration, env: dict[str, str], client: Client) -> tuple[int, int]:
     secrets = [env[name] for name in migration.placeholders] + [env.get("ZETARIS_API_KEY", "")]
     total = len(migration.statements)
@@ -362,8 +436,23 @@ def cmd_sync(migrations, problems, ledger_path, env, dry_run, client) -> int:
         if client is None:
             print("error: no Zetaris connection configured")
             return 1
+        container = env.get("ZETARIS_CONTAINER") or DEFAULT_CONTAINER
         for migration in pending:
             print(f"{migration.name}")
+            try:
+                blocked = refuse_036_without_headers(migration, container)
+            except SyncError as error:
+                print(f"error: {error}")
+                return 1
+            if blocked:
+                print("error: refuse 036 until each staged directory has a CSV header")
+                for problem in blocked:
+                    print(f"error: {problem}")
+                print(
+                    "error: stage first (ingestion/prep/stage_local_zetaris.py). "
+                    "DROP cannot repair a create on an empty directory."
+                )
+                return 1
             try:
                 total, existing = apply_one(migration, env, client)
             except SyncError as error:

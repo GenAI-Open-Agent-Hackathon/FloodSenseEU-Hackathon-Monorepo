@@ -28,8 +28,8 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `035_create_seed_view_hazard_now.sql` | `floodsense_seed.hazard_now`, the seed rows of 013. Column list replaced by `040` | Zain |
 | `036_reregister_live_filestore.sql` | FILESTORE live tables again, new names, same paths, after the CSVs exist. No view | Mihir |
 | `037_create_view_gauge_levels.sql` | `floodsense.gauge_levels` over `pegel_levels_staged` | Mihir |
-| `038_create_seed_view_gauge_levels.sql` | `floodsense_seed.gauge_levels`. Stations only, no invented level | Mihir |
-| `039_label_hazard_now_horizon.sql` | `floodsense.hazard_now` labels each hour `observed` or `forecast` | Mihir |
+| `038_create_seed_view_gauge_levels.sql` | `floodsense_seed.gauge_levels`. Ahr Rhine stations only, no invented level | Mihir |
+| `039_label_hazard_now_horizon.sql` | `floodsense.hazard_now` labels each hour `past` or `forecast` | Mihir |
 | `040_label_seed_hazard_now_horizon.sql` | `floodsense_seed.hazard_now` stays on 013 and is labelled `replay` | Mihir |
 | `041_provenance_forecast_source.sql` | Both provenance views. Cleared count 8 after the forecast row | Mihir |
 
