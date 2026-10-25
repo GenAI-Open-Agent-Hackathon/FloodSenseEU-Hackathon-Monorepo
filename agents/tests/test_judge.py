@@ -115,14 +115,30 @@ class JudgeTest(unittest.TestCase):
         def judge_llm(system, user):
             return "not json at all"
 
-        deps = Deps(
-            zetaris=FakeZetaris(), llm=FakeNightshift({"judge": judge_llm}), memory=NoMemory()
-        )
+        llm = FakeNightshift({"judge": judge_llm})
+        deps = Deps(zetaris=FakeZetaris(), llm=llm, memory=NoMemory())
         scores, rep = evaluate(
             [claim("C1", "Chiva peaked at 96 mm in one hour.", [96], ["q1"])],
             self.E,
             deps,
         )
+        self.assertEqual([lane for lane, _task, _user in llm.calls], ["deep"])
+        self.assertEqual(scores[0].grounding, "supported")
+        self.assertEqual(scores[0].model_id, "deterministic")
+        self.assertEqual(rep.model_id, "deterministic")
+
+    def test_empty_object_records_deterministic(self) -> None:
+        def judge_llm(system, user):
+            return "{}"
+
+        llm = FakeNightshift({"judge": judge_llm})
+        deps = Deps(zetaris=FakeZetaris(), llm=llm, memory=NoMemory())
+        scores, rep = evaluate(
+            [claim("C1", "Chiva peaked at 96 mm in one hour.", [96], ["q1"])],
+            self.E,
+            deps,
+        )
+        self.assertEqual([lane for lane, _task, _user in llm.calls], ["deep"])
         self.assertEqual(scores[0].grounding, "supported")
         self.assertEqual(scores[0].model_id, "deterministic")
         self.assertEqual(rep.model_id, "deterministic")

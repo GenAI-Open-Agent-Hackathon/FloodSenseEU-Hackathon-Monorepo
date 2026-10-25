@@ -19,8 +19,8 @@ All LLM calls go through one Nightshift client (`agents/floodsense_agents/nights
 - The app sends routing names, not a vendor model id: fast `meterless/fast`, deep `meterless/deep`. `settings.lane` is the only place that chooses them.
 - Who calls which lane, and which model answers today, is the table at the top of [../architecture/c4.md](../architecture/c4.md). This ADR does not keep a second map.
 - The demo does not use `meterless/auto`.
-- The Judge `model_id` on the shared contract accepts those two routing names, a concrete Nightshift id the reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic` when the Judge did not call a model. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is not in that enum.
-- The model id that came back is logged on the trace and stored on the Judge score. The API projection keeps it when it is in the enum and omits the judge when it is not. It does not rewrite one id into another.
+- The Judge `model_id` on the shared contract accepts those two routing names, a concrete Nightshift id the reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic` when the Judge did not call a model, or when the reply does not parse or has no grounding. In those cases the score stays `deterministic` and does not keep a model id the client returned. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is not in that enum.
+- When the reply does carry a grounding, the id the client returned is stored on the Judge score. The API projection keeps it when it is in the enum and omits the judge when it is not. It does not rewrite one id into another.
 - The NVIDIA provider key lives only in Nightshift's Providers tab. It is not an env var, a GitHub secret, a fixture, or a Cursor model setting.
 
 ## Consequences
