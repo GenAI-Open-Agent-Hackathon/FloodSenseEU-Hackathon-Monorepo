@@ -28,6 +28,10 @@ Only what v0.2.0–v0.8.0 need, plus the gameplan's Judge output and `served_fro
 
 Examples are fixtures. They are not measurements, Judge scores, or a recorded run. The quote's `content_sha256` is the SHA-256 of that quote.
 
+## Zetaris view columns
+
+[`views.yaml`](views.yaml) is the column list for each Zetaris view name. `floodsense.<name>` and `floodsense_seed.<name>` share it. Migration headers (`-- view:`, `-- columns:`, `-- min_rows:`) are checked against that file by `scripts/tests/test_migration_contract.py`. It is not part of `floodsense.schema.json`, and it does not change the wire contract for `agents/`, `api/`, or `ui/`.
+
 ## What is not here
 
 Left out on purpose, until the owner proposes fields:

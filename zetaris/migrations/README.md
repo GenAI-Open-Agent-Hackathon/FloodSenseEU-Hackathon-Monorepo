@@ -1,6 +1,6 @@
 # Zetaris migrations
 
-Owner: Urvashi.
+Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 
 | File | What it does | Owner |
 | --- | --- | --- |
@@ -30,4 +30,4 @@ Rules (see [../README.md](../README.md)):
 - Use `CREATE OR REPLACE SCHEMASTORE VIEW` for views and plain `CREATE` for everything else (no `IF NOT EXISTS` in Lightning SQL).
 - The raw seed tables live in the database `floodsense_seed_src`, and the seed views in the container `floodsense_seed`. Do not give a table and a view the same name in one name space: the view hides the table and reads itself. (A database and a container may share a name only if the database is created first, which is why they do not.)
 
-`py tasks.py zetaris-sync` applies pending files. For the other forms (`--dry-run`, `status`, `verify`) run `python scripts/zetaris_sync.py` directly.
+`py tasks.py zetaris-sync` applies pending files and then verifies declared views. For `--dry-run`, `status`, and `verify` on their own, run `python scripts/zetaris_sync.py` directly. Cold laptops stage seed CSVs before `010`. See [ingestion/prep/README.md](../../ingestion/prep/README.md).

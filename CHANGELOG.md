@@ -9,10 +9,14 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Added
+
+- v0.1.0 data slice. `scripts/zetaris_sync.py` applies pending Zetaris migrations and verifies declared views before a successful exit, including when a statement was skipped because it already exists and when nothing was pending. GloFAS / Open-Meteo discharge, the seed views, and the rest of the current ingestion tip (through the live-feed tables) land together so a laptop can sync. `contracts/views.yaml` records the shared column lists. A cold laptop stages FILESTORE CSVs with `ingestion/prep/stage_local_zetaris.py` before migration 010. Ownership of `/zetaris/`, `/scripts/zetaris_sync.py`, and `zetaris-sync` behaviour moves to Mihir (2026-10-25). Saleeta stays secondary on ingestion prep and the demo.
+
 ### Fixed
 
 - The secret scan no longer walks every fetched branch. `gitleaks detect` with no `--log-opts` runs `git log --all`, and CI checks out with `fetch-depth: 0`, so fake fixtures on another branch failed unrelated pull requests. `python tasks.py lint` now passes `--log-opts`. CI sets `FLOODSENSE_GITLEAKS_LOG_OPTS` to `base..head` on a pull request, and to the pushed range on a push to `main` (`HEAD` when `github.event.before` is the all-zero SHA). With the variable unset, lint uses `--log-opts=HEAD` (the checked-out ref). Rules are unchanged.
-- `.gitleaksignore` records two fingerprints from commit `83abb6d` in `scripts/tests/test_zetaris_sync.py`: the fake local-server `API_KEY` used by `test_applies_in_order_one_statement_per_call_with_documented_headers` (`generic-api-key`), and the fake AWS key inside `test_lint_flags_literal_secrets_but_not_placeholders` (`aws-access-token`). Each entry is that commit only. There is no path or rule allowlist.
+- `.gitleaksignore` records two fingerprints from commit `83abb6d` in `scripts/tests/test_zetaris_sync.py`: the fake local-server `API_KEY` used by `test_applies_in_order_one_statement_per_call_with_documented_headers` (`generic-api-key`), and the fake AWS key inside `test_lint_flags_literal_secrets_but_not_placeholders` (`aws-access-token`). Each entry is that commit only. There is no path or rule allowlist. The same two fixtures, replayed when that history was rebased onto main (`d2f3734`), have their own fingerprints. The `83abb6d` lines stay.
 
 ## [0.0.0] - 2026-10-23
 

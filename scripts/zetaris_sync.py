@@ -1,9 +1,12 @@
 """Apply the numbered SQL migrations in zetaris/migrations/ to a local Zetaris.
 
-    python scripts/zetaris_sync.py                 apply pending migrations
+    python scripts/zetaris_sync.py                 apply pending migrations, then verify
     python scripts/zetaris_sync.py sync --dry-run  parse and lint, send nothing
     python scripts/zetaris_sync.py status          applied, pending, changed; send nothing
     python scripts/zetaris_sync.py verify          check each declared view against your Zetaris
+
+A successful sync (including "nothing to apply" and "already exists" skips) runs
+verify before it exits 0. Dry run does not. Verify failure is a non-zero exit.
 
 A migration that creates a view declares what must be true of it in header comments:
 "-- view: floodsense.discharge_daily", "-- columns: point_id string, date date" and
@@ -349,33 +352,44 @@ def cmd_sync(migrations, problems, ledger_path, env, dry_run, client) -> int:
         if names:
             print("placeholders needed: " + ", ".join(names))
         return 0
-    if not pending:
+    if pending:
+        missing = [name for name in names if not env.get(name)]
+        if missing:
+            print("error: set these in ingestion/.env (names only): " + ", ".join(missing))
+            return 1
+        if client is None:
+            print("error: no Zetaris connection configured")
+            return 1
+        for migration in pending:
+            print(f"{migration.name}")
+            try:
+                total, existing = apply_one(migration, env, client)
+            except SyncError as error:
+                print(f"error: {error}")
+                return 1
+            ledger[migration.name] = {
+                "file": migration.name,
+                "sha256": migration.sha256,
+                "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "statements": total,
+                "skipped_existing": existing,
+            }
+            save_ledger(ledger_path, ledger)
+        print(f"applied {len(pending)} file(s)")
+    else:
         print("nothing to apply")
-        return 0
-    missing = [name for name in names if not env.get(name)]
-    if missing:
-        print("error: set these in ingestion/.env (names only): " + ", ".join(missing))
-        return 1
     if client is None:
         print("error: no Zetaris connection configured")
         return 1
-    for migration in pending:
-        print(f"{migration.name}")
-        try:
-            total, existing = apply_one(migration, env, client)
-        except SyncError as error:
-            print(f"error: {error}")
-            return 1
-        ledger[migration.name] = {
-            "file": migration.name,
-            "sha256": migration.sha256,
-            "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "statements": total,
-            "skipped_existing": existing,
-        }
-        save_ledger(ledger_path, ledger)
-    print(f"applied {len(pending)} file(s)")
-    return 0
+    # Already-exists skips and a clean ledger still have to prove the declared views.
+    print("verifying declared views")
+    return cmd_verify(
+        migrations,
+        problems,
+        ledger_path,
+        [env.get("ZETARIS_API_KEY", "")],
+        client,
+    )
 
 
 def describe_columns(client: Client, view: str) -> list[tuple[str, str]]:

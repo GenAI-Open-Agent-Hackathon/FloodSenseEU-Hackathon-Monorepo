@@ -192,6 +192,67 @@ class SyncTest(unittest.TestCase):
         entry = json.loads(self.ws.ledger.read_text(encoding="utf-8"))["applied"][0]
         self.assertEqual(entry["skipped_existing"], 1)
 
+    def test_sync_exits_nonzero_when_verify_would_fail(self) -> None:
+        self.ws.add("001_view.sql", VIEW_MIGRATION)
+        self.fake.respond = lambda sql: (
+            (200, {"data": [["point_id", "string"], ["date", "string"], ["discharge_m3s", "double"]]})
+            if sql.startswith("DESCRIBE")
+            else (200, {"data": [["8"]]})
+            if sql.startswith("SELECT COUNT")
+            else (200, {"data": []})
+        )
+        code, out, _ = self.ws.run("sync")
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAIL floodsense.discharge_daily", out)
+        self.assertIn("column date is string, expected date", out)
+        self.assertTrue(self.ws.ledger.is_file())
+
+    def test_already_exists_skip_still_verifies_declared_views(self) -> None:
+        def respond(sql: str):
+            if "SCHEMASTORE VIEW" in sql:
+                return 400, {"message": "A view named discharge_daily already exists."}
+            if sql.startswith("DESCRIBE"):
+                return 200, {"data": [["point_id", "string"], ["date", "date"], ["discharge_m3s", "double"]]}
+            if sql.startswith("SELECT COUNT"):
+                return 200, {"data": [["8"]]}
+            return 200, {"data": []}
+
+        self.fake.respond = respond
+        self.ws.add("001_view.sql", VIEW_MIGRATION)
+        code, out, _ = self.ws.run("sync")
+        self.assertEqual(code, 0, out)
+        self.assertIn("already exists, skipped", out)
+        self.assertIn("OK   floodsense.discharge_daily", out)
+        entry = json.loads(self.ws.ledger.read_text(encoding="utf-8"))["applied"][0]
+        self.assertEqual(entry["skipped_existing"], 1)
+
+    def test_nothing_to_apply_still_verifies_declared_views(self) -> None:
+        def respond(sql: str):
+            if sql.startswith("DESCRIBE"):
+                return 200, {"data": [["point_id", "string"], ["date", "date"], ["discharge_m3s", "double"]]}
+            if sql.startswith("SELECT COUNT"):
+                return 200, {"data": [["8"]]}
+            return 200, {"data": []}
+
+        self.fake.respond = respond
+        self.ws.add("001_view.sql", VIEW_MIGRATION)
+        self.assertEqual(self.ws.run("sync")[0], 0)
+        sent = len(self.fake.requests)
+        code, out, _ = self.ws.run("sync")
+        self.assertEqual(code, 0, out)
+        self.assertIn("nothing to apply", out)
+        self.assertIn("OK   floodsense.discharge_daily", out)
+        self.assertGreater(len(self.fake.requests), sent)
+
+    def test_dry_run_does_not_verify(self) -> None:
+        self.ws.env_file.unlink()
+        self.ws.add("001_view.sql", VIEW_MIGRATION)
+        code, out, _ = self.ws.run("sync", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("OK   ", out)
+        self.assertNotIn("FAIL ", out)
+        self.assertEqual(self.fake.requests, [])
+
     def test_other_error_stops_and_leaves_the_file_unrecorded(self) -> None:
         self.fake.respond = lambda sql: (500, {"message": "boom"}) if "two" in sql else (200, {"data": []})
         self.ws.add("001_first.sql", TWO_STATEMENTS)
@@ -328,8 +389,9 @@ class VerifyTest(unittest.TestCase):
         self.assertIn("OK   floodsense.discharge_daily: 3 columns, at least 8 rows", out)
 
     def test_fails_on_wrong_type_name_and_row_count(self) -> None:
+        self.assertEqual(self.ws.run("sync")[0], 0)
         self.columns[1][1] = "string"
-        code, out = self.sync_then_verify()
+        code, out, _ = self.ws.run("verify")
         self.assertEqual(code, 1)
         self.assertIn("column date is string, expected date", out)
         self.columns[1][1] = "date"

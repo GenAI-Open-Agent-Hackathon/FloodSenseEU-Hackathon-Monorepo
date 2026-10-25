@@ -1,0 +1,36 @@
+# Column names and types for Zetaris views.
+# floodsense.<name> and floodsense_seed.<name> share one entry.
+# Migration headers (-- view: / -- columns: / -- min_rows:) must match this file.
+# scripts/tests/test_migration_contract.py reads "  <view>:" and "- {name: ..., type: ...}".
+
+views:
+  # min_rows: 8 (live and seed)
+  discharge_daily:
+    - {name: point_id, type: string}
+    - {name: date, type: date}
+    - {name: discharge_m3s, type: double}
+    - {name: source, type: string}
+  # min_rows: live 3264, seed 576
+  hazard_timeline:
+    - {name: point_id, type: string}
+    - {name: ts_utc, type: timestamp}
+    - {name: rain_mm, type: double}
+    - {name: discharge_m3s, type: double}
+    - {name: warning_level, type: string}
+  # min_rows: 359 (live and seed)
+  exposure_join:
+    - {name: policy_id, type: string}
+    - {name: site_id, type: string}
+    - {name: lat, type: double}
+    - {name: lon, type: double}
+    - {name: in_footprint, type: boolean}
+    - {name: sum_insured_eur, type: double}
+    - {name: segment, type: string}
+  # min_rows: 6 (live and seed)
+  provenance:
+    - {name: dataset, type: string}
+    - {name: source_url, type: string}
+    - {name: publisher, type: string}
+    - {name: licence, type: string}
+    - {name: attribution, type: string}
+    - {name: fetched_at, type: timestamp}
