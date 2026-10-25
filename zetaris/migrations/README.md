@@ -24,6 +24,8 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `031_create_lightning_db_openmeteo_forecast.sql` | Lightning database for the forecast rain REST table | Saleeta |
 | `032_create_rest_table_rain_live.sql` | Rolling-window rain REST table. No view | Saleeta |
 | `033_live_feed_tables.sql` | FILESTORE live tables except DWD. Header-only dirs are enough to create them | Saleeta |
+| `034_create_view_hazard_now.sql` | `floodsense.hazard_now`: 007's columns over the rolling live tables | Zain |
+| `035_create_seed_view_hazard_now.sql` | `floodsense_seed.hazard_now`, the seed rows of 013 | Zain |
 
 Rules (see [../README.md](../README.md)):
 
