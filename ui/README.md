@@ -1,6 +1,6 @@
 # UI
 
-The insurer desk and a plain citizen page for FloodSense EU. Vite, React, and TypeScript. The screen is demo-able from fixtures shaped like the Zetaris seed views, before those views are on `main`.
+The insurer desk and a plain citizen page for FloodSense EU. Vite, React, and TypeScript. This `ui/src` console is the product UI. `ui/app` and `ui/mock` are not part of it. The screen is demo-able from fixtures shaped like the Zetaris seed views, before those views are on `main`.
 
 Owner: Mihir until LangGraph and human-in-the-loop are done, then Zain.
 

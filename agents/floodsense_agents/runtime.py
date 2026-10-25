@@ -12,13 +12,14 @@ from typing import Any
 
 from langgraph.types import Command
 
+from floodsense_agents import labelling
 from floodsense_agents.checkpoints import build_checkpointer
 from floodsense_agents.events import spec
 from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.settings import settings
 from floodsense_agents.models import ApprovalDecision, RunRequest
-from floodsense_agents.zetaris import now_utc
+from floodsense_agents.zetaris import FakeZetaris, now_utc
 
 log = logging.getLogger("floodsense.runtime")
 STATE_KEYS = (
@@ -96,8 +97,19 @@ class Runtime:
             "reviewer_note": None,
         }
         out["status"] = "awaiting_approval" if paused else v.get("status", "running")
-        out["served_from"] = v.get("served_from", "live")
-        out["cached_at"] = v.get("cached_at")
+        kind, at = labelling.computation_label(
+            v.get("replay_ts"), live=self._answers_are_live()
+        )
+        # A checkpoint may still say live from an older build. The data path
+        # decides. A caller that already marked this snapshot cache keeps that.
+        stored = v.get("served_from")
+        if stored == labelling.CACHE and v.get("cached_at"):
+            kind, at = labelling.CACHE, v.get("cached_at")
+        elif stored in labelling.KINDS and stored != labelling.LIVE:
+            kind = stored
+            at = v.get("cached_at") or at
+        out["served_from"] = kind
+        out["cached_at"] = at
         # Queries that errored. An answer resting on one of these is standing
         # on a hole, and the reviewer has to be told before deciding.
         out["failures"] = [
@@ -143,9 +155,29 @@ class Runtime:
         )
         self.index[run_id] = row
 
+    def _answers_are_live(self) -> bool:
+        """True only for the live schema read through live Zetaris.
+
+        FakeZetaris and ``floodsense_seed`` are stand-ins. A run on either
+        is not a live answer, even when it was computed just now.
+        """
+        if not settings.live_data:
+            return False
+        zetaris = getattr(self.deps, "zetaris", None) if self.deps else None
+        if isinstance(zetaris, FakeZetaris):
+            return False
+        if settings.zetaris_mode == "fake":
+            return False
+        if settings.zetaris_mode == "auto" and not settings.zetaris_rest_url:
+            return False
+        return zetaris is not None
+
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
         ev = spec(req.event_id)
+        served_from, cached_at = labelling.computation_label(
+            req.replay_ts, live=self._answers_are_live()
+        )
         try:
             self.graph.invoke(
                 {
@@ -156,8 +188,8 @@ class Runtime:
                     "replay_ts": req.replay_ts,
                     "request": req.model_dump(),
                     "event": ev.as_dict(),
-                    "served_from": "live",
-                    "cached_at": None,
+                    "served_from": served_from,
+                    "cached_at": cached_at,
                     "trace": [],
                     "revise_rounds": 0,
                     "repair_rounds": 0,

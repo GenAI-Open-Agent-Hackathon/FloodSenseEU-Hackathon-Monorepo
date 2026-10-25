@@ -48,13 +48,11 @@ class ProxyTest(unittest.TestCase):
         )
         inner = TestClient(agents_service.app)
 
-        def fake_request(
-            method, url, **kw
-        ):  # route the proxy's outbound calls into the in-process agents app
-            path = url.replace(api.AGENTS_URL, "")
-            return inner.request(method, path, json=kw.get("json"), params=kw.get("params"))
+        async def fake_request(method, path, body=None, params=None):
+            # The proxy awaits an async client. Route that into the in-process app.
+            return inner.request(method, path, json=body, params=params)
 
-        self._patch = mock.patch.object(api.httpx, "request", side_effect=fake_request)
+        self._patch = mock.patch.object(api, "_agents_request", side_effect=fake_request)
         self._patch.start()
         self.addCleanup(self._patch.stop)
         self.c = TestClient(api.app)
@@ -66,7 +64,11 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(r.status_code, 201)
         run = r.json()
         self.assertEqual(run["status"], "awaiting_approval")
-        self.assertEqual(run["served_from"], "live")
+        self.assertNotEqual(run["served_from"], "live")
+        self.assertEqual(run["served_from"], "replay")
+        self.assertIn("contract", run)
+        self.assertEqual(run["contract"]["answer"]["served_from"], "replay")
+        self.assertIsNotNone(run["contract"]["answer"]["cached_at"])
         rid = run["run_id"]
         self.assertEqual(self.c.get(f"/runs/{rid}/approval").status_code, 200)
         done = self.c.post(
@@ -82,7 +84,11 @@ class ProxyTest(unittest.TestCase):
 
     def test_agents_down_is_a_503(self) -> None:
         self._patch.stop()
-        with mock.patch.object(api.httpx, "request", side_effect=httpx.ConnectError("refused")):
+
+        async def down(method, path, body=None, params=None):
+            raise httpx.ConnectError("refused")
+
+        with mock.patch.object(api, "_agents_request", side_effect=down):
             self.assertEqual(self.c.get("/runs/past").status_code, 503)
         self._patch.start()
 

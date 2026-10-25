@@ -74,17 +74,19 @@ class LabelOverTheApiTest(unittest.TestCase):
             self.assertIn("label", body, path)
             self.assertIn("served_from", body, path)
 
-    def test_a_freshly_computed_run_is_live_and_a_re_read_is_not(self) -> None:
+    def test_a_fake_run_is_not_live_and_a_re_read_is_cache(self) -> None:
         first = self.c.get("/desk/events/EMSR773").json()["run"]
-        self.assertTrue(first["label"]["live"])
-        self.assertIsNone(first["label"]["text"])
+        self.assertNotEqual(first["served_from"], "live")
+        self.assertFalse(first["label"]["live"])
+        self.assertEqual(first["served_from"], "replay")
+        self.assertIsNotNone(first["cached_at"])
 
-        # The same answer served again was computed earlier. Saying "live"
-        # here is exactly what the rule forbids.
+        # The same answer served again was computed earlier.
         again = self.c.get("/desk/events/EMSR773").json()["run"]
         self.assertEqual(again["run_id"], first["run_id"])
         self.assertFalse(again["label"]["live"])
         self.assertEqual(again["label"]["kind"], "cache")
+        self.assertEqual(again["served_from"], "cache")
         self.assertIn("not live", again["label"]["text"])
         self.assertIn(again["run_id"], again["label"]["text"])
 
@@ -101,12 +103,19 @@ class LabelOverTheApiTest(unittest.TestCase):
         self.assertIn(rec["served_from"], ("live", "cache", "replay"))
         self.assertIsNotNone(rec["cached_at"])
 
-    def test_the_console_renders_the_banner_only_when_it_is_not_live(self) -> None:
-        app_js = self.c.get("/app/app.js").text
-        self.assertIn("label.live === false", app_js)
-        self.assertIn('class="stale"', app_js)
-        # The wording is never assembled in the browser.
-        self.assertNotIn("Cached answer from", app_js)
+    def test_a_replay_clock_on_a_run_is_not_labelled_live(self) -> None:
+        run = self.c.post(
+            "/runs",
+            json={
+                "question": "Which sites are exposed?",
+                "event_id": "EMSR773",
+                "replay_ts": "2024-10-29T12:00:00Z",
+            },
+        ).json()
+        self.assertEqual(run["served_from"], "replay")
+        self.assertNotEqual(run["served_from"], "live")
+        self.assertFalse(run["label"]["live"])
+        self.assertEqual(run["cached_at"], "2024-10-29T12:00:00Z")
 
 
 if __name__ == "__main__":

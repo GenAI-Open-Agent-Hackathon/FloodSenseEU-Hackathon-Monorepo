@@ -1,10 +1,14 @@
 """Agents service. FastAPI on port 8100, unpublished; the API container proxies it.
 
-Routes follow the contract in docs/GAMEPLAN.md §5.5. Every response carries
-served_from (live | cache | replay) and cached_at.
+Routes follow the contract in docs/GAMEPLAN.md. Every data response carries
+served_from (live | cache | replay) and cached_at when it is not live.
+Fake Zetaris, the seed schema, a replay clock, and a re-read are not live.
 
-GET  /                             review console, one page, served from console.html
-GET  /app/                         the duty desk: events, one case, the decision record
+The product UI is the Vite console in ``ui/`` (compose port 15173). This
+service does not ship ``ui/app`` or ``ui/mock``. ``GET /`` and ``GET /console``
+serve ``console.html``, a secondary operator page on this unpublished port.
+
+GET  /  and  GET /console          secondary operator page (console.html)
 GET  /desk/events                  every known event and the case standing on it
 GET  /desk/events/{id}             one case; starts it if nobody has
 GET  /runs/{id}/outbound           approved messages per exposed site (never sent from here)
@@ -12,9 +16,6 @@ GET  /runs/{id}/exposure.csv       exposed policies for the claims system
 GET  /runs/{id}/verify             every agent step checked, plus which data path it used
 GET  /runs/{id}/record             the decision record: answer, sources, scores, signature
 POST /runs/{id}/dispatch           post the decision to DECISION_WEBHOOK, off unless set
-GET  /console                      the earlier single-page console
-GET  /mock/                        design mock, plain view for a non-specialist (ui/mock)
-GET  /mock/analyst                 design mock, analyst view: chain, judge, playbook, decision
 GET  /health                       liveness: service, graph, version. Touches nothing.
 GET  /ready                        readiness: Zetaris answers a trivial query (503 if not)
 GET  /version                      build sha and timestamp
@@ -36,18 +37,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import (
-    FileResponse,
-    HTMLResponse,
-    PlainTextResponse,
-    RedirectResponse,
-    StreamingResponse,
-)
+from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
 from floodsense_agents import __version__
 from floodsense_agents import desk, labelling
@@ -57,23 +51,11 @@ from floodsense_agents.readiness import report as readiness_report
 from floodsense_agents.verify import report as verify_report
 from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime
 from floodsense_agents.settings import settings
+from floodsense_agents.zetaris import now_utc
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 app = FastAPI(title="FloodSense EU — agents", version=__version__)
 CONSOLE = Path(__file__).resolve().parent / "console.html"
-# ui/ sits beside the package in the image and two levels up in the repo.
-_HERE = Path(__file__).resolve().parent
-
-
-def _ui(folder: str):
-    for p in (_HERE.parent / "ui" / folder, _HERE.parent.parent / "ui" / folder):
-        if p.is_dir():
-            return p
-    return None
-
-
-APP_DIR = _ui("app")
-MOCK_DIR = _ui("mock")
 # The desk asks the graph the same thing every time; the operator picks the
 # event, not the wording.
 _DESK_QUESTION = desk.DESK_QUESTION
@@ -96,99 +78,56 @@ def _live(body: dict) -> dict:
     return labelling.labelled(body)
 
 
+def _with_run_label(body: dict, run: dict) -> dict:
+    """An envelope that holds a run uses that run's label, not a fresh live one."""
+    body["served_from"] = run.get("served_from")
+    body["cached_at"] = run.get("cached_at")
+    body["run_id"] = run.get("run_id")
+    return labelling.labelled(body)
+
+
 def _stored(run_id: str) -> dict:
     """A snapshot of a run computed earlier. Serving it as live would be a lie."""
     rt = runtime()
     run = rt.snapshot(run_id)
     row = next((r for r in rt.past() if r["run_id"] == run_id), None)
-    if row and run.get("served_from") == labelling.LIVE:
+    if row:
         run["served_from"] = labelling.CACHE
-        run["cached_at"] = row.get("created_at")
+        run["cached_at"] = run.get("cached_at") or row.get("created_at")
     return run
 
 
-_TYPES = {".js": "text/javascript", ".css": "text/css", ".json": "application/json"}
-# A CDN in front of this will happily serve a stale bundle for hours. Pages are
-# never cached; assets are, but only under a URL that carries the build sha.
-_ASSET_REF = re.compile(r'(src|href)="(?!https?:|//)([^"]+\.(?:js|css))"')
-
-
-def _resolve(root, name: str):
-    if root is None:
-        raise HTTPException(404, "this page was not copied into the build")
-    path = (root / name).resolve()
-    # Direct children only. {name} never contains a slash, but ".." would.
-    if path.parent != root.resolve() or not path.is_file():
-        raise HTTPException(404, f"no file named {name}")
-    return path
-
-
-def _build() -> str:
-    return (settings.git_sha or "dev")[:12]
-
-
-def _static(root, name: str, version: str | None = None) -> FileResponse:
-    path = _resolve(root, name)
-    if path.suffix in ("", ".html"):
-        return _page(root, name)
-    if version and version != _build():
-        # Another build's URL. During a rollout both containers answer, and
-        # serving this one's file would let a CDN pin the wrong bytes under
-        # the new name, immutably. A miss is cheap; a poisoned cache is not.
-        raise HTTPException(404, f"asset {name} is not from build {version}")
-    return FileResponse(
-        path,
-        media_type=_TYPES.get(path.suffix, "text/html"),
-        headers={
-            "cache-control": "public, max-age=31536000, immutable"
-            if version
-            else "no-cache, must-revalidate"
-        },
+def _console() -> HTMLResponse:
+    """Secondary operator page. The product UI is the Vite app, not this file."""
+    if not CONSOLE.is_file():
+        raise HTTPException(404, "operator console was not copied into the build")
+    return HTMLResponse(
+        CONSOLE.read_text(encoding="utf-8"),
+        headers={"cache-control": "no-store, must-revalidate"},
     )
-
-
-def _page(root, name: str) -> HTMLResponse:
-    """An HTML page, with its own assets pinned to this build."""
-    path = _resolve(root, name)
-    sha = _build()
-    pinned = r'\1="\2?v=' + sha + '"'
-    html = _ASSET_REF.sub(pinned, path.read_text(encoding="utf-8"))
-    return HTMLResponse(html, headers={"cache-control": "no-store, must-revalidate"})
-
-
-def _mock_page(name: str) -> FileResponse:
-    return _static(MOCK_DIR, name)
 
 
 @app.get("/", include_in_schema=False)
 def home():
-    return RedirectResponse("/app/", status_code=308)
+    return _console()
 
 
 @app.get("/console", include_in_schema=False)
 def console():
-    return _page(CONSOLE.parent, CONSOLE.name)
-
-
-@app.get("/app", include_in_schema=False)
-def app_bare():
-    return RedirectResponse("/app/", status_code=308)
-
-
-@app.get("/app/", include_in_schema=False)
-def app_index():
-    return _static(APP_DIR, "index.html")
-
-
-@app.get("/app/{name}", include_in_schema=False)
-def app_asset(name: str, v: str | None = None):
-    return _static(APP_DIR, name, version=v)
+    return _console()
 
 
 @app.get("/desk/events", include_in_schema=False)
 def desk_events():
     """What the desk opens on: every known event, and the case on it."""
-    return _live({"events": desk.events(runtime().past())})
+    events = desk.events(runtime().past())
+    body: dict = {"events": events}
+    stamped = [e.get("updated_at") for e in events if e.get("run_id") and e.get("updated_at")]
+    if stamped:
+        # The list points at runs computed earlier. The catalog itself is not a live answer.
+        body["served_from"] = labelling.CACHE
+        body["cached_at"] = stamped[0]
+    return _live(body)
 
 
 @app.get("/desk/events/{event_id}", include_in_schema=False)
@@ -207,7 +146,10 @@ def desk_event(event_id: str):
         except KeyError as e:
             raise HTTPException(400, str(e).strip('"')) from e
     run = labelling.labelled(run)
-    return _live({"run": run, "figures": desk.summarise(run), "released": desk.is_released(run)})
+    return _with_run_label(
+        {"run": run, "figures": desk.summarise(run), "released": desk.is_released(run)},
+        run,
+    )
 
 
 _TIMELINE: dict[str, dict] = {}
@@ -222,7 +164,9 @@ def desk_timeline(event_id: str):
     reading that stops rather than as a gap nobody mentions.
     """
     if event_id in _TIMELINE:
-        return _live(dict(_TIMELINE[event_id]))
+        cached = dict(_TIMELINE[event_id])
+        cached["served_from"] = labelling.CACHE
+        return labelling.labelled(cached)
     try:
         ev = spec(event_id)
     except KeyError as e:
@@ -242,9 +186,13 @@ def desk_timeline(event_id: str):
         "name": ev.name,
         "footprint_published_utc": ev.footprint_published_utc,
         "moments": points,
+        # Each moment is a replay of the event. The first response is that
+        # replay; a later read of this dict is cache (see the branch above).
+        "served_from": labelling.REPLAY,
+        "cached_at": now_utc(),
     }
     _TIMELINE[event_id] = body
-    return _live(dict(body))
+    return labelling.labelled(dict(body))
 
 
 @app.get("/desk/dispatch-target", include_in_schema=False)
@@ -263,7 +211,8 @@ def _released_run(run_id: str) -> dict:
 @app.get("/runs/{run_id}/outbound", include_in_schema=False)
 def run_outbound(run_id: str):
     """The messages, rendered. This endpoint does not send them."""
-    return _live({"messages": desk.outbound(_released_run(run_id))})
+    run = _released_run(run_id)
+    return _with_run_label({"messages": desk.outbound(run)}, run)
 
 
 @app.get("/runs/{run_id}/exposure.csv", include_in_schema=False)
@@ -289,7 +238,8 @@ def run_record(run_id: str):
 @app.post("/runs/{run_id}/dispatch", include_in_schema=False)
 def run_dispatch(run_id: str):
     """Post the decision to the nominated endpoint. Off unless one is set."""
-    return _live(desk.dispatch(_released_run(run_id)))
+    run = _released_run(run_id)
+    return _with_run_label(desk.dispatch(run), run)
 
 
 @app.get("/readiness", include_in_schema=False)
@@ -302,28 +252,6 @@ def readiness(run_id: str | None = None):
     run = _stored(run_id) if run_id else {}
     routes = {getattr(r, "path", "") for r in app.routes}
     return _live(readiness_report(run, rt.deps, routes))
-
-
-@app.get("/mock", include_in_schema=False)
-def mock():
-    # The pages link to each other and to data.js by relative path, so the
-    # browser needs the trailing slash or they resolve against the site root.
-    return RedirectResponse("/mock/", status_code=308)
-
-
-@app.get("/mock/", include_in_schema=False)
-def mock_index():
-    return _mock_page("index.html")
-
-
-@app.get("/mock/analyst", include_in_schema=False)
-def mock_analyst():
-    return _mock_page("analyst.html")
-
-
-@app.get("/mock/{name}", include_in_schema=False)
-def mock_asset(name: str, v: str | None = None):
-    return _static(MOCK_DIR, name, version=v)
 
 
 def _dep_name(rt: Runtime, attr: str) -> str:
@@ -347,9 +275,13 @@ def health():
 def ready():
     rt = runtime()
     try:
-        rt.deps.zetaris.run_sql("SELECT 1")
+        probe = rt.deps.zetaris.run_sql("SELECT 1")
     except Exception as e:
         raise HTTPException(503, f"zetaris unreachable: {type(e).__name__}")
+    # run_sql reports a failed read on Evidence.error. It does not raise.
+    if probe is None or getattr(probe, "error", None):
+        detail = getattr(probe, "error", None) or "no result"
+        raise HTTPException(503, f"zetaris unreachable: {detail}")
     return _live(
         {
             "status": "ready",
@@ -376,7 +308,7 @@ def config():
                 "FF_HMEM": settings.ff_hmem,
                 "FF_RAG_DOCS": settings.ff_rag_docs,
             },
-            "lanes": {"fast": settings.model_fast, "deep": settings.model_deep},
+            "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "schema": settings.schema,
             "checkpointer": settings.checkpointer,
             "skeptic_max_rounds": settings.skeptic_max_rounds,

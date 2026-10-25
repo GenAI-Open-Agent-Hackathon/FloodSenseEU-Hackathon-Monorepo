@@ -71,8 +71,40 @@ def _view_of(sql: str) -> str:
     return m.group(1) if m else "?"
 
 
+# Bound clocks only. A replay timestamp is normalised before it gets here,
+# and a date is the YYYY-MM-DD prefix of one. Anything else is refused.
+_BOUND = re.compile(r"^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|\d{4}-\d{2}-\d{2})$")
+
+
+def inline_bound(sql: str, params: tuple[str, ...] | list[str] | None) -> tuple[str, tuple[str, ...]]:
+    """Split a statement into the placeholder form and a rendered copy.
+
+    SQLite runs the placeholder form with the tuple. The live SQL API has no
+    parameter channel, so it receives the rendered copy. Rendering quotes only
+    values that already match the clock or date pattern, so a replay clock
+    cannot change the statement.
+    """
+    bound = tuple(params or ())
+    if not bound:
+        if "?" in sql:
+            raise ValueError("sql has placeholders but no parameters")
+        return sql, ()
+    for value in bound:
+        if not isinstance(value, str) or not _BOUND.fullmatch(value):
+            raise ValueError("bound parameters must be normalised UTC instants or dates")
+    parts = sql.split("?")
+    if len(parts) != len(bound) + 1:
+        raise ValueError("placeholder count does not match parameters")
+    rendered: list[str] = []
+    for part, value in zip(parts, bound):
+        rendered.append(part)
+        rendered.append("'" + value + "'")
+    rendered.append(parts[-1])
+    return "".join(rendered), bound
+
+
 class Zetaris(Protocol):
-    def run_sql(self, sql: str) -> Evidence: ...
+    def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence: ...
 
 
 class ZetarisClient:
@@ -93,9 +125,23 @@ class ZetarisClient:
         self._token = r.json()["idToken"]
         return self._token
 
-    def run_sql(self, sql: str) -> Evidence:
+    def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence:
+        # A write is refused here, as an exception, before any request goes out.
         sql = check_sql(sql)
         qid = str(uuid.uuid4())
+        try:
+            sql, _bound = inline_bound(sql, params)
+            sql = check_sql(sql)
+        except ValueError as e:
+            return Evidence(
+                query_id=qid,
+                view=_view_of(sql),
+                sql=sql,
+                rows_sample=[],
+                row_count=0,
+                executed_at_utc=now_utc(),
+                error=str(e)[:300],
+            )
         body = {
             "queryId": qid,
             "sql": sql,
@@ -292,22 +338,26 @@ class FakeZetaris:
                 )
         self._conn.commit()
 
-    def run_sql(self, sql: str) -> Evidence:
-        sql = check_sql(sql)
+    def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence:
+        # A write is refused here, as an exception. A bad clock comes back as
+        # Evidence.error so one predicate cannot take down the whole run.
+        placeholder = check_sql(sql)
         qid = str(uuid.uuid4())
         try:
+            rendered, bound = inline_bound(placeholder, params)
+            check_sql(rendered)
             with self._lock:
-                rows = [dict(r) for r in self._conn.execute(sql).fetchall()]
+                rows = [dict(r) for r in self._conn.execute(placeholder, bound).fetchall()]
             return Evidence(
                 query_id=qid,
-                view=_view_of(sql),
-                sql=sql,
+                view=_view_of(rendered),
+                sql=rendered,
                 rows_sample=rows[:20],
                 row_count=len(rows),
                 executed_at_utc=now_utc(),
                 source="zetaris-fake",
             )
-        except sqlite3.Error as e:
+        except (sqlite3.Error, ValueError) as e:
             return Evidence(
                 query_id=qid,
                 view=_view_of(sql),

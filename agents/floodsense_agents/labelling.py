@@ -21,6 +21,27 @@ REPLAY = "replay"
 KINDS = (LIVE, CACHE, REPLAY)
 
 
+def computation_label(replay_ts: str | None, *, live: bool) -> tuple[str, str | None]:
+    """How a run that was just computed should be labelled.
+
+    ``live`` is true only for a fresh read of the live schema through live
+    Zetaris, with no replay clock. Fake rows, the seed schema, and a replay
+    clock are a replay: the answer was not read from the world just now.
+    ``cached_at`` is the replay clock when there is one, otherwise the time
+    the answer was produced. A later re-read of the same run is cache.
+    """
+    if live and not replay_ts:
+        return LIVE, None
+    # Imported here so labelling stays usable without pulling the SQL client
+    # in at module import for the pure label() helpers.
+    from floodsense_agents.models import normalize_utc
+    from floodsense_agents.zetaris import now_utc
+
+    if replay_ts:
+        return REPLAY, normalize_utc(replay_ts)
+    return REPLAY, now_utc()
+
+
 def _hhmm(ts: str | None) -> str | None:
     """14:32 out of 2026-10-24T14:32:51Z. None when there is no usable stamp."""
     if not ts or len(ts) < 16 or ts[10] not in ("T", " "):

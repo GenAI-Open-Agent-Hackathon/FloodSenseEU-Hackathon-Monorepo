@@ -15,7 +15,6 @@ os.environ.setdefault("CHECKPOINTER", "memory")
 os.environ.setdefault("ZETARIS_MODE", "fake")
 os.environ.setdefault("LLM_MODE", "fake")
 
-from fastapi import HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 
@@ -50,31 +49,13 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("text/html", r.headers["content-type"])
         self.assertIn("FloodSense EU", r.text)
+        self.assertIn("Secondary operator page", r.text)
+        self.assertIn("no-store", r.headers["cache-control"])
+        self.assertEqual(self.c.get("/console").status_code, 200)
 
-    def test_mock_serves_both_views_and_their_data(self) -> None:
-        bare = self.c.get("/mock", follow_redirects=False)
-        self.assertEqual(bare.status_code, 308)
-        self.assertEqual(bare.headers["location"], "/mock/")
-
-        plain = self.c.get("/mock/")
-        self.assertEqual(plain.status_code, 200)
-        self.assertIn("text/html", plain.headers["content-type"])
-        self.assertIn("Analyst view", plain.text)
-
-        analyst = self.c.get("/mock/analyst")
-        self.assertEqual(analyst.status_code, 200)
-        self.assertIn("Plain view", analyst.text)
-
-        data = self.c.get("/mock/data.js")
-        self.assertEqual(data.status_code, 200)
-        self.assertIn("javascript", data.headers["content-type"])
-
-    def test_mock_serves_nothing_outside_its_own_folder(self) -> None:
-        self.assertEqual(self.c.get("/mock/console.html").status_code, 404)
-        for name in ("..", "../console.html", "..\\console.html"):
-            with self.assertRaises(HTTPException) as caught:
-                service._mock_page(name)
-            self.assertEqual(caught.exception.status_code, 404)
+    def test_the_static_desk_is_not_shipped(self) -> None:
+        for path in ("/app", "/app/", "/app/app.js", "/mock", "/mock/", "/mock/analyst", "/mock/data.js"):
+            self.assertEqual(self.c.get(path).status_code, 404, path)
 
     def test_ready_and_version(self) -> None:
         ready = self.c.get("/ready").json()
@@ -83,6 +64,25 @@ class ServiceTest(unittest.TestCase):
         ver = self.c.get("/version").json()
         self.assertIn("sha", ver)
         self.assertIn("built", ver)
+
+    def test_ready_is_503_when_the_probe_returns_an_error(self) -> None:
+        from floodsense_agents.models import Evidence
+        from floodsense_agents.zetaris import now_utc
+
+        class Down:
+            def run_sql(self, sql, params=None):
+                return Evidence(
+                    query_id="probe",
+                    view="?",
+                    sql=sql,
+                    executed_at_utc=now_utc(),
+                    error="connection reset by peer",
+                )
+
+        service.runtime().deps.zetaris = Down()
+        response = self.c.get("/ready")
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("connection reset", response.json()["detail"])
 
     def test_run_review_approve(self) -> None:
         r = self.c.post(
@@ -97,8 +97,8 @@ class ServiceTest(unittest.TestCase):
         run = r.json()
         self.assertEqual(run["status"], "awaiting_approval")
         self.assertEqual(run["approval"]["status"], "awaiting")
-        self.assertEqual(run["served_from"], "live")
-        self.assertIsNone(run["cached_at"])
+        self.assertEqual(run["served_from"], "replay")
+        self.assertIsNotNone(run["cached_at"])
         for k in (
             "run_id",
             "thread_id",

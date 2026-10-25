@@ -48,7 +48,9 @@ class Settings:
     # Feature flags (defaults from agents/.env.example; a slipped increment stays behind its flag)
     ff_skeptic: bool = _flag("FF_SKEPTIC", True)
     ff_hitl: bool = _flag("FF_HITL", True)
-    ff_judge: bool = _flag("FF_JUDGE", False)
+    # On, matching agents/.env.example. A process with the variable unset
+    # follows that file; tests that need the judge off pass ff_judge=False.
+    ff_judge: bool = _flag("FF_JUDGE", True)
     ff_hmem: bool = _flag("FF_HMEM", False)
     ff_rag_docs: bool = _flag("FF_RAG_DOCS", False)
 
@@ -77,6 +79,26 @@ class Settings:
     @property
     def schema(self) -> str:
         return "floodsense" if self.live_data else "floodsense_seed"
+
+    def lane(self, name: str) -> str:
+        """The routing id for one lane.
+
+        This is the only place the app chooses ``meterless/fast`` or
+        ``meterless/deep``. The map from those ids to the model that answers
+        today lives in ``docs/architecture/c4.md``. A value set in the
+        environment after import is used; otherwise the field, which tests
+        can assign.
+        """
+        if name == "fast":
+            env_name, field, default = "MODEL_FAST", self.model_fast, "meterless/fast"
+        elif name == "deep":
+            env_name, field, default = "MODEL_DEEP", self.model_deep, "meterless/deep"
+        else:
+            raise KeyError(name)
+        raw = os.environ.get(env_name)
+        if raw:
+            return raw
+        return field or default
 
 
 settings = Settings()

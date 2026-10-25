@@ -22,10 +22,12 @@ from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 log = logging.getLogger("floodsense.skeptic")
 
 
-def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str]]:
+def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
     """(name, sql): each query must return >= 1 row for the check to pass."""
     s, ev = settings.schema, state["event"]
     t0, t1 = window(state)
+    clock = (t0, t1)
+    day = (t0[:10], last_complete_day(t1))
     rain_pts = ", ".join(f"'{p}'" for p in ev["rain_points"])
     river_pts = ", ".join(f"'{p}'" for p in ev["river_points"])
     if h.link == "rain->catchment":
@@ -33,22 +35,25 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str]]:
             (
                 DEFINITIONS["extreme_rain"].wording,
                 f"SELECT point_id, MAX(rain_mm) AS max_mm FROM {s}.hazard_timeline WHERE point_id "
-                f"IN ({rain_pts}) AND ts_utc BETWEEN '{t0}' AND '{t1}' GROUP BY point_id HAVING "
+                f"IN ({rain_pts}) AND ts_utc BETWEEN ? AND ? GROUP BY point_id HAVING "
                 f"MAX(rain_mm) >= {DEFINITIONS['extreme_rain'].value}",
+                clock,
             ),
             (
                 "rain lasted more than one hour",
                 f"SELECT point_id, COUNT(*) AS hours FROM {s}.hazard_timeline WHERE point_id IN "
-                f"({rain_pts}) AND rain_mm > 0 AND ts_utc BETWEEN '{t0}' AND '{t1}' GROUP BY "
+                f"({rain_pts}) AND rain_mm > 0 AND ts_utc BETWEEN ? AND ? GROUP BY "
                 f"point_id HAVING COUNT(*) >= 2",
+                clock,
             ),
             (
                 "rain started before the discharge peak",
                 f"SELECT MIN(r.ts_utc) AS first_rain, MAX(d.ts_utc) AS peak FROM "
                 f"{s}.hazard_timeline r, {s}.hazard_timeline d WHERE r.point_id IN ({rain_pts}) "
                 f"AND r.rain_mm > 0 AND d.point_id IN ({river_pts}) AND d.discharge_m3s IS NOT "
-                f"NULL AND r.ts_utc BETWEEN '{t0}' AND '{t1}' AND d.ts_utc BETWEEN '{t0}' AND "
-                f"'{t1}' HAVING MIN(r.ts_utc) < MAX(d.ts_utc)",
+                f"NULL AND r.ts_utc BETWEEN ? AND ? AND d.ts_utc BETWEEN ? AND ? "
+                f"HAVING MIN(r.ts_utc) < MAX(d.ts_utc)",
+                clock + clock,
             ),
         ]
     if h.link == "catchment->river":
@@ -57,20 +62,23 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str]]:
                 DEFINITIONS["extreme_discharge_rise"].wording,
                 f"SELECT MAX(discharge_m3s) AS mx, MIN(discharge_m3s) AS mn FROM "
                 f"{s}.hazard_timeline WHERE point_id IN ({river_pts}) AND discharge_m3s IS NOT "
-                f"NULL AND ts_utc BETWEEN '{t0}' AND '{t1}' HAVING MAX(discharge_m3s) >= 10 * "
+                f"NULL AND ts_utc BETWEEN ? AND ? HAVING MAX(discharge_m3s) >= 10 * "
                 f"MIN(discharge_m3s)",
+                clock,
             ),
             (
                 "daily discharge confirms the rise",
                 f"SELECT MAX(discharge_m3s) AS mx, MIN(discharge_m3s) AS mn FROM "
-                f"{s}.discharge_daily WHERE point_id IN ({river_pts}) AND date BETWEEN '{t0[:10]}' "
-                f"AND '{last_complete_day(t1)}' HAVING MAX(discharge_m3s) >= 10 * MIN(discharge_m3s)",
+                f"{s}.discharge_daily WHERE point_id IN ({river_pts}) AND date BETWEEN ? AND ? "
+                f"HAVING MAX(discharge_m3s) >= 10 * MIN(discharge_m3s)",
+                day,
             ),
             (
                 "a warning was issued for the river point",
                 f"SELECT point_id, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline WHERE "
                 f"point_id IN ({river_pts}) AND warning_level IS NOT NULL AND ts_utc BETWEEN "
-                f"'{t0}' AND '{t1}' GROUP BY point_id",
+                f"? AND ? GROUP BY point_id",
+                clock,
             ),
         ]
     if h.link == "river->site":
@@ -79,16 +87,19 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str]]:
                 "the footprint contains insured sites",
                 f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 1 HAVING "
                 f"COUNT(*) >= 1",
+                (),
             ),
             (
                 "the footprint does not swallow every site (it is a footprint, not a region)",
                 f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 0 HAVING "
                 f"COUNT(*) >= 1",
+                (),
             ),
             (
                 "sites in the footprint carry coordinates",
                 f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 1 AND lat IS "
                 f"NOT NULL AND lon IS NOT NULL HAVING COUNT(*) >= 1",
+                (),
             ),
         ]
     return []
@@ -119,9 +130,9 @@ def make(deps: Deps):
             ok, why = _generic_ok(h, state)
             rounds, qids, notes = 0, [], []
             if ok:
-                for name, sql in _checks_for(h, state)[: settings.skeptic_max_rounds]:
+                for name, sql, params in _checks_for(h, state)[: settings.skeptic_max_rounds]:
                     rounds += 1
-                    e = deps.zetaris.run_sql(sql)
+                    e = deps.zetaris.run_sql(sql, params or None)
                     new_ev.append(e)
                     qids.append(e.query_id)
                     passed = e.row_count >= 1 and not e.error
