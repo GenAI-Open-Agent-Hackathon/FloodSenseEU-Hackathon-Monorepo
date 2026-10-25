@@ -382,7 +382,14 @@ class NightshiftCheckTest(unittest.TestCase):
         self.assertIn("## Nightshift routing probe", text)
         self.assertIn(f"| `meterless/fast` | yes | `{DEEP}` 2/3, `{FAST}` 1/3 |", text)
         self.assertIn(f"| `meterless/text.fast` | no | `{FAST}` 3/3 |", text)
-        self.assertIn("| `meterless/vision.fast` | no | (HTTP 400) 1/1 | - |", text)
+        self.assertIn(
+            "| `meterless/vision.fast` | no | (HTTP 400) 1/1; 2 rounds skipped | - |",
+            text,
+        )
+        self.assertIn("### Rounds", text)
+        self.assertIn("### Skipped", text)
+        self.assertIn("`meterless/local`", text)
+        self.assertIn("`meterless/embed`", text)
         # One upstream 502 neither stops the rounds nor disqualifies the route.
         self.assertIn(f"| `meterless/deep` | yes | `{DEEP}` 2/3, (HTTP 502) 1/3 |", text)
         self.assertIn("| `meterless/judge` | no |", text)
@@ -410,6 +417,11 @@ class NightshiftCheckTest(unittest.TestCase):
         self.server.scenario["token"] = "the-right-one"
         code, text = self.run_check("--probe")
         self.assertEqual(code, 1)
+        self.assertIn("## Nightshift routing probe", text)
+        self.assertIn("### Rounds", text)
+        self.assertIn("Skipped. /models gave no list, so no rounds were sent.", text)
+        self.assertIn("### Skipped", text)
+        self.assertIn("Not evaluated. The probe stopped before choosing ids.", text)
         self.assertIn("**Result: probe not run**", text)
         self.assertEqual(self.chats(), [])
         self.assertNotIn(TOKEN, text)
