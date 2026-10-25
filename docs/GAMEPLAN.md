@@ -168,11 +168,11 @@ Verify output should match on every machine. That is the definition of "in sync"
 
 ## Running our app
 
-`python tasks.py up` runs `docker compose -p floodsense-app up -d --build` in this repo (Windows: `py tasks.py up`). The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. The task script also pins `--project-directory` and `-f compose.yaml`, so `COMPOSE_FILE` cannot select another compose file. It starts the API, the agent runtime, and the UI. pgvector and Redis start with `python tasks.py up-all` (`--profile rag` and `--profile cache`). No Make, and no `&&`, so PowerShell 5.x can run it.
+`python tasks.py up` runs `docker compose -p floodsense-app up -d --build` in this repo (Windows: `py tasks.py up`). The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. The task script also pins `--project-directory` and `-f compose.yaml`, so `COMPOSE_FILE` cannot select another compose file. It starts the API, the agent runtime, the engines sidecar, and the UI. pgvector and Redis start with `python tasks.py up-all` (`--profile rag` and `--profile cache`). No Make, and no `&&`, so PowerShell 5.x can run it.
 
 The stack reaches Zetaris and Nightshift through the host, as a normal client. Inside a container, `127.0.0.1` is the container itself, so URLs use `host.docker.internal`. With Docker Engine on WSL, `host-gateway` may not reach a service bound only to `127.0.0.1`. Ayush (Nightshift) and Urvashi (Zetaris) check that on Thursday. Fallback: run the API and agents on the host, and keep UI, pgvector, and Redis in compose. The `.env` URLs make that a configuration change.
 
-Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is not in this compose file yet. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
+Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `8300` (engines sidecar), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is in this compose file. Agents in compose use `ENGINES_URL=http://engines:8300`. On the host that URL is `http://127.0.0.1:8300`. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
 
 `python tasks.py down` stops our project only. It does not remove named volumes. It does not stop Zetaris. It still runs when `pgvector/.env` was never created.
 

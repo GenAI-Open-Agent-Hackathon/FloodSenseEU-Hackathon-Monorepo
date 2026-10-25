@@ -38,8 +38,10 @@ composed fast/deep variants and the wanted model names) --probe-rounds times
 each, shows which model answered, and suggests MODEL_FAST and MODEL_DEEP
 values that reached the wanted model every time. It skips local, fusion,
 cluster, embedding and media modes, so it never starts a local model load.
-It also lists any routing details Nightshift returns beyond the model name
-(meterless-* headers and extra reply fields), such as which lanes raced.
+The report always has a Rounds heading and a Skipped heading, including when
+/models gives no list or a round is not sent. It also lists any routing
+details Nightshift returns beyond the model name (meterless-* headers and
+extra reply fields), such as which lanes raced.
 
 Prints a markdown summary that is safe to paste into a PR. The runtime token
 is never printed: it is scrubbed from every server reply as it arrives,
@@ -594,32 +596,51 @@ class Probe:
         enough = len(replies) * 2 >= len(self.answers)
         return bool(replies) and enough and all(a == want for a in replies)
 
-    def summary(self) -> str:
+    def summary(self, rounds: int) -> str:
         n = len(self.answers)
         parts = [
             f"{a} {c}/{n}" if a.startswith("(") else f"`{a}` {c}/{n}"
             for a, c in Counter(self.answers).most_common()
         ]
-        return ", ".join(parts) or "-"
+        text = ", ".join(parts)
+        if not text:
+            return "skipped"
+        left = rounds - n
+        if left > 0:
+            text += f"; {left} round{'s' if left != 1 else ''} skipped"
+        return text
+
+
+def probe_plan(cfg: Config, ids: list[str]) -> tuple[list[str], list[str]]:
+    """Ids to send, and ids left out so a local model load never starts."""
+    listed_modes = [m for m in ids if m.startswith(ROUTING_PREFIX)]
+    pool = [*PROBE_SEEDS, cfg.model_fast, cfg.model_deep, cfg.want_fast, cfg.want_deep]
+    pool += listed_modes
+    ordered = [m for m in dict.fromkeys(pool) if m]
+    skipped = [m for m in ordered if PROBE_SKIP.search(m)]
+    keep = [m for m in ordered if not PROBE_SKIP.search(m)]
+    return keep[:PROBE_MAX_IDS], skipped
 
 
 def probe_candidates(cfg: Config, ids: list[str]) -> list[str]:
     """Seeds, then the configured ids, the wanted model names and other listed modes."""
-    listed_modes = [m for m in ids if m.startswith(ROUTING_PREFIX)]
-    pool = [*PROBE_SEEDS, cfg.model_fast, cfg.model_deep, cfg.want_fast, cfg.want_deep]
-    pool += listed_modes
-    keep = [m for m in dict.fromkeys(pool) if m and not PROBE_SKIP.search(m)]
-    return keep[:PROBE_MAX_IDS]
+    return probe_plan(cfg, ids)[0]
 
 
-def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
+def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe], list[str], bool]:
+    """Models check, per-id probes, skipped ids, and whether id selection ran.
+
+    The last flag is false when /models gave no list. The skipped list is then
+    empty because the probe stopped before choosing ids.
+    """
     cfg = client.cfg
     models, ids, reply = check_models(client)
     if reply.status != 200:
-        return models, []
+        return models, [], [], False
+    keep, skipped = probe_plan(cfg, ids)
     timeout = min(cfg.timeout_s, PROBE_TIMEOUT_CAP_S)
     probes: list[Probe] = []
-    for model in probe_candidates(cfg, ids):
+    for model in keep:
         probe = Probe(model, model in ids)
         for _ in range(rounds):
             got, _json_mode = send_chat(client, model, "probe", timeout=timeout)
@@ -635,7 +656,7 @@ def run_probe(client: Client, *, rounds: int) -> tuple[Check, list[Probe]]:
                 # A 5xx is usually the upstream provider; try again.
                 break
         probes.append(probe)
-    return models, probes
+    return models, probes, skipped, True
 
 
 def routing_details(reply: Reply) -> dict[str, str]:
@@ -670,7 +691,15 @@ def suggest(probes: list[Probe], want: str, lane: str) -> str:
 
 
 def render_probe(
-    cfg: Config, models: Check, probes: list[Probe], *, rounds: int, now: datetime, env_name: str
+    cfg: Config,
+    models: Check,
+    probes: list[Probe],
+    *,
+    rounds: int,
+    now: datetime,
+    env_name: str,
+    skipped: list[str],
+    chose_ids: bool,
 ) -> tuple[str, bool]:
     lines = [
         "## Nightshift routing probe",
@@ -681,20 +710,49 @@ def render_probe(
         f"- Each id sent up to {rounds} times with the agents client's request body",
         f"- Token: read from {env_name}, not shown",
         "",
+        "### Rounds",
+        "",
     ]
     if not probes:
+        if chose_ids:
+            reason = "Skipped. Every candidate id was left out, so no rounds were sent."
+        else:
+            reason = "Skipped. /models gave no list, so no rounds were sent."
         lines += [
+            reason,
+            "",
             "| Check | Result | Detail |",
             "|---|---|---|",
             f"| {models.name} | {models.status} | {models.detail.replace('|', '/')} |",
             "",
-            "**Result: probe not run** (/models gave no list)",
         ]
+    else:
+        lines += ["| Model id sent | Listed | Answered by | Median time |", "|---|---|---|---|"]
+        for p in probes:
+            median = f"{statistics.median(p.seconds):.1f} s" if p.seconds else "-"
+            answered = p.summary(rounds).replace("|", "/")
+            lines.append(
+                f"| `{p.model}` | {'yes' if p.listed else 'no'} | {answered} | {median} |"
+            )
+        lines.append("")
+    lines += ["### Skipped", ""]
+    if not chose_ids:
+        lines += ["Not evaluated. The probe stopped before choosing ids.", ""]
+    elif skipped:
+        listed = ", ".join(f"`{m}`" for m in skipped)
+        lines += [
+            "Not sent, so a local model is never loaded "
+            f"(local, fusion, cluster, embedding, or media): {listed}.",
+            "",
+        ]
+    else:
+        lines += ["None. No candidate was a local, fusion, cluster, embedding, or media mode.", ""]
+    if not probes:
+        if chose_ids:
+            lines.append("**Result: probe not run** (every candidate id was skipped)")
+        else:
+            lines.append("**Result: probe not run** (/models gave no list)")
         return "\n".join(lines), False
-    lines += ["| Model id sent | Listed | Answered by | Median time |", "|---|---|---|---|"]
-    for p in probes:
-        median = f"{statistics.median(p.seconds):.1f} s" if p.seconds else "-"
-        lines.append(f"| `{p.model}` | {'yes' if p.listed else 'no'} | {p.summary()} | {median} |")
     picks, gaps = [], []
     for lane, want in (("fast", cfg.want_fast), ("deep", cfg.want_deep)):
         if not want:
@@ -839,8 +897,17 @@ def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = N
                 f"using {rounds}.",
                 file=sys.stderr,
             )
-        models, probes = run_probe(Client(cfg), rounds=rounds)
-        text, ok = render_probe(cfg, models, probes, rounds=rounds, now=now, env_name=env_path.name)
+        models, probes, skipped, chose_ids = run_probe(Client(cfg), rounds=rounds)
+        text, ok = render_probe(
+            cfg,
+            models,
+            probes,
+            rounds=rounds,
+            now=now,
+            env_name=env_path.name,
+            skipped=skipped,
+            chose_ids=chose_ids,
+        )
     else:
         checks = run_checks(Client(cfg), embeddings=not args.no_embeddings)
         text, ok = render(cfg, checks, now=now, env_name=env_path.name), verdict(checks)[0]

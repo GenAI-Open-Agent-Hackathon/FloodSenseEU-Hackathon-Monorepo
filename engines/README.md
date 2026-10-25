@@ -9,7 +9,7 @@ The engines are the Meterless reference implementations, copied unchanged into `
 
 ## Run it
 
-Needs **Node.js 22.18 or newer**. It runs the TypeScript directly, so there is nothing to install or build. CI and the other docs use Node 20, which cannot run this; see "Not done yet".
+Needs **Node.js 22.18 or newer**. It runs the TypeScript directly, so there is nothing to install or build. The lint and UI CI job still uses Node 20, which cannot run this service. `python tasks.py engines-test` and the `engines` CI job use Node 22.18 or newer.
 
 ```
 cd engines
@@ -28,15 +28,16 @@ Defaults work as they are. `python tasks.py init-env` copies `.env.example` to `
 | `ENGINES_PORT` | `8300` | Port. Anything that is not a port number stops the service at start. |
 | `ENGINES_DATA_DIR` | `engines/.data` | Persistence directory. `memory` keeps nothing on disk. |
 
-The agents find the service through **`ENGINES_URL`** in their own env:
+The agents find the service through **`ENGINES_URL`**:
 
 | Agents run | `ENGINES_URL` |
 | --- | --- |
 | On the host | `http://127.0.0.1:8300` |
-| In compose, today | `http://host.docker.internal:8300` |
-| In compose, once engines is a service | `http://engines:8300` |
+| In compose (the agents service) | `http://engines:8300` |
 
-The Python client that reads `ENGINES_URL` lands with the agents after PR #4, and adds the key to `agents/.env.example` then.
+`compose.yaml` sets `ENGINES_URL=http://engines:8300` on the agents service. That value wins over `agents/.env`. The published host port is `127.0.0.1:${FLOODSENSE_ENGINES_PORT:-8300}`. Inside the container the process binds `0.0.0.0` (`ENGINES_HOST`), which compose sets so a laptop `engines/.env` of `127.0.0.1` cannot hide the port from the agents service. The host port stays on loopback.
+
+The Python client that reads `ENGINES_URL` lands with the agents. The key is commented in `agents/.env.example` until that client exists.
 
 ## Check it
 
@@ -92,6 +93,5 @@ JSON in, JSON out. Bad input is a 400 with `{ "error": ... }`, and a write is ch
 
 ## Not done yet
 
-- A compose service, so the agents container reaches it as `http://engines:8300`.
-- A `tasks.py` step and a CI job for `npm test` and `npm run conformance`. That job needs `actions/setup-node` with Node 22.18 or newer; the current CI job uses Node 20.
 - The reference embedder is a deterministic hash, not semantic. Swapping in real embeddings is part of the semantic cache work.
+- The lint and UI CI job stays on Node 20. Engines tests are a separate job (`python tasks.py engines-test` on Node 22.18 or newer). Node 20 still cannot run `npm start`, `npm test`, or `npm run conformance`.
