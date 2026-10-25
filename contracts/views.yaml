@@ -17,6 +17,13 @@ views:
     - {name: rain_mm, type: double}
     - {name: discharge_m3s, type: double}
     - {name: warning_level, type: string}
+  # min_rows: live 1152 (8 points x 144 hours, rolling), seed 576. Same columns as hazard_timeline.
+  hazard_now:
+    - {name: point_id, type: string}
+    - {name: ts_utc, type: timestamp}
+    - {name: rain_mm, type: double}
+    - {name: discharge_m3s, type: double}
+    - {name: warning_level, type: string}
   # min_rows: 359 (live and seed). synthetic is the portfolio flag (yes). Not a live book.
   # Migration 018 is the column list verify checks once it is applied. 014 and 016 create the view first.
   exposure_join:
