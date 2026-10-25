@@ -31,7 +31,7 @@ class Settings:
         "ZETARIS_MODE", "auto"
     )  # auto | live | fake   (fake = in-memory seed views, no network)
     zetaris_row_limit: int = int(_env("ZETARIS_ROW_LIMIT", "5000"))
-    # Independent SELECTs in one node. 8 covers Watchers (4), Investigator (5),
+    # Independent SELECTs in one node. 8 covers Watchers (5), Investigator (5),
     # and Exposure (3). 1 runs that fan-out one statement at a time.
     zetaris_max_parallel: int = int(_env("ZETARIS_MAX_PARALLEL", "8"))
     live_data: bool = _flag("FF_LIVE_DATA", False)  # floodsense.* instead of floodsense_seed.*

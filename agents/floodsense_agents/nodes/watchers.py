@@ -1,8 +1,9 @@
-"""Watchers. Deterministic SQL over hazard_timeline.
+"""Watchers. Deterministic SQL over the contract views.
 
 Scans the event window, cut at replay_ts, so the Investigator starts from
-anomalies that each carry a query_id. Also loads the provenance view once
-for layer (b) citations. No model call.
+anomalies that each carry a query_id. Also reads gauge_levels for that
+window and loads the provenance view once for layer (b) citations. Gauge
+rows stay evidence. They are not a new anomaly kind. No model call.
 """
 
 from __future__ import annotations
@@ -75,8 +76,13 @@ def make(deps: Deps):
                 f"AND warning_level IS NOT NULL GROUP BY point_id, warning_level ORDER BY first_utc",
                 clock,
             ),
+            "gauges": (
+                f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
+                f"WHERE ts_utc BETWEEN ? AND ? ORDER BY station, ts_utc",
+                clock,
+            ),
         }
-        # Hazard queries, in dict order, then provenance. None of them depend
+        # View queries, in dict order, then provenance. None of them depend
         # on another, so they run together. Evidence order follows this list.
         ordered = [
             *q.items(),
@@ -139,7 +145,7 @@ def make(deps: Deps):
             "trace": trace(
                 state,
                 "watchers",
-                f"{len(items)} anomalies in window {t0[:16]}..{t1[:16]} ({len(evid)} hazard "
+                f"{len(items)} anomalies in window {t0[:16]}..{t1[:16]} ({len(evid)} view "
                 f"queries)",
                 lane="sql",
                 started=t,

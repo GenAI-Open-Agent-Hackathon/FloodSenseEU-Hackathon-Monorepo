@@ -9,11 +9,14 @@ This script copies `<table>.csv` to:
 
     /home/zetaris/customer-data/shared/floodsense_seed/<table>/<table>.csv
 
-Run it on a cold laptop after Zetaris is up and before `zetaris-sync`. It also
-creates header-only files under floodsense_live/<table> for every 033 table except
-DWD, so migration 033 can CREATE without an AEMET pull and without storing DWD.
-Those files are placeholders, not observations. Default container is
-`zetaris-driver-1`. If `docker ps` shows another name, pass it.
+Run it on a cold laptop after Zetaris is up and before `zetaris-sync`. Staging
+comes before registration. Migrations 010, 033, and 036 infer FILESTORE columns
+at CREATE time. It also creates header-only files under floodsense_live/<table>
+for every live table except DWD, so those creates do not need an AEMET pull and
+do not store DWD. Those files are placeholders, not observations. 036 registers
+new table names on these paths because 033's names were created before the files
+existed and cannot be dropped. Default container is `zetaris-driver-1`. If
+`docker ps` shows another name, pass it.
 
     cp ingestion/.env.example ingestion/.env   # then set ZETARIS_API_KEY only
     python ingestion/prep/stage_local_zetaris.py [container]
@@ -32,7 +35,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TABLES = ["ems_footprint", "osm_sites", "portfolio_synthetic", "provenance", "valencia_points"]
 DEST = "/home/zetaris/customer-data/shared/floodsense_seed"
 LIVE_DEST = "/home/zetaris/customer-data/shared/floodsense_live"
-# Header-only placeholders for 033. Not observations. No dwd_rain_hourly while DWD is Hold.
+# Header-only placeholders. Not observations. No dwd_rain_hourly while DWD is Hold.
+# 036 CREATE must run after these files exist. Same directory names as 033.
 LIVE_HEADERS = {
     "discharge_daily": (
         "point_id,date,river_discharge,river_discharge_mean,river_discharge_max,"
