@@ -4,17 +4,19 @@ Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, 
 
 The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
 
+Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`) and [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`). There is no wiki.
+
 ## Team
 
 Five peers. The Architect is one role among them, not a team lead.
 
 | Person | Role |
 | --- | --- |
-| Mihir | Architect: architecture, docs and ADRs, CI/CD, security review. Judge with Zain. UI until Zain is free. |
-| Urvashi | Zetaris: ingestion, migrations, vector-search research. |
-| Saleeta | Ingestion with Urvashi, citation pipeline, slide deck and demo. |
-| Ayush | Meterless Nightshift client, H-MEM, World Model, memory, embeddings, answer cache. |
-| Zain | LangGraph agents, human-in-the-loop, LLM-as-a-Judge with Mihir, then the UI. |
+| Mihir | Architect: architecture, docs and ADRs, CI/CD, security review. Zetaris and data (takeover 2026-10-25). Judge with Zain. |
+| Urvashi | Zetaris expertise. Remains on the team. |
+| Saleeta | Secondary on ingestion prep and the demo. Citations and the slide deck. |
+| Ayush | Nightshift, H-MEM, World Model, and the engines sidecar. |
+| Zain | LangGraph, human-in-the-loop, the Judge with Mihir, then the UI. |
 
 ## Quick start
 
@@ -49,7 +51,7 @@ python3 tasks.py down
 
 `init-env` copies each missing `.env.example` to `.env` and does not overwrite a file that is already there. Fill `agents/.env` and `ingestion/.env` locally. In PowerShell, `curl` is an alias of `Invoke-WebRequest` and does not accept `-s`. Use `Invoke-RestMethod`, or `curl.exe` if you want the real curl.
 
-`up` builds and starts the API (`127.0.0.1:18000`), the agent runtime (no host port), and the UI (`127.0.0.1:15173`). Published ports bind to loopback. It refuses to start until `api/.env`, `agents/.env`, and `ui/.env` exist. Optional profiles:
+`up` builds and starts the API (`127.0.0.1:18000`), the agent runtime (no host port), the engines sidecar (`127.0.0.1:8300`), and the UI (`127.0.0.1:15173`). Published ports bind to loopback. It refuses to start until `api/.env`, `agents/.env`, and `ui/.env` exist. Optional profiles:
 
 ```powershell
 py tasks.py up-all
@@ -63,12 +65,15 @@ That adds pgvector on `127.0.0.1:15432` and Redis on `127.0.0.1:16379`. `init-en
 
 Compose is always `docker compose -p floodsense-app` with this repo's `compose.yaml`. An exported `COMPOSE_PROJECT_NAME` or `COMPOSE_FILE` cannot point the task script at another Compose project. If you run `docker compose` yourself, pass the same `-p`.
 
-`zetaris-sync` is a stub. It prints a TODO and applies no SQL. When it is implemented it should read `ingestion/.env` (`127.0.0.1`), not `agents/.env`. `test` compiles the Python packages and runs the unit tests with the current interpreter. Install the API, contract, and dev requirements into a virtualenv first, then run `test` and `lint` with that interpreter.
+`zetaris-sync` applies pending files in `zetaris/migrations/` and then verifies declared views. It reads `ingestion/.env` (`127.0.0.1`), not `agents/.env`. A cold laptop stages FILESTORE CSVs with `ingestion/prep/stage_local_zetaris.py` before migration 010. Details are in [zetaris/README.md](zetaris/README.md).
+
+`test` compiles the Python packages and runs the unit tests with the current interpreter. Install the agents, API, contract, and dev requirements into a virtualenv first, then run `test` and `lint` with that interpreter. The engines tests need Node.js 22.18 or newer: `python tasks.py engines-test` (Windows: `py tasks.py engines-test`). The agents package does not call the sidecar yet. Lane names are `meterless/fast` and `meterless/deep`. The one map to the model that answers today is the table at the top of [docs/architecture/c4.md](docs/architecture/c4.md).
 
 PowerShell:
 
 ```powershell
 py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r agents\requirements.txt
 .\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
 .\.venv\Scripts\python.exe -m pip install -r contracts\requirements.txt
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -83,6 +88,7 @@ bash:
 
 ```bash
 python3 -m venv .venv
+.venv/bin/python -m pip install -r agents/requirements.txt
 .venv/bin/python -m pip install -r api/requirements.txt
 .venv/bin/python -m pip install -r contracts/requirements.txt
 .venv/bin/python -m pip install -r requirements-dev.txt
@@ -101,15 +107,17 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 
 | Path | Purpose | Owner |
 | --- | --- | --- |
-| `ingestion/` | Fetch and stage datasets, seed content | Urvashi, Saleeta |
-| `zetaris/migrations/` | Numbered, append-only, idempotent SQL | Urvashi |
-| `agents/` | LangGraph package: investigator, skeptic, judge, HITL placeholders | Ayush, Zain |
-| `api/` | FastAPI. `/health` only | Zain, Ayush |
-| `ui/` | Vite + React + TSX placeholder | Mihir, then Zain |
+| `ingestion/` | Fetch and stage datasets, seed content | Mihir. Saleeta is secondary on prep and the demo |
+| `zetaris/migrations/` | Numbered SQL, applied by `zetaris-sync` | Mihir |
+| `agents/` | LangGraph graph, HITL interrupt, Judge. No engines client yet | Ayush, Zain |
+| `api/` | FastAPI. Proxies runs, SSE, and approval. `GET /health` as well | Zain, Ayush |
+| `ui/` | Citizen page and insurer console (Vite, React, TypeScript) | Zain. Mihir landed the console |
+| `engines/` | H-MEM and World Model sidecar | Ayush |
+| `evals/` | Valencia 2024 and Ahr 2021 items. On main, not a tag | Saleeta, Zain, Mihir |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |
 | `contracts/` | JSON Schema for claims, citations, answers, approvals | Mihir |
-| `tasks.py` | Cross-platform task runner (`up`, `down`, `test`, `lint`) | Mihir |
-| `.github/workflows/` | Lint, tests, and secret scan on pull requests | Mihir |
+| `tasks.py` | Cross-platform task runner (`up`, `down`, `zetaris-sync`, `engines-test`, `test`, `lint`) | Mihir |
+| `.github/workflows/` | Lint, tests, secret scan, migration dry run, engines tests | Mihir |
 | `docs/` | Gameplan, ownership, C4 diagrams, ADRs | Mihir |
 
 ## Branching

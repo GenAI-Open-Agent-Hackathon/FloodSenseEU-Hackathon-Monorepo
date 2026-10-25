@@ -1,8 +1,8 @@
 # UI
 
-The insurer desk and a plain citizen page for FloodSense EU. Vite, React, and TypeScript. The screen is demo-able from fixtures shaped like the Zetaris seed views, before those views are on `main`.
+The insurer desk and a plain citizen page for FloodSense EU. Vite, React, and TypeScript. The screen runs from fixtures shaped like the Zetaris seed views. Those views are on main (`v0.1.0`). A row stays a fixture unless `VITE_API_URL` returns that view.
 
-Owner: Mihir until LangGraph and human-in-the-loop are done, then Zain.
+Owner: Zain. Mihir landed the console.
 
 ## Run
 
