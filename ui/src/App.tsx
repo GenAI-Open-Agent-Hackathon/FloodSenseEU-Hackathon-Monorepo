@@ -1,13 +1,22 @@
-export function App() {
-  const api = import.meta.env.VITE_API_URL ?? "http://localhost:18000";
+import { ConsoleProvider, useConsole } from "./context/ConsoleContext";
+import { CitizenView } from "./components/CitizenView";
+import { Header } from "./components/Header";
+import { InsurerView } from "./components/InsurerView";
 
+export function App() {
   return (
-    <main>
-      <h1>FloodSense EU</h1>
-      <p>Skeleton UI. The console is not built yet.</p>
-      <p>
-        API health: <code>{api}/health</code>
-      </p>
-    </main>
+    <ConsoleProvider>
+      <Shell />
+    </ConsoleProvider>
+  );
+}
+
+function Shell() {
+  const { route } = useConsole();
+  return (
+    <div className="app-shell">
+      <Header />
+      <main id="content">{route === "citizen" ? <CitizenView /> : <InsurerView />}</main>
+    </div>
   );
 }
