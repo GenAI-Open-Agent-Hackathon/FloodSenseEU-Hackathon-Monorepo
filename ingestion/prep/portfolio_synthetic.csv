@@ -1,0 +1,360 @@
+policy_id,site_id,insured_name,line,sum_insured_eur,deductible_eur,flood_cover,inception,expiry,synthetic
+SYN-00001,osm_n10172262799,Consum,commercial_property,3616000,25000,no,2024-07-05,2025-07-05,yes
+SYN-00002,osm_n10287933573,Kuups,commercial_property,4586000,2500,yes,2024-02-10,2025-02-09,yes
+SYN-00003,osm_n10295146716,Coaliment,commercial_property,733000,10000,no,2024-04-21,2025-04-21,yes
+SYN-00004,osm_n10402123069,Dia,commercial_property,4174000,2500,yes,2024-05-06,2025-05-06,yes
+SYN-00005,osm_n10608291685,Consum,commercial_property,4646000,25000,yes,2024-03-29,2025-03-29,yes
+SYN-00006,osm_n106333350,Mercadona,commercial_property,1477000,10000,yes,2024-04-11,2025-04-11,yes
+SYN-00007,osm_n10689322325,Primaprix,commercial_property,510000,25000,yes,2024-09-03,2025-09-03,yes
+SYN-00008,osm_n106914654,Consum,commercial_property,1416000,25000,yes,2024-06-19,2025-06-19,yes
+SYN-00009,osm_n106914701,Consum,commercial_property,359000,10000,no,2024-07-19,2025-07-19,yes
+SYN-00010,osm_n106914719,Consum,commercial_property,1866000,2500,yes,2024-01-06,2025-01-05,yes
+SYN-00011,osm_n10990441387,Mercadona,commercial_property,3735000,5000,yes,2024-06-22,2025-06-22,yes
+SYN-00012,osm_n109967232,Mercadona,commercial_property,3500000,2500,yes,2024-01-07,2025-01-06,yes
+SYN-00013,osm_n11028064590,Charter,commercial_property,3722000,25000,yes,2024-01-31,2025-01-30,yes
+SYN-00014,osm_n11112459475,Charter,commercial_property,4803000,10000,yes,2024-08-03,2025-08-03,yes
+SYN-00015,osm_n11188865653,Consum,commercial_property,782000,25000,yes,2024-02-13,2025-02-12,yes
+SYN-00016,osm_n11225653639,Consum,commercial_property,4062000,2500,yes,2024-02-04,2025-02-03,yes
+SYN-00017,osm_n11363919479,Consum,commercial_property,1830000,25000,yes,2024-05-08,2025-05-08,yes
+SYN-00018,osm_n11371781948,Soja & Tofu,commercial_property,4454000,2500,no,2024-08-20,2025-08-20,yes
+SYN-00019,osm_n11385772769,Cocó Granel,commercial_property,4323000,25000,yes,2024-01-04,2025-01-03,yes
+SYN-00020,osm_n11549370042,Consum,commercial_property,3901000,25000,yes,2024-07-29,2025-07-29,yes
+SYN-00021,osm_n11700296754,Primaprix,commercial_property,4107000,2500,no,2024-06-27,2025-06-27,yes
+SYN-00022,osm_n11731569643,Consum,commercial_property,4816000,2500,yes,2024-05-10,2025-05-10,yes
+SYN-00023,osm_n11804872286,Consum,commercial_property,417000,2500,yes,2024-08-15,2025-08-15,yes
+SYN-00024,osm_n11804872287,Consum,commercial_property,2048000,10000,no,2024-07-24,2025-07-24,yes
+SYN-00025,osm_n12097813503,Lidl,commercial_property,2259000,10000,yes,2024-05-04,2025-05-04,yes
+SYN-00026,osm_n12138540233,Suma,commercial_property,662000,10000,yes,2024-04-09,2025-04-09,yes
+SYN-00027,osm_n12237784781,Suma express,commercial_property,2093000,2500,yes,2024-08-13,2025-08-13,yes
+SYN-00028,osm_n12311509905,masymas,commercial_property,1577000,2500,yes,2024-08-31,2025-08-31,yes
+SYN-00029,osm_n12322998683,LIDL,commercial_property,1354000,25000,yes,2024-09-10,2025-09-10,yes
+SYN-00030,osm_n12386032854,Mercadona,commercial_property,3163000,2500,no,2024-08-25,2025-08-25,yes
+SYN-00031,osm_n12486617927,Bimark,commercial_property,3512000,10000,yes,2024-09-01,2025-09-01,yes
+SYN-00032,osm_n12593875451,Ambro-Sol,commercial_property,4107000,5000,yes,2024-03-21,2025-03-21,yes
+SYN-00033,osm_n12593875455,Bvpack Embalajes,commercial_property,2473000,5000,no,2024-07-14,2025-07-14,yes
+SYN-00034,osm_n12593875457,Manufacturas Ceylan,commercial_property,10900000,10000,yes,2024-01-30,2025-01-29,yes
+SYN-00035,osm_n12593875467,Vicer Alimentación S.L.,commercial_property,832000,2500,yes,2024-06-14,2025-06-14,yes
+SYN-00036,osm_n12593875469,Talleres Calaforra S.L.,commercial_property,9898000,10000,yes,2024-05-14,2025-05-14,yes
+SYN-00037,osm_n12595251281,"ZAAL PARCEL, S.L.",commercial_property,5080000,5000,yes,2024-07-15,2025-07-15,yes
+SYN-00038,osm_n12652615228,Lifeness Nutri Experience,commercial_property,2983000,10000,yes,2024-08-29,2025-08-29,yes
+SYN-00039,osm_n12724163247,tienda de alimentación,commercial_property,1210000,2500,yes,2024-09-19,2025-09-19,yes
+SYN-00040,osm_n12724178201,productos latinos,commercial_property,2129000,2500,yes,2024-01-25,2025-01-24,yes
+SYN-00041,osm_n12765911990,Le escencia de la terra,commercial_property,429000,25000,yes,2024-02-02,2025-02-01,yes
+SYN-00042,osm_n12863072890,Aldi,commercial_property,2676000,5000,yes,2024-05-29,2025-05-29,yes
+SYN-00043,osm_n12923580800,Moaiz Dhillu Frutas y Verduras,commercial_property,4421000,5000,no,2024-09-17,2025-09-17,yes
+SYN-00044,osm_n13179003338,Mr Kriz,commercial_property,3304000,5000,yes,2024-07-27,2025-07-27,yes
+SYN-00045,osm_n13203779457,Micro Market,commercial_property,3066000,5000,yes,2024-05-29,2025-05-29,yes
+SYN-00046,osm_n13206753531,Mercadona,commercial_property,4302000,5000,no,2024-04-27,2025-04-27,yes
+SYN-00047,osm_n13227010701,Supermercado Día,commercial_property,4687000,10000,yes,2024-01-22,2025-01-21,yes
+SYN-00048,osm_n13238980533,Dia,commercial_property,3761000,10000,no,2024-08-02,2025-08-02,yes
+SYN-00049,osm_n13252954772,Consum,commercial_property,1182000,10000,yes,2024-07-19,2025-07-19,yes
+SYN-00050,osm_n13289385687,Charter,commercial_property,1516000,2500,no,2024-05-01,2025-05-01,yes
+SYN-00051,osm_n13388467986,Kouider,commercial_property,667000,25000,yes,2024-02-23,2025-02-22,yes
+SYN-00052,osm_n13448629263,M&M MARKET,commercial_property,739000,10000,no,2024-07-14,2025-07-14,yes
+SYN-00053,osm_n13449799801,Supermercado Cafeteria Coaliment,commercial_property,3459000,2500,yes,2024-01-02,2025-01-01,yes
+SYN-00054,osm_n13464822423,Mercadona,commercial_property,4649000,5000,yes,2024-02-08,2025-02-07,yes
+SYN-00055,osm_n13524405601,Charter,commercial_property,3371000,10000,yes,2024-06-04,2025-06-04,yes
+SYN-00056,osm_n13532894501,Eroski,commercial_property,3418000,2500,no,2024-08-31,2025-08-31,yes
+SYN-00057,osm_n13623389996,Tetra Proyectos S.L.,commercial_property,6062000,2500,no,2024-03-27,2025-03-27,yes
+SYN-00058,osm_n13623389997,Mecalux Levante S.A.,commercial_property,7241000,10000,no,2024-08-21,2025-08-21,yes
+SYN-00059,osm_n13623390000,FOVASA Facility Services,commercial_property,1685000,10000,yes,2024-09-04,2025-09-04,yes
+SYN-00060,osm_n13623452102,"Valenciana de Productos Eléctricos, S.L.",commercial_property,6275000,2500,no,2024-05-22,2025-05-22,yes
+SYN-00061,osm_n13645714201,Dia,commercial_property,972000,5000,no,2024-08-14,2025-08-14,yes
+SYN-00062,osm_n13720483501,Carrefour Express,commercial_property,4493000,2500,yes,2024-01-02,2025-01-01,yes
+SYN-00063,osm_n13776717378,Super Mercat,commercial_property,2391000,2500,no,2024-07-20,2025-07-20,yes
+SYN-00064,osm_n1386005517,Consum,commercial_property,764000,2500,yes,2024-05-21,2025-05-21,yes
+SYN-00065,osm_n13919195601,MERCADONA,commercial_property,431000,10000,yes,2024-02-14,2025-02-13,yes
+SYN-00066,osm_n13919195701,CHARTER,commercial_property,3728000,10000,no,2024-09-25,2025-09-25,yes
+SYN-00067,osm_n13953593144,Mercadona,commercial_property,182000,2500,yes,2024-05-19,2025-05-19,yes
+SYN-00068,osm_n13953593145,Charter,commercial_property,592000,25000,yes,2024-07-19,2025-07-19,yes
+SYN-00069,osm_n13956086114,Economy Cash,commercial_property,1128000,5000,no,2024-05-28,2025-05-28,yes
+SYN-00070,osm_n13965019186,Dialprix,commercial_property,1194000,25000,yes,2024-06-18,2025-06-18,yes
+SYN-00071,osm_n13972356861,Dialprix,commercial_property,757000,2500,yes,2024-03-08,2025-03-08,yes
+SYN-00072,osm_n13972356862,Dialprix,commercial_property,3599000,25000,yes,2024-09-14,2025-09-14,yes
+SYN-00073,osm_n13997889203,Mercadona,commercial_property,2983000,10000,yes,2024-01-05,2025-01-04,yes
+SYN-00074,osm_n13997889205,Mercadona,commercial_property,463000,10000,no,2024-09-25,2025-09-25,yes
+SYN-00075,osm_n14003316701,Charter,commercial_property,4490000,2500,yes,2024-03-05,2025-03-05,yes
+SYN-00076,osm_n14064131826,Nostre Market,commercial_property,2940000,5000,yes,2024-01-09,2025-01-08,yes
+SYN-00077,osm_n14114731981,Charter,commercial_property,4299000,10000,yes,2024-06-17,2025-06-17,yes
+SYN-00078,osm_n14127662890,Mercadona,commercial_property,4595000,25000,no,2024-08-23,2025-08-23,yes
+SYN-00079,osm_n14163531101,Consum,commercial_property,553000,5000,yes,2024-05-06,2025-05-06,yes
+SYN-00080,osm_n14197011105,Kupps,commercial_property,217000,10000,yes,2024-04-09,2025-04-09,yes
+SYN-00081,osm_n1474264704,Mercadona,commercial_property,2122000,25000,yes,2024-03-04,2025-03-04,yes
+SYN-00082,osm_n1479104479,Consum,commercial_property,298000,25000,yes,2024-05-03,2025-05-03,yes
+SYN-00083,osm_n1480123244,Consum,commercial_property,514000,2500,yes,2024-05-15,2025-05-15,yes
+SYN-00084,osm_n155270091,Consum,commercial_property,1127000,2500,yes,2024-03-01,2025-03-01,yes
+SYN-00085,osm_n1594857166,Mercadona,commercial_property,3879000,25000,no,2024-08-06,2025-08-06,yes
+SYN-00086,osm_n1667454433,Mercadona,commercial_property,325000,25000,yes,2024-01-21,2025-01-20,yes
+SYN-00087,osm_n1769502694,Consum,commercial_property,687000,5000,yes,2024-04-29,2025-04-29,yes
+SYN-00088,osm_n1783289780,Consum,commercial_property,3198000,5000,yes,2024-05-06,2025-05-06,yes
+SYN-00089,osm_n1783289782,Consum,commercial_property,4393000,2500,yes,2024-04-20,2025-04-20,yes
+SYN-00090,osm_n1783289783,Consum,commercial_property,4210000,2500,yes,2024-03-26,2025-03-26,yes
+SYN-00091,osm_n1783289787,Mercadona,commercial_property,3211000,25000,yes,2024-05-02,2025-05-02,yes
+SYN-00092,osm_n1783289793,Mercadona,commercial_property,2455000,5000,yes,2024-02-13,2025-02-12,yes
+SYN-00093,osm_n1792880816,Consum,commercial_property,3533000,5000,yes,2024-01-03,2025-01-02,yes
+SYN-00094,osm_n1792880817,Mercadona,commercial_property,1150000,10000,no,2024-07-23,2025-07-23,yes
+SYN-00095,osm_n1825683369,Mercadona,commercial_property,505000,2500,yes,2024-01-21,2025-01-20,yes
+SYN-00096,osm_n1850882649,Mercadona,commercial_property,2215000,10000,yes,2024-03-30,2025-03-30,yes
+SYN-00097,osm_n1887524474,Consum,commercial_property,1608000,2500,yes,2024-08-10,2025-08-10,yes
+SYN-00098,osm_n2281179758,Mercadona,commercial_property,3094000,25000,yes,2024-09-01,2025-09-01,yes
+SYN-00099,osm_n2475527908,Aquara,commercial_property,2985000,5000,yes,2024-01-22,2025-01-21,yes
+SYN-00100,osm_n2501207349,Aldi,commercial_property,171000,10000,yes,2024-04-21,2025-04-21,yes
+SYN-00101,osm_n2509914530,Consum,commercial_property,1445000,2500,yes,2024-02-25,2025-02-24,yes
+SYN-00102,osm_n2509914531,Consum,commercial_property,3654000,2500,no,2024-03-10,2025-03-10,yes
+SYN-00103,osm_n2610813148,Consum,commercial_property,495000,2500,no,2024-03-11,2025-03-11,yes
+SYN-00104,osm_n2656119553,Consum,commercial_property,3434000,5000,yes,2024-07-28,2025-07-28,yes
+SYN-00105,osm_n2656119556,Consum,commercial_property,4387000,2500,yes,2024-05-28,2025-05-28,yes
+SYN-00106,osm_n2682321461,Mercadona,commercial_property,854000,5000,yes,2024-01-10,2025-01-09,yes
+SYN-00107,osm_n2909140136,Consum,commercial_property,2929000,5000,yes,2024-07-04,2025-07-04,yes
+SYN-00108,osm_n3004594121,Mercadona,commercial_property,604000,25000,yes,2024-05-14,2025-05-14,yes
+SYN-00109,osm_n3013881972,Mercadona,commercial_property,2086000,5000,yes,2024-01-05,2025-01-04,yes
+SYN-00110,osm_n3367095327,Tododulce,commercial_property,2932000,5000,yes,2024-01-28,2025-01-27,yes
+SYN-00111,osm_n3600385824,Mercadona,commercial_property,1843000,10000,yes,2024-03-08,2025-03-08,yes
+SYN-00112,osm_n3658278552,Supermercat D'omar,commercial_property,898000,25000,no,2024-01-08,2025-01-07,yes
+SYN-00113,osm_n3688197204,Consum,commercial_property,2585000,5000,no,2024-03-08,2025-03-08,yes
+SYN-00114,osm_n3698712535,Consum,commercial_property,3551000,5000,yes,2024-07-09,2025-07-09,yes
+SYN-00115,osm_n4090161071,Consum,commercial_property,1628000,25000,yes,2024-07-31,2025-07-31,yes
+SYN-00116,osm_n4103882463,Economy Cash,commercial_property,1724000,25000,no,2024-03-25,2025-03-25,yes
+SYN-00117,osm_n4111725004,Economy Cash,commercial_property,3968000,10000,yes,2024-06-09,2025-06-09,yes
+SYN-00118,osm_n4111725005,Kuups,commercial_property,1601000,10000,yes,2024-03-20,2025-03-20,yes
+SYN-00119,osm_n4307621589,Mercadona,commercial_property,746000,2500,yes,2024-04-25,2025-04-25,yes
+SYN-00120,osm_n4523277176,Mercadona,commercial_property,4958000,25000,no,2024-07-01,2025-07-01,yes
+SYN-00121,osm_n4599543390,Super Nuevo Zhong Hua,commercial_property,2521000,5000,no,2024-05-06,2025-05-06,yes
+SYN-00122,osm_n4679988389,Consum,commercial_property,1001000,5000,no,2024-02-25,2025-02-24,yes
+SYN-00123,osm_n4710305268,Consum,commercial_property,182000,5000,yes,2024-06-29,2025-06-29,yes
+SYN-00124,osm_n472668096,Charter,commercial_property,558000,25000,yes,2024-09-17,2025-09-17,yes
+SYN-00125,osm_n4729551850,Consum,commercial_property,3182000,5000,yes,2024-01-13,2025-01-12,yes
+SYN-00126,osm_n4734189852,Consum,commercial_property,4046000,25000,no,2024-04-06,2025-04-06,yes
+SYN-00127,osm_n4741418422,Mercadona,commercial_property,538000,2500,no,2024-04-11,2025-04-11,yes
+SYN-00128,osm_n4744211521,Dia,commercial_property,3589000,5000,no,2024-09-06,2025-09-06,yes
+SYN-00129,osm_n4897372522,Dia,commercial_property,1823000,5000,yes,2024-07-18,2025-07-18,yes
+SYN-00130,osm_n4932505621,Ecorganic,commercial_property,2299000,25000,no,2024-03-04,2025-03-04,yes
+SYN-00131,osm_n4932505622,Ecorganic ecomarket - supermercado ecológico,commercial_property,2478000,25000,yes,2024-05-27,2025-05-27,yes
+SYN-00132,osm_n4937348723,Dialprix,commercial_property,1203000,25000,yes,2024-03-24,2025-03-24,yes
+SYN-00133,osm_n4948961222,Dia,commercial_property,2021000,10000,yes,2024-06-05,2025-06-05,yes
+SYN-00134,osm_n4985396904,Consum,commercial_property,3820000,25000,no,2024-06-07,2025-06-07,yes
+SYN-00135,osm_n4985397682,Lidl,commercial_property,3315000,25000,yes,2024-08-21,2025-08-21,yes
+SYN-00136,osm_n5125499106,Mercadona,commercial_property,1698000,10000,no,2024-01-19,2025-01-18,yes
+SYN-00137,osm_n525664378,Consum,commercial_property,3103000,10000,yes,2024-03-08,2025-03-08,yes
+SYN-00138,osm_n5257504624,Charter,commercial_property,4243000,25000,yes,2024-07-19,2025-07-19,yes
+SYN-00139,osm_n5268218400,Consum,commercial_property,3104000,25000,yes,2024-04-29,2025-04-29,yes
+SYN-00140,osm_n5273932723,Unide,commercial_property,2073000,25000,yes,2024-01-17,2025-01-16,yes
+SYN-00141,osm_n5286621801,Masymas,commercial_property,456000,2500,yes,2024-06-16,2025-06-16,yes
+SYN-00142,osm_n5286621802,Charter,commercial_property,413000,10000,yes,2024-05-20,2025-05-20,yes
+SYN-00143,osm_n5286767386,ALDI,commercial_property,2905000,25000,yes,2024-08-13,2025-08-13,yes
+SYN-00144,osm_n5299082020,Sarmis Mercado De Sabores Internacionales,commercial_property,2419000,5000,no,2024-04-04,2025-04-04,yes
+SYN-00145,osm_n5299082723,Consum,commercial_property,2627000,10000,yes,2024-02-22,2025-02-21,yes
+SYN-00146,osm_n530074755,Mercadona,commercial_property,3331000,10000,yes,2024-04-13,2025-04-13,yes
+SYN-00147,osm_n5606961623,Consum,commercial_property,1732000,5000,yes,2024-08-19,2025-08-19,yes
+SYN-00148,osm_n5609473044,Consum,commercial_property,4373000,25000,yes,2024-09-19,2025-09-19,yes
+SYN-00149,osm_n5863363297,Mercadona,commercial_property,3167000,25000,no,2024-03-31,2025-03-31,yes
+SYN-00150,osm_n5972762969,Coaliment,commercial_property,2020000,10000,yes,2024-03-25,2025-03-25,yes
+SYN-00151,osm_n6203257907,Dialprix,commercial_property,2586000,25000,yes,2024-07-01,2025-07-01,yes
+SYN-00152,osm_n6291636875,Consum,commercial_property,362000,5000,yes,2024-09-03,2025-09-03,yes
+SYN-00153,osm_n6318095963,Consum,commercial_property,2344000,10000,yes,2024-08-05,2025-08-05,yes
+SYN-00154,osm_n6320623003,Carrefour express,commercial_property,1706000,25000,yes,2024-09-25,2025-09-25,yes
+SYN-00155,osm_n6337557628,Consum,commercial_property,954000,5000,no,2024-04-24,2025-04-24,yes
+SYN-00156,osm_n6395687842,Flipo en Verde,commercial_property,3801000,25000,yes,2024-04-04,2025-04-04,yes
+SYN-00157,osm_n6395687843,Granel Valencia,commercial_property,458000,25000,yes,2024-05-01,2025-05-01,yes
+SYN-00158,osm_n6395687845,Biosofia,commercial_property,2560000,10000,yes,2024-03-26,2025-03-26,yes
+SYN-00159,osm_n6395687847,Som Alimentació,commercial_property,3070000,5000,no,2024-01-22,2025-01-21,yes
+SYN-00160,osm_n6404014385,Consum,commercial_property,3024000,25000,yes,2024-07-24,2025-07-24,yes
+SYN-00161,osm_n6436894203,Consum,commercial_property,3655000,5000,yes,2024-02-20,2025-02-19,yes
+SYN-00162,osm_n6439787530,Consum,commercial_property,2603000,25000,yes,2024-03-21,2025-03-21,yes
+SYN-00163,osm_n6444763097,Consum,commercial_property,1555000,5000,no,2024-06-15,2025-06-15,yes
+SYN-00164,osm_n6445298659,Consum,commercial_property,2440000,5000,no,2024-07-21,2025-07-21,yes
+SYN-00165,osm_n6445318707,Mercadona,commercial_property,1073000,5000,yes,2024-05-09,2025-05-09,yes
+SYN-00166,osm_n6505455770,ALDI,commercial_property,4123000,25000,yes,2024-07-14,2025-07-14,yes
+SYN-00167,osm_n6625118553,Mercadona,commercial_property,2846000,10000,yes,2024-03-25,2025-03-25,yes
+SYN-00168,osm_n6638503684,Consum,commercial_property,299000,2500,no,2024-09-03,2025-09-03,yes
+SYN-00169,osm_n6761092925,Lidl,commercial_property,740000,25000,yes,2024-05-10,2025-05-10,yes
+SYN-00170,osm_n6780758447,Blat Market,commercial_property,4873000,25000,yes,2024-08-21,2025-08-21,yes
+SYN-00171,osm_n6780792057,Blat Market,commercial_property,3352000,10000,no,2024-06-08,2025-06-08,yes
+SYN-00172,osm_n6780820348,Blat Market,commercial_property,768000,25000,yes,2024-06-25,2025-06-25,yes
+SYN-00173,osm_n6780821331,Blat Market,commercial_property,2265000,10000,no,2024-07-09,2025-07-09,yes
+SYN-00174,osm_n6780825515,Blat Market,commercial_property,2215000,5000,yes,2024-04-23,2025-04-23,yes
+SYN-00175,osm_n6872751289,Dia,commercial_property,957000,5000,no,2024-02-07,2025-02-06,yes
+SYN-00176,osm_n6925562886,Mercadona,commercial_property,2210000,5000,yes,2024-08-02,2025-08-02,yes
+SYN-00177,osm_n6997447769,Mercadona,commercial_property,4840000,2500,yes,2024-08-05,2025-08-05,yes
+SYN-00178,osm_n7007615513,Mercadona,commercial_property,4593000,10000,yes,2024-06-20,2025-06-20,yes
+SYN-00179,osm_n7010619306,Consum,commercial_property,3461000,25000,yes,2024-01-04,2025-01-03,yes
+SYN-00180,osm_n7012002431,Consum,commercial_property,1460000,2500,yes,2024-08-26,2025-08-26,yes
+SYN-00181,osm_n7037829545,Consum,commercial_property,4262000,25000,yes,2024-01-04,2025-01-03,yes
+SYN-00182,osm_n7048720801,Consum,commercial_property,4368000,10000,no,2024-05-03,2025-05-03,yes
+SYN-00183,osm_n7095989075,Open Mar Supermercado,commercial_property,3944000,25000,yes,2024-02-09,2025-02-08,yes
+SYN-00184,osm_n7095989078,Dia Market,commercial_property,2172000,5000,yes,2024-09-12,2025-09-12,yes
+SYN-00185,osm_n7095989079,Mercadona,commercial_property,4779000,2500,yes,2024-03-23,2025-03-23,yes
+SYN-00186,osm_n7095989082,Mercadona,commercial_property,1112000,2500,yes,2024-08-09,2025-08-09,yes
+SYN-00187,osm_n7095989084,Udaco,commercial_property,4746000,2500,yes,2024-02-18,2025-02-17,yes
+SYN-00188,osm_n7096022394,Consum,commercial_property,664000,2500,no,2024-08-24,2025-08-24,yes
+SYN-00189,osm_n7096022396,Consum,commercial_property,530000,10000,yes,2024-01-04,2025-01-03,yes
+SYN-00190,osm_n7096022397,Consum,commercial_property,1850000,10000,yes,2024-08-16,2025-08-16,yes
+SYN-00191,osm_n7096022400,Consum,commercial_property,2670000,2500,yes,2024-08-31,2025-08-31,yes
+SYN-00192,osm_n7229695329,Consum,commercial_property,4804000,25000,yes,2024-06-10,2025-06-10,yes
+SYN-00193,osm_n7229695333,Consum,commercial_property,3660000,5000,yes,2024-06-27,2025-06-27,yes
+SYN-00194,osm_n7246953333,Consum,commercial_property,4028000,25000,yes,2024-07-18,2025-07-18,yes
+SYN-00195,osm_n7472366410,Consum,commercial_property,1602000,5000,yes,2024-09-03,2025-09-03,yes
+SYN-00196,osm_n7960469622,Family Cash,commercial_property,680000,10000,yes,2024-03-21,2025-03-21,yes
+SYN-00197,osm_n825264576,Mercadona,commercial_property,4921000,10000,yes,2024-05-28,2025-05-28,yes
+SYN-00198,osm_n8482715601,Consum,commercial_property,4556000,10000,yes,2024-06-07,2025-06-07,yes
+SYN-00199,osm_n8494625740,Iberfood,commercial_property,3779000,2500,yes,2024-07-22,2025-07-22,yes
+SYN-00200,osm_n9145986371,masymas,commercial_property,3702000,5000,no,2024-04-23,2025-04-23,yes
+SYN-00201,osm_n9378941027,Mercadona,commercial_property,3702000,5000,no,2024-04-06,2025-04-06,yes
+SYN-00202,osm_n9399686411,Abian Valencia,commercial_property,7647000,5000,yes,2024-07-21,2025-07-21,yes
+SYN-00203,osm_n9422617622,Bazar Jin Li Lai,commercial_property,2746000,5000,no,2024-02-05,2025-02-04,yes
+SYN-00204,osm_n9422824207,La botiga se sempre,commercial_property,2335000,25000,no,2024-01-02,2025-01-01,yes
+SYN-00205,osm_n9422824209,Hiper Huan,commercial_property,3833000,25000,no,2024-04-01,2025-04-01,yes
+SYN-00206,osm_n9422824213,Alimentación Salamanca (frutería),commercial_property,4094000,25000,yes,2024-04-29,2025-04-29,yes
+SYN-00207,osm_n9556107317,Consum,commercial_property,2063000,5000,yes,2024-07-04,2025-07-04,yes
+SYN-00208,osm_n9560676317,Consum,commercial_property,3972000,25000,yes,2024-09-10,2025-09-10,yes
+SYN-00209,osm_n9878417505,SUMA Express,commercial_property,4190000,10000,no,2024-01-11,2025-01-10,yes
+SYN-00210,osm_n99503486,Mercadona,commercial_property,4558000,2500,no,2024-03-29,2025-03-29,yes
+SYN-00211,osm_r12210770,Arena Multiespacio,commercial_property,800000,10000,yes,2024-05-25,2025-05-25,yes
+SYN-00212,osm_r21129098,Miquel y Costas & Miquel,commercial_property,1795000,10000,no,2024-01-30,2025-01-29,yes
+SYN-00213,osm_w1064273567,Consum,commercial_property,3604000,2500,yes,2024-01-16,2025-01-15,yes
+SYN-00214,osm_w1064917875,Montesion,commercial_property,2745000,25000,yes,2024-03-14,2025-03-14,yes
+SYN-00215,osm_w1091062953,Lidl,commercial_property,4059000,10000,no,2024-06-24,2025-06-24,yes
+SYN-00216,osm_w1091064478,Hangar Mercadona,commercial_property,3562000,25000,yes,2024-06-02,2025-06-02,yes
+SYN-00217,osm_w1113157048,Mercadona,commercial_property,1255000,25000,yes,2024-07-15,2025-07-15,yes
+SYN-00218,osm_w1117809711,Consum,commercial_property,2310000,10000,yes,2024-08-14,2025-08-14,yes
+SYN-00219,osm_w1163121382,Lidl,commercial_property,246000,5000,yes,2024-01-19,2025-01-18,yes
+SYN-00220,osm_w1172836766,Mercadona,commercial_property,387000,2500,yes,2024-03-17,2025-03-17,yes
+SYN-00221,osm_w118251587,Family Cash,commercial_property,4438000,2500,yes,2024-07-05,2025-07-05,yes
+SYN-00222,osm_w118251590,Conforama,commercial_property,1712000,25000,yes,2024-09-22,2025-09-22,yes
+SYN-00223,osm_w1198442172,Mercadona,commercial_property,4568000,5000,yes,2024-05-04,2025-05-04,yes
+SYN-00224,osm_w1225001099,Clandestine Box,commercial_property,2731000,10000,yes,2024-01-25,2025-01-24,yes
+SYN-00225,osm_w1225716813,TDN Valencia,commercial_property,5688000,10000,yes,2024-05-02,2025-05-02,yes
+SYN-00226,osm_w1225716822,Estació de Servei Repsol,commercial_property,519000,10000,no,2024-03-19,2025-03-19,yes
+SYN-00227,osm_w1225998192,DHL,commercial_property,3558000,25000,yes,2024-07-22,2025-07-22,yes
+SYN-00228,osm_w1232246075,SynTech Research Spain S.L.,commercial_property,10593000,5000,yes,2024-02-20,2025-02-19,yes
+SYN-00229,osm_w1232508158,Chapas Norte,commercial_property,1546000,5000,yes,2024-09-08,2025-09-08,yes
+SYN-00230,osm_w1250846930,Centrakor,commercial_property,3379000,25000,yes,2024-07-26,2025-07-26,yes
+SYN-00231,osm_w1250846932,Mimma Gallery,commercial_property,3633000,25000,yes,2024-06-27,2025-06-27,yes
+SYN-00232,osm_w1253919948,Lidl,commercial_property,3467000,10000,no,2024-07-31,2025-07-31,yes
+SYN-00233,osm_w1259361942,Centre Comercial Carrefour Campanar,commercial_property,2472000,25000,yes,2024-02-06,2025-02-05,yes
+SYN-00234,osm_w1279478132,Mercadona,commercial_property,699000,25000,no,2024-04-20,2025-04-20,yes
+SYN-00235,osm_w1281158367,Carrefour,commercial_property,3136000,25000,yes,2024-06-11,2025-06-11,yes
+SYN-00236,osm_w1286364708,Family Cash,commercial_property,701000,5000,no,2024-06-15,2025-06-15,yes
+SYN-00237,osm_w1312437058,Carnicería Azilal,commercial_property,4362000,10000,yes,2024-01-06,2025-01-05,yes
+SYN-00238,osm_w1317432519,Charter,commercial_property,653000,2500,yes,2024-02-21,2025-02-20,yes
+SYN-00239,osm_w1330030561,Consum,commercial_property,1235000,5000,no,2024-04-02,2025-04-02,yes
+SYN-00240,osm_w1330184158,Magatzem municipal,commercial_property,5935000,2500,yes,2024-01-27,2025-01-26,yes
+SYN-00241,osm_w1330188231,Aluminios Paiporta,commercial_property,1435000,25000,no,2024-05-27,2025-05-27,yes
+SYN-00242,osm_w1331599902,Mercadona,commercial_property,4426000,25000,no,2024-07-14,2025-07-14,yes
+SYN-00243,osm_w1332065298,Lidl,commercial_property,2795000,10000,yes,2024-05-22,2025-05-22,yes
+SYN-00244,osm_w1332091823,Magatzem Municipal,commercial_property,3686000,2500,yes,2024-07-05,2025-07-05,yes
+SYN-00245,osm_w1332148161,Comerco,commercial_property,2303000,10000,no,2024-01-06,2025-01-05,yes
+SYN-00246,osm_w1332148166,Aldista,commercial_property,4491000,10000,yes,2024-07-19,2025-07-19,yes
+SYN-00247,osm_w1332175342,FedEx,commercial_property,10194000,25000,yes,2024-02-23,2025-02-22,yes
+SYN-00248,osm_w1332734459,FM Logistic - Ribarroja,commercial_property,9121000,25000,no,2024-05-03,2025-05-03,yes
+SYN-00249,osm_w1336416168,Vicente Furio,commercial_property,6697000,25000,no,2024-06-25,2025-06-25,yes
+SYN-00250,osm_w1336416172,Dulce Bebé,commercial_property,5744000,2500,no,2024-05-22,2025-05-22,yes
+SYN-00251,osm_w1336632331,Consum,commercial_property,4329000,5000,yes,2024-04-10,2025-04-10,yes
+SYN-00252,osm_w1336650251,Mercadona,commercial_property,1971000,25000,yes,2024-07-31,2025-07-31,yes
+SYN-00253,osm_w1355664380,Supermercat Dicost,commercial_property,4449000,25000,yes,2024-04-13,2025-04-13,yes
+SYN-00254,osm_w1373517689,Mercadona,commercial_property,3923000,2500,yes,2024-04-28,2025-04-28,yes
+SYN-00255,osm_w1387479932,Magatzem Municipal de Benetússer,commercial_property,11440000,25000,yes,2024-03-12,2025-03-12,yes
+SYN-00256,osm_w1417916630,Mercadona,commercial_property,188000,2500,no,2024-07-08,2025-07-08,yes
+SYN-00257,osm_w1435345805,Magatzem de Tovsi S.A.,commercial_property,6349000,25000,yes,2024-03-10,2025-03-10,yes
+SYN-00258,osm_w1443194287,Lidl,commercial_property,781000,10000,yes,2024-07-19,2025-07-19,yes
+SYN-00259,osm_w147256014,Mercadona,commercial_property,1947000,10000,yes,2024-08-14,2025-08-14,yes
+SYN-00260,osm_w1473706663,Magatzem de Quart de Poblet,commercial_property,7405000,25000,yes,2024-03-27,2025-03-27,yes
+SYN-00261,osm_w1473706677,Depòsit de Mislata,commercial_property,781000,10000,yes,2024-07-26,2025-07-26,yes
+SYN-00262,osm_w150145564,Alcampo,commercial_property,4894000,5000,yes,2024-01-22,2025-01-21,yes
+SYN-00263,osm_w150145567,Centro Comercial Bonaire,commercial_property,4808000,25000,yes,2024-02-29,2025-02-28,yes
+SYN-00264,osm_w150148108,Factory,commercial_property,743000,2500,yes,2024-05-01,2025-05-01,yes
+SYN-00265,osm_w1517002177,Aldi,commercial_property,2003000,25000,no,2024-09-16,2025-09-16,yes
+SYN-00266,osm_w1543016569,Mercadona,commercial_property,3148000,5000,yes,2024-06-30,2025-06-30,yes
+SYN-00267,osm_w1545457776,Consum,commercial_property,1248000,5000,yes,2024-09-08,2025-09-08,yes
+SYN-00268,osm_w1558180931,Lindo Haribo,commercial_property,6093000,5000,yes,2024-05-24,2025-05-24,yes
+SYN-00269,osm_w168912674,masymas,commercial_property,3717000,25000,yes,2024-01-18,2025-01-17,yes
+SYN-00270,osm_w172462821,Centro Comercial Parque Albán,commercial_property,3714000,5000,yes,2024-07-09,2025-07-09,yes
+SYN-00271,osm_w178882857,Supermercado Carambolo,commercial_property,582000,10000,no,2024-05-05,2025-05-05,yes
+SYN-00272,osm_w187422561,Antic Magatzem d'Oli,commercial_property,4444000,5000,yes,2024-05-02,2025-05-02,yes
+SYN-00273,osm_w20418654,Nuevo Centro,commercial_property,3810000,25000,yes,2024-06-01,2025-06-01,yes
+SYN-00274,osm_w208689107,Centro Comercial Parque Ademuz,commercial_property,860000,5000,no,2024-08-09,2025-08-09,yes
+SYN-00275,osm_w216891043,Mercat de Mossén Sorell,commercial_property,1998000,5000,no,2024-07-27,2025-07-27,yes
+SYN-00276,osm_w218870627,Mercadona,commercial_property,992000,10000,yes,2024-05-27,2025-05-27,yes
+SYN-00277,osm_w22893985,Mercado de Campanar,commercial_property,3837000,10000,yes,2024-09-21,2025-09-21,yes
+SYN-00278,osm_w231939088,Consum,commercial_property,4760000,10000,yes,2024-08-31,2025-08-31,yes
+SYN-00279,osm_w231939604,Mercat Municipal,commercial_property,733000,2500,yes,2024-01-15,2025-01-14,yes
+SYN-00280,osm_w23578006,Centro Comercial Gran Turia,commercial_property,1060000,25000,yes,2024-07-23,2025-07-23,yes
+SYN-00281,osm_w23700948,Centro Comercial Campanar,commercial_property,170000,2500,yes,2024-05-09,2025-05-09,yes
+SYN-00282,osm_w23738803,Economy Cash,commercial_property,4612000,2500,no,2024-03-20,2025-03-20,yes
+SYN-00283,osm_w23761013,Maxi Dia,commercial_property,2183000,25000,yes,2024-06-22,2025-06-22,yes
+SYN-00284,osm_w240395612,Lidl,commercial_property,4487000,10000,yes,2024-06-29,2025-06-29,yes
+SYN-00285,osm_w243605779,Consum,commercial_property,3216000,5000,no,2024-03-30,2025-03-30,yes
+SYN-00286,osm_w243606377,Mercadona,commercial_property,3228000,5000,no,2024-08-19,2025-08-19,yes
+SYN-00287,osm_w248098116,Planet Fitness,commercial_property,2202000,10000,no,2024-02-18,2025-02-17,yes
+SYN-00288,osm_w248099366,McDonald's,commercial_property,2896000,2500,yes,2024-09-17,2025-09-17,yes
+SYN-00289,osm_w248100375,Trasteros Públicos,commercial_property,9861000,25000,no,2024-07-01,2025-07-01,yes
+SYN-00290,osm_w248226004,Leroy Merlin,commercial_property,4512000,5000,no,2024-06-24,2025-06-24,yes
+SYN-00291,osm_w248226017,Maisons du Monde,commercial_property,642000,10000,yes,2024-05-28,2025-05-28,yes
+SYN-00292,osm_w248235650,Lidl,commercial_property,4117000,2500,yes,2024-09-24,2025-09-24,yes
+SYN-00293,osm_w248271870,Anticrisis del Hogar,commercial_property,698000,10000,yes,2024-06-10,2025-06-10,yes
+SYN-00294,osm_w248271871,Carrefour,commercial_property,4173000,25000,yes,2024-03-03,2025-03-03,yes
+SYN-00295,osm_w248450812,Hiper Bebé,commercial_property,1362000,25000,no,2024-08-29,2025-08-29,yes
+SYN-00296,osm_w248451602,Unnamed retail site,commercial_property,1948000,25000,yes,2024-08-20,2025-08-20,yes
+SYN-00297,osm_w248463543,Elefante Azul,commercial_property,10061000,25000,yes,2024-05-25,2025-05-25,yes
+SYN-00298,osm_w248463546,Demu,commercial_property,2261000,5000,no,2024-05-31,2025-05-31,yes
+SYN-00299,osm_w248463547,Tuco,commercial_property,371000,25000,yes,2024-04-17,2025-04-17,yes
+SYN-00300,osm_w248463549,Repsol,commercial_property,7062000,2500,no,2024-04-08,2025-04-08,yes
+SYN-00301,osm_w249512679,Kerhaus,commercial_property,3163000,25000,yes,2024-02-25,2025-02-24,yes
+SYN-00302,osm_w255218182,Mercado Municipal 'Els Filtres',commercial_property,1938000,2500,no,2024-07-30,2025-07-30,yes
+SYN-00303,osm_w262671785,Indutec Solid,commercial_property,2306000,25000,yes,2024-09-22,2025-09-22,yes
+SYN-00304,osm_w301465503,Musicrooms locales de ensayo y estudio de grabación,commercial_property,848000,5000,yes,2024-01-18,2025-01-17,yes
+SYN-00305,osm_w311344228,MN4,commercial_property,2996000,5000,no,2024-05-15,2025-05-15,yes
+SYN-00306,osm_w312144727,Moeve,commercial_property,1627000,10000,yes,2024-04-27,2025-04-27,yes
+SYN-00307,osm_w378391081,Mercadona,commercial_property,2296000,25000,no,2024-09-23,2025-09-23,yes
+SYN-00308,osm_w404032583,Mercadona,commercial_property,4868000,25000,yes,2024-06-27,2025-06-27,yes
+SYN-00309,osm_w413112869,Llepolies,commercial_property,907000,5000,no,2024-05-10,2025-05-10,yes
+SYN-00310,osm_w428042785,Kiosko La Pérgola,commercial_property,3363000,5000,no,2024-02-21,2025-02-20,yes
+SYN-00311,osm_w469414720,Azkar,commercial_property,740000,10000,no,2024-05-22,2025-05-22,yes
+SYN-00312,osm_w472724414,Aldi,commercial_property,4714000,5000,yes,2024-01-12,2025-01-11,yes
+SYN-00313,osm_w472724429,Decathlon,commercial_property,1927000,2500,yes,2024-06-05,2025-06-05,yes
+SYN-00314,osm_w484127842,Planta de reciclaje,commercial_property,8041000,25000,yes,2024-05-02,2025-05-02,yes
+SYN-00315,osm_w515599827,Nuevo Centro,commercial_property,2034000,5000,yes,2024-08-14,2025-08-14,yes
+SYN-00316,osm_w538980909,Consum,commercial_property,537000,25000,no,2024-06-11,2025-06-11,yes
+SYN-00317,osm_w558581603,Lidl,commercial_property,2213000,10000,no,2024-04-09,2025-04-09,yes
+SYN-00318,osm_w606134291,Motor dÁntolí,commercial_property,7800000,10000,no,2024-04-15,2025-04-15,yes
+SYN-00319,osm_w610831098,Automóviles Juan Giner Peugeot,commercial_property,10921000,25000,yes,2024-09-03,2025-09-03,yes
+SYN-00320,osm_w618277751,Consum,commercial_property,343000,10000,yes,2024-04-29,2025-04-29,yes
+SYN-00321,osm_w624256340,Électro Dépôt,commercial_property,3517000,10000,yes,2024-05-09,2025-05-09,yes
+SYN-00322,osm_w624256341,Tennis-Point,commercial_property,3487000,10000,yes,2024-04-21,2025-04-21,yes
+SYN-00323,osm_w636630500,Mercadona,commercial_property,1276000,25000,yes,2024-01-29,2025-01-28,yes
+SYN-00324,osm_w636630502,Almacenes Mercadona,commercial_property,10556000,25000,yes,2024-06-17,2025-06-17,yes
+SYN-00325,osm_w657857713,Mercadona,commercial_property,3967000,25000,no,2024-06-09,2025-06-09,yes
+SYN-00326,osm_w662061509,Edificio Krono,commercial_property,5027000,10000,yes,2024-01-15,2025-01-14,yes
+SYN-00327,osm_w668451220,Juguetilandia,commercial_property,1896000,25000,yes,2024-04-23,2025-04-23,yes
+SYN-00328,osm_w668451224,Globomoda,commercial_property,4959000,25000,yes,2024-07-09,2025-07-09,yes
+SYN-00329,osm_w668451227,Tuco,commercial_property,3186000,5000,yes,2024-06-08,2025-06-08,yes
+SYN-00330,osm_w668451230,Schmidt,commercial_property,2227000,5000,yes,2024-08-21,2025-08-21,yes
+SYN-00331,osm_w668451234,Burger King,commercial_property,4259000,5000,no,2024-07-28,2025-07-28,yes
+SYN-00332,osm_w673089848,Consum,commercial_property,3944000,5000,no,2024-07-02,2025-07-02,yes
+SYN-00333,osm_w683561166,Consum,commercial_property,1486000,25000,no,2024-07-29,2025-07-29,yes
+SYN-00334,osm_w683561235,Consum,commercial_property,2404000,10000,yes,2024-08-14,2025-08-14,yes
+SYN-00335,osm_w683679948,Mercado Virgen de la Valvanera,commercial_property,3420000,2500,no,2024-05-05,2025-05-05,yes
+SYN-00336,osm_w684131266,Bora Bora,commercial_property,2384000,25000,yes,2024-09-24,2025-09-24,yes
+SYN-00337,osm_w686983480,Garaje Guimerá,commercial_property,9538000,5000,yes,2024-02-18,2025-02-17,yes
+SYN-00338,osm_w688342956,Lavado Manual Shamku,commercial_property,1346000,2500,yes,2024-04-17,2025-04-17,yes
+SYN-00339,osm_w688342957,Autolavado,commercial_property,1542000,2500,no,2024-01-03,2025-01-02,yes
+SYN-00340,osm_w689636511,Antigua fábrica de papel,commercial_property,867000,2500,yes,2024-05-11,2025-05-11,yes
+SYN-00341,osm_w722884650,Blat Market,commercial_property,4463000,5000,yes,2024-02-24,2025-02-23,yes
+SYN-00342,osm_w722885304,Blat Market,commercial_property,3199000,2500,yes,2024-04-18,2025-04-18,yes
+SYN-00343,osm_w724078520,Family Cash,commercial_property,2109000,25000,yes,2024-03-30,2025-03-30,yes
+SYN-00344,osm_w724079197,Consum,commercial_property,2194000,2500,yes,2024-07-25,2025-07-25,yes
+SYN-00345,osm_w772801234,Valeus,commercial_property,465000,5000,yes,2024-03-08,2025-03-08,yes
+SYN-00346,osm_w772801239,Euro Repar,commercial_property,4333000,5000,no,2024-04-12,2025-04-12,yes
+SYN-00347,osm_w772801258,La Nube,commercial_property,8353000,2500,yes,2024-01-30,2025-01-29,yes
+SYN-00348,osm_w775222200,Hiper Asia,commercial_property,1736000,10000,yes,2024-08-31,2025-08-31,yes
+SYN-00349,osm_w777291452,ALDI,commercial_property,3015000,10000,yes,2024-09-26,2025-09-26,yes
+SYN-00350,osm_w849747048,Lúzete,commercial_property,3818000,2500,yes,2024-03-08,2025-03-08,yes
+SYN-00351,osm_w852691387,Servar Global Projects,commercial_property,10662000,2500,no,2024-03-18,2025-03-18,yes
+SYN-00352,osm_w855372036,Orchestra,commercial_property,324000,10000,yes,2024-04-29,2025-04-29,yes
+SYN-00353,osm_w855372037,Muerde la Pasta,commercial_property,1441000,25000,yes,2024-02-07,2025-02-06,yes
+SYN-00354,osm_w855372038,JYSK,commercial_property,4959000,25000,yes,2024-02-27,2025-02-26,yes
+SYN-00355,osm_w895065018,Dia,commercial_property,3300000,25000,no,2024-04-27,2025-04-27,yes
+SYN-00356,osm_w895938824,Mercadona,commercial_property,3369000,10000,yes,2024-04-22,2025-04-22,yes
+SYN-00357,osm_w913912691,ALDI,commercial_property,4303000,10000,yes,2024-06-03,2025-06-03,yes
+SYN-00358,osm_w913912693,Magatzem Municipal i Brigada d'obres,commercial_property,1105000,2500,yes,2024-02-03,2025-02-02,yes
+SYN-00359,osm_w916293104,Repsol Les Cortd,commercial_property,430000,10000,yes,2024-01-14,2025-01-13,yes

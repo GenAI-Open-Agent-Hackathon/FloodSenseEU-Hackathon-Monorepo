@@ -12,12 +12,12 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/docs/` | Mihir | Gameplan, ADRs, later legal notes and release notes |
 | `/infra/` | Mihir | Local runtime notes. The CI runner choice is ADR 0008 |
 | `/compose.yaml` | Mihir | Our app only. Isolated from Zetaris |
-| `/tasks.py` | Mihir | Task runner. `zetaris-sync` behaviour is Urvashi's |
+| `/tasks.py` | Mihir | Task runner. `zetaris-sync` behaviour is Mihir's (takeover 2026-10-25) |
 | `/contracts/` | Mihir | JSON Schema and the Python and TypeScript mirrors |
 | `/.github/` | Mihir | Workflows |
-| `/ingestion/` | Urvashi, Saleeta | Prep, footprints, portfolio, seed content |
-| `/zetaris/` | Urvashi | Migrations, sync, views |
-| `/scripts/zetaris_sync.py` | Urvashi | The one sync command |
+| `/ingestion/` | Mihir, Saleeta | Mihir primary (takeover 2026-10-25). Saleeta secondary on prep and demo content |
+| `/zetaris/` | Mihir | Migrations, sync, views. Takeover from Urvashi 2026-10-25 |
+| `/scripts/zetaris_sync.py` | Mihir | The one sync command. Takeover from Urvashi 2026-10-25 |
 | `/agents/` | Ayush, Zain | Nightshift, graph, memory |
 | `/agents/floodsense_agents/hitl.py` | Zain | Approval interrupt and checkpointer |
 | `/agents/floodsense_agents/nodes/judge.py` | Zain, Mihir | LLM-as-a-Judge |
