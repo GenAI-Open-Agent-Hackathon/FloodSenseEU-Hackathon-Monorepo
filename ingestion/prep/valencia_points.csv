@@ -1,0 +1,9 @@
+point_id,name,municipality,lat,lon,why,verified_against_footprint,in_flood,dist_m_to_flood
+VAL01,Paiporta centre,Paiporta,39.4278,-0.4172,Worst-hit town on 29 Oct 2024 (Barranc del Poyo),yes,yes,0
+VAL02,Catarroja centre,Catarroja,39.4019,-0.4036,Horta Sud near the Barranc del Poyo outflow,yes,no,271
+VAL03,Sedavi centre,Sedaví,39.4267,-0.3836,Horta Sud flooded area,yes,no,61
+VAL04,Alfafar centre,Alfafar,39.4181,-0.3792,Horta Sud near the Albufera,yes,yes,0
+VAL05,Benetusser centre,Benetússer,39.4244,-0.3969,Horta Sud flooded area,yes,no,161
+VAL06,Algemesi centre,Algemesí,39.1906,-0.4367,Ribera Alta along the Jucar,yes,no,313
+VAL07,Chiva centre,Chiva,39.4694,-0.7186,Upstream of the Barranc del Poyo catchment,yes,no,2719
+VAL08,Utiel centre,Utiel,39.5683,-1.2056,La Plana de Utiel (named in the activation),yes,no,249

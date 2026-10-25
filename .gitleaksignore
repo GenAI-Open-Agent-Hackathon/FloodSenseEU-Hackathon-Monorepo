@@ -9,3 +9,9 @@
 # AWS access key that sits in a SQL comment. Not a real credential.
 # This fingerprint matches commit 83abb6d only.
 83abb6d305fb540221662fcbe30a9c1483f637c4:scripts/tests/test_zetaris_sync.py:aws-access-token:131
+
+# The same two fixtures after rebasing feat/zetaris-data-sync onto main
+# (commit d2f3734 on feat/data-v010-sync-seed). Not a real credential.
+# Each fingerprint matches that commit only.
+d2f3734cd8c6c63733ddf473938ca67ce2d81c4d:scripts/tests/test_zetaris_sync.py:generic-api-key:20
+d2f3734cd8c6c63733ddf473938ca67ce2d81c4d:scripts/tests/test_zetaris_sync.py:aws-access-token:131

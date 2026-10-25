@@ -389,7 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("up-all", help="up, plus the rag (pgvector) and cache (Redis) profiles.")
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
-    sub.add_parser("zetaris-sync", help="Run the Zetaris sync stub. Applies no SQL.")
+    sub.add_parser("zetaris-sync", help="Apply pending Zetaris migrations, then verify declared views.")
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
         "lint",
