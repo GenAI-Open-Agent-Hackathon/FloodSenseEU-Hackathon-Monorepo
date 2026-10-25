@@ -67,6 +67,14 @@ py tasks.py zetaris-sync
 
 Stage the CSVs before the first apply of `010`. A later "already exists" on that migration does not copy files that were never staged.
 
+This branch also applies migrations `030`–`033`. `030`–`032` are REST tables and do not need local files. `033` is FILESTORE over `/home/zetaris/customer-data/shared/floodsense_live/<table>`. Those directories are empty until:
+
+```bash
+python ingestion/feeds/feeds.py pull --since 2024-10-20 --stage
+```
+
+If that path is missing, apply stops at `033` and `zetaris-sync` does not exit 0. After every view migration is in the ledger, verify also checks `hazard_timeline` (live `min_rows` 3264), `exposure_join` (359), and `provenance` (6), not only `discharge_daily`. Live discharge and `hazard_timeline` need Open-Meteo reachable from the laptop. Exposure and provenance need the seed CSVs staged before `010`.
+
 Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, 6 and 8, and the join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
 
 ## Not in this folder yet
