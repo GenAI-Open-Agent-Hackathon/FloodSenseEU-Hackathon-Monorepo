@@ -43,6 +43,6 @@ Applied files are recorded in `.zetaris-sync/ledger.json` (git-ignored, one per 
 
 **TODO:** `reset` prints "not implemented yet" and sends nothing. Lightning SQL has no `DROP SCHEMASTORE CONTAINER`, so a full reset needs the Zetaris API or UI to remove containers.
 
-Each person creates their own Zetaris API key in their own UI and stores it in `ingestion/.env` (host URL `127.0.0.1`). Do not point this command at `agents/.env`: that file is for containers and uses `host.docker.internal`, which usually does not resolve on the host. The root `.env` is not injected into containers and is not read by the stub. Nobody shares keys.
+Each person creates their own Zetaris API key in their own UI and stores it in `ingestion/.env` (host URL `127.0.0.1`). Do not point this command at `agents/.env`: that file is for containers and uses `host.docker.internal`, which usually does not resolve on the host. The root `.env` is not injected into containers. The sync command reads `ingestion/.env`, not the root file and not `agents/.env`. Nobody shares keys.
 
 This folder does not start Zetaris. Zetaris is a separate Docker Compose project on each machine (UI `:3000`, REST `:8888/api/v1.0`, JDBC `:10000`).

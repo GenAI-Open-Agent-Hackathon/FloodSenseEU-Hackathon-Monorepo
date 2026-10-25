@@ -16,15 +16,17 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/contracts/` | Mihir | JSON Schema and the Python and TypeScript mirrors |
 | `/.github/` | Mihir | Workflows |
 | `/ingestion/` | Mihir, Saleeta | Mihir primary (takeover 2026-10-25). Saleeta secondary on prep and demo content |
-| `/zetaris/` | Mihir | Migrations, sync, views. Takeover from Urvashi 2026-10-25 |
-| `/scripts/zetaris_sync.py` | Mihir | The one sync command. Takeover from Urvashi 2026-10-25 |
+| `/zetaris/` | Mihir | Migrations, sync, views. Takeover 2026-10-25. Urvashi remains on the team for Zetaris expertise |
+| `/scripts/zetaris_sync.py` | Mihir | The one sync command. Takeover 2026-10-25 |
+| `/scripts/nightshift_check.py` | Ayush | Live check of the local Nightshift runtime |
+| `/engines/` | Ayush | H-MEM and World Model sidecar. On main. The agents package does not call it yet |
 | `/agents/` | Ayush, Zain | Nightshift, graph, memory |
 | `/agents/floodsense_agents/hitl.py` | Zain | Approval interrupt and checkpointer |
 | `/agents/floodsense_agents/nodes/judge.py` | Zain, Mihir | LLM-as-a-Judge |
 | `/api/` | Zain, Ayush | Runs, SSE, approval; cache is Ayush's |
-| `/ui/` | Mihir, Zain | Mihir until LangGraph and HITL are done, then Zain |
+| `/ui/` | Zain, Mihir | Citizen page and insurer console are on main. Zain owns the path. Mihir landed the console |
 | `/pgvector/` | Urvashi | Optional citation store. Ayush on embeddings |
-| `/evals/` | Saleeta, Zain, Mihir | Not in the skeleton yet. Ahr/NRW 2021 and Valencia 2024 |
-| `/demo/` | Saleeta | Not in the skeleton yet. Deck, script, video |
+| `/evals/` | Saleeta, Zain, Mihir | On main: Valencia 2024 and Ahr 2021. Not a tagged increment |
+| `/demo/` | Saleeta | No folder yet. Deck, script, video |
 
-Planned paths that have no folder yet (`knowledge/`, `engines/`, `evals/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+`engines/` and `evals/` are on main. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).

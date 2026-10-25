@@ -33,4 +33,7 @@ git push origin vX.Y.Z
 
 4. Publish a GitHub Release for that existing tag. Title it `vX.Y.Z - short name`. Use the new changelog section as the notes. GitHub can draft notes from merged pull requests; `.github/release.yml` sets the groups. `enhancement` is Features, `bug` is Fixes, `documentation` is Docs & ADRs, and `ci` is CI & Tooling. Anything else is Other. `enhancement`, `bug`, and `documentation` already exist. Add `ci` and `skip-changelog` when you first apply them. There are no `agents`, `data`, `api`, or `ui` labels, so those areas have no group of their own until the labels exist. Edit the draft so the published text matches the changelog section.
 
-`v0.0.0` is already tagged on `eacf34c`. Do not move it.
+Two annotated tags exist. Do not move them.
+
+- `v0.0.0` is the skeleton tag on `eacf34c`. Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0
+- `v0.1.0` is the data-slice tag on `7045fc5`. Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0
