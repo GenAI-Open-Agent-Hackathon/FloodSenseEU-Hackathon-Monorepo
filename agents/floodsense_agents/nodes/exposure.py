@@ -7,13 +7,65 @@ number claims the Judge can check exactly.
 
 from __future__ import annotations
 
+import math
 import re
 import time
+from decimal import Decimal, InvalidOperation
 
 from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, normalize_utc
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, answered, trace
+from floodsense_agents.zetaris import run_sql_parallel
+
+
+def _number(value: object, default: float = 0.0) -> float:
+    """Zetaris JDBC/REST returns DECIMAL sums as str or Decimal.
+
+    ``:,.0f`` only accepts a real number, so a numeric string crashed the
+    segment claim on a live run. Missing or unreadable cells use ``default``.
+    """
+    if value is None or isinstance(value, bool):
+        return default
+    try:
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return default
+            parsed = Decimal(text)
+        elif isinstance(value, Decimal):
+            parsed = value
+        elif isinstance(value, (int, float)):
+            parsed = Decimal(str(value))
+        else:
+            parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+    try:
+        out = float(parsed)
+    except (OverflowError, ValueError):
+        return default
+    return out if math.isfinite(out) else default
+
+
+def _count(value: object) -> int:
+    return int(_number(value))
+
+
+def _eur(value: object) -> str:
+    return f"{_number(value):,.0f}"
+
+
+def _segments(rows: list[dict]) -> list[dict]:
+    out = []
+    for raw in rows:
+        item = dict(raw)
+        if "policies" in item:
+            item["policies"] = _count(item.get("policies"))
+        if "sum_insured_eur" in item:
+            item["sum_insured_eur"] = _number(item.get("sum_insured_eur"))
+        out.append(item)
+    return out
 
 
 def _exposure_trace(
@@ -54,21 +106,31 @@ def make(deps: Deps):
             )
             agg = whole = q
         else:
-            q = deps.zetaris.run_sql(
-                f"SELECT policy_id, site_id, lat, lon, segment, sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here} ORDER BY sum_insured_eur DESC"
-            )
-            agg = deps.zetaris.run_sql(
-                f"SELECT segment, COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here} "
-                f"GROUP BY segment ORDER BY sum_insured_eur DESC"
-            )
+            # The sample, the segment rollup, and the portfolio total do not
+            # depend on each other. Order is the evidence order.
             # run_sql keeps 20 rows. The seed has 7, so summing the sample
             # looked right; a real portfolio would state a partial total that
             # the Judge could still match. Take the totals from the aggregate.
-            whole = deps.zetaris.run_sql(
-                f"SELECT COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here}"
+            q, agg, whole = run_sql_parallel(
+                deps.zetaris,
+                [
+                    (
+                        f"SELECT policy_id, site_id, lat, lon, segment, sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here} ORDER BY sum_insured_eur DESC",
+                        None,
+                    ),
+                    (
+                        f"SELECT segment, COUNT(*) AS policies, SUM(sum_insured_eur) AS "
+                        f"sum_insured_eur FROM {s}.exposure_join WHERE {here} "
+                        f"GROUP BY segment ORDER BY sum_insured_eur DESC",
+                        None,
+                    ),
+                    (
+                        f"SELECT COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here}",
+                        None,
+                    ),
+                ],
             )
         # A query that errored returned nothing because it failed, not because
         # the portfolio is empty. Saying "no site is exposed" would be as wrong
@@ -76,13 +138,15 @@ def make(deps: Deps):
         ok = answered(q, agg, whole)
         assets = [ExposedAsset(**r) for r in q.rows_sample] if ok else []
         row = (whole.rows_sample or [{}])[0] if ok else {}
-        policies = int(row.get("policies") or 0)
-        total = float(row.get("sum_insured_eur") or 0)
+        policies = _count(row.get("policies"))
+        total = _number(row.get("sum_insured_eur"))
+        # Coerce the stored rollup. Cited evidence rows stay as Zetaris sent them.
+        segments = _segments(agg.rows_sample)
         exp = Exposure(
             assets=assets,
             policies=policies,
             sum_insured_eur=total,
-            by_segment=agg.rows_sample,
+            by_segment=segments,
             query_ids=[q.query_id, agg.query_id, whole.query_id],
         )
 
@@ -101,13 +165,13 @@ def make(deps: Deps):
                     citations=cite(cid, whole, prov, 1),
                     numbers=[policies, total],
                     text=f"{policies} policies sit inside the mapped footprint, sum insured "
-                    f"{total:,.0f} EUR; the largest is {assets[0].policy_id} "
-                    f"({assets[0].segment}, {assets[0].sum_insured_eur:,.0f} EUR).",
+                    f"{_eur(total)} EUR; the largest is {assets[0].policy_id} "
+                    f"({assets[0].segment}, {_eur(assets[0].sum_insured_eur)} EUR).",
                 )
             )
             new_ids.append(cid)
-            if agg.rows_sample:
-                top = agg.rows_sample[0]
+            if segments:
+                top = segments[0]
                 n += 1
                 cid = f"C{n}"
                 claims.append(
@@ -118,7 +182,7 @@ def make(deps: Deps):
                         citations=cite(cid, agg, prov, 1),
                         numbers=[top["policies"], top["sum_insured_eur"]],
                         text=f"The most exposed segment is {top['segment']}: {top['policies']} "
-                        f"policies, {top['sum_insured_eur']:,.0f} EUR sum insured.",
+                        f"policies, {_eur(top['sum_insured_eur'])} EUR sum insured.",
                     )
                 )
                 new_ids.append(cid)

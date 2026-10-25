@@ -17,6 +17,8 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Changed
 
+- Investigator, Skeptic, and first-pass Playbook drafts call Nightshift on lane `fast` (`MODEL_FAST`, `meterless/fast`). Judge grounding and Playbook repair stay on lane `deep`. `SKEPTIC_MAX_ROUNDS` is still the cap (default 3). A smoke run can set it to 1; the node does not hardcode that.
+- Watchers, the Investigator's aggregate queries, and the Exposure join run independent Zetaris statements together (`asyncio.gather`). Claim text, hypothesis order, and evidence order stay the same. Live login refreshes share one lock so those calls can overlap.
 - README and ownership docs match tagged v0.0.0 / v0.1.0 and the Unreleased UI, Nightshift, and engines landings. They also name the agent graph, HITL, Judge, API run proxy, and evals that #4 put on main. Those later increments are not tagged.
 - A view body with any `seed:` row is Seed, not Live. Fixture notices use their own id. A seed stamp on a fixture is described as a stamp, not as a Seed origin. The origin banner uses the same Fixture / Seed / Live words as the header pill.
 - Agents fall back to `meterless/fast` and `meterless/deep` when `MODEL_FAST` and `MODEL_DEEP` are unset, the same routing modes as `.env.example` and `agents/.env.example`.
@@ -27,6 +29,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Fixed
 
+- The exposure node accepts `sum_insured_eur` and segment `policies` when Zetaris returns them as strings or `Decimal`. A numeric string used to crash the segment claim (`Unknown format code 'f' for object of type 'str'`). Unreadable cells format as 0. Cited evidence rows stay as Zetaris returned them.
 - Fake Zetaris, the seed schema, a replay clock, and a re-read (including a cached event timeline) are not labelled `served_from: "live"`. Live is a fresh read of `floodsense.*` through live Zetaris with no replay clock. `/ready`, `/config`, `/version`, `/runs/past`, an empty `/desk/events`, and `/desk/dispatch-target` follow that rule. `GET /health` stays a liveness check. A run posted with `replay_ts` stays `replay` on `GET /runs/{id}`.
 - API proxy handlers await an async HTTP client, so one run does not block the event loop or the SSE stream.
 - `POST /runs` and `GET /runs/{id}` attach a `contract` projection (answer, approvals, evidence, playbook, and judge only when every `model_id` is already in the schema enum) that validates against `contracts/schemas/floodsense.schema.json`. Graph ids outside that enum, including Super VL and the offline ids, omit the judge instead of writing Lightning or the discontinued Super id. Evidence rows with `error` are omitted. Citation URLs are http(s) the payload already had. `auto` is not rewritten to `approved`. Approval and citation routes are not projected. Graph state is unchanged.

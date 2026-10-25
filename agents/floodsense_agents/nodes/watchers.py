@@ -14,6 +14,7 @@ from floodsense_agents.governance import DEFINITIONS
 from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
+from floodsense_agents.zetaris import run_sql_parallel
 
 
 def last_complete_day(end_utc: str) -> str:
@@ -75,11 +76,22 @@ def make(deps: Deps):
                 clock,
             ),
         }
-        evid = {k: deps.zetaris.run_sql(sql, params) for k, (sql, params) in q.items()}
-        prov = deps.zetaris.run_sql(
-            f"SELECT dataset, source_url, publisher, licence, attribution, fetched_at FROM "
-            f"{s}.provenance"
+        # Rain, discharge, warnings, and provenance do not depend on each other.
+        # The tuple order is the evidence order: hazard queries, then provenance.
+        rain_e, discharge_e, warning_e, prov = run_sql_parallel(
+            deps.zetaris,
+            [
+                q["rain"],
+                q["discharge"],
+                q["warning"],
+                (
+                    f"SELECT dataset, source_url, publisher, licence, attribution, fetched_at FROM "
+                    f"{s}.provenance",
+                    None,
+                ),
+            ],
         )
+        evid = {"rain": rain_e, "discharge": discharge_e, "warning": warning_e}
         items: list[Anomaly] = []
         for r in evid["rain"].rows_sample[:5]:
             items.append(

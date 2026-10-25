@@ -2,8 +2,9 @@
 
 Outbound actions (anything that contacts a person or an authority) are marked
 and wait for the human. The deterministic path writes a standard set from the
-exposure; the model, when available, writes richer ones and is validated
-against the claim ids.
+exposure; the fast lane, when available, writes richer ones and is validated
+against the claim ids. A repair round, after the Judge flags a claim, stays
+on the deep lane.
 
 It also owns the repair round: when the Judge flags a claim, the Playbook
 rewrites or shortens it to what its evidence shows. Nothing is deleted.
@@ -99,7 +100,7 @@ def make(deps: Deps):
                 + f"\nEXPOSURE: {state.get('exposure')}"
             )
             text, model_id = deps.llm.complete(
-                "deep", PLAYBOOK.replace("{lang}", state["request"].get("lang", "en")), user
+                "fast", PLAYBOOK.replace("{lang}", state["request"].get("lang", "en")), user
             )
             js = parse_json(text)
             ids = {c["claim_id"] for c in state["claims"]}
@@ -114,7 +115,7 @@ def make(deps: Deps):
                 for a in js.get("actions", [])
             ]
             if got:
-                actions, lane = got, "deep"
+                actions, lane = got, "fast"
         except Exception as e:
             log.warning("playbook: model step skipped (%s)", str(e)[:120])
         return {
