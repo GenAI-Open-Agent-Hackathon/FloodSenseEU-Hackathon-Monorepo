@@ -22,6 +22,10 @@ class CiTests(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, homelab]", self.workflow)
         self.assertIn("python tasks.py lint", self.workflow)
         self.assertIn("python tasks.py test", self.workflow)
+        # engines/ needs Node 22.18. The lint job stays on Node 20.
+        self.assertIn('node-version: "20"', self.workflow)
+        self.assertIn('node-version: "22.18"', self.workflow)
+        self.assertIn("python tasks.py engines-test", self.workflow)
         self.assertIn('FLOODSENSE_REQUIRE_GITLEAKS: "1"', self.workflow)
         self.assertIn("FLOODSENSE_GITLEAKS_LOG_OPTS", self.workflow)
         self.assertIn("github.event.pull_request.base.sha", self.workflow)

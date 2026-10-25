@@ -326,6 +326,62 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("npm ci", err.getvalue())
 
+    def test_parse_node_version(self) -> None:
+        self.assertEqual(tasks.parse_node_version("v22.18.0"), (22, 18, 0))
+        self.assertEqual(tasks.parse_node_version("v22.18.0\n"), (22, 18, 0))
+        self.assertEqual(tasks.parse_node_version("v20.19.5"), (20, 19, 5))
+        self.assertIsNone(tasks.parse_node_version(""))
+        self.assertTrue((22, 18, 0) >= tasks.ENGINES_MIN_NODE)
+        self.assertFalse((20, 19, 5) >= tasks.ENGINES_MIN_NODE)
+        self.assertFalse((22, 17, 9) >= tasks.ENGINES_MIN_NODE)
+
+    def test_engines_test_rejects_node_20(self) -> None:
+        fake = self.root / "node20"
+        fake.write_text("#!/bin/sh\nprintf '%s\\n' v20.19.0\n", encoding="utf-8")
+        fake.chmod(0o755)
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            raise AssertionError(argv)
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = tasks.cmd_engines_test(self.root, runner, node=str(fake))
+        self.assertEqual(code, 1)
+        self.assertIn("22.18", err.getvalue())
+        self.assertIn("20.19.0", err.getvalue())
+        self.assertIn("Node 20", err.getvalue())
+
+    def test_engines_test_runs_npm_test_and_conformance(self) -> None:
+        fake = self.root / "node22"
+        fake.write_text("#!/bin/sh\nprintf '%s\\n' v22.18.0\n", encoding="utf-8")
+        fake.chmod(0o755)
+        calls: list[tuple[list[str], Path]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            calls.append((argv, cwd))
+            return 0
+
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = tasks.cmd_engines_test(self.root, runner, node=str(fake))
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][1], self.root / "engines")
+        self.assertEqual(calls[1][1], self.root / "engines")
+        self.assertEqual(calls[0][0][1:], ["test"])
+        self.assertEqual(calls[1][0][1:], ["run", "conformance"])
+        self.assertTrue(calls[0][0][0].endswith("npm") or calls[0][0][0].endswith("npm.cmd"))
+
+    def test_engines_test_steps_stay_inside_engines(self) -> None:
+        steps = tasks.engines_test_steps(self.root, "npm")
+        self.assertEqual(
+            steps,
+            [
+                (self.root / "engines", ["npm", "test"]),
+                (self.root / "engines", ["npm", "run", "conformance"]),
+            ],
+        )
+
     def test_unknown_command_exits_nonzero(self) -> None:
         with self.assertRaises(SystemExit) as caught, redirect_stderr(io.StringIO()):
             tasks.main(["nope"], root=self.root)
