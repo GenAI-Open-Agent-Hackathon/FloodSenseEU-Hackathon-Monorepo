@@ -77,7 +77,8 @@ def _exposure_trace(
     if not ok:
         return "exposure not computed: the portfolio query failed"
     return (
-        f"{policies} exposed policies, {total:,.0f} EUR sum insured, {new_claims} new number claims"
+        f"{policies} exposed policies, {_eur(total)} EUR sum insured, "
+        f"{new_claims} new number claims"
     )
 
 
@@ -121,7 +122,8 @@ def make(deps: Deps):
                     ),
                     (
                         f"SELECT segment, COUNT(*) AS policies, SUM(sum_insured_eur) AS "
-                        f"sum_insured_eur FROM {s}.exposure_join WHERE {here} "
+                        f"sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here} "
                         f"GROUP BY segment ORDER BY sum_insured_eur DESC",
                         None,
                     ),
@@ -140,7 +142,6 @@ def make(deps: Deps):
         row = (whole.rows_sample or [{}])[0] if ok else {}
         policies = _count(row.get("policies"))
         total = _number(row.get("sum_insured_eur"))
-        # Coerce the stored rollup. Cited evidence rows stay as Zetaris sent them.
         segments = _segments(agg.rows_sample)
         exp = Exposure(
             assets=assets,

@@ -122,7 +122,11 @@ def run_sql_parallel(
 
     async def _all() -> list[Evidence]:
         async def _one(sql: str, params: tuple[str, ...] | None) -> Evidence:
-            return await asyncio.to_thread(client.run_sql, sql, params)
+            # Omit a missing parameter tuple. Callers that override run_sql(sql)
+            # (the exposure string-coerce tests on main) still run.
+            if params:
+                return await asyncio.to_thread(client.run_sql, sql, params)
+            return await asyncio.to_thread(client.run_sql, sql)
 
         return list(await asyncio.gather(*(_one(sql, params) for sql, params in jobs)))
 

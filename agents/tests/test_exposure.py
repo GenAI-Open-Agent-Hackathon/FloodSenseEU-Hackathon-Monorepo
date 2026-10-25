@@ -45,8 +45,8 @@ def _node(zetaris: FakeZetaris):
 class StringDecimals(FakeZetaris):
     """SUM(sum_insured_eur) and COUNT come back as text, as on the live path."""
 
-    def run_sql(self, sql: str, params=None) -> Evidence:
-        evidence = super().run_sql(sql, params)
+    def run_sql(self, sql: str) -> Evidence:
+        evidence = super().run_sql(sql)
         rows = []
         for row in evidence.rows_sample:
             item = dict(row)
@@ -61,8 +61,8 @@ class StringDecimals(FakeZetaris):
 class DecimalSums(FakeZetaris):
     """The same aggregates as decimal.Decimal, which JDBC drivers also return."""
 
-    def run_sql(self, sql: str, params=None) -> Evidence:
-        evidence = super().run_sql(sql, params)
+    def run_sql(self, sql: str) -> Evidence:
+        evidence = super().run_sql(sql)
         rows = []
         for row in evidence.rows_sample:
             item = dict(row)
@@ -75,8 +75,8 @@ class DecimalSums(FakeZetaris):
 class UnreadableSegment(FakeZetaris):
     """The segment total is not a number. The node must not raise on it."""
 
-    def run_sql(self, sql: str, params=None) -> Evidence:
-        evidence = super().run_sql(sql, params)
+    def run_sql(self, sql: str) -> Evidence:
+        evidence = super().run_sql(sql)
         if "GROUP BY segment" not in sql:
             return evidence
         rows = []
