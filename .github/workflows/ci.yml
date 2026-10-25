@@ -114,3 +114,26 @@ jobs:
       # has Zetaris: python tasks.py zetaris-sync
       - name: Zetaris migrations (dry run)
         run: python scripts/zetaris_sync.py sync --dry-run
+
+  # engines/ runs TypeScript with Node's built-in loader and needs 22.18+.
+  # The job above stays on Node 20 for the UI typecheck. Do not merge them
+  # until the UI job moves; Node 20 cannot run npm test here.
+  engines:
+    name: engines tests (node 22.18)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.18"
+
+      - name: Engines tests
+        run: python tasks.py engines-test

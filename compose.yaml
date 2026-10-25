@@ -9,6 +9,8 @@
 # select another file. env_file `required: false` needs Compose v2.24+.
 # A missing file must not block `down` (the rag profile is optional).
 # `up` still refuses to start until api/.env, agents/.env, and ui/.env exist.
+# engines/.env is optional. The engines service overrides host, port, and
+# data dir so a laptop file that binds 127.0.0.1 cannot hide the port.
 
 name: floodsense-app
 
@@ -36,10 +38,35 @@ services:
     env_file:
       - path: ./agents/.env
         required: false
+    # Compose `environment` wins over agents/.env. On the host, without
+    # compose, ENGINES_URL is http://127.0.0.1:8300 (the published port).
+    environment:
+      ENGINES_URL: http://engines:8300
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - checkpoints:/data/checkpoints
+    depends_on:
+      - engines
+    networks:
+      - floodsense
+
+  engines:
+    build: ./engines
+    env_file:
+      - path: ./engines/.env
+        required: false
+    # A laptop engines/.env sets ENGINES_HOST=127.0.0.1. That address inside
+    # this container is not reachable from the agents service. These three
+    # values override the file. The host port below stays on loopback.
+    environment:
+      ENGINES_HOST: 0.0.0.0
+      ENGINES_PORT: "8300"
+      ENGINES_DATA_DIR: /data
+    ports:
+      - "127.0.0.1:${FLOODSENSE_ENGINES_PORT:-8300}:8300"
+    volumes:
+      - engines-data:/data
     networks:
       - floodsense
 
@@ -85,5 +112,7 @@ networks:
 volumes:
   checkpoints:
     name: floodsense-app_checkpoints
+  engines-data:
+    name: floodsense-app_engines
   pgdata:
     name: floodsense-app_pgdata
