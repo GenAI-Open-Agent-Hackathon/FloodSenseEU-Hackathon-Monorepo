@@ -29,6 +29,8 @@ Chunks, embeddings and the citation path (document, page, paragraph, licence) li
 
 Agents never put `<=>` or `<->` in Zetaris SQL.
 
+This assumption is not a v1 gate. Layer (c) and pgvector are stretch. `FF_RAG_DOCS` stays off.
+
 ## Consequences
 
 - This is the exception [ADR 0003](0003-zetaris-only-data-path.md) asks for: agents call pgvector directly for ranking only. Text and metadata still come through Zetaris. Mihir accepts or changes it.
