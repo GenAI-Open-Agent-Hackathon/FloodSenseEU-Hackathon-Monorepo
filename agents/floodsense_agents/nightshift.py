@@ -2,9 +2,11 @@
 
     complete(lane, system, user, *, json=True) -> (text, model_id)
 
-``lane`` is "fast" or "deep" and picks a pinned Nemotron model. The model id
-comes back so the trace and the Judge scores can record it. FakeNightshift
-answers offline with deterministic JSON, so tests and the UI need no credits.
+``lane`` is "fast" or "deep" and picks ``MODEL_FAST`` / ``MODEL_DEEP``
+(``meterless/fast`` and ``meterless/deep``). Nightshift chooses the model.
+The model id that answered comes back so the trace and the Judge scores can
+record it. FakeNightshift answers offline with deterministic JSON, so tests
+and the UI need no credits.
 """
 
 from __future__ import annotations

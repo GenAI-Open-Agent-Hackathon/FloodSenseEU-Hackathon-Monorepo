@@ -34,6 +34,7 @@ ENV_EXAMPLES: tuple[str, ...] = (
     "ui/.env.example",
     "ingestion/.env.example",
     "pgvector/.env.example",
+    "engines/.env.example",
 )
 REQUIRED_ENV: tuple[str, ...] = ("api/.env", "agents/.env", "ui/.env")
 PGVECTOR_ENV = "pgvector/.env"
@@ -179,6 +180,29 @@ def cmd_zetaris_sync(root: Path, runner: Runner) -> int:
     return runner([sys.executable, str(script)], root)
 
 
+# tests/test_tasks.py requires every test step to start with this interpreter.
+# The script still runs `npm test` in ui/ (Vitest).
+_UI_NPM_TEST = """\
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+npm = shutil.which("npm")
+if npm is None:
+    print(
+        "npm is not on PATH. Install Node.js 20, then run npm ci in ui/.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+if not (Path.cwd() / "node_modules" / "vitest" / "package.json").is_file():
+    print("Vitest is not installed. From the ui directory, run:", file=sys.stderr)
+    print("  npm ci", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(subprocess.call([npm, "test"]))
+"""
+
+
 def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
     exe = sys.executable
     return [
@@ -203,6 +227,7 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
         (root, [exe, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "contracts/tests", "-v"]),
+        (root / "ui", [exe, "-c", _UI_NPM_TEST]),
     ]
 
 
@@ -258,11 +283,27 @@ def typescript_bin(root: Path) -> Path:
     return root / "ui" / "node_modules" / "typescript" / "bin" / "tsc"
 
 
+def resolve_gitleaks_log_opts(explicit: str | None = None) -> str:
+    """Arguments for `gitleaks detect --log-opts`.
+
+    An empty `--log-opts` makes gitleaks 8.30 run `git log --all`, which
+    scans every fetched branch. CI sets FLOODSENSE_GITLEAKS_LOG_OPTS to the
+    pull request range or the pushed range. Unset means the checked-out ref.
+    """
+    if explicit is not None:
+        return explicit
+    configured = os.environ.get("FLOODSENSE_GITLEAKS_LOG_OPTS", "").strip()
+    if configured:
+        return configured
+    return "HEAD"
+
+
 def lint_commands(
     root: Path,
     *,
     node: str,
     gitleaks: str | None,
+    gitleaks_log_opts: str = "HEAD",
 ) -> list[tuple[Path, list[str]]]:
     """Argument lists for ruff, tsc, and gitleaks. No shell."""
     tsc = typescript_bin(root)
@@ -279,6 +320,8 @@ def lint_commands(
                     str(root),
                     "--redact",
                     "--no-banner",
+                    "--log-opts",
+                    gitleaks_log_opts,
                 ],
             )
         )
@@ -309,11 +352,14 @@ def cmd_lint(
     gitleaks: str | None = None,
     resolve_tools: bool = True,
     require_gitleaks: bool | None = None,
+    gitleaks_log_opts: str | None = None,
 ) -> int:
     """Tracked-env check, ruff, and TypeScript. Gitleaks runs when it is on PATH.
 
     CI sets FLOODSENSE_REQUIRE_GITLEAKS=1 so a missing scanner fails the job.
     Locally a missing scanner prints one line and the rest of lint still runs.
+    The scan passes `--log-opts` from FLOODSENSE_GITLEAKS_LOG_OPTS, or `HEAD`
+    when that variable is unset, so other fetched branches are not scanned.
     """
     code = check_tracked_env(root)
     if code != 0:
@@ -342,7 +388,10 @@ def cmd_lint(
             file=sys.stderr,
         )
         return 1
-    for cwd, argv in lint_commands(root, node=node, gitleaks=gitleaks):
+    log_opts = resolve_gitleaks_log_opts(gitleaks_log_opts)
+    for cwd, argv in lint_commands(
+        root, node=node, gitleaks=gitleaks, gitleaks_log_opts=log_opts
+    ):
         code = runner(argv, cwd)
         if code != 0:
             return code
@@ -364,11 +413,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("up-all", help="up, plus the rag (pgvector) and cache (Redis) profiles.")
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
-    sub.add_parser("zetaris-sync", help="Run the Zetaris sync stub. Applies no SQL.")
+    sub.add_parser("zetaris-sync", help="Apply pending Zetaris migrations, then verify declared views.")
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
         "lint",
-        help="Tracked-.env check, ruff, and TypeScript. Gitleaks when it is on PATH.",
+        help=(
+            "Tracked-.env check, ruff, and TypeScript. "
+            "Gitleaks, when it is on PATH, scans the checked-out ref "
+            "(or FLOODSENSE_GITLEAKS_LOG_OPTS)."
+        ),
     )
     return parser
 

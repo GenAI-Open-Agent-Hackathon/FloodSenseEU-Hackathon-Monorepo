@@ -254,12 +254,14 @@ Output per claim: `claim_id`, `grounding`, `citation_faithful`, `numbers_match`,
 
 An unsupported claim may get one repair round back to Playbook. Otherwise it is flagged. The Judge never silently deletes or rewrites a claim. On the eval set we compare Judge labels with human labels and report agreement. The threshold is a proposal until the first eval run.
 
-Pinned lanes, no `meterless/auto` in the demo:
+Two routing modes, no `meterless/auto` in the demo. Nightshift model ids are routing modes, so the app asks for a disposition and the lanes configured in Nightshift pick the model:
 
-- Fast: `nvidia/nemotron-3.5-lightning-30b-a3b`
-- Deep: `nvidia/nemotron-3-super-120b-a12b`
+- Fast: `meterless/fast`
+- Deep: `meterless/deep`
 
-Every call goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id is logged on the trace.
+Today Nemotron 3.5 Super VL 120B A12B (`nvidia/nemotron-3.5-super-vl-120b-a12b`) answers both. Nightshift picks the faster lane, and Super VL beats Nemotron 3.5 Lightning 30B A3B on speed (about 0.5 s against 2.6 s) as well as quality; Lightning stays configured as a second lane. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
+
+Every call goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id that answered is logged on the trace.
 
 ## Evaluation set
 
@@ -313,7 +315,7 @@ The repo stays private during the build and switches to public before submission
 - The NVIDIA provider key lives only in Nightshift's Providers tab. It is not an application env var, a GitHub secret, a test fixture, or a Cursor model setting.
 - SQL, logs, screenshots, and prompts do not contain tokens. Placeholders in examples are empty or obvious stand-ins.
 - If a secret is committed, rotate it. Deleting the file is not enough.
-- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
+- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags in that pull request's commits (on a push to `main`, in the pushed commits). `.gitleaksignore` may name a single finding by fingerprint. It is not a path or rule allowlist. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
 
 ## Open points and proposals
 

@@ -75,7 +75,10 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(done["status"], "approved")
         self.assertEqual(self.c.get(f"/runs/{rid}/citations").status_code, 200)
         self.assertEqual(self.c.get("/runs/past").json()["runs"][0]["run_id"], rid)
-        self.assertEqual(self.c.get("/config").json()["lanes"]["fast"].split("/")[0], "nvidia")
+        self.assertEqual(
+            self.c.get("/config").json()["lanes"],
+            {"fast": "meterless/fast", "deep": "meterless/deep"},
+        )
 
     def test_agents_down_is_a_503(self) -> None:
         self._patch.stop()

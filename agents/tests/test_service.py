@@ -42,7 +42,8 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(body["served_from"], "live")
         cfg = self.c.get("/config").json()
         self.assertIn("FF_HITL", cfg["flags"])
-        self.assertIn("nemotron", cfg["lanes"]["deep"])
+        self.assertEqual(cfg["lanes"]["fast"], "meterless/fast")
+        self.assertEqual(cfg["lanes"]["deep"], "meterless/deep")
 
     def test_console_is_served_at_the_root(self) -> None:
         r = self.c.get("/")

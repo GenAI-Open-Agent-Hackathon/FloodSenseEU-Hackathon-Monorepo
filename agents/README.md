@@ -63,4 +63,4 @@ Eval set and runner: [`../evals/`](../evals/README.md).
 
 The NVIDIA provider key is not a variable in `.env`. It lives only in Nightshift's Providers tab. Calls send `Authorization: Bearer <METERLESS_RUNTIME_TOKEN>`, `meterless-app`, and `meterless-scope: user`.
 
-Pinned model names: fast `nvidia/nemotron-3.5-lightning-30b-a3b`, deep `nvidia/nemotron-3-super-120b-a12b`. No `meterless/auto`.
+Lane ids: fast `meterless/fast`, deep `meterless/deep`. Nightshift picks the model. No `meterless/auto`.
