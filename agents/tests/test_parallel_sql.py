@@ -15,19 +15,23 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("CHECKPOINTER", "memory")
 os.environ.setdefault("ZETARIS_MODE", "fake")
 os.environ.setdefault("LLM_MODE", "fake")
 
+import httpx  # noqa: E402
+
 from floodsense_agents.events import EVENTS  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.nodes.exposure import make as make_exposure  # noqa: E402
 from floodsense_agents.nodes.investigator import make as make_investigator  # noqa: E402
 from floodsense_agents.nodes.watchers import make as make_watchers  # noqa: E402
+from floodsense_agents.settings import settings  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
-from floodsense_agents.zetaris import FakeZetaris, run_sql_parallel  # noqa: E402
+from floodsense_agents.zetaris import FakeZetaris, ZetarisClient, run_sql_parallel  # noqa: E402
 
 _JOBS = [
     (
@@ -122,6 +126,44 @@ class ParallelSqlTest(unittest.TestCase):
         run_sql_parallel(slow, _JOBS)
         self.assertGreater(slow.max_inflight, 1)
 
+    def test_max_parallel_one_does_not_overlap(self) -> None:
+        slow = _Slow()
+        with patch.object(settings, "zetaris_max_parallel", 1):
+            run_sql_parallel(slow, _JOBS)
+        self.assertEqual(slow.max_inflight, 1)
+
+    def test_later_queries_may_finish_first_and_order_stays(self) -> None:
+        class _Staggered(FakeZetaris):
+            def run_sql(self, sql: str, params=None):
+                if "provenance" in sql:
+                    time.sleep(0.25)
+                elif "exposure_join" in sql:
+                    time.sleep(0.01)
+                else:
+                    time.sleep(0.12)
+                return super().run_sql(sql, params)
+
+        out = run_sql_parallel(_Staggered(), _JOBS)
+        self.assertTrue(out[0].view.endswith("hazard_timeline"))
+        self.assertTrue(out[1].view.endswith("provenance"))
+        self.assertTrue(out[2].view.endswith("exposure_join"))
+        self.assertTrue(all(row.error is None and row.row_count > 0 for row in out))
+
+    def test_a_raising_query_is_evidence_error_and_siblings_return(self) -> None:
+        class _BoomProvenance(FakeZetaris):
+            def run_sql(self, sql: str, params=None):
+                if "provenance" in sql:
+                    raise RuntimeError("provenance down")
+                return super().run_sql(sql, params)
+
+        out = run_sql_parallel(_BoomProvenance(), _JOBS)
+        self.assertIsNone(out[0].error)
+        self.assertGreater(out[0].row_count, 0)
+        self.assertIn("provenance down", out[1].error or "")
+        self.assertEqual(out[1].row_count, 0)
+        self.assertIsNone(out[2].error)
+        self.assertGreater(out[2].row_count, 0)
+
     def test_watchers_keep_hazard_then_provenance_order(self) -> None:
         out = make_watchers(_deps())(_event_state())
         sqls = [row["sql"] for row in out["evidence"].values()]
@@ -178,6 +220,59 @@ class ParallelSqlTest(unittest.TestCase):
             [c["text"] for c in out["claims"]],
             [c["text"] for c in make_exposure(_deps())(_event_state())["claims"]],
         )
+
+
+class TokenRefreshTest(unittest.TestCase):
+    def test_two_concurrent_401s_login_once(self) -> None:
+        barrier = threading.Barrier(2)
+        logins: list[str] = []
+        login_lock = threading.Lock()
+
+        def fake_get(url, **kwargs):
+            with login_lock:
+                logins.append(url)
+                n = len(logins)
+            time.sleep(0.05)
+            req = httpx.Request("GET", url)
+            return httpx.Response(200, json={"idToken": f"fresh-{n}"}, request=req)
+
+        def fake_post(url, **kwargs):
+            token = kwargs["headers"]["Authorization"].removeprefix("Bearer ")
+            req = httpx.Request("POST", url)
+            if token == "stale":
+                barrier.wait(timeout=3)
+                return httpx.Response(401, text="expired", request=req)
+            return httpx.Response(200, json={"data": [], "headers": []}, request=req)
+
+        with (
+            patch.object(settings, "zetaris_api_key", None),
+            patch("floodsense_agents.zetaris.httpx.get", fake_get),
+            patch("floodsense_agents.zetaris.httpx.post", fake_post),
+        ):
+            client = ZetarisClient()
+            client.rest = "http://zetaris.test"
+            client._token = "stale"
+            errors: list[BaseException] = []
+            results = []
+
+            def run() -> None:
+                try:
+                    results.append(client.run_sql("SELECT 1"))
+                except BaseException as exc:
+                    errors.append(exc)
+
+            threads = [threading.Thread(target=run), threading.Thread(target=run)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(errors, [])
+        self.assertEqual(logins, ["http://zetaris.test/auth/login"])
+        self.assertEqual(len(results), 2)
+        self.assertTrue(all(row.error is None for row in results))
+        self.assertEqual(client._token, "fresh-1")
 
 
 if __name__ == "__main__":

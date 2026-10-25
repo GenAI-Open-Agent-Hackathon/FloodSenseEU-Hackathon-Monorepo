@@ -67,4 +67,6 @@ In compose, the agents service reaches the engines sidecar at `ENGINES_URL=http:
 
 The NVIDIA provider key is not a variable in `.env`. It lives only in Nightshift's Providers tab. Calls send `Authorization: Bearer <METERLESS_RUNTIME_TOKEN>`, `meterless-app`, and `meterless-scope: user`.
 
-Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`.
+Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Super VL answers both lanes today, so the fast lane is not by itself a large wall-time cut. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning.
+
+Independent Zetaris reads in one node run together, up to `ZETARIS_MAX_PARALLEL` (default 8). Set it to 1 to run them one after another, in call order. A query that raises is recorded as `Evidence.error`. The other queries in that batch still come back. That overlap is the guaranteed gain while both Nightshift lanes are answered by the same model.

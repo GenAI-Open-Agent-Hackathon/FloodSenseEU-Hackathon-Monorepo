@@ -12,6 +12,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("CHECKPOINTER", "memory")
@@ -196,23 +197,51 @@ class LaneChoiceTest(unittest.TestCase):
         self.assertEqual(out["judge"][0]["grounding"], "supported")
 
 
+class _FailFirstRain(FakeZetaris):
+    """The extreme-rain counter-check returns no rows. Later checks must not run."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.sqls: list[str] = []
+
+    def run_sql(self, sql: str, params=None) -> Evidence:
+        self.sqls.append(sql)
+        evidence = super().run_sql(sql, params)
+        if "MAX(rain_mm)" in sql:
+            return evidence.model_copy(update={"rows_sample": [], "row_count": 0})
+        return evidence
+
+
 class SkepticRoundsTest(unittest.TestCase):
-    def test_skeptic_max_rounds_follows_the_setting(self) -> None:
-        """A smoke run sets SKEPTIC_MAX_ROUNDS=1. The node must not ignore that."""
+    def _draft(self) -> dict:
         drafted = make_investigator(_deps(FakeNightshift()))(_state())
         base = _state()
         base.update(drafted)
-        old = settings.skeptic_max_rounds
-        try:
-            settings.skeptic_max_rounds = 1
+        return base
+
+    def test_skeptic_max_rounds_follows_the_setting(self) -> None:
+        """A smoke run sets SKEPTIC_MAX_ROUNDS=1. The node must not ignore that."""
+        base = self._draft()
+        with patch.object(settings, "skeptic_max_rounds", 1):
             one = make_skeptic(_deps(FakeNightshift()))(base)
-            self.assertTrue(one["hypotheses"])
-            self.assertTrue(all(h["rounds"] == 1 for h in one["hypotheses"]))
-            settings.skeptic_max_rounds = 2
+        self.assertTrue(one["hypotheses"])
+        self.assertTrue(all(h["rounds"] == 1 for h in one["hypotheses"]))
+        with patch.object(settings, "skeptic_max_rounds", 2):
             two = make_skeptic(_deps(FakeNightshift()))(base)
-            self.assertTrue(all(h["rounds"] == 2 for h in two["hypotheses"]))
-        finally:
-            settings.skeptic_max_rounds = old
+        self.assertTrue(all(h["rounds"] == 2 for h in two["hypotheses"]))
+
+    def test_skeptic_stops_when_a_counter_check_fails(self) -> None:
+        base = self._draft()
+        base["hypotheses"] = [
+            h for h in base["hypotheses"] if h["link"] == "rain->catchment"
+        ]
+        zet = _FailFirstRain()
+        with patch.object(settings, "skeptic_max_rounds", 3):
+            out = make_skeptic(Deps(zetaris=zet, llm=FakeNightshift(), memory=NoMemory()))(base)
+        self.assertEqual(out["hypotheses"][0]["status"], "not_supported")
+        self.assertEqual(out["hypotheses"][0]["rounds"], 1)
+        self.assertEqual(len(zet.sqls), 1)
+        self.assertIn("MAX(rain_mm)", zet.sqls[0])
 
 
 if __name__ == "__main__":

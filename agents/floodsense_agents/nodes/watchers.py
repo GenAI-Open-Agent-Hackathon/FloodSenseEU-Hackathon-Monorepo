@@ -76,22 +76,23 @@ def make(deps: Deps):
                 clock,
             ),
         }
-        # Rain, discharge, warnings, and provenance do not depend on each other.
-        # The tuple order is the evidence order: hazard queries, then provenance.
-        rain_e, discharge_e, warning_e, prov = run_sql_parallel(
-            deps.zetaris,
-            [
-                q["rain"],
-                q["discharge"],
-                q["warning"],
+        # Hazard queries, in dict order, then provenance. None of them depend
+        # on another, so they run together. Evidence order follows this list.
+        ordered = [
+            *q.items(),
+            (
+                "provenance",
                 (
                     f"SELECT dataset, source_url, publisher, licence, attribution, fetched_at FROM "
                     f"{s}.provenance",
                     None,
                 ),
-            ],
-        )
-        evid = {"rain": rain_e, "discharge": discharge_e, "warning": warning_e}
+            ),
+        ]
+        ran = run_sql_parallel(deps.zetaris, [job for _name, job in ordered])
+        by_name = {name: evidence for (name, _job), evidence in zip(ordered, ran)}
+        evid = {name: by_name[name] for name in q}
+        prov = by_name["provenance"]
         items: list[Anomaly] = []
         for r in evid["rain"].rows_sample[:5]:
             items.append(

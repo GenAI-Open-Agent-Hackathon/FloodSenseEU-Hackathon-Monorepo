@@ -108,6 +108,19 @@ class Zetaris(Protocol):
     def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence: ...
 
 
+def _failed_evidence(sql: str, exc: BaseException) -> Evidence:
+    """A job that raised, in the same shape as a query Zetaris could not run."""
+    return Evidence(
+        query_id=str(uuid.uuid4()),
+        view=_view_of(sql),
+        sql=sql,
+        rows_sample=[],
+        row_count=0,
+        executed_at_utc=now_utc(),
+        error=str(exc)[:300],
+    )
+
+
 def run_sql_parallel(
     client: Zetaris,
     jobs: Sequence[tuple[str, tuple[str, ...] | None]],
@@ -115,20 +128,40 @@ def run_sql_parallel(
     """Run independent SELECTs together. Result order matches ``jobs``.
 
     Each job is the same ``run_sql`` a node would call on its own.
-    ``asyncio.gather`` starts them together. The graph calls this from a
+    ``asyncio.gather`` starts them together, up to ``ZETARIS_MAX_PARALLEL``
+    at once (``1`` runs them one after another). The graph calls this from a
     sync node, so this function owns the loop. If a loop is already running,
     the gather moves to a worker thread and does not deadlock that loop.
+
+    A job that raises becomes ``Evidence.error`` and does not cancel the
+    others. A sequential loop would have stopped, but the siblings are
+    already started, and the graph already treats a failed query as evidence
+    with ``error`` set. ``KeyboardInterrupt`` still propagates.
     """
 
     async def _all() -> list[Evidence]:
+        limit = max(1, int(settings.zetaris_max_parallel))
+        gate = asyncio.Semaphore(limit)
+
         async def _one(sql: str, params: tuple[str, ...] | None) -> Evidence:
             # Omit a missing parameter tuple. Callers that override run_sql(sql)
-            # (the exposure string-coerce tests on main) still run.
-            if params:
-                return await asyncio.to_thread(client.run_sql, sql, params)
-            return await asyncio.to_thread(client.run_sql, sql)
+            # (the exposure string-coerce tests) still run.
+            async with gate:
+                if params:
+                    return await asyncio.to_thread(client.run_sql, sql, params)
+                return await asyncio.to_thread(client.run_sql, sql)
 
-        return list(await asyncio.gather(*(_one(sql, params) for sql, params in jobs)))
+        raw = await asyncio.gather(
+            *(_one(sql, params) for sql, params in jobs),
+            return_exceptions=True,
+        )
+        out: list[Evidence] = []
+        for (sql, _params), item in zip(jobs, raw):
+            if isinstance(item, Exception):
+                out.append(_failed_evidence(sql, item))
+            else:
+                out.append(item)
+        return out
 
     try:
         asyncio.get_running_loop()
@@ -200,6 +233,9 @@ class ZetarisClient:
         try:
             for attempt in (0, 1):
                 token = self._token or self._login()
+                # TODO: a shared httpx.Client would reuse connections across the
+                # parallel fan-out. Left per call so one stuck socket does not
+                # pin the process.
                 r = httpx.post(
                     f"{self.rest}/sql-editor/sqls/run",
                     json=body,
@@ -211,8 +247,11 @@ class ZetarisClient:
                     },
                 )
                 if attempt == 0 and not settings.zetaris_api_key and r.status_code in (401, 403):
+                    # Another call may already have logged in with a new token.
+                    # Clear only the token this request presented.
                     with self._token_lock:
-                        self._token = None
+                        if self._token == token:
+                            self._token = None
                     continue
                 if not r.is_success:
                     raise RuntimeError(f"Zetaris HTTP {r.status_code}: {r.text[:300]}")
