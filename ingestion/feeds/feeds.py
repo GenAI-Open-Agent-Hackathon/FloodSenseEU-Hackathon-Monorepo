@@ -6,7 +6,9 @@
   python ingestion/feeds/feeds.py pull --stage              # also copy into the local Zetaris driver container
 
 Default check and pull skip dwd. DWD terms are Hold in docs/legal/sources.md (no full-text storage).
-Opt in with --only dwd. That still does not register a Zetaris table.
+Opt in with --only dwd. That still does not register a Zetaris table. `stage` also skips a
+dwd_rain_hourly directory left by an earlier `--only dwd`, so a later default `--stage`
+does not copy it into the Zetaris volume.
 
 Writes CSVs to ingestion/raw/live/<table>/ (git-ignored). Every row carries fetched_at. The AEMET key is read
 from ingestion/.env (AEMET_API_KEY) and never printed. Licences and attribution: docs/legal/sources.md.
@@ -203,11 +205,11 @@ def p_aemet(since, fetched):
             errors.append(f"{a}..{b}: {ex}")
         a = b + timedelta(days=1)
         time.sleep(1.5)  # stay under AEMET's rate limit
-    write("aemet_daily", ["station_id", "station", "date", "precip_mm", "tmean_c", "tmin_c", "tmax_c",
-                          "gust_ms", "dataset_id", "fetched_at"], rows)
     if errors:
+        # Leave the previous aemet_daily CSV in place. pull() reports that file as kept.
         raise RuntimeError(f"{len(errors)} chunk(s) failed, first: {errors[0]}")
-    return len(rows)
+    return write("aemet_daily", ["station_id", "station", "date", "precip_mm", "tmean_c", "tmin_c", "tmax_c",
+                                  "gust_ms", "dataset_id", "fetched_at"], rows)
 
 
 def c_dwd():
@@ -300,6 +302,19 @@ SOURCES = {
 
 # Terms not cleared. Stay out of check/pull unless --only names them.
 HELD_UNTIL_TERMS = frozenset({"dwd"})
+# Directories under ingestion/raw/live that stage() must not copy. Includes the
+# source name and the CSV directory p_dwd writes.
+HELD_LIVE_DIRS = frozenset({"dwd_rain_hourly"})
+
+
+def held_stage_dirs():
+    """Names stage() skips so a held tree is not copied on a later default --stage."""
+    return set(HELD_UNTIL_TERMS) | set(HELD_LIVE_DIRS)
+
+
+def stageable_tables(names):
+    held = held_stage_dirs()
+    return [name for name in names if name not in held]
 
 
 def selected_sources(only):
@@ -344,13 +359,19 @@ def provenance(fetched):
 def stage(container):
     env_ = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     run = lambda *a: subprocess.run(["docker", *a], check=True, env=env_)  # noqa: E731
-    tables = [t for t in os.listdir(OUT) if os.path.isdir(os.path.join(OUT, t))]
+    present = [t for t in os.listdir(OUT) if os.path.isdir(os.path.join(OUT, t))]
+    tables = stageable_tables(present)
+    for name in present:
+        if name not in tables:
+            print(f"  skip {name}: held until terms are cleared")
     for t in tables:
         run("exec", "-u", "0", container, "mkdir", "-p", f"{DEST}/{t}")
         for fn in os.listdir(os.path.join(OUT, t)):
             if fn.endswith(".csv"):
                 run("cp", os.path.join(OUT, t, fn), f"{container}:{DEST}/{t}/{fn}")
-    run("exec", "-u", "0", container, "bash", "-c", f"chmod -R a+rX {DEST}; chgrp -R 1001 {DEST}; chmod -R g+rwX {DEST}")
+    if tables:
+        run("exec", "-u", "0", container, "bash", "-c",
+            f"chmod -R a+rX {DEST}; chgrp -R 1001 {DEST}; chmod -R g+rwX {DEST}")
     print(f"staged {len(tables)} tables to {container}:{DEST}")
 
 

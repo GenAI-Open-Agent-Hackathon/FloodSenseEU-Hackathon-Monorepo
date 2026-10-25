@@ -337,13 +337,15 @@ def cmd_sync(migrations, problems, ledger_path, env, dry_run, client) -> int:
     if not check_files(migrations, problems):
         return 1
     ledger = load_ledger(ledger_path)
-    pending, changed, _ = classify(migrations, ledger)
+    pending, changed, missing = classify(migrations, ledger)
     for migration in changed:
         print(
             f"error: {migration.name} changed after it was applied. "
             "Merged migrations are append-only: put the change in a new numbered file."
         )
-    if changed:
+    for name in missing:
+        print(f"error: {name}: in the ledger but the file is gone")
+    if changed or missing:
         return 1
     names = sorted({name for m in pending for name in m.placeholders})
     if dry_run:

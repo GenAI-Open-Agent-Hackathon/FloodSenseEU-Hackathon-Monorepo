@@ -44,13 +44,31 @@ class ColdSeedPathTest(unittest.TestCase):
         for table in self.stage.LIVE_HEADERS:
             self.assertIn(table, sql)
 
+    def test_default_stage_skips_a_held_dwd_directory(self) -> None:
+        held = self.feeds.held_stage_dirs()
+        self.assertIn("dwd", held)
+        self.assertIn("dwd_rain_hourly", held)
+        kept = self.feeds.stageable_tables(
+            ["discharge_daily", "dwd_rain_hourly", "dwd", "aemet_daily"]
+        )
+        self.assertEqual(kept, ["discharge_daily", "aemet_daily"])
+
     def test_provenance_views_drop_the_held_dwd_row(self) -> None:
+        where = "WHERE dataset_id <> 'ds_dwd_brightsky'"
         for name in (
             "015_create_view_provenance.sql",
             "017_create_seed_view_provenance.sql",
         ):
             text = (ROOT / "zetaris" / "migrations" / name).read_text(encoding="utf-8")
-            self.assertIn("ds_dwd_brightsky", text)
+            sql = "\n".join(
+                line.strip()
+                for line in text.splitlines()
+                if line.strip() and not line.strip().startswith("--")
+            )
+            self.assertIn(where, sql)
+            self.assertNotIn(where, "\n".join(
+                line for line in text.splitlines() if line.strip().startswith("--")
+            ))
             self.assertIn("-- min_rows: 7", text)
         exposure = (ROOT / "zetaris" / "migrations" / "018_label_exposure_synthetic.sql").read_text(
             encoding="utf-8"

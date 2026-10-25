@@ -340,6 +340,19 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("001_gone.sql: in the ledger but the file is gone", out)
 
+    def test_sync_fails_when_a_ledger_file_is_gone_and_sends_nothing(self) -> None:
+        self.ws.ledger.parent.mkdir(parents=True)
+        self.ws.ledger.write_text(
+            json.dumps({"version": 1, "applied": [{"file": "001_gone.sql", "sha256": "abc"}]}),
+            encoding="utf-8",
+        )
+        self.ws.add("002_ok.sql", "SELECT 1")
+        for command in (("sync",), ("sync", "--dry-run")):
+            code, out, _ = self.ws.run(*command)
+            self.assertEqual(code, 1, out)
+            self.assertIn("001_gone.sql: in the ledger but the file is gone", out)
+            self.assertEqual(self.fake.requests, [])
+
     def test_sync_verifies_applied_views_when_a_later_migration_fails(self) -> None:
         def respond(sql: str):
             if "CREATE C" in sql:
