@@ -24,7 +24,7 @@ Only what v0.2.0–v0.8.0 need, plus the gameplan's Judge output and `served_fro
 | `approval` | v0.8.0. Status is `pending`, `approved`, `edited`, or `rejected`. |
 | `judge` | Gameplan output: per-claim grounding, citation faithfulness, number match, score, rationale, `model_id`, plus `overall_score`. `model_id` is a routing name (`meterless/fast`, `meterless/deep`), a concrete Nightshift id the reply may carry, or `deterministic`. Optional on `answer` and `approval` until v0.10.0. |
 
-`model_id` prefers those routing names. Which model answers one today is the table at the top of [docs/architecture/c4.md](../docs/architecture/c4.md). This folder does not keep a second map.
+`model_id` prefers those routing names. Which model answers one today is the table at the top of [docs/architecture/c4.md](../docs/architecture/c4.md). This folder does not keep a second map. A recorded id outside that enum, including a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, is not rewritten: the API omits the whole judge.
 
 `rows_sample` is at most 20 objects. Column names are not fixed.
 

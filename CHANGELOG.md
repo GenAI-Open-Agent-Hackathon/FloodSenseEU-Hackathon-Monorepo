@@ -11,11 +11,12 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Changed
 
-- Judge `model_id` in `contracts/schemas/floodsense.schema.json` accepts the routing names `meterless/fast` and `meterless/deep`, the Nightshift ids a reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is no longer accepted. Examples use `meterless/deep`. Which model answers a routing name today stays the one table at the top of `docs/architecture/c4.md`. ADR 0004 and ADR 0007 are corrected to match and stay Proposed.
+- Judge `model_id` in `contracts/schemas/floodsense.schema.json` accepts the routing names `meterless/fast` and `meterless/deep`, the Nightshift ids a reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is no longer accepted. Contract examples and the insurer-desk fixture use `meterless/deep`. Which model answers a routing name today stays the one table at the top of `docs/architecture/c4.md`. ADR 0004 and ADR 0007 are corrected to match and stay Proposed. The desk shows a routing name as stored. A concrete Nightshift id is labelled "answered by" that model. Super VL is not shown as one lane, and Lightning is not shown as `meterless/fast`.
 
 ### Fixed
 
-- The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep` or the discontinued Super id, still omits the judge instead of rewriting it.
+- The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep`, a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, or the discontinued Super id, still omits the whole judge instead of rewriting it. One score outside the enum drops the judge even when the other scores are in it.
+- When the Judge's Nightshift reply does not parse, or parses with no grounding, the score's `model_id` is `deterministic`. A reply that does carry a grounding keeps the id the client returned. The numbers floor can still change that grounding without changing the id.
 
 ## [0.2.0] - 2026-10-25
 

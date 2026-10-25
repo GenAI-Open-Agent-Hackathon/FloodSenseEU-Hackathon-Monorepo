@@ -252,6 +252,27 @@ class ProjectionHonestyTest(unittest.TestCase):
                 model_id,
             )
 
+    def test_one_id_outside_the_enum_drops_the_whole_judge(self) -> None:
+        body = _minimal_run()
+        body["judge"][0]["model_id"] = "meterless/deep"
+        body["judge"].append(
+            {
+                "claim_id": "C2",
+                "grounding": "partial",
+                "citation_faithful": True,
+                "numbers_match": True,
+                "score": 0.5,
+                "rationale": "partial match",
+                "model_id": "fake-fast",
+            }
+        )
+        projected = project_run(body)
+        self.assertNotIn("judge", projected["answer"])
+        self.assertNotIn("judge", projected["approvals"][0])
+        blob = json.dumps(projected)
+        self.assertNotIn("meterless/deep", blob)
+        self.assertNotIn("fake-fast", blob)
+
     def test_ids_outside_the_enum_omit_the_judge(self) -> None:
         schema_ids = set(SCHEMA["$defs"]["judge_claim"]["properties"]["model_id"]["enum"])
         outside = (

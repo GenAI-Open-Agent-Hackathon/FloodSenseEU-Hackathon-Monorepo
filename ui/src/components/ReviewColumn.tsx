@@ -139,8 +139,9 @@ export function ReviewColumn() {
                 <span style={{ width: `${Math.max(0, Math.min(1, judge.overall_score)) * 100}%` }} />
               </div>
               <p className="note">
-                The lane label is display-only. The contract still stores model_id. Updating that union is Ayush’s.
-                This screen did not call a model.
+                Display only. The contract stores model_id. A routing name is shown as stored. A concrete
+                Nightshift id says which model answered, and does not assign a lane. This screen did not call a
+                model.
               </p>
             </div>
             {judge.claims.map((claim) => {
