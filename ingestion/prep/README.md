@@ -36,7 +36,17 @@ Rebuild from the repo root with the venv interpreter. The EMS zips come from the
 - Synthetic portfolio: 359 policies. 91 sit inside the observed footprint (SUM insured about EUR 313 m). 64 of those have flood cover (about EUR 216 m).
 - Delineation comes from satellite imagery. Dense urban areas can be under-detected, so "near the footprint" does not mean "dry".
 
-## Cold laptop: stage CSVs, then sync
+## Cold laptop: stage CSVs, then register
+
+Stage before any FILESTORE registration. Zetaris infers columns when the `CREATE` runs. A directory with no CSV infers nothing: `COUNT(*)` can succeed and a named column or `SELECT *` fails. `DROP` was refused on the local engine, so a name registered too early stays broken.
+
+Order:
+
+1. Zetaris is up.
+2. `stage_local_zetaris.py` copies the seed CSVs and writes a header-only `live.csv` in each live directory.
+3. `python tasks.py zetaris-sync` applies migrations, including `010`, `033`, and `036`.
+
+`033` already ran on some machines before those directories existed. Its table names stay. `036` registers `*_staged` on the same paths, and only after the files are there. Do not apply `036` against empty directories. The new names cannot be dropped either.
 
 Zetaris cannot read files on the laptop. Migration `010_seed_sources.sql` creates the Lightning database `floodsense_seed_src` (not the `floodsense_seed` container) and one FILESTORE table per CSV. Each table path is a directory inside the Zetaris volume:
 
@@ -63,7 +73,7 @@ py tasks.py zetaris-sync
 .\.venv\Scripts\python.exe scripts\zetaris_sync.py verify
 ```
 
-`stage_local_zetaris.py` copies the seed CSVs and writes a header-only `live.csv` in each `floodsense_live/<table>` directory that migration `033` registers (`discharge_daily`, `rain_hourly`, `ems_activations`, `aemet_daily`, `pegel_levels`). It does not create `dwd_rain_hourly`. Those header files are placeholders so `033` can `CREATE`. They are not observations and no view selects them. The stage script does not overwrite a csv already in the container. `feeds.py pull --stage` copies that source's `live.csv` over the placeholder.
+`stage_local_zetaris.py` copies the seed CSVs and writes a header-only `live.csv` in each `floodsense_live/<table>` directory (`discharge_daily`, `rain_hourly`, `ems_activations`, `aemet_daily`, `pegel_levels`). It does not create `dwd_rain_hourly`. Those header files are placeholders so a later `CREATE` can infer columns. They are not observations. `036` points `*_staged` at those directories. `floodsense.gauge_levels` reads `pegel_levels_staged`. The other staged names have tables and no view yet. The stage script does not overwrite a csv already in the container. If `provenance.csv` was staged before `ds_open_meteo_forecast` was added, remove that staged file and stage it again. `feeds.py pull --stage` copies that source's `live.csv` over the placeholder.
 
 `zetaris-sync` applies pending migrations and then verifies declared views. A failure in a later file still verifies views already in the ledger, then exits non-zero. `sync --dry-run` sends nothing and does not verify.
 
@@ -71,13 +81,13 @@ Seed and contract views after that path:
 
 - `floodsense_seed.discharge_daily` is the frozen 136-row window and does not need the network.
 - `floodsense.exposure_join` and `floodsense_seed.exposure_join` are the same synthetic book (migration `018` keeps `synthetic`, value `yes` on all 359 rows). They read `floodsense_seed_src`, not a live book.
-- `floodsense.provenance` and `floodsense_seed.provenance` return the 7 cleared datasets. `ds_dwd_brightsky` stays in `provenance.csv` and is filtered out of both views while DWD is Hold.
+- `floodsense.provenance` and `floodsense_seed.provenance` return the 8 cleared datasets. `ds_dwd_brightsky` stays in `provenance.csv` and is filtered out of both views while DWD is Hold. `ds_open_meteo_forecast` is the rolling rain and discharge behind `hazard_now`.
 
 `floodsense.discharge_daily` (136) and `floodsense.hazard_timeline` (live `min_rows` 3264) still need Open-Meteo reachable from the laptop. They are not satisfied by the header-only live files.
 
-Stage the seed CSVs before the first apply of `010`. A later "already exists" on that migration does not copy files that were never staged.
+Stage the seed CSVs and the live header files before the first apply of `010`, `033`, and `036`. A later "already exists" on `010` does not copy files that were never staged. `036` applied against an empty directory cannot be repaired with `DROP`.
 
-Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, and 8 for the footprint, sites, portfolio, and points. The provenance CSV has 8 rows; the views keep 7. The join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
+Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, and 8 for the footprint, sites, portfolio, and points. The provenance CSV has 9 rows; the views keep 8. The join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
 
 ## Not in this folder yet
 

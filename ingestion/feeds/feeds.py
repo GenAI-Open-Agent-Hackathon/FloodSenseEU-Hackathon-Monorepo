@@ -350,7 +350,13 @@ def provenance(fetched):
     for r in rows:
         if r["dataset_id"] == "ds_dwd_brightsky":
             continue
-        if r["dataset_id"] in {"ds_open_meteo_flood", "ds_open_meteo_rain", "ds_ems_emsr773", "ds_aemet"}:
+        if r["dataset_id"] in {
+            "ds_open_meteo_flood",
+            "ds_open_meteo_rain",
+            "ds_open_meteo_forecast",
+            "ds_ems_emsr773",
+            "ds_aemet",
+        }:
             r["accessed_at"] = fetched
         kept.append(r)
     write("provenance", cols, [[r[c] for c in cols] for r in kept], "provenance")

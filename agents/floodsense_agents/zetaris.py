@@ -10,10 +10,11 @@ Fake  the same views as in-memory SQLite, so the graph, the tests and the UI
       from public reporting plus a synthetic portfolio, pending real migrations.
 
 Views, as in the contract; schema floodsense_seed.* or floodsense.* via
-FF_LIVE_DATA:
+FF_LIVE_DATA (default false; live as the default is v0.5):
   hazard_timeline(point_id, ts_utc, rain_mm, discharge_m3s, warning_level)
   discharge_daily(point_id, date, discharge_m3s, source)
   exposure_join(policy_id, site_id, lat, lon, in_footprint, sum_insured_eur, segment)
+  gauge_levels(station, water, ts_utc, level_cm, source)
   provenance(dataset, source_url, publisher, licence, attribution, fetched_at)
 The nodes use nothing else, so switching to the live views is FF_LIVE_DATA plus credentials.
 """
@@ -31,6 +32,7 @@ from typing import Protocol, Sequence
 
 import httpx
 
+from floodsense_agents.events import EVENTS
 from floodsense_agents.models import Evidence
 from floodsense_agents.settings import settings
 
@@ -296,8 +298,23 @@ _DDL = """
 CREATE TABLE {s}.hazard_timeline(point_id TEXT, ts_utc TEXT, rain_mm REAL, discharge_m3s REAL, warning_level TEXT);
 CREATE TABLE {s}.discharge_daily(point_id TEXT, date TEXT, discharge_m3s REAL, source TEXT);
 CREATE TABLE {s}.exposure_join(policy_id TEXT, site_id TEXT, lat REAL, lon REAL, in_footprint INTEGER, sum_insured_eur REAL, segment TEXT);
+CREATE TABLE {s}.gauge_levels(station TEXT, water TEXT, ts_utc TEXT, level_cm REAL, source TEXT);
 CREATE TABLE {s}.provenance(dataset TEXT, source_url TEXT, publisher TEXT, licence TEXT, attribution TEXT, fetched_at TEXT);
 """
+
+# PEGELONLINE gauges feeds.py pulls. Timestamps are the event windows, not a new clock.
+_GAUGE_STATIONS = (("BONN", "RHEIN"), ("KÖLN", "RHEIN"), ("KOBLENZ", "RHEIN"))
+
+
+def _gauge_seed_rows() -> list[tuple]:
+    """One row per gauge at each event's window_from_utc. level_cm stays empty."""
+    rows: list[tuple] = []
+    for event_id in ("EMSR773", "EMSR517"):
+        ts = EVENTS[event_id].window_from_utc
+        for station, water in _GAUGE_STATIONS:
+            rows.append((station, water, ts, None, "seed:pegelonline"))
+    return rows
+
 
 # Valencia 29 Oct 2024 (seed, approximate): AEMET reported ~491 mm in ~8 h at
 # Chiva and ~185 mm in one hour at Turís; CHJ estimated the Poyo ravine peak
@@ -346,6 +363,7 @@ _SEED = {
         ("altenahr", "2021-07-14", 1000.0, "GloFAS via Open-Meteo"),
         ("altenahr", "2021-07-15", 210.0, "GloFAS via Open-Meteo"),
     ],
+    "gauge_levels": _gauge_seed_rows(),
     # Synthetic portfolio of the demo insurer around the EMSR773 footprint.
     # in_footprint comes from the Copernicus layer.
     "exposure_join": [
@@ -408,6 +426,14 @@ _SEED = {
             "n/a",
             "Synthetic insurer portfolio, clearly labelled",
             "2026-10-22",
+        ),
+        (
+            "gauge_levels",
+            "https://www.pegelonline.wsv.de/",
+            "Wasserstrassen- und Schifffahrtsverwaltung des Bundes (WSV)",
+            "DL-DE->Zero-2.0",
+            "Quelle: WSV, PEGELONLINE",
+            "2026-10-24",
         ),
     ],
 }

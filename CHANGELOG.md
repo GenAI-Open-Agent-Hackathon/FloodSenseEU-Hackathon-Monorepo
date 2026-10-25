@@ -9,6 +9,12 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Added
+
+- v0.3.0 data slice. Migration `036` re-registers the live FILESTORE tables from `033` under new names (`*_staged`) after the CSVs are staged. `033` was applied before those directories held a file, so those names answer `COUNT(*)` and fail a named column, and `DROP` was refused. Cold start stages first, then registers. `floodsense.gauge_levels` and `floodsense_seed.gauge_levels` are the PEGELONLINE contract views (Bonn, Köln, Koblenz). The seed twin names the gauges and does not invent a level. Attribution remains `Quelle: WSV, PEGELONLINE`.
+- `hazard_now` labels each rolling-window hour `observed` or `forecast` (`039`). The seed twin (`040`) still serves the frozen 28–30 Oct 2024 rows of `013` and labels every row `replay`, so a machine without live data does not invent a present. Provenance gains `ds_open_meteo_forecast` for that rain and discharge. Cleared provenance count is 8.
+- Watchers read `gauge_levels` through the Zetaris contract. `FF_LIVE_DATA` stays false. Live views as the default wait for v0.5.
+
 ## [0.2.0] - 2026-10-25
 
 Live demo stack: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris reads. This section is everything on main after the v0.1.0 data slice.
