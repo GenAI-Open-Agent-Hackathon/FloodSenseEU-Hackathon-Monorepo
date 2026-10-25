@@ -26,7 +26,7 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/api/` | Zain, Ayush | Runs, SSE, approval; cache is Ayush's |
 | `/ui/` | Zain, Mihir | Citizen page and insurer console are on main. Zain owns the path. Mihir landed the console |
 | `/pgvector/` | Urvashi | Optional citation store. Ayush on embeddings |
-| `/evals/` | Saleeta, Zain, Mihir | On main: Valencia 2024 and Ahr 2021. Not a tagged increment |
+| `/evals/` | Saleeta, Zain, Mihir | In v0.2.0: Valencia 2024 and Ahr 2021. Not its own increment tag |
 | `/demo/` | Saleeta | No folder yet. Deck, script, video |
 
-`engines/` and `evals/` are on main. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+`engines/` and `evals/` are on main, in v0.2.0. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
