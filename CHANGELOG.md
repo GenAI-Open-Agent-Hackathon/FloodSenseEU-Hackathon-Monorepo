@@ -17,6 +17,8 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Changed
 
+- Investigator, Skeptic rationale, and the first Playbook draft call Nightshift on lane `fast` (`MODEL_FAST`). Judge grounding and Playbook repair stay on `deep`. While Super VL answers both lanes, that switch is not by itself a large wall-time win. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning. `SKEPTIC_MAX_ROUNDS` stays the cap (default 3). A smoke run can set it to 1.
+- Watchers, the Investigator's aggregate queries, and the Exposure join run independent Zetaris statements together, capped by `ZETARIS_MAX_PARALLEL` (default 8; `1` is one at a time). That overlap is the guaranteed gain. Result order matches the call order. A query that raises is `Evidence.error` and does not drop the others. A stale login token is cleared only when it is still the token that failed, so two concurrent 401s log in once.
 - README and ownership docs match tagged v0.0.0 / v0.1.0 and the Unreleased UI, Nightshift, and engines landings. They also name the agent graph, HITL, Judge, API run proxy, and evals that #4 put on main. Those later increments are not tagged.
 - A view body with any `seed:` row is Seed, not Live. Fixture notices use their own id. A seed stamp on a fixture is described as a stamp, not as a Seed origin. The origin banner uses the same Fixture / Seed / Live words as the header pill.
 - Agents fall back to `meterless/fast` and `meterless/deep` when `MODEL_FAST` and `MODEL_DEEP` are unset, the same routing modes as `.env.example` and `agents/.env.example`.

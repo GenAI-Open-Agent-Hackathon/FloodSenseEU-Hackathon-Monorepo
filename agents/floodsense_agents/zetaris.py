@@ -20,13 +20,14 @@ The nodes use nothing else, so switching to the live views is FF_LIVE_DATA plus 
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import sqlite3
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import httpx
 
@@ -107,23 +108,104 @@ class Zetaris(Protocol):
     def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence: ...
 
 
+def _failed_evidence(sql: str, exc: BaseException) -> Evidence:
+    """A job that raised, in the same shape as a query Zetaris could not run."""
+    return Evidence(
+        query_id=str(uuid.uuid4()),
+        view=_view_of(sql),
+        sql=sql,
+        rows_sample=[],
+        row_count=0,
+        executed_at_utc=now_utc(),
+        error=str(exc)[:300],
+    )
+
+
+def run_sql_parallel(
+    client: Zetaris,
+    jobs: Sequence[tuple[str, tuple[str, ...] | None]],
+) -> list[Evidence]:
+    """Run independent SELECTs together. Result order matches ``jobs``.
+
+    Each job is the same ``run_sql`` a node would call on its own.
+    ``asyncio.gather`` starts them together, up to ``ZETARIS_MAX_PARALLEL``
+    at once (``1`` runs them one after another). The graph calls this from a
+    sync node, so this function owns the loop. If a loop is already running,
+    the gather moves to a worker thread and does not deadlock that loop.
+
+    A job that raises becomes ``Evidence.error`` and does not cancel the
+    others. A sequential loop would have stopped, but the siblings are
+    already started, and the graph already treats a failed query as evidence
+    with ``error`` set. ``KeyboardInterrupt`` still propagates.
+    """
+
+    async def _all() -> list[Evidence]:
+        limit = max(1, int(settings.zetaris_max_parallel))
+        gate = asyncio.Semaphore(limit)
+
+        async def _one(sql: str, params: tuple[str, ...] | None) -> Evidence:
+            # Omit a missing parameter tuple. Callers that override run_sql(sql)
+            # (the exposure string-coerce tests) still run.
+            async with gate:
+                if params:
+                    return await asyncio.to_thread(client.run_sql, sql, params)
+                return await asyncio.to_thread(client.run_sql, sql)
+
+        raw = await asyncio.gather(
+            *(_one(sql, params) for sql, params in jobs),
+            return_exceptions=True,
+        )
+        out: list[Evidence] = []
+        for (sql, _params), item in zip(jobs, raw):
+            if isinstance(item, Exception):
+                out.append(_failed_evidence(sql, item))
+            else:
+                out.append(item)
+        return out
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_all())
+
+    box: list[list[Evidence]] = []
+    error: list[BaseException] = []
+
+    def _in_thread() -> None:
+        try:
+            box.append(asyncio.run(_all()))
+        except BaseException as exc:
+            error.append(exc)
+
+    worker = threading.Thread(target=_in_thread, name="zetaris-parallel")
+    worker.start()
+    worker.join()
+    if error:
+        raise error[0]
+    return box[0]
+
+
 class ZetarisClient:
     def __init__(self) -> None:
         self.rest = (settings.zetaris_rest_url or "").rstrip("/")
         self._token: str | None = settings.zetaris_api_key
+        self._token_lock = threading.Lock()
 
     def _login(self) -> str:
         if settings.zetaris_api_key:
             return settings.zetaris_api_key
-        r = httpx.get(
-            f"{self.rest}/auth/login",
-            auth=(settings.zetaris_user or "", settings.zetaris_password or ""),
-            headers={"X-Org-ID": settings.zetaris_org_id, "X-Request-ID": str(uuid.uuid4())},
-            timeout=30,
-        )
-        r.raise_for_status()
-        self._token = r.json()["idToken"]
-        return self._token
+        with self._token_lock:
+            if self._token:
+                return self._token
+            r = httpx.get(
+                f"{self.rest}/auth/login",
+                auth=(settings.zetaris_user or "", settings.zetaris_password or ""),
+                headers={"X-Org-ID": settings.zetaris_org_id, "X-Request-ID": str(uuid.uuid4())},
+                timeout=30,
+            )
+            r.raise_for_status()
+            self._token = r.json()["idToken"]
+            return self._token
 
     def run_sql(self, sql: str, params: tuple[str, ...] | None = None) -> Evidence:
         # A write is refused here, as an exception, before any request goes out.
@@ -151,6 +233,9 @@ class ZetarisClient:
         try:
             for attempt in (0, 1):
                 token = self._token or self._login()
+                # TODO: a shared httpx.Client would reuse connections across the
+                # parallel fan-out. Left per call so one stuck socket does not
+                # pin the process.
                 r = httpx.post(
                     f"{self.rest}/sql-editor/sqls/run",
                     json=body,
@@ -162,7 +247,11 @@ class ZetarisClient:
                     },
                 )
                 if attempt == 0 and not settings.zetaris_api_key and r.status_code in (401, 403):
-                    self._token = None
+                    # Another call may already have logged in with a new token.
+                    # Clear only the token this request presented.
+                    with self._token_lock:
+                        if self._token == token:
+                            self._token = None
                     continue
                 if not r.is_success:
                     raise RuntimeError(f"Zetaris HTTP {r.status_code}: {r.text[:300]}")

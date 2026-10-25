@@ -13,10 +13,10 @@ watchers → investigator → skeptic ─┬─ not_supported, first time → re
 | Node | Lane | What it does | Owner |
 | --- | --- | --- | --- |
 | `nodes/watchers.py` | SQL | Anomalies from `hazard_timeline` in the event window, cut at `replay_ts`; loads `provenance` | Zain, Ayush |
-| `nodes/investigator.py` | deep | Hypotheses H1–H3 (rain→catchment→river→site) backed by claims; every claim cites a `query_id` (layer a) and the provenance row (layer b). Deterministic chain from aggregate queries; the model refines it from the same evidence | Zain, Ayush |
-| `nodes/skeptic.py` | SQL (+deep rationale) | ≤ 3 counter-check queries per hypothesis → `supported` / `not_supported`; one revise edge back to the Investigator, which drops what was not supported | Zain, Ayush |
-| `nodes/exposure.py` | SQL | `exposure_join` with `in_footprint = 1`: policies, sum insured, by segment → H4 with number claims | Ayush, Zain |
-| `nodes/playbook.py` | deep | Actions for 6 / 24 / 72 h citing claim ids; `outbound` ones wait for approval. Also the one repair round when the Judge flags a claim | Ayush, Zain |
+| `nodes/investigator.py` | fast | Hypotheses H1–H3 (rain→catchment→river→site) backed by claims; every claim cites a `query_id` (layer a) and the provenance row (layer b). Deterministic chain from aggregate queries run together; the model refines it from the same evidence on `meterless/fast` | Zain, Ayush |
+| `nodes/skeptic.py` | SQL (+fast rationale) | ≤ `SKEPTIC_MAX_ROUNDS` counter-check queries per hypothesis (default 3; a smoke run can set 1) → `supported` / `not_supported`; one revise edge back to the Investigator, which drops what was not supported. The rationale is `meterless/fast` | Zain, Ayush |
+| `nodes/exposure.py` | SQL | `exposure_join` with `in_footprint = 1`: policies, sum insured, by segment → H4 with number claims. The sample, the segment rollup, and the total run together | Ayush, Zain |
+| `nodes/playbook.py` | fast draft, deep repair | Actions for 6 / 24 / 72 h citing claim ids; `outbound` ones wait for approval. The first draft is `meterless/fast`. The repair round, when the Judge flags a claim, stays on `meterless/deep` | Ayush, Zain |
 | `nodes/judge.py` | deep | Per-claim coverage, citation faithfulness, numbers match, licence, grounding → `judge[]` + `judge_summary`. Never deletes or rewrites | Zain, Mihir |
 | `hitl.py` | — | `interrupt()`; approve / edit / reject; `approval{}`; outbound actions released only on approve / edit | Zain |
 
@@ -67,4 +67,6 @@ In compose, the agents service reaches the engines sidecar at `ENGINES_URL=http:
 
 The NVIDIA provider key is not a variable in `.env`. It lives only in Nightshift's Providers tab. Calls send `Authorization: Bearer <METERLESS_RUNTIME_TOKEN>`, `meterless-app`, and `meterless-scope: user`.
 
-Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`.
+Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Super VL answers both lanes today, so the fast lane is not by itself a large wall-time cut. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning.
+
+Independent Zetaris reads in one node run together, up to `ZETARIS_MAX_PARALLEL` (default 8). Set it to 1 to run them one after another, in call order. A query that raises is recorded as `Evidence.error`. The other queries in that batch still come back. That overlap is the guaranteed gain while both Nightshift lanes are answered by the same model.

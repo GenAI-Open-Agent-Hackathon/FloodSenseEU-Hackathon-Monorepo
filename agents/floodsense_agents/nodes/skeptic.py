@@ -3,7 +3,9 @@
 Runs at most SKEPTIC_MAX_ROUNDS SQL counter-checks per hypothesis and marks
 it supported or not_supported. Counter-checks are deterministic predicates
 over fresh queries, so a verdict is reproducible and every check has a
-query_id. The deep lane only writes the rationale from the same rows.
+query_id. The fast lane only writes the rationale from the same rows.
+How many checks run is SKEPTIC_MAX_ROUNDS (default 3). A smoke run can set
+that to 1; the node does not hardcode the cap.
 """
 
 from __future__ import annotations
@@ -144,7 +146,7 @@ def make(deps: Deps):
             rationale = why or "; ".join(notes)
             try:  # optional model rationale from the same rows
                 text, model_id = deps.llm.complete(
-                    "deep",
+                    "fast",
                     SKEPTIC,
                     f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
                     f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "

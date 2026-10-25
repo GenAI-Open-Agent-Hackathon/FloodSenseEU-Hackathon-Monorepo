@@ -16,6 +16,7 @@ from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, 
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, answered, trace
+from floodsense_agents.zetaris import run_sql_parallel
 
 
 def _number(value: object, default: float = 0.0) -> float:
@@ -106,21 +107,32 @@ def make(deps: Deps):
             )
             agg = whole = q
         else:
-            q = deps.zetaris.run_sql(
-                f"SELECT policy_id, site_id, lat, lon, segment, sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here} ORDER BY sum_insured_eur DESC"
-            )
-            agg = deps.zetaris.run_sql(
-                f"SELECT segment, COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here} "
-                f"GROUP BY segment ORDER BY sum_insured_eur DESC"
-            )
+            # The sample, the segment rollup, and the portfolio total do not
+            # depend on each other. Order is the evidence order.
             # run_sql keeps 20 rows. The seed has 7, so summing the sample
             # looked right; a real portfolio would state a partial total that
             # the Judge could still match. Take the totals from the aggregate.
-            whole = deps.zetaris.run_sql(
-                f"SELECT COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
-                f"FROM {s}.exposure_join WHERE {here}"
+            q, agg, whole = run_sql_parallel(
+                deps.zetaris,
+                [
+                    (
+                        f"SELECT policy_id, site_id, lat, lon, segment, sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here} ORDER BY sum_insured_eur DESC",
+                        None,
+                    ),
+                    (
+                        f"SELECT segment, COUNT(*) AS policies, SUM(sum_insured_eur) AS "
+                        f"sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here} "
+                        f"GROUP BY segment ORDER BY sum_insured_eur DESC",
+                        None,
+                    ),
+                    (
+                        f"SELECT COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
+                        f"FROM {s}.exposure_join WHERE {here}",
+                        None,
+                    ),
+                ],
             )
         # A query that errored returned nothing because it failed, not because
         # the portfolio is empty. Saying "no site is exposed" would be as wrong

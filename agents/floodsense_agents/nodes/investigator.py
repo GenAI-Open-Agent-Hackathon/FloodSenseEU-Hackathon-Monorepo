@@ -5,8 +5,10 @@ citation (the Zetaris query_id) and, where the provenance view knows the
 dataset, layer (b) citations.
 
 The deterministic path builds the chain from aggregate queries, so the graph
-runs without a model. The deep lane, when available, writes the claims and
-summary from the same evidence; unknown query_ids are dropped.
+runs without a model. Those queries do not depend on each other, so they run
+together. The fast lane, when available, writes the claims and summary from
+the same evidence; unknown query_ids are dropped. Repair stays on the deep
+lane, in the Playbook.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from floodsense_agents.nodes.watchers import last_complete_day, window
 from floodsense_agents.prompts import INVESTIGATOR, rows_block
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
+from floodsense_agents.zetaris import run_sql_parallel
 
 log = logging.getLogger("floodsense.investigator")
 # 21,600,000 is one number, not 21.6 and 0, and the 3 in "m3/s" is not a
@@ -86,35 +89,43 @@ def _deterministic(
     t0, t1 = window(state)
     rain_pts = ", ".join(f"'{p}'" for p in ev["rain_points"])
     river_pts = ", ".join(f"'{p}'" for p in ev["river_points"])
-    rain = deps.zetaris.run_sql(
-        f"SELECT point_id, SUM(rain_mm) AS total_mm, MAX(rain_mm) AS max_hourly_mm, MIN(ts_utc) AS "
-        f"first_utc, MAX(ts_utc) AS last_utc, "
-        f"COUNT(*) AS hours FROM {s}.hazard_timeline WHERE point_id IN ({rain_pts}) AND rain_mm IS "
-        f"NOT NULL "
-        f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id ORDER BY total_mm DESC",
-        (t0, t1),
-    )
-    flow = deps.zetaris.run_sql(
-        f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE point_id IN "
-        f"({river_pts}) "
-        f"AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
-        (t0, t1),
-    )
-    daily = deps.zetaris.run_sql(
-        f"SELECT point_id, date, discharge_m3s, source FROM {s}.discharge_daily WHERE point_id IN "
-        f"({river_pts}) "
-        f"AND date BETWEEN ? AND ? ORDER BY date",
-        (t0[:10], last_complete_day(t1)),
-    )
-    foot = deps.zetaris.run_sql(
-        f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
-        f"{s}.exposure_join WHERE in_footprint = 1"
-    )
-    warn = deps.zetaris.run_sql(
-        f"SELECT point_id, warning_level, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline WHERE "
-        f"warning_level IS NOT NULL "
-        f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id, warning_level ORDER BY first_utc",
-        (t0, t1),
+    # Rain, discharge, the daily series, the footprint count, and warnings do
+    # not depend on each other. Order of the tuple is the evidence order.
+    rain, flow, daily, foot, warn = run_sql_parallel(
+        deps.zetaris,
+        [
+            (
+                f"SELECT point_id, SUM(rain_mm) AS total_mm, MAX(rain_mm) AS max_hourly_mm, "
+                f"MIN(ts_utc) AS first_utc, MAX(ts_utc) AS last_utc, "
+                f"COUNT(*) AS hours FROM {s}.hazard_timeline WHERE point_id IN ({rain_pts}) AND "
+                f"rain_mm IS NOT NULL "
+                f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id ORDER BY total_mm DESC",
+                (t0, t1),
+            ),
+            (
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE point_id IN "
+                f"({river_pts}) "
+                f"AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+                (t0, t1),
+            ),
+            (
+                f"SELECT point_id, date, discharge_m3s, source FROM {s}.discharge_daily WHERE "
+                f"point_id IN ({river_pts}) "
+                f"AND date BETWEEN ? AND ? ORDER BY date",
+                (t0[:10], last_complete_day(t1)),
+            ),
+            (
+                f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
+                f"{s}.exposure_join WHERE in_footprint = 1",
+                None,
+            ),
+            (
+                f"SELECT point_id, warning_level, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline "
+                f"WHERE warning_level IS NOT NULL "
+                f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id, warning_level ORDER BY first_utc",
+                (t0, t1),
+            ),
+        ],
     )
 
     claims: list[Claim] = []
@@ -282,7 +293,7 @@ def _model(
         f"ANOMALIES: {state.get('anomalies')}\n\nEVIDENCE:\n{rows_block(evidence)}"
     )
     text, model_id = deps.llm.complete(
-        "deep", INVESTIGATOR.replace("{lang}", state["request"].get("lang", "en")), user
+        "fast", INVESTIGATOR.replace("{lang}", state["request"].get("lang", "en")), user
     )
     js = parse_json(text)
     if not js.get("claims"):
@@ -351,7 +362,7 @@ def make(deps: Deps):
             if got:
                 m_hyps, m_claims, m_summary, model_id = got
                 if m_hyps and m_claims:
-                    hyps, claims, summary, lane = m_hyps, m_claims, m_summary or summary, "deep"
+                    hyps, claims, summary, lane = m_hyps, m_claims, m_summary or summary, "fast"
         except Exception as e:  # the deterministic chain is complete; the model only refines it
             log.warning("investigator: model step skipped (%s)", str(e)[:140])
         return {
