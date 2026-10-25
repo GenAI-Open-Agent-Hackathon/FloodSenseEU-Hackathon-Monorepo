@@ -9,6 +9,14 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+### Changed
+
+- Judge `model_id` in `contracts/schemas/floodsense.schema.json` accepts the routing names `meterless/fast` and `meterless/deep`, the Nightshift ids a reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is no longer accepted. Examples use `meterless/deep`. Which model answers a routing name today stays the one table at the top of `docs/architecture/c4.md`. ADR 0004 and ADR 0007 are corrected to match and stay Proposed.
+
+### Fixed
+
+- The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep` or the discontinued Super id, still omits the judge instead of rewriting it.
+
 ## [0.2.0] - 2026-10-25
 
 Live demo stack: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris reads. This section is everything on main after the v0.1.0 data slice.
