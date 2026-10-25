@@ -59,7 +59,7 @@ The citizen and insurer console is on main. Zain owns the UI path. Path detail i
 | --- | --- | --- | --- |
 | P1 Foundations | Thu 22 – Fri 23 | Skeleton, contracts, first sources, agent graph on seeded views, Day-1 research and terms checks | `v0.4.0`: Investigator + Skeptic answer a real question with citations. Core sources federated on main. |
 | P2 Integrate | Sat 24 | Everyone syncs. Agents switch to live views. UI v1 on the real API. | `v0.7.0`: UI shows layer (a) and (b) citations. Zain owns the UI path. That screen landed inside `v0.2.0`. |
-| P3 Depth | Sun 25 – Mon 26 | HITL, Judge, memory, cache, document citations, eval set, demo script. | `v1.0.0-rc.1` demo freeze, Mon 26 Oct 20:00 CET. |
+| P3 Depth | Sun 25 – Mon 26 | HITL, Judge, memory, cache, eval set, demo script. Layer (c) document citations and hierarchical document chunks are stretch. | `v1.0.0-rc.1` demo freeze, Mon 26 Oct 20:00 CET. |
 | P4 Ship | Tue 27 | Test the candidate, security review, tag, record, submit. | Submission sent by 21:00 CET. |
 
 Slots are a guide (Berlin time, AM ≈ 09:30–14:00, PM ≈ 14:30–20:00). Thursday starts mid-afternoon because the clock started at 02:00 CEST. Clocks go back on Sunday 25 Oct at 03:00 (CEST → CET).
@@ -86,7 +86,7 @@ Everyone pulls main, runs `python tasks.py zetaris-sync` (`py tasks.py zetaris-s
 
 ### Sunday and Monday
 
-Zain finishes approve / edit / reject, builds the Judge with Mihir, then moves to the UI. Ayush adds long-term memory, short-term thread memory, the semantic cache, and a labelled replay drill. Urvashi, Saleeta, and Mihir add hierarchical document chunks and the eval set (Valencia 2024, then Ahr / NRW 2021). Monday 20:00 CET is the demo freeze. After that, only `fix/*` pull requests.
+Zain finishes approve / edit / reject, builds the Judge with Mihir, then moves to the UI. Ayush adds long-term memory, short-term thread memory, the semantic cache, and a labelled replay drill. Urvashi, Saleeta, and Mihir add the eval set (Valencia 2024, then Ahr / NRW 2021). Hierarchical document chunks and layer (c) document citations are stretch. Monday 20:00 CET is the demo freeze. After that, only `fix/*` pull requests.
 
 ### Tuesday
 
@@ -106,14 +106,14 @@ The plan was thirteen product increments, a release candidate, and the release. 
 
 `v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. All three have GitHub Releases. The next product tag is `v0.3.0`.
 
-`v0.3.0` is core sources and provenance, which are already on main, plus live gauges, which Mihir owns. Core sources: rain archive, EMS footprint, OSM sites, synthetic portfolio, hazard and exposure views, and `floodsense.provenance` (`ingestion/prep/provenance.csv`, `docs/legal/sources.md`). Live gauges: PEGELONLINE (WSV Rhine levels) through `ingestion/feeds/` and the `pegel_levels` table in migration `033`. This docs change does not cut the tag. The `[0.3.0]` changelog section is written in the release pull request that cuts it.
+`v0.3.0` adds two things that are not in `v0.1.0`. The live-gauges feature pull request is still landing. `#24` is already on main: `floodsense.hazard_now` and its seed twin, migrations `034` and `035`. Core sources, provenance, `ingestion/feeds/`, and the `pegel_levels` table in migration `033` already shipped in `v0.1.0`. They are not new `v0.3.0` work. Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25). This docs change does not cut the tag. Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes. The `[0.3.0]` changelog section is written in the release pull request that cuts it.
 
 `v0.2.0` includes the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. These planned rows shipped early inside that tag, so they are not tags of their own:
 
 - `v0.4.0` — Watchers → Investigator → Skeptic, at most 3 rounds. The World Model board is not in the graph.
 - `v0.5.0` — FastAPI runs and SSE, and the compose stack. `FF_LIVE_DATA` selects `floodsense.*`.
 - `v0.6.0` — Deterministic exposure SQL, and playbook actions that cite claim ids.
-- `v0.7.0` — UI v1 (map, chain, evidence drawer, layers (a) and (b)). Zain owns the UI path. Mihir landed the console.
+- `v0.7.0` — UI v1 (map, chain, evidence drawer, layers (a) and (b)). Zain owns the UI path. Content: Saleeta. Mihir landed the console.
 - `v0.8.0` — `interrupt()`, the SQLite checkpointer, and the approval API.
 - `v0.10.0` — Judge scores on the approval payload.
 
@@ -122,18 +122,18 @@ The plan was thirteen product increments, a release candidate, and the release. 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
 | v0.0.0 (tagged) | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
-| v0.1.0 (tagged) | First Zetaris source and seed views | Mihir, Saleeta | Open-Meteo Flood (GloFAS) and `floodsense.discharge_daily`, seed views, sync + verify. Mihir took the data path on 2026-10-25 |
+| v0.1.0 (tagged) | First Zetaris source and seed views | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Open-Meteo Flood (GloFAS), seed views, sync + verify. Also in this tag: core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` |
 | v0.2.0 (tagged) | Live demo stack | Ayush, Zain | Agents graph, HITL, Judge, insurer desk, engines sidecar (present, not called), fast lane, parallel Zetaris. Early landings of v0.4, v0.5, v0.6, v0.7, v0.8, and v0.10, as listed above |
-| v0.3.0 (next) | Core sources, provenance, live gauges | Mihir. Saleeta secondary on prep | Already on main: rain archive, EMS footprint, OSM sites, synthetic portfolio, hazard and exposure views, provenance. Live gauges: PEGELONLINE, Mihir |
+| v0.3.0 (next) | Live gauges and hazard_now | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Adds the live-gauges feature pull request (still landing) and #24 `hazard_now` (migrations `034` and `035`, Zain, already on main). Not this tag: core sources, provenance, `ingestion/feeds/`, and `033` `pegel_levels` (those shipped in v0.1.0). Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes |
 | v0.4.0 (inside v0.2.0) | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds. World Model board waits on #15 |
 | v0.5.0 (inside v0.2.0) | Live views, API, compose | Zain, Ayush, Mihir | `FF_LIVE_DATA`, FastAPI runs and SSE, compose. Urvashi remains Zetaris expertise |
 | v0.6.0 (inside v0.2.0) | Exposure and playbook | Ayush, Zain | Deterministic exposure SQL, playbook actions that cite claims |
-| v0.7.0 (inside v0.2.0) | UI v1 | Zain (UI path) | Map, chain, evidence drawer with layers (a) and (b), licence badges. Mihir landed the console |
+| v0.7.0 (inside v0.2.0) | UI v1 | Zain (UI path). Content: Saleeta | Map, chain, evidence drawer with layers (a) and (b), licence badges. Mihir landed the console |
 | v0.8.0 (inside v0.2.0) | Human-in-the-loop | Zain (tests: Mihir) | `interrupt()`, SQLite checkpointer, approval API, audit log |
-| v0.9.0 | Memory | Ayush (tests: Zain) | Not load-bearing until #15 and #16. H-MEM recall and write-on-approval, trust ledger, thread memory. Sidecar is `engines/` |
+| v0.9.0 (not shipped) | Memory | Ayush (tests: Zain) | Not load-bearing until #15 and #16. H-MEM recall and write-on-approval, trust ledger, thread memory. Sidecar is `engines/` |
 | v0.10.0 (inside v0.2.0) | Judge before HITL | Zain, Mihir | Per-claim grounding and citation scores in the approval payload |
 | v0.11.0 (stretch) | Layer (c) | Urvashi, Saleeta, Mihir | Stretch. Hierarchical chunks in pgvector (`FF_RAG_DOCS` stays off). Valencia 2024 and Ahr 2021 eval items are already in `evals/` inside v0.2.0 |
-| v0.12.0 | Cache, limits, replay | Ayush, Mihir, Zain | Semantic cache, rate limits, past runs, labelled replay. Not in this tree |
+| v0.12.0 (not shipped) | Cache, limits, replay | Ayush, Mihir, Zain | Semantic cache, rate limits, past runs, labelled replay. Not in this tree |
 | v1.0.0-rc.1 | Demo freeze | All (tag: Mihir) | Mon 20:00. Only `fix/*` after this. Candidates are `rc.N`, not `v0` patch tags |
 | v1.0.0 | Release | Mihir | Security review, public repo, GitHub Release, submission |
 
@@ -149,7 +149,7 @@ Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `age
 | `FF_HITL` | on | Approval interrupt before any outbound action |
 | `FF_HMEM` | off until #15 and #16 merge | Long-term memory. Not load-bearing on main. Default in code is off (`NoMemory`) |
 | `FF_RAG_DOCS` | off | Stretch. Layer (c) document citations in pgvector. Not a v1 gate |
-| `FF_SEMANTIC_CACHE` | on | Similar query served from a previous good answer, labelled |
+| `FF_SEMANTIC_CACHE` | off (not in tree) | Similar query served from a previous good answer, labelled |
 | `FF_CACHED_REPLAY` | off, on if a live service fails | Labelled replay of a recorded run |
 | `FF_EFAS`, `FF_EXTRA_SEGMENTS` | off | Stretch |
 
@@ -208,7 +208,7 @@ Every claim shows its sources. A claim is any sentence that states a fact, a num
 | Layer | What the user sees | When |
 | --- | --- | --- |
 | (a) Zetaris evidence | `queryId`, SQL, view, sample rows | In `v0.2.0` (agents and the UI) |
-| (b) Original source | URL, publisher, licence, attribution, access date, from `floodsense.provenance` | Provenance is on main (`v0.3.0` scope). The UI shows it from `v0.2.0` |
+| (b) Original source | URL, publisher, licence, attribution, access date, from `floodsense.provenance` | Provenance shipped in `v0.1.0`. The UI shows it from `v0.2.0` |
 | (c) Document passage | For example "EMS report, p.12, para 3", plus a 1–2 sentence quote | Stretch. pgvector, behind `FF_RAG_DOCS`. Not a committed increment |
 
 Citation record (v1 contract, column names are a proposal until Urvashi and Saleeta check the real fields):
@@ -239,7 +239,7 @@ Working decision for this build:
 2. Then go EU-wide for the demo and the product path: Copernicus EMS (EMSR773 Valencia, July 2021 rapid mapping, EFAS as stretch), GloFAS discharge, AEMET and SAIH Júcar for Valencia, OpenStreetMap sites, plus a synthetic insurer portfolio that is clearly labelled synthetic.
 3. Open-Meteo (Flood / GloFAS REST and the rain archive) is fine for the hackathon. The data is CC BY 4.0 and the public API is free for non-commercial use. Replace Open-Meteo before any paid product. It is not a dependency we ship in a commercial offering.
 
-Live gauges on main are PEGELONLINE (WSV; Rhine at Bonn, Köln, and Koblenz). Mihir owns them: `ingestion/feeds/` and the `pegel_levels` FILESTORE table in migration `033`. The state portals in the list above stay a terms check. They are not the live-gauge path. DWD via Bright Sky stays Hold (`docs/legal/sources.md`).
+Migration `033` `pegel_levels` and `ingestion/feeds/` shipped in `v0.1.0` (PEGELONLINE, WSV; Rhine at Bonn, Köln, and Koblenz). Mihir owns that path (takeover 2026-10-25). The live-gauges feature pull request is still landing. That pull request, plus `#24` `hazard_now`, is what `v0.3.0` adds. The state portals in the list above stay a terms check. DWD via Bright Sky stays Hold (`docs/legal/sources.md`).
 
 Attribution strings we show, aligned with `ingestion/prep/provenance.csv` and `docs/legal/sources.md`:
 
@@ -331,7 +331,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, and `v0.2.0`. The next tag is `v0.3.0` (core sources and provenance, plus live gauges). There is no `v0.x.y` fix tag. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, and `v0.2.0`. The next tag is `v0.3.0`: the live-gauges feature pull request (still landing) and `#24` `hazard_now`. Cut it once that pull request is merged, `main` is green, and e2e passes. There is no `v0.x.y` fix tag. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix on the 0.x line does not get its own tag. It is part of the next `v0.MINOR.0`. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Those candidates are `rc.2`, `rc.3`, and so on.
 
@@ -376,7 +376,7 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 
 ## Still open
 
-- The next tag is `v0.3.0`, and it is allowed: `v0.MINOR.0` only, with no `v0.MINOR.PATCH` and no `v0.x.y` fix tag. Core sources and provenance are already on main. Live gauges (PEGELONLINE) are Mihir's. This docs change does not cut the tag.
+- The next tag is `v0.3.0` (`v0.MINOR.0` only, no patch tag). It adds the live-gauges feature pull request (still landing) and `#24` `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0`. Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes. This docs change does not cut the tag.
 - The HITL interrupt from #4 is in `v0.2.0`.
 - H-MEM and the World Model are not load-bearing until Ayush #15 and #16 merge. The agents package does not call `engines/`. `FF_HMEM` defaults off. The default memory is `NoMemory`.
 - Citation layer (c) and pgvector are stretch. `FF_RAG_DOCS` stays off.
