@@ -27,6 +27,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Fixed
 
+- The exposure node accepts `sum_insured_eur` and segment `policies` when Zetaris returns them as strings or `Decimal`. A numeric string used to crash the segment claim (`Unknown format code 'f' for object of type 'str'`). Unreadable cells format as 0.
 - Fake Zetaris, the seed schema, a replay clock, and a re-read (including a cached event timeline) are not labelled `served_from: "live"`. Live is a fresh read of `floodsense.*` through live Zetaris with no replay clock. `/ready`, `/config`, `/version`, `/runs/past`, an empty `/desk/events`, and `/desk/dispatch-target` follow that rule. `GET /health` stays a liveness check. A run posted with `replay_ts` stays `replay` on `GET /runs/{id}`.
 - API proxy handlers await an async HTTP client, so one run does not block the event loop or the SSE stream.
 - `POST /runs` and `GET /runs/{id}` attach a `contract` projection (answer, approvals, evidence, playbook, and judge only when every `model_id` is already in the schema enum) that validates against `contracts/schemas/floodsense.schema.json`. Graph ids outside that enum, including Super VL and the offline ids, omit the judge instead of writing Lightning or the discontinued Super id. Evidence rows with `error` are omitted. Citation URLs are http(s) the payload already had. `auto` is not rewritten to `approved`. Approval and citation routes are not projected. Graph state is unchanged.
