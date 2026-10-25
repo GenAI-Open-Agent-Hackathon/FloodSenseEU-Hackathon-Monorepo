@@ -4,7 +4,7 @@ Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, 
 
 The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
 
-Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`) and [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`). There is no wiki.
+Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`), [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`), and [v0.2.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.2.0) (live demo stack: agents graph, insurer desk, engines, fast lane, and parallel Zetaris). There is no wiki.
 
 ## Team
 
@@ -113,7 +113,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 | `api/` | FastAPI. Proxies runs, SSE, and approval. `GET /health` as well | Zain, Ayush |
 | `ui/` | Citizen page and insurer console (Vite, React, TypeScript) | Zain. Mihir landed the console |
 | `engines/` | H-MEM and World Model sidecar | Ayush |
-| `evals/` | Valencia 2024 and Ahr 2021 items. On main, not a tag | Saleeta, Zain, Mihir |
+| `evals/` | Valencia 2024 and Ahr 2021 items. In v0.2.0, not its own increment tag | Saleeta, Zain, Mihir |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |
 | `contracts/` | JSON Schema for claims, citations, answers, approvals | Mihir |
 | `tasks.py` | Cross-platform task runner (`up`, `down`, `zetaris-sync`, `engines-test`, `test`, `lint`) | Mihir |

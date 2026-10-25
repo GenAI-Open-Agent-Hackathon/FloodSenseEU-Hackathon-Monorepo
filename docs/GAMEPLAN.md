@@ -96,15 +96,15 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 
 Thirteen product increments, a release candidate, and the release. Each merges through a pull request, is demoed at 20:00, and is tagged. Tags are immutable: `v0.MINOR.0` for an increment, `v0.MINOR.PATCH` for a fix, `v1.0.0-rc.N` for candidates. A slipped increment merges behind its flag. The tag records what actually works.
 
-`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. Both have GitHub Releases. A docs change does not create a tag. Increments after `v0.1.0` are not tagged.
+`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. All three have GitHub Releases. A docs change does not create a tag. Increments after `v0.2.0` are not tagged.
 
-On `main`, still unreleased: the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. `v0.8.0` is not a tag. The agents package does not call `engines/` yet. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree.
+`v0.2.0` includes the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. The rows after `v0.2.0` are the original plan, not separate tags. The agents package does not call `engines/` yet. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree.
 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
 | v0.0.0 (tagged) | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
 | v0.1.0 (tagged) | First Zetaris source and seed views | Mihir, Saleeta | Open-Meteo Flood (GloFAS) and `floodsense.discharge_daily`, seed views, sync + verify. Mihir took the data path on 2026-10-25 |
-| v0.2.0 | First answers via Nightshift | Ayush, Zain | One graph node, pinned lanes, `run_sql`, Evidence and Citation models |
+| v0.2.0 (tagged) | Live demo stack | Ayush, Zain | Agents graph, HITL, Judge, insurer desk, engines sidecar, fast lane, parallel Zetaris. Later rows are the original plan and are not separate tags |
 | v0.3.0 | Core sources and provenance | Urvashi, Saleeta | Rain archive, EMS footprint, OSM sites, synthetic portfolio, hazard and exposure views, provenance |
 | v0.4.0 | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds, World Model board |
 | v0.5.0 | Live views, API, compose | Zain, Ayush, Mihir, Urvashi | `FF_LIVE_DATA`, FastAPI runs and SSE, compose on all five machines |
@@ -308,7 +308,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Tagged releases on `main` are `v0.0.0` and `v0.1.0`. Further product work goes through those pull requests. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Tagged releases on `main` are `v0.0.0`, `v0.1.0`, and `v0.2.0`. Further product work goes through those pull requests. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix gets a new tag. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Patches become `rc.2`, `rc.3`, and so on.
 
@@ -353,7 +353,7 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 
 ## Still open
 
-- Tags after `v0.1.0` are not cut. `v0.8.0` is not a tag. The HITL interrupt from #4 is on main and unreleased.
+- Tags after `v0.2.0` are not cut. `v0.3.0` through `v0.12.0` are not tags. The HITL interrupt from #4 is in `v0.2.0`.
 - The agents package does not call `engines/`. `FF_HMEM` defaults off. The default memory is `NoMemory`.
 - Semantic cache and rate limits are not in this tree.
 - `knowledge/` and `demo/` are not folders yet.

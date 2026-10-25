@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+Live demo stack: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris reads. This section is everything on main after the v0.1.0 data slice.
+
 ### Added
 
 - The UI is a citizen page and an insurer desk instead of the Vite placeholder. The header has a light/dark control (stored in the browser), a notification bell, and an account stub. The desk shows a Valencia point map, a replay-date slider, point drill-down, an evidence drawer, a causal chain, Skeptic notes, Judge scores, and approve / edit / reject. Discharge, hazard, exposure, and provenance fixtures use the seed-view column names (`point_id`, `date`, `discharge_m3s`, `source`, and the matching hazard, exposure, and provenance columns). Rows stay labelled fixture unless `VITE_API_URL` returns a JSON array in that shape. The reviewed answer is a replay fixture and is labelled `cached at HH:MM`, not as live.
@@ -19,7 +23,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 - Investigator, Skeptic rationale, and the first Playbook draft call Nightshift on lane `fast` (`MODEL_FAST`). Judge grounding and Playbook repair stay on `deep`. While Super VL answers both lanes, that switch is not by itself a large wall-time win. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning. `SKEPTIC_MAX_ROUNDS` stays the cap (default 3). A smoke run can set it to 1.
 - Watchers, the Investigator's aggregate queries, and the Exposure join run independent Zetaris statements together, capped by `ZETARIS_MAX_PARALLEL` (default 8; `1` is one at a time). That overlap is the guaranteed gain. Result order matches the call order. A query that raises is `Evidence.error` and does not drop the others. A stale login token is cleared only when it is still the token that failed, so two concurrent 401s log in once.
-- README and ownership docs match tagged v0.0.0 / v0.1.0 and the Unreleased UI, Nightshift, and engines landings. They also name the agent graph, HITL, Judge, API run proxy, and evals that #4 put on main. Those later increments are not tagged.
+- README, ownership, and the gameplan name tagged v0.0.0, v0.1.0, and v0.2.0. v0.2.0 is the live agents graph, the insurer desk, the engines sidecar, the fast lane, and parallel Zetaris reads, including the agent graph, HITL, Judge, API run proxy, and evals from #4. Increments after v0.2.0 are not tagged.
 - A view body with any `seed:` row is Seed, not Live. Fixture notices use their own id. A seed stamp on a fixture is described as a stamp, not as a Seed origin. The origin banner uses the same Fixture / Seed / Live words as the header pill.
 - Agents fall back to `meterless/fast` and `meterless/deep` when `MODEL_FAST` and `MODEL_DEEP` are unset, the same routing modes as `.env.example` and `agents/.env.example`.
 - `MODEL_FAST` and `MODEL_DEEP` in `.env.example` and `agents/.env.example` are now `meterless/fast` and `meterless/deep`. Nightshift model ids are routing modes, so a request that named a model was answered by whichever lane Nightshift picked: the first live run got the 30B on both tiers, later runs the 120B. Nemotron 3.5 Super VL 120B A12B (`nvidia/nemotron-3.5-super-vl-120b-a12b`) now answers both tiers. Nightshift picks the faster lane, and Super VL is faster than Nemotron 3.5 Lightning 30B A3B (about 0.5 s against 2.6 s) as well as stronger; Lightning stays configured. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint, which returns 502 "Function not found". The root `.env.example` lists the check's optional keys (`EXPECT_MODEL_FAST`, `EXPECT_MODEL_DEEP`, `MODEL_EMBED`). The gameplan and the C4 page say the same.
@@ -76,6 +80,7 @@ Skeleton and guardrails on `eacf34c`. The product described in the gameplan (liv
 - The API, UI, pgvector, and Redis ports bind to `127.0.0.1`. Redis has no password. The pgvector example password is a local placeholder.
 - Examples contain placeholders, not tokens. The NVIDIA provider key is not an application variable.
 
-[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.0.0...v0.1.0
 [0.0.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0
