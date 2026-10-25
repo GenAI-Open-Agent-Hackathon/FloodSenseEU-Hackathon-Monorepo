@@ -256,6 +256,33 @@ def skeptic(run: dict) -> Step:
     return s
 
 
+def _aggregate_totals(run: dict, exp: dict) -> tuple[int | None, float | None]:
+    """COUNT(*) and SUM from the exposure node's portfolio query.
+
+    ``rows_sample`` is capped at 20. The totals the node states come from the
+    query that is ``COUNT(*)`` plus ``SUM(sum_insured_eur)`` with no GROUP BY.
+    """
+    evidence = run.get("evidence") or {}
+    if not isinstance(evidence, dict):
+        return None, None
+    for qid in exp.get("query_ids") or []:
+        row = evidence.get(qid)
+        if not isinstance(row, dict) or row.get("error"):
+            continue
+        sql = " ".join((row.get("sql") or "").split()).upper()
+        if "COUNT(" not in sql or "SUM(" not in sql or "GROUP BY" in sql:
+            continue
+        sample = row.get("rows_sample") or [{}]
+        first = sample[0] if sample else {}
+        if not isinstance(first, dict):
+            return None, None
+        try:
+            return int(first.get("policies")), float(first.get("sum_insured_eur") or 0)
+        except (TypeError, ValueError):
+            return None, None
+    return None, None
+
+
 def exposure(run: dict) -> Step:
     s = _step(run, "exposure", "sql", "joins the footprint to the portfolio")
     if not s.ran:
@@ -269,32 +296,48 @@ def exposure(run: dict) -> Step:
         "segments": len(exp.get("by_segment") or []),
     }
 
+    counted, summed = _aggregate_totals(run, exp)
+    if counted is None:
+        count_ok = exp.get("policies") in (0, None) and not assets
+        count_detail = "no COUNT query in the record"
+    else:
+        count_ok = exp.get("policies") == counted
+        count_detail = (
+            f"reports {exp.get('policies')}, COUNT(*) is {counted}, sample lists {len(assets)}"
+        )
     s.checks.append(
         Check(
-            "the policy count equals the sites it listed",
-            exp.get("policies") == len(assets),
-            f"reports {exp.get('policies')}, listed {len(assets)}",
+            "the policy count matches the aggregate COUNT",
+            count_ok,
+            count_detail,
         )
     )
 
-    # Recomputed from the rows, not taken on trust.
-    total = sum(a.get("sum_insured_eur") or 0 for a in assets)
+    stated = exp.get("sum_insured_eur")
+    if summed is None:
+        sum_ok = stated in (0, None, 0.0) and not assets
+        sum_detail = "no SUM query in the record"
+    elif stated is None:
+        sum_ok = False
+        sum_detail = "no total reported"
+    else:
+        sum_ok = abs(float(stated) - summed) < 0.01
+        sum_detail = f"reports {stated:,.0f}, SUM is {summed:,.0f}"
     s.checks.append(
         Check(
-            "the sum insured adds up from the rows",
-            abs(total - (exp.get("sum_insured_eur") or 0)) < 0.01,
-            f"reports {exp.get('sum_insured_eur'):,.0f}, rows add to {total:,.0f}"
-            if exp.get("sum_insured_eur") is not None
-            else "no total reported",
+            "the sum insured matches the aggregate SUM",
+            sum_ok,
+            sum_detail,
         )
     )
 
+    target = float(stated or 0)
     seg_total = sum(g.get("sum_insured_eur") or 0 for g in exp.get("by_segment") or [])
     s.checks.append(
         Check(
-            "the segment breakdown adds to the same total",
-            abs(seg_total - total) < 0.01,
-            f"segments add to {seg_total:,.0f}, rows to {total:,.0f}",
+            "the segment breakdown adds to the aggregate total",
+            abs(seg_total - target) < 0.01,
+            f"segments add to {seg_total:,.0f}, aggregate {target:,.0f}",
         )
     )
 

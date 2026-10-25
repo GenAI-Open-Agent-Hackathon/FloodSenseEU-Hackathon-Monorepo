@@ -12,6 +12,7 @@ from typing import Any
 
 from langgraph.types import Command
 
+from floodsense_agents import labelling
 from floodsense_agents.checkpoints import build_checkpointer
 from floodsense_agents.events import spec
 from floodsense_agents.graph import build_deps, build_graph
@@ -96,8 +97,21 @@ class Runtime:
             "reviewer_note": None,
         }
         out["status"] = "awaiting_approval" if paused else v.get("status", "running")
-        out["served_from"] = v.get("served_from", "live")
-        out["cached_at"] = v.get("cached_at")
+        kind, at = labelling.computation_label(
+            v.get("replay_ts"), live=self._answers_are_live()
+        )
+        # A clocked replay stays replay. A stored "cache" mark must not hide
+        # the clock on the way out of the checkpointer.
+        stored = v.get("served_from")
+        if v.get("replay_ts"):
+            pass
+        elif stored == labelling.CACHE and v.get("cached_at"):
+            kind, at = labelling.CACHE, v.get("cached_at")
+        elif stored in labelling.KINDS and stored != labelling.LIVE:
+            kind = stored
+            at = v.get("cached_at") or at
+        out["served_from"] = kind
+        out["cached_at"] = at
         # Queries that errored. An answer resting on one of these is standing
         # on a hole, and the reviewer has to be told before deciding.
         out["failures"] = [
@@ -143,9 +157,17 @@ class Runtime:
         )
         self.index[run_id] = row
 
+    def _answers_are_live(self) -> bool:
+        """True only for the live schema read through live Zetaris."""
+        zetaris = getattr(self.deps, "zetaris", None) if self.deps else None
+        return labelling.data_plane_is_live(zetaris)
+
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
         ev = spec(req.event_id)
+        served_from, cached_at = labelling.computation_label(
+            req.replay_ts, live=self._answers_are_live()
+        )
         try:
             self.graph.invoke(
                 {
@@ -156,8 +178,8 @@ class Runtime:
                     "replay_ts": req.replay_ts,
                     "request": req.model_dump(),
                     "event": ev.as_dict(),
-                    "served_from": "live",
-                    "cached_at": None,
+                    "served_from": served_from,
+                    "cached_at": cached_at,
                     "trace": [],
                     "revise_rounds": 0,
                     "repair_rounds": 0,

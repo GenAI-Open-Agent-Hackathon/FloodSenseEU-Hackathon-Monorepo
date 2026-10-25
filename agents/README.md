@@ -41,7 +41,9 @@ curl -s -X POST 127.0.0.1:8100/runs/<id>/approval -H 'content-type: application/
 curl -N 127.0.0.1:8100/runs/<id>/events        # SSE: one TraceEvent per node, then a status event
 ```
 
-`POST /runs`, `GET /runs/past`, `GET /runs/{id}`, `GET|POST /runs/{id}/approval`, `GET /runs/{id}/citations`, `GET /runs/{id}/events`, `GET /config`, `GET /health`. Every response carries `served_from` (`live` here; `cache` / `replay` are set by the API layer) and `cached_at`.
+`POST /runs`, `GET /runs/past`, `GET /runs/{id}`, `GET|POST /runs/{id}/approval`, `GET /runs/{id}/citations`, `GET /runs/{id}/events`, `GET /config`, `GET /health`. Every response carries `served_from` and `cached_at` when it is not live. A fresh read of `floodsense.*` through live Zetaris, with no replay clock, is `live`. Fake Zetaris, the seed schema, and a replay clock are `replay`. A re-read with no replay clock, including a cached event timeline, is `cache`. A run posted with `replay_ts` stays `replay` on `GET /runs/{id}`. `/ready`, `/config`, `/version`, `/runs/past`, an empty `/desk/events`, and `/desk/dispatch-target` are `replay` on FakeZetaris or the seed schema. `GET /health` is liveness only and may say `live`.
+
+The product UI is the Vite console in `ui/` (compose publishes it on `127.0.0.1:15173`). This service does not serve `ui/app` or `ui/mock`. `GET /` and `GET /console` serve `console.html`, a secondary operator page on this unpublished port.
 
 `replay_ts` is the "now" of a replay: the Watchers and the Investigator only see rows at or before it, so the demo can step through 29 Oct 2024 hour by hour.
 

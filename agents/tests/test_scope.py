@@ -32,9 +32,9 @@ class Counting(FakeZetaris):
         super().__init__()
         self.queries = 0
 
-    def run_sql(self, sql):
+    def run_sql(self, sql, params=None):
         self.queries += 1
-        return super().run_sql(sql)
+        return super().run_sql(sql, params)
 
 
 class ScopeRuleTest(unittest.TestCase):
