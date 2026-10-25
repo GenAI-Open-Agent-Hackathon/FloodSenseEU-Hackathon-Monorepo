@@ -35,6 +35,8 @@ def approval_payload(state: FloodState) -> dict[str, Any]:
         "anomalies": state.get("anomalies", []),
         "hypotheses": state.get("hypotheses", []),
         "claims": state.get("claims", []),
+        # What H-MEM recalled for the Investigator. Context, not evidence.
+        "memories": state.get("memories", []),
         "exposure": state.get("exposure", {}),
         "playbook": state.get("playbook", []),
         "judge": state.get("judge", []),

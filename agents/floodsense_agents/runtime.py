@@ -17,7 +17,6 @@ from floodsense_agents.checkpoints import build_checkpointer
 from floodsense_agents.events import spec
 from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
-from floodsense_agents.settings import settings
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.zetaris import now_utc
 
@@ -38,6 +37,7 @@ STATE_KEYS = (
     "request",
     "event",
     "claims",
+    "memories",
     "summary",
     "judge_summary",
     "evidence",
@@ -84,6 +84,7 @@ class Runtime:
             ("judge", []),
             ("trace", []),
             ("claims", []),
+            ("memories", []),
             ("model_ids", []),
             ("evidence", {}),
             ("exposure", {}),
@@ -199,13 +200,9 @@ class Runtime:
             raise NotAwaitingApproval(f"run {run_id} is {s['status']}, not awaiting approval")
         self.graph.invoke(Command(resume=decision.model_dump()), self.cfg(run_id))
         out = self.snapshot(run_id)
-        # N1: store ran on every approval, FF_HMEM or not. NoMemory made that
-        # a no-op; a real memory would have written behind a flag that is off.
-        if out["status"] == "approved" and self.deps is not None and settings.ff_hmem:
-            try:
-                self.deps.memory.store(run_id, out["request"], out["claims"], out["approval"])
-            except Exception as e:
-                log.warning("memory.store failed: %s", str(e)[:120])
+        # N1: store used to run here on every approval, FF_HMEM or not. It now
+        # runs in the graph's Learn node (nodes/memory.py), behind FF_HMEM, so
+        # the write shows on the trace and a resumed graph stores exactly once.
         self._index_row(run_id)
         return out
 

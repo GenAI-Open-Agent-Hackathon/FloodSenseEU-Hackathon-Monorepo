@@ -309,6 +309,8 @@ def ready():
             "status": "ready",
             "llm": _dep_name(rt, "llm"),
             "zetaris": _dep_name(rt, "zetaris"),
+            "memory": _dep_name(rt, "memory"),
+            "world_model": _dep_name(rt, "world"),
         }
     )
 
@@ -331,6 +333,7 @@ def config():
                 "FF_RAG_DOCS": settings.ff_rag_docs,
             },
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
+            "engines_url": settings.engines_url,
             "schema": settings.schema,
             "checkpointer": settings.checkpointer,
             "skeptic_max_rounds": settings.skeptic_max_rounds,
