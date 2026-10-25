@@ -82,6 +82,14 @@ Eval set and runner: [`../evals/`](../evals/README.md).
 
 To try it on the host: `cd engines && npm start` (Node 22.18 or newer), then run the agents with `ENGINES_URL=http://127.0.0.1:8300` and `FF_HMEM=true`. In compose the agents service uses `ENGINES_URL=http://engines:8300` (`compose.yaml` sets it). `ENGINES_TIMEOUT_S` (default 5) caps each call, and `HMEM_RECALL_TOP_N` (default 3) is how many findings are recalled. `GET /ready` names the memory and World Model in use.
 
+## Thread memory
+
+Short-term memory for a conversation. `POST /runs` takes an optional `thread_id`: the `thread_id` of an earlier run (a first run's thread is its own `run_id`). The new run gets that thread's last three turns in `state.thread`, each with the question, the run status, the approval status and the summary. The Investigator's prompt shows them as context only, never as evidence, so a follow-up still derives every claim from its own queries. The `memory` trace step says how many turns it carried, and the reviewer sees them as `thread` in the approval payload. No flag is involved: a run without `thread_id` is unchanged.
+
+- An unknown `thread_id` is a 404, not a silent new thread, so a client continuing a conversation hears when it is not.
+- `GET /runs/past?thread_id=` lists one conversation, and every row carries its `thread_id`.
+- Threads come from the checkpointer, so they survive a restart. A rebuilt run list keeps each run's real start time, taken from its first trace event.
+
 ## Hooks for the pair
 
 - **Nightshift client** (Ayush): `nightshift.LLM.complete(lane, system, user, json=True) -> (text, model_id)`. `NightshiftClient` here sends the three headers and `enable_thinking=false`; replace or extend it, the nodes only use the protocol. `FakeNightshift` keys on the `TASK:` line of each system prompt (`prompts.py`).
