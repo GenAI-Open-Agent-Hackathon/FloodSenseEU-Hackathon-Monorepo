@@ -9,6 +9,15 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`). T
 
 ## [Unreleased]
 
+### Added
+
+- The agents use the `engines/` sidecar when `ENGINES_URL` is set (`agents/floodsense_agents/engines.py`). The Watchers' anomalies go to the World Model as observations, and the hypotheses go to its board after the Investigator and again after the Skeptic, with `at` set to the replay clock so a replay appends nothing new. Behind `FF_HMEM`, the Investigator first recalls past approved findings on the same flood event from H-MEM as prompt context (never as evidence; the reviewer sees them as `memories`), and a new Learn node after the human decision stores an approved or edited run's claims with their Zetaris query ids. Every engines call adds a trace event (`world_model`, `memory`, `learn`). A failed call is a trace note and never fails the run. With `ENGINES_URL` unset the graph runs as before. Recall is scoped to the event because the engines' reference embedder is a token hash and cannot rank across events; `HMEM_RECALL_THRESHOLD` (0) can rise once real embeddings are in. New settings: `ENGINES_URL`, `ENGINES_TIMEOUT_S` (5), `HMEM_RECALL_TOP_N` (3) and `HMEM_RECALL_THRESHOLD` (0). `GET /ready` names the memory and World Model in use.
+
+### Changed
+
+- `memory.store` runs in the Learn node instead of `Runtime.resume`, so the write is on the trace and happens once. It still runs only with `FF_HMEM` on.
+- The Playbook drops a model-written action that cites no claim of the run, and the trace says how many were dropped. If none is left, the standard actions stay.
+
 ## [0.3.0] - 2026-10-26
 
 Live gauges and `hazard_now`, and the judge lane ids. This section is everything on main after v0.2.0: [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) `hazard_now`, [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) gauge views, [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) should-fixes (migrations `042` and `043`), [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) tag policy, and [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) `model_id` lanes. Laptop Zetaris e2e (stage, `zetaris-sync`, and verify on a machine with the engine) is deferred to the morning of 26 Oct 2026. This tag records the code on main. It does not record a live-engine run.
