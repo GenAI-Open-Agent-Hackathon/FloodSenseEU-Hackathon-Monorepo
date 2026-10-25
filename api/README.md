@@ -1,6 +1,6 @@
 # API
 
-Purpose: the FastAPI service the UI and the demo call. It owns the public contract (gameplan §5.5) and proxies the run lifecycle to the agents service at `AGENTS_URL`: `POST /runs`, `GET /runs/past`, `GET /runs/{id}`, `GET /runs/{id}/events` (SSE), `GET|POST /runs/{id}/approval`, `GET /runs/{id}/citations`, `GET /config`, `GET /health`. Every response carries `served_from` and `cached_at`. Cache, replay and rate limits (Ayush, Mihir) slot in here, in front of the proxy. CORS is open to the UI origins only (`UI_ORIGINS`, default `http://localhost:15173,http://127.0.0.1:15173`).
+Purpose: the FastAPI service the UI and the demo call. It owns the public contract (gameplan §5.5) and proxies the run lifecycle to the agents service at `AGENTS_URL`: `POST /runs` (an optional `thread_id` continues a conversation), `GET /runs/past` (`?thread_id=` for one conversation), `GET /runs/{id}`, `GET /runs/{id}/events` (SSE), `GET|POST /runs/{id}/approval`, `GET /runs/{id}/citations`, `GET /config`, `GET /health`. Every response carries `served_from` and `cached_at`. Cache, replay and rate limits (Ayush, Mihir) slot in here, in front of the proxy. CORS is open to the UI origins only (`UI_ORIGINS`, default `http://localhost:15173,http://127.0.0.1:15173`).
 
 Owner: Zain (runs, SSE, approval) and Ayush (cache and past runs). Mihir adds rate limits.
 
