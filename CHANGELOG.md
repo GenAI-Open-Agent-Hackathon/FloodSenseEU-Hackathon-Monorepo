@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- The semantic cache and labelled replay in the API (`api/app/cache.py`), each behind its flag in `api/.env` (`FF_SEMANTIC_CACHE`, `FF_CACHED_REPLAY`, both off). A run a person approved or edited and the Judge passed is cached; a repeat of its question (case, spacing and punctuation folded; same event, customer, replay clock, language and agents' flags, lanes and schema) is answered with the original run, `served_from: "cache"`, labelled "Cached answer from HH:MM · not live · original run R". Live data expires after 15 minutes, a historical replay after a day; `{"fresh": true}` skips the cache, and a follow-up in a thread is never cached. When a live run fails, the API serves the newest person-approved run for the same event and customer, `served_from: "replay"`, labelled "Replay of a recorded run from HH:MM" with the reason, and keeps the last few recordings so a replay works with the agents down. The agents add `GET /runs/{id}/replay`. `GET /config` reports the cache under `api_cache`. The cache is per process; `REDIS_URL` is not read yet.
+
 ## [0.9.0] - 2026-10-26
 
 Memory: H-MEM recall and write-on-approval, the World Model bridge, and short-term thread memory. This section is everything on main after v0.3.0: [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) (H-MEM, World Model, trust ledger on the sidecar), [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) (sqlite checkpointer hang fix), and [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) (short-term thread memory). `FF_HMEM` still defaults off. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`.
