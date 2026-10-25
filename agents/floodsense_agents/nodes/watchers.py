@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta
 
 from floodsense_agents.governance import DEFINITIONS
-from floodsense_agents.models import UTC_TS, Anomaly
+from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 
@@ -38,10 +38,13 @@ def window(state: FloodState) -> tuple[str, str]:
     older build.
     """
     ev = state["event"]
-    end = state.get("replay_ts") or ev["window_to_utc"]
-    if not UTC_TS.match(str(end)):
-        raise ValueError(f"replay_ts is not a UTC instant: {end!r}")
-    return ev["window_from_utc"], min(end, ev["window_to_utc"])
+    try:
+        end = normalize_utc(str(state.get("replay_ts") or ev["window_to_utc"]))
+        start = normalize_utc(str(ev["window_from_utc"]))
+        cap = normalize_utc(str(ev["window_to_utc"]))
+    except ValueError as e:
+        raise ValueError(f"replay_ts is not a UTC instant: {state.get('replay_ts')!r}") from e
+    return start, min(end, cap)
 
 
 def make(deps: Deps):
@@ -51,19 +54,28 @@ def make(deps: Deps):
         rain_at = DEFINITIONS["anomaly_rain"]
         flow_at = DEFINITIONS["anomaly_discharge"]
         t0, t1 = window(state)
+        clock = (t0, t1)
         q = {
-            "rain": f"SELECT point_id, ts_utc, rain_mm FROM {s}.hazard_timeline WHERE ts_utc "
-            f"BETWEEN "
-            f"'{t0}' AND '{t1}' AND rain_mm >= {rain_at.value} ORDER BY rain_mm DESC",
-            "discharge": f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE "
-            f"ts_utc BETWEEN "
-            f"'{t0}' AND '{t1}' AND discharge_m3s >= {flow_at.value} ORDER BY discharge_m3s DESC",
-            "warning": f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level FROM "
-            f"{s}.hazard_timeline "
-            f"WHERE ts_utc BETWEEN '{t0}' AND '{t1}' "
-            f"AND warning_level IS NOT NULL GROUP BY point_id, warning_level ORDER BY first_utc",
+            "rain": (
+                f"SELECT point_id, ts_utc, rain_mm FROM {s}.hazard_timeline WHERE ts_utc "
+                f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value} ORDER BY rain_mm DESC",
+                clock,
+            ),
+            "discharge": (
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE "
+                f"ts_utc BETWEEN ? AND ? AND discharge_m3s >= {flow_at.value} "
+                f"ORDER BY discharge_m3s DESC",
+                clock,
+            ),
+            "warning": (
+                f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level FROM "
+                f"{s}.hazard_timeline "
+                f"WHERE ts_utc BETWEEN ? AND ? "
+                f"AND warning_level IS NOT NULL GROUP BY point_id, warning_level ORDER BY first_utc",
+                clock,
+            ),
         }
-        evid = {k: deps.zetaris.run_sql(sql) for k, sql in q.items()}
+        evid = {k: deps.zetaris.run_sql(sql, params) for k, (sql, params) in q.items()}
         prov = deps.zetaris.run_sql(
             f"SELECT dataset, source_url, publisher, licence, attribution, fetched_at FROM "
             f"{s}.provenance"

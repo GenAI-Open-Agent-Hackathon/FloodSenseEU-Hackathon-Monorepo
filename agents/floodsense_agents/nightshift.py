@@ -49,7 +49,6 @@ def parse_json(text: str) -> dict:
 class NightshiftClient:
     def __init__(self) -> None:
         self.base_url = (settings.meterless_base_url or "").rstrip("/")
-        self.lanes = {"fast": settings.model_fast, "deep": settings.model_deep}
 
     def models(self) -> list[str]:
         r = httpx.get(f"{self.base_url}/models", headers=self._headers(), timeout=30)
@@ -64,7 +63,7 @@ class NightshiftClient:
         }
 
     def complete(self, lane: str, system: str, user: str, *, json: bool = True) -> tuple[str, str]:
-        model = self.lanes[lane]
+        model = settings.lane(lane)
         body: dict = {
             "model": model,
             "temperature": 0.1,

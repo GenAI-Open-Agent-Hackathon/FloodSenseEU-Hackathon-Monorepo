@@ -91,17 +91,20 @@ def _deterministic(
         f"first_utc, MAX(ts_utc) AS last_utc, "
         f"COUNT(*) AS hours FROM {s}.hazard_timeline WHERE point_id IN ({rain_pts}) AND rain_mm IS "
         f"NOT NULL "
-        f"AND ts_utc BETWEEN '{t0}' AND '{t1}' GROUP BY point_id ORDER BY total_mm DESC"
+        f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id ORDER BY total_mm DESC",
+        (t0, t1),
     )
     flow = deps.zetaris.run_sql(
         f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE point_id IN "
         f"({river_pts}) "
-        f"AND ts_utc BETWEEN '{t0}' AND '{t1}' ORDER BY ts_utc"
+        f"AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+        (t0, t1),
     )
     daily = deps.zetaris.run_sql(
         f"SELECT point_id, date, discharge_m3s, source FROM {s}.discharge_daily WHERE point_id IN "
         f"({river_pts}) "
-        f"AND date BETWEEN '{t0[:10]}' AND '{last_complete_day(t1)}' ORDER BY date"
+        f"AND date BETWEEN ? AND ? ORDER BY date",
+        (t0[:10], last_complete_day(t1)),
     )
     foot = deps.zetaris.run_sql(
         f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
@@ -110,7 +113,8 @@ def _deterministic(
     warn = deps.zetaris.run_sql(
         f"SELECT point_id, warning_level, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline WHERE "
         f"warning_level IS NOT NULL "
-        f"AND ts_utc BETWEEN '{t0}' AND '{t1}' GROUP BY point_id, warning_level ORDER BY first_utc"
+        f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id, warning_level ORDER BY first_utc",
+        (t0, t1),
     )
 
     claims: list[Claim] = []

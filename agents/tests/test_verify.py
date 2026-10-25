@@ -150,13 +150,35 @@ class VerifyTest(unittest.TestCase):
         run["exposure"]["sum_insured_eur"] = 99_000_000
         step = verify.exposure(run)
         self.assertEqual(step.status, "partial")
-        self.assertTrue(any("rows add to" in c.detail for c in step.checks if not c.ok))
+        self.assertTrue(any("SUM is" in c.detail for c in step.checks if not c.ok))
 
-    def test_exposure_notices_a_policy_count_that_does_not_match_its_rows(self) -> None:
+    def test_exposure_notices_a_policy_count_that_does_not_match_the_aggregate(self) -> None:
         run = self.fresh()
         run["exposure"]["policies"] = 99
         step = verify.exposure(run)
-        self.assertTrue(any("listed" in c.detail for c in step.checks if not c.ok))
+        self.assertTrue(any("COUNT(*)" in c.detail for c in step.checks if not c.ok))
+
+    def test_exposure_accepts_more_policies_than_the_sample(self) -> None:
+        run = self.fresh()
+        exp = run["exposure"]
+        exp["assets"] = exp["assets"][:1]
+        exp["policies"] = 25
+        exp["sum_insured_eur"] = 1_250_000.0
+        exp["by_segment"] = [
+            {"segment": "retail", "policies": 25, "sum_insured_eur": 1_250_000.0}
+        ]
+        qid = next(
+            q
+            for q in exp["query_ids"]
+            if "COUNT(" in (run["evidence"][q].get("sql") or "").upper()
+            and "GROUP BY" not in (run["evidence"][q].get("sql") or "").upper()
+        )
+        run["evidence"][qid]["rows_sample"] = [{"policies": 25, "sum_insured_eur": 1_250_000.0}]
+        step = verify.exposure(run)
+        self.assertEqual(
+            step.status, "verified", [(c.name, c.detail) for c in step.checks if not c.ok]
+        )
+        self.assertGreater(exp["policies"], len(exp["assets"]))
 
     def test_playbook_notices_an_action_citing_a_claim_that_does_not_exist(self) -> None:
         run = self.fresh()

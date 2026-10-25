@@ -180,9 +180,19 @@ class TraceEvent(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
-# A replay clock is a UTC instant and nothing else. It ends up inside SQL
-# predicates, so it is checked here rather than trusted downstream.
-UTC_TS = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?Z?$")
+# A replay clock is a UTC instant and nothing else. Callers compare it and
+# bind it into SQL, so it is normalised here to YYYY-MM-DDTHH:MM:SSZ.
+_UTC_LOOSE = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?$")
+UTC_TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def normalize_utc(value: str) -> str:
+    """Canonical UTC instant. Rejects anything that is not a clock."""
+    match = _UTC_LOOSE.fullmatch((value or "").strip())
+    if not match:
+        raise ValueError("replay_ts must be a UTC instant such as 2024-10-29T16:00:00Z")
+    date, hour, minute, second = match.groups()
+    return f"{date}T{hour}:{minute}:{second or '00'}Z"
 
 
 class RunRequest(BaseModel):
@@ -200,6 +210,4 @@ class RunRequest(BaseModel):
     def _utc_instant(cls, v: str | None) -> str | None:
         if v is None or v == "":
             return None
-        if not UTC_TS.match(v):
-            raise ValueError("replay_ts must be a UTC instant such as 2024-10-29T16:00:00Z")
-        return v
+        return normalize_utc(v)

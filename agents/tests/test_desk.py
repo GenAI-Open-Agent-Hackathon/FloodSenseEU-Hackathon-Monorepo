@@ -164,8 +164,16 @@ class DeskTest(unittest.TestCase):
     # --- what was knowable, and when ---------------------------------------
 
     def test_the_timeline_replays_the_event_at_each_declared_moment(self) -> None:
+        service._TIMELINE.clear()
         body = self.c.get("/desk/events/EMSR773/timeline").json()
         self.assertEqual(body["event_id"], "EMSR773")
+        self.assertEqual(body["served_from"], "replay")
+        self.assertNotEqual(body["served_from"], "live")
+        self.assertIsNotNone(body["cached_at"])
+        again = self.c.get("/desk/events/EMSR773/timeline").json()
+        self.assertEqual(again["served_from"], "cache")
+        self.assertEqual(again["cached_at"], body["cached_at"])
+        self.assertFalse(again["label"]["live"])
         self.assertEqual(len(body["moments"]), 7)
         for m in body["moments"]:
             self.assertNotIn("error", m)
@@ -215,72 +223,14 @@ class DeskTest(unittest.TestCase):
         again = self.c.get("/desk/events/EMSR773").json()
         self.assertEqual(again["run"]["run_id"], case["run"]["run_id"])
 
-    # --- the app is the front door -----------------------------------------
-
-    def test_the_root_now_leads_to_the_app(self) -> None:
-        r = self.c.get("/", follow_redirects=False)
-        self.assertEqual(r.status_code, 308)
-        self.assertEqual(r.headers["location"], "/app/")
-        self.assertEqual(self.c.get("/app/").status_code, 200)
-        self.assertIn("FloodSense EU", self.c.get("/app/").text)
-
-    def test_the_app_assets_are_served_and_scoped(self) -> None:
-        for name, kind in (("app.js", "javascript"), ("app.css", "css")):
-            r = self.c.get(f"/app/{name}")
-            self.assertEqual(r.status_code, 200, name)
-            self.assertIn(kind, r.headers["content-type"])
-        self.assertEqual(self.c.get("/app/console.html").status_code, 404)
-
-    def test_pages_are_never_cached_and_their_assets_are_pinned_to_the_build(self) -> None:
-        # A CDN in front of this served a four-hour-stale bundle once already.
-        page = self.c.get("/app/")
+    def test_the_product_ui_is_not_this_service(self) -> None:
+        page = self.c.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Secondary operator page", page.text)
+        self.assertIn("Vite console", page.text)
         self.assertIn("no-store", page.headers["cache-control"])
-        self.assertIn(".js?v=", page.text)
-        self.assertIn(".css?v=", page.text)
-        self.assertNotIn(
-            'href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap?v=',
-            page.text,
-        )
-
-        bare = self.c.get("/app/app.js")
-        self.assertIn("no-cache", bare.headers["cache-control"])
-
-        build = service._build()
-        pinned = self.c.get(f"/app/app.js?v={build}")
-        self.assertEqual(pinned.status_code, 200)
-        self.assertIn("immutable", pinned.headers["cache-control"])
-        self.assertEqual(bare.text, pinned.text)
-
-        # During a rollout both containers answer. One serving another build's
-        # URL lets a CDN pin the wrong bytes under that name, for a year.
-        other = self.c.get("/app/app.js?v=000000000000")
-        self.assertEqual(other.status_code, 404)
-        self.assertEqual(self.c.get("/mock/data.js?v=000000000000").status_code, 404)
-
-        for url in ("/mock/", "/console"):
-            r = self.c.get(url)
-            self.assertIn("no-store", r.headers["cache-control"], url)
-
-    def test_the_case_screen_offers_the_step_by_step_overlay(self) -> None:
-        app_js = self.c.get("/app/app.js").text
-        self.assertIn('id="stepwise"', app_js)
-        # The whole chain, or one step of it by name.
-        self.assertIn("window.showWorking(runId)", app_js)
-        self.assertIn("window.showWorking(runId, b.dataset.a)", app_js)
-        self.assertIn("showWorking", self.c.get("/app/verify.js").text)
-        self.assertIn("verify.js", self.c.get("/app/").text)
-
-    def test_the_case_screen_draws_the_chain_from_the_step_checks(self) -> None:
-        app_js = self.c.get("/app/app.js").text
-        self.assertIn('id="flow"', app_js)
-        self.assertIn('"/runs/" + encodeURIComponent(runId) + "/verify"', app_js)
-        self.assertIn("agents verified", app_js)
-        self.assertIn("checks passed", app_js)
-
-    def test_the_earlier_pages_keep_their_own_urls(self) -> None:
-        self.assertEqual(self.c.get("/console").status_code, 200)
-        self.assertEqual(self.c.get("/mock/").status_code, 200)
-        self.assertEqual(self.c.get("/mock/analyst").status_code, 200)
+        for path in ("/app/", "/mock/", "/mock/analyst"):
+            self.assertEqual(self.c.get(path).status_code, 404, path)
 
 
 if __name__ == "__main__":

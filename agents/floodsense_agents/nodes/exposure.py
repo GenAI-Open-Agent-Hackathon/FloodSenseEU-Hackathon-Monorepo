@@ -12,7 +12,7 @@ import re
 import time
 from decimal import Decimal, InvalidOperation
 
-from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis
+from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, normalize_utc
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, answered, trace
@@ -67,6 +67,20 @@ def _segments(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _exposure_trace(
+    have_footprint: bool, ok: bool, published: str, policies: int, total: float, new_claims: int
+) -> str:
+    """Unpublished, failed, and empty are three different sentences."""
+    if not have_footprint:
+        return f"footprint not published until {published}"
+    if not ok:
+        return "exposure not computed: the portfolio query failed"
+    return (
+        f"{policies} exposed policies, {_eur(total)} EUR sum insured, "
+        f"{new_claims} new number claims"
+    )
+
+
 def make(deps: Deps):
     def exposure(state: FloodState) -> dict:
         t = time.time()
@@ -78,11 +92,13 @@ def make(deps: Deps):
         here = (
             f"in_footprint = 1 AND lat BETWEEN {lat0} AND {lat1} AND lon BETWEEN {lon0} AND {lon1}"
         )
-        published = ev["footprint_published_utc"]
-        clock = state.get("replay_ts")
+        published = normalize_utc(ev["footprint_published_utc"])
+        clock_raw = state.get("replay_ts")
+        clock = normalize_utc(clock_raw) if clock_raw else None
         # The mapping is a published product. Before it existed, nobody could
         # have acted on it, so a replay before that moment must not use it.
-        have_footprint = not clock or clock >= published
+        # Both clocks are canonical, so the comparison is not a string accident.
+        have_footprint = clock is None or clock >= published
         if not have_footprint:
             q = deps.zetaris.run_sql(
                 f"SELECT policy_id, site_id, lat, lon, segment, sum_insured_eur "
@@ -168,8 +184,10 @@ def make(deps: Deps):
         elif not ok:
             statement = "Exposure is unknown: the portfolio query failed"
             rationale = f"exposure_join query failed: {(q.error or agg.error or '')[:160]}"
-        elif assets:
-            statement = f"{len(assets)} insured sites are exposed"
+        elif policies:
+            # policies is the aggregate COUNT(*), not len(assets). rows_sample
+            # is capped at 20, so the sample is not the portfolio.
+            statement = f"{policies} insured policies are exposed"
             rationale = "deterministic join on exposure_join.in_footprint = 1"
         else:
             statement = "No insured site in the footprint"
@@ -194,12 +212,7 @@ def make(deps: Deps):
             "trace": trace(
                 state,
                 "exposure",
-                f"{policies} exposed policies, {_eur(total)} EUR sum insured, {len(new_ids)} new "
-                f"number claims"
-                if ok
-                else "exposure not computed: the portfolio query failed"
-                if ok
-                else f"footprint not published until {published}",
+                _exposure_trace(have_footprint, ok, published, policies, total, len(new_ids)),
                 lane="sql",
                 started=t,
                 evidence_ids=[q.query_id, agg.query_id, whole.query_id],

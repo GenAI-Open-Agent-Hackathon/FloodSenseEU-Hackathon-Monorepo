@@ -74,17 +74,19 @@ class LabelOverTheApiTest(unittest.TestCase):
             self.assertIn("label", body, path)
             self.assertIn("served_from", body, path)
 
-    def test_a_freshly_computed_run_is_live_and_a_re_read_is_not(self) -> None:
+    def test_a_fake_run_is_not_live_and_a_re_read_is_cache(self) -> None:
         first = self.c.get("/desk/events/EMSR773").json()["run"]
-        self.assertTrue(first["label"]["live"])
-        self.assertIsNone(first["label"]["text"])
+        self.assertNotEqual(first["served_from"], "live")
+        self.assertFalse(first["label"]["live"])
+        self.assertEqual(first["served_from"], "replay")
+        self.assertIsNotNone(first["cached_at"])
 
-        # The same answer served again was computed earlier. Saying "live"
-        # here is exactly what the rule forbids.
+        # The same answer served again was computed earlier.
         again = self.c.get("/desk/events/EMSR773").json()["run"]
         self.assertEqual(again["run_id"], first["run_id"])
         self.assertFalse(again["label"]["live"])
         self.assertEqual(again["label"]["kind"], "cache")
+        self.assertEqual(again["served_from"], "cache")
         self.assertIn("not live", again["label"]["text"])
         self.assertIn(again["run_id"], again["label"]["text"])
 
@@ -101,12 +103,66 @@ class LabelOverTheApiTest(unittest.TestCase):
         self.assertIn(rec["served_from"], ("live", "cache", "replay"))
         self.assertIsNotNone(rec["cached_at"])
 
-    def test_the_console_renders_the_banner_only_when_it_is_not_live(self) -> None:
-        app_js = self.c.get("/app/app.js").text
-        self.assertIn("label.live === false", app_js)
-        self.assertIn('class="stale"', app_js)
-        # The wording is never assembled in the browser.
-        self.assertNotIn("Cached answer from", app_js)
+    def test_a_replay_clock_on_a_run_is_not_labelled_live(self) -> None:
+        run = self.c.post(
+            "/runs",
+            json={
+                "question": "Which sites are exposed?",
+                "event_id": "EMSR773",
+                "replay_ts": "2024-10-29T12:00:00Z",
+            },
+        ).json()
+        self.assertEqual(run["served_from"], "replay")
+        self.assertNotEqual(run["served_from"], "live")
+        self.assertFalse(run["label"]["live"])
+        self.assertEqual(run["cached_at"], "2024-10-29T12:00:00Z")
+
+    def test_a_clocked_replay_stays_a_replay_when_it_is_read_back(self) -> None:
+        run = self.c.post(
+            "/runs",
+            json={
+                "question": "Which sites are exposed?",
+                "event_id": "EMSR773",
+                "replay_ts": "2024-10-29T12:00:00Z",
+            },
+        ).json()
+        again = self.c.get(f"/runs/{run['run_id']}").json()
+        self.assertEqual(again["served_from"], "replay")
+        self.assertEqual(again["label"]["kind"], "replay")
+        self.assertNotIn("Cached answer", again["label"]["text"])
+        self.assertIn("Replay", again["label"]["text"])
+        self.assertEqual(again["cached_at"], "2024-10-29T12:00:00Z")
+
+    def test_fake_zetaris_envelopes_are_not_live(self) -> None:
+        for path in (
+            "/ready",
+            "/config",
+            "/version",
+            "/runs/past",
+            "/desk/events",
+            "/desk/dispatch-target",
+        ):
+            body = self.c.get(path).json()
+            self.assertNotEqual(body["served_from"], "live", path)
+            self.assertFalse(body["label"]["live"], path)
+            self.assertEqual(body["served_from"], "replay", path)
+            self.assertIsNotNone(body["cached_at"], path)
+        health = self.c.get("/health").json()
+        self.assertEqual(health["served_from"], "live")
+        self.assertTrue(health["label"]["live"])
+
+    def test_an_unlabelled_body_does_not_default_to_live_on_the_stand_in(self) -> None:
+        got = labelling.labelled({"status": "ready"}, zetaris=FakeZetaris())
+        self.assertEqual(got["served_from"], "replay")
+        self.assertFalse(got["label"]["live"])
+
+    def test_an_explicit_live_label_is_kept_for_liveness(self) -> None:
+        got = labelling.labelled(
+            {"status": "ok", "served_from": "live"}, zetaris=FakeZetaris()
+        )
+        self.assertEqual(got["served_from"], "live")
+        self.assertTrue(got["label"]["live"])
+        self.assertIsNone(got["cached_at"])
 
 
 if __name__ == "__main__":

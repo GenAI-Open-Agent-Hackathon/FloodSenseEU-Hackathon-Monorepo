@@ -69,7 +69,7 @@ class FloodState(TypedDict, total=False):
     repair_rounds: int
     scope: dict[str, Any]  # the gate's verdict: can this run honestly answer
     status: str  # running | awaiting_approval | approved | rejected | failed
-    served_from: str  # live | cache | replay (cache/replay are set by the API layer)
+    served_from: str  # live | cache | replay. live only for a fresh live-schema read
     cached_at: str | None
     model_ids: list[str]
     error: str
