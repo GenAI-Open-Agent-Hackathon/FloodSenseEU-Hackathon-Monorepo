@@ -1,6 +1,6 @@
 -- view: floodsense_seed.discharge_daily
 -- columns: point_id string, date date, discharge_m3s double, source string
--- min_rows: 8
+-- min_rows: 136
 -- Seed rows, same schema as floodsense.discharge_daily (migration 004), for building without live data.
 -- A frozen copy of the Open-Meteo Flood API answer for VAL01-VAL08, 2024-10-20 to 2024-11-05:
 -- 136 rows, copied from floodsense.discharge_daily on 2026-10-24. Modelled, not observed.

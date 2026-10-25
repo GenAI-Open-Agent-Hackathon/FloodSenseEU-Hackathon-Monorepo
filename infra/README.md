@@ -9,9 +9,9 @@ Owner: Mihir.
 Our app is its own Compose project (`name: floodsense-app`):
 
 - Own network, `floodsense-app-net`.
-- Own volumes, explicitly named `floodsense-app_checkpoints` and `floodsense-app_pgdata`.
+- Own volumes, explicitly named `floodsense-app_checkpoints`, `floodsense-app_engines`, and `floodsense-app_pgdata`.
 - No `container_name` (a fixed name would collide with someone else's stack).
-- Published ports bind to `127.0.0.1`: API `18000`, UI `15173`, pgvector `15432`, Redis `16379`. Redis has no password, and the pgvector password in the example is a shared placeholder, so neither port is on the LAN.
+- Published ports bind to `127.0.0.1`: API `18000`, UI `15173`, engines `8300`, pgvector `15432`, Redis `16379`. Redis has no password, and the pgvector password in the example is a shared placeholder, so neither port is on the LAN.
 - Zetaris stays on UI `:3000`, REST `:8888`, JDBC `:10000`. Nightshift stays on `:8088`.
 - Containers reach those host services through `host.docker.internal` (`extra_hosts: host-gateway` on the API and agents) and the URLs in `agents/.env`.
 
@@ -31,13 +31,15 @@ py tasks.py up-all
 python3 tasks.py up-all
 ```
 
-`rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model, Ayush) is not in this skeleton.
+`rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model) starts with `python tasks.py up`. Inside the network the agents service uses `ENGINES_URL=http://engines:8300`. On the host the same service is `http://127.0.0.1:8300`. Compose sets `ENGINES_HOST=0.0.0.0` in the engines container so the agents service can connect, and publishes that port on loopback only.
 
 ## CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. It rejects a tracked `.env`, runs gitleaks (default rules plus an `nvapi-` rule), then `python tasks.py lint` and `python tasks.py test`.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pull requests to `main` and on pushes to `main`. `python tasks.py lint` rejects a tracked `.env` and runs gitleaks (default rules plus an `nvapi-` rule). On a pull request the scan is that pull request's commits (`base..head`). On a push to `main` it is the pushed range, or `HEAD` when the previous SHA is all zeros. `python tasks.py test` follows. A laptop with the binary on `PATH` scans the checked-out ref (`--log-opts=HEAD`), not every local branch. `.gitleaksignore` lists commit-specific fingerprints for deliberate fake fixtures in `scripts/tests/test_zetaris_sync.py` (`83abb6d` and, after the rebase onto main, `d2f3734`). It is not a path or rule allowlist.
 
-The job uses `runs-on: ubuntu-latest`. The homelab runner (`self-hosted`, `homelab`, 512Mi, no Docker assumed) is the commented line above that. One line moves the whole job. It does not call Zetaris or Nightshift, and it does not use Docker. The trade-off is [ADR 0008](../docs/adr/0008-ci-runner-github-hosted.md).
+The lint job uses `runs-on: ubuntu-latest` and Node 20. The homelab runner (`self-hosted`, `homelab`, 512Mi, no Docker assumed) is the commented line above that. One line moves the whole job. It does not call Zetaris or Nightshift, and it does not use Docker. The trade-off is [ADR 0008](../docs/adr/0008-ci-runner-github-hosted.md).
+
+A second job, `engines`, installs Node 22.18 and runs `python tasks.py engines-test` (`npm test` and `npm run conformance`). Node 20 cannot run that sidecar. The gap stays on the lint job until that job moves off Node 20.
 
 There is no pre-commit hook. `python tasks.py lint` is the local check. Gitleaks is optional on a laptop and required in CI (`FLOODSENSE_REQUIRE_GITLEAKS=1`).
 

@@ -1,6 +1,6 @@
 # Prep data and lineage
 
-Small, committable tables for the Valencia 2024 demo. Large downloads stay in `ingestion/raw/` (git-ignored). Owner: Saleeta, with Urvashi for anything that touches Zetaris.
+Small, committable tables for the Valencia 2024 demo. Large downloads stay in `ingestion/raw/` (git-ignored). Owner: Mihir primary (takeover 2026-10-25). Saleeta is secondary on prep and the demo.
 
 ## Files
 
@@ -36,23 +36,50 @@ Rebuild from the repo root with the venv interpreter. The EMS zips come from the
 - Synthetic portfolio: 359 policies. 91 sit inside the observed footprint (SUM insured about EUR 313 m). 64 of those have flood cover (about EUR 216 m).
 - Delineation comes from satellite imagery. Dense urban areas can be under-detected, so "near the footprint" does not mean "dry".
 
-## Where the seed rows live (proposal)
+## Cold laptop: stage CSVs, then sync
 
-Zetaris cannot read files on a laptop. Proposal: put these CSVs in the S3 bucket named in `ingestion/.env` (`S3_*`) and register them as FILESTORE tables behind `floodsense_seed.*` views. The EMS footprint is already planned that way. This is a proposal until Urvashi confirms Lightning SQL FILESTORE support. Fallback: load the CSVs into the pgvector Postgres and register it as a JDBC source.
+Zetaris cannot read files on the laptop. Migration `010_seed_sources.sql` creates the Lightning database `floodsense_seed_src` (not the `floodsense_seed` container) and one FILESTORE table per CSV. Each table path is a directory inside the Zetaris volume:
 
-## Not done yet
-
-- Seed view migrations in `zetaris/migrations/`. Waiting on Urvashi's check of the Lightning SQL syntax and on the S3 bucket.
-- Loading `provenance.csv` into `floodsense.provenance`.
-- AEMET observations. They need an API key.
-- The EMS Citation Guidelines wording (see `docs/legal/sources.md`).
-
-## Zetaris seed source (local stack)
-
-`zetaris/migrations/010_seed_sources.sql` creates the `floodsense_seed` database with one FILESTORE table per CSV above. Zetaris reads files only from inside its own volume, so stage them first:
-
-```powershell
-.\.venv\Scripts\python.exe ingestion\prep\stage_local_zetaris.py
+```text
+file:///home/zetaris/customer-data/shared/floodsense_seed/<table>
 ```
 
-Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, 6 and 8, and the join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
+`stage_local_zetaris.py` copies `<table>.csv` to `<table>/<table>.csv` in that directory. The default container name is `zetaris-driver-1`. Pass another name when `docker ps` shows one. The script stops if a CSV is missing or Docker cannot see the container.
+
+From a fresh clone, with Zetaris already listening on `:8888`. No `AEMET_API_KEY`. Do not pull DWD.
+
+```bash
+cp ingestion/.env.example ingestion/.env
+# Set ZETARIS_API_KEY in ingestion/.env. Leave AEMET_API_KEY empty.
+python ingestion/prep/stage_local_zetaris.py
+python tasks.py zetaris-sync
+python scripts/zetaris_sync.py verify
+```
+
+```powershell
+copy ingestion\.env.example ingestion\.env
+.\.venv\Scripts\python.exe ingestion\prep\stage_local_zetaris.py
+py tasks.py zetaris-sync
+.\.venv\Scripts\python.exe scripts\zetaris_sync.py verify
+```
+
+`stage_local_zetaris.py` copies the seed CSVs and writes a header-only `live.csv` in each `floodsense_live/<table>` directory that migration `033` registers (`discharge_daily`, `rain_hourly`, `ems_activations`, `aemet_daily`, `pegel_levels`). It does not create `dwd_rain_hourly`. Those header files are placeholders so `033` can `CREATE`. They are not observations and no view selects them. The stage script does not overwrite a csv already in the container. `feeds.py pull --stage` copies that source's `live.csv` over the placeholder.
+
+`zetaris-sync` applies pending migrations and then verifies declared views. A failure in a later file still verifies views already in the ledger, then exits non-zero. `sync --dry-run` sends nothing and does not verify.
+
+Seed and contract views after that path:
+
+- `floodsense_seed.discharge_daily` is the frozen 136-row window and does not need the network.
+- `floodsense.exposure_join` and `floodsense_seed.exposure_join` are the same synthetic book (migration `018` keeps `synthetic`, value `yes` on all 359 rows). They read `floodsense_seed_src`, not a live book.
+- `floodsense.provenance` and `floodsense_seed.provenance` return the 7 cleared datasets. `ds_dwd_brightsky` stays in `provenance.csv` and is filtered out of both views while DWD is Hold.
+
+`floodsense.discharge_daily` (136) and `floodsense.hazard_timeline` (live `min_rows` 3264) still need Open-Meteo reachable from the laptop. They are not satisfied by the header-only live files.
+
+Stage the seed CSVs before the first apply of `010`. A later "already exists" on that migration does not copy files that were never staged.
+
+Checked on 23 Oct 2026 against the local platform package: row counts 5, 961, 359, and 8 for the footprint, sites, portfolio, and points. The provenance CSV has 8 rows; the views keep 7. The join of flood-covered synthetic policies with in-footprint sites returns 64 policies and EUR 216,138,000, the same as the Python check. Lightning rejects a `DESCRIBE BY` text that has parentheses; use letters, digits, `_ . - ,` and spaces only.
+
+## Not in this folder yet
+
+- AEMET observations. They need an API key (`AEMET_API_KEY` in `ingestion/.env.example`).
+- The EMS Citation Guidelines wording (see `docs/legal/sources.md`).

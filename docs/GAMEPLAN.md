@@ -35,15 +35,15 @@ Five peers. The Architect is one role among them, not a team lead. Scope changes
 
 | Person | Role | Owns |
 | --- | --- | --- |
-| Mihir | Architect | Architecture, `docs/` and ADRs, CI/CD, security review, compose, contracts. Builds the Judge with Zain. Carries the UI until Zain finishes LangGraph and HITL. |
-| Urvashi | Zetaris | Ingestion with Saleeta, every Zetaris issue, migrations and `python tasks.py zetaris-sync`, vector-search research. Then tracing and the citation pipeline with Saleeta and Mihir. |
-| Saleeta | Ingestion, citations, story | EMS footprint, OSM, portfolio, seed views, citation records, both the slide deck and the demo (video and live script). |
-| Ayush | Nightshift, memory | Nightshift client, pinned lanes, H-MEM, World Model, short- and long-term memory, embeddings research, semantic cache, past-runs endpoint. |
+| Mihir | Architect | Architecture, `docs/` and ADRs, CI/CD, security review, compose, contracts. Zetaris and data (takeover 2026-10-25). Judge with Zain. |
+| Urvashi | Zetaris expertise | Remains on the team. Tracing and the citation pipeline with Saleeta and Mihir. |
+| Saleeta | Ingestion, citations, story | Secondary on ingestion prep and the demo. Citation records, slide deck, video, and live script. |
+| Ayush | Nightshift, memory, engines | Nightshift client, `meterless/fast` and `meterless/deep`, H-MEM, World Model, `engines/`, memory, embeddings research, semantic cache. |
 | Zain | LangGraph, HITL, Judge, UI | Graph and nodes with Ayush, `interrupt()` and the checkpointer, the Judge with Mihir, then the UI. |
 
-Pairs: Urvashi + Saleeta (data, then citations). Ayush + Zain (graph, then memory and HITL). Zain + Mihir (Judge, then UI hand-over). Urvashi + Saleeta + Mihir (document citations, behind a flag). Saleeta + everyone (deck and demo).
+Pairs: Urvashi + Saleeta (data, then citations). Ayush + Zain (graph, then memory and HITL). Zain + Mihir (Judge, then UI). Urvashi + Saleeta + Mihir (document citations, behind a flag). Saleeta + everyone (deck and demo).
 
-UI ownership is flexible. If HITL slips, Zain stays on it and the UI stays with Mihir and whoever is free. Announce it at stand-up.
+The citizen and insurer console is on main. Zain owns the UI path. Path detail is in [OWNERSHIP.md](OWNERSHIP.md).
 
 ## Phases
 
@@ -96,12 +96,14 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 
 Thirteen product increments, a release candidate, and the release. Each merges through a pull request, is demoed at 20:00, and is tagged. Tags are immutable: `v0.MINOR.0` for an increment, `v0.MINOR.PATCH` for a fix, `v1.0.0-rc.N` for candidates. A slipped increment merges behind its flag. The tag records what actually works.
 
-The folder half and the guardrails half of `v0.0.0` are in this tree: CI, secret detection, contracts, C4 diagrams, and proposed ADRs. This repository does not create the `v0.0.0` tag. Mihir tags a green `main` after the guardrails pull request merges.
+`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. Both have GitHub Releases. A docs change does not create a tag. Increments after `v0.1.0` are not tagged.
+
+On `main`, still unreleased: the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. `v0.8.0` is not a tag. The agents package does not call `engines/` yet. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree.
 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
-| v0.0.0 | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
-| v0.1.0 | First Zetaris source and seed views | Urvashi, Saleeta | Open-Meteo Flood (GloFAS) and `floodsense.discharge_daily`, seed views, sync + verify |
+| v0.0.0 (tagged) | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
+| v0.1.0 (tagged) | First Zetaris source and seed views | Mihir, Saleeta | Open-Meteo Flood (GloFAS) and `floodsense.discharge_daily`, seed views, sync + verify. Mihir took the data path on 2026-10-25 |
 | v0.2.0 | First answers via Nightshift | Ayush, Zain | One graph node, pinned lanes, `run_sql`, Evidence and Citation models |
 | v0.3.0 | Core sources and provenance | Urvashi, Saleeta | Rain archive, EMS footprint, OSM sites, synthetic portfolio, hazard and exposure views, provenance |
 | v0.4.0 | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds, World Model board |
@@ -134,45 +136,49 @@ Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `age
 
 ## Repository layout
 
-What is in the skeleton today:
+What is on `main`:
 
 ```text
 README.md
-compose.yaml          # our app only
-tasks.py              # up, down, zetaris-sync, test, lint. No Make.
+CHANGELOG.md
+compose.yaml          # API, agents, engines, UI. pgvector and Redis are profiles
+tasks.py              # up, down, zetaris-sync, engines-test, test, lint. No Make.
 .env.example
-ingestion/            # Saleeta, Urvashi — prep and seed content
-zetaris/migrations/   # Urvashi — numbered SQL
-agents/               # Ayush, Zain — LangGraph package skeleton
-api/                  # Zain, Ayush — FastAPI, /health only
-ui/                   # Mihir, then Zain — Vite + React + TSX placeholder
-infra/                # Mihir — how the local stack stays isolated
+ingestion/            # Mihir. Saleeta secondary on prep and the demo
+zetaris/migrations/   # Mihir — numbered SQL, applied by zetaris-sync
+agents/               # Ayush, Zain — LangGraph graph, HITL, Judge. No engines client yet
+api/                  # Zain, Ayush — FastAPI proxies runs, SSE, and approval
+ui/                   # Citizen page and insurer console. Zain owns the path
+engines/              # Ayush — H-MEM and World Model sidecar
+evals/                # Saleeta, Zain, Mihir — Valencia 2024 and Ahr 2021. Not tagged
+infra/                # Mihir
 docs/                 # Mihir — this file, ownership, C4, ADRs
 contracts/            # Mihir — JSON Schema shared by agents, API, and UI
-.github/workflows/    # Mihir — lint, test, secret scan
-scripts/zetaris_sync.py   # stub
-pgvector/.env.example     # optional RAG profile
+.github/workflows/    # Mihir — lint, test, secret scan, migration dry run, engines
+scripts/zetaris_sync.py      # applies migrations, then verify
+scripts/nightshift_check.py  # Ayush — local Nightshift check
+pgvector/.env.example        # optional RAG profile
 ```
 
-The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This skeleton keeps prep in `ingestion/` and SQL in `zetaris/migrations/` so the sync command has one obvious directory. Later folders, not created yet: `knowledge/`, `engines/` (TypeScript sidecar for H-MEM and World Model), `evals/`, `demo/`.
+The gameplan v2 draft placed migrations at `ingestion/zetaris/`. This tree keeps prep in `ingestion/` and SQL in `zetaris/migrations/` so the sync command has one obvious directory. `knowledge/` and `demo/` are not folders yet.
 
 ## Zetaris sync
 
 Each of us runs Zetaris locally. Objects stay in sync because they are code.
 
-`python tasks.py zetaris-sync` runs `scripts/zetaris_sync.py` with the same interpreter, applies pending migrations in order through each person's own `ingestion/.env` (host URL `127.0.0.1`, not `agents/.env`), records SHA-256 and time in `.zetaris-sync/ledger.json`, and runs verify queries. CI will run the same command. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
+`python tasks.py zetaris-sync` runs `scripts/zetaris_sync.py` with the same interpreter, applies pending migrations in order through each person's own `ingestion/.env` (host URL `127.0.0.1`, not `agents/.env`), records SHA-256 and time in `.zetaris-sync/ledger.json`, and runs verify queries. CI runs `python scripts/zetaris_sync.py sync --dry-run` and does not apply SQL. Nobody edits views by hand in the SQL Editor. Exploring is fine. Anything that should last becomes a migration and a pull request.
 
-**TODO:** `scripts/zetaris_sync.py` is a stub. It exits successfully and sends no SQL.
+`reset` is not implemented. It prints that and sends no SQL.
 
 Verify output should match on every machine. That is the definition of "in sync". Credentials stay per person. No agent creates or fetches Zetaris keys.
 
 ## Running our app
 
-`python tasks.py up` runs `docker compose -p floodsense-app up -d --build` in this repo (Windows: `py tasks.py up`). The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. The task script also pins `--project-directory` and `-f compose.yaml`, so `COMPOSE_FILE` cannot select another compose file. It starts the API, the agent runtime, and the UI. pgvector and Redis start with `python tasks.py up-all` (`--profile rag` and `--profile cache`). No Make, and no `&&`, so PowerShell 5.x can run it.
+`python tasks.py up` runs `docker compose -p floodsense-app up -d --build` in this repo (Windows: `py tasks.py up`). The `-p` is required: an exported `COMPOSE_PROJECT_NAME` overrides the `name:` field and would attach this stack to another project. The task script also pins `--project-directory` and `-f compose.yaml`, so `COMPOSE_FILE` cannot select another compose file. It starts the API, the agent runtime, the engines sidecar, and the UI. pgvector and Redis start with `python tasks.py up-all` (`--profile rag` and `--profile cache`). No Make, and no `&&`, so PowerShell 5.x can run it.
 
 The stack reaches Zetaris and Nightshift through the host, as a normal client. Inside a container, `127.0.0.1` is the container itself, so URLs use `host.docker.internal`. With Docker Engine on WSL, `host-gateway` may not reach a service bound only to `127.0.0.1`. Ayush (Nightshift) and Urvashi (Zetaris) check that on Thursday. Fallback: run the API and agents on the host, and keep UI, pgvector, and Redis in compose. The `.env` URLs make that a configuration change.
 
-Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is not in this compose file yet. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
+Published ports bind to `127.0.0.1`: `18000` (API), `15173` (UI), `8300` (engines sidecar), `15432` (pgvector), `16379` (Redis). Agents publish nothing. The engines sidecar is in this compose file. Agents in compose use `ENGINES_URL=http://engines:8300`. On the host that URL is `http://127.0.0.1:8300`. Redis has no password. The pgvector example password is a local placeholder. Loopback is what keeps those off the LAN.
 
 `python tasks.py down` stops our project only. It does not remove named volumes. It does not stop Zetaris. It still runs when `pgvector/.env` was never created.
 
@@ -254,12 +260,14 @@ Output per claim: `claim_id`, `grounding`, `citation_faithful`, `numbers_match`,
 
 An unsupported claim may get one repair round back to Playbook. Otherwise it is flagged. The Judge never silently deletes or rewrites a claim. On the eval set we compare Judge labels with human labels and report agreement. The threshold is a proposal until the first eval run.
 
-Pinned lanes, no `meterless/auto` in the demo:
+Two routing modes, no `meterless/auto` in the demo. Nightshift model ids are routing modes, so the app asks for a disposition and the lanes configured in Nightshift pick the model:
 
-- Fast: `nvidia/nemotron-3.5-lightning-30b-a3b`
-- Deep: `nvidia/nemotron-3-super-120b-a12b`
+- Fast: `meterless/fast`
+- Deep: `meterless/deep`
 
-Every call goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id is logged on the trace.
+Today Nemotron 3.5 Super VL 120B A12B (`nvidia/nemotron-3.5-super-vl-120b-a12b`) answers both. Nightshift picks the faster lane, and Super VL beats Nemotron 3.5 Lightning 30B A3B on speed (about 0.5 s against 2.6 s) as well as quality; Lightning stays configured as a second lane. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
+
+Every call goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id that answered is logged on the trace.
 
 ## Evaluation set
 
@@ -300,7 +308,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. This skeleton is the base content on `main`. From here, product work goes through those pull requests. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Tagged releases on `main` are `v0.0.0` and `v0.1.0`. Further product work goes through those pull requests. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix gets a new tag. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Patches become `rc.2`, `rc.3`, and so on.
 
@@ -313,24 +321,24 @@ The repo stays private during the build and switches to public before submission
 - The NVIDIA provider key lives only in Nightshift's Providers tab. It is not an application env var, a GitHub secret, a test fixture, or a Cursor model setting.
 - SQL, logs, screenshots, and prompts do not contain tokens. Placeholders in examples are empty or obvious stand-ins.
 - If a secret is committed, rotate it. Deleting the file is not enough.
-- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
+- CI (`.github/workflows/ci.yml`) rejects a tracked `.env` other than `.env.example`, and fails on an NVIDIA `nvapi-` key or another secret gitleaks flags in that pull request's commits (on a push to `main`, in the pushed commits). `.gitleaksignore` may name a single finding by fingerprint. It is not a path or rule allowlist. See [adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md).
 
 ## Open points and proposals
 
-Not verified yet. Owners in parentheses.
+Owners in parentheses. A line that names a result is settled. The rest is still open.
 
 - Zetaris vector features in our edition, pgvector registration from the Zetaris containers, vector column mapping, and pushdown (Urvashi, Thu).
 - Whether Nightshift serves embeddings, and which model we use if it does not (Ayush with Urvashi).
 - Container access to host services under WSL for Zetaris `:8888` and Nightshift `:8088` (Ayush, Urvashi).
 - Terms of every source, especially `hnd.bayern.de` (offline during the check), the Ahr gauges, SAIH Júcar, and Open-Meteo for commercial use (Saleeta, Urvashi). Open-Meteo is accepted for the hackathon and is to be replaced before a paid product.
-- Lightning SQL support for `IF NOT EXISTS`, `CREATE OR REPLACE`, and `DROP` on our object types (Urvashi).
-- Python path for the Meterless engines, or a TypeScript sidecar (Ayush).
+- Lightning SQL on Zetaris 2.4.3.1: `IF NOT EXISTS` is not supported. `OR REPLACE` works for `SCHEMASTORE VIEW`. Recorded in `zetaris/README.md`.
+- The engines sidecar is `engines/` (TypeScript, Ayush). The agents package does not call `ENGINES_URL` yet.
 - Cursor plan features and cost for Bugbot and cloud agents (Mihir).
 - Whether the repository owner has GitHub Pro. Not assumed. Rulesets while private are not part of the plan.
 - View column names in the contracts section are a proposal until checked against the real source fields (Urvashi, Saleeta).
 - Eval targets and the Judge threshold are proposals until the first eval run (Zain, Mihir).
 - The data-use section is a working rule, not legal advice.
-- Where seed rows live (small Postgres or object storage). Zetaris cannot read files on a laptop. Saleeta decides on Day 1.
+- Seed rows are FILESTORE CSVs. `ingestion/prep/stage_local_zetaris.py` stages them before migration 010.
 
 ## Definition of done (every later pull request)
 
@@ -343,14 +351,12 @@ Not verified yet. Owners in parentheses.
 - Unfinished behaviour sits behind a flag. Cached output is labelled.
 - README or docs updated when setup changed.
 
-## Left as TODO in this skeleton
+## Still open
 
-- `scripts/zetaris_sync.py` applies nothing.
-- No SQL migrations yet.
-- LangGraph graph, Nightshift client, HITL checkpointer, and Judge are placeholders.
-- The API implements `/health` only.
-- The UI on `main` is a Vite placeholder, not the console. The mock on `spike/mock-ui` is not merged.
-- No `engines/` sidecar, no eval items, no demo script.
+- Tags after `v0.1.0` are not cut. `v0.8.0` is not a tag. The HITL interrupt from #4 is on main and unreleased.
+- The agents package does not call `engines/`. `FF_HMEM` defaults off. The default memory is `NoMemory`.
+- Semantic cache and rate limits are not in this tree.
+- `knowledge/` and `demo/` are not folders yet.
+- `zetaris-sync` has no `reset`.
 - No pre-commit hook. `python tasks.py lint` is the local check. No enforced CODEOWNERS file.
-- ADRs 0002–0008 are Proposed. The team has not accepted them.
-- `agents/`, `api/`, and `ui/` do not import `contracts/` yet.
+- ADR 0001 is Accepted. ADRs 0002–0009 are Proposed.

@@ -5,8 +5,8 @@ Owner: Mihir (architecture, ADRs, security review). The Architect is one role am
 - [GAMEPLAN.md](GAMEPLAN.md) — how we ship FloodSense EU this week.
 - [RELEASING.md](RELEASING.md) — changelog lines on each pull request, the 20:00 tag, and the GitHub Release.
 - [OWNERSHIP.md](OWNERSHIP.md) — who reviews which paths. This is not an enforced CODEOWNERS file.
-- [architecture/c4.md](architecture/c4.md) — system context, containers, and the planned agent graph.
-- [reviews/0001-skeleton-review.md](reviews/0001-skeleton-review.md) — review of the base skeleton on `main`.
+- [architecture/c4.md](architecture/c4.md) — system context, containers, and the agent graph.
+- [reviews/0001-skeleton-review.md](reviews/0001-skeleton-review.md) — review of the `v0.0.0` skeleton.
 
 ADRs. `0001` is accepted. `0002` onward are proposed. The team accepts or changes them at stand-up.
 

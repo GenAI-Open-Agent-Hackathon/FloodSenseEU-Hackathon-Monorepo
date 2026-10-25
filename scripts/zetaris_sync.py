@@ -1,9 +1,12 @@
 """Apply the numbered SQL migrations in zetaris/migrations/ to a local Zetaris.
 
-    python scripts/zetaris_sync.py                 apply pending migrations
+    python scripts/zetaris_sync.py                 apply pending migrations, then verify
     python scripts/zetaris_sync.py sync --dry-run  parse and lint, send nothing
     python scripts/zetaris_sync.py status          applied, pending, changed; send nothing
     python scripts/zetaris_sync.py verify          check each declared view against your Zetaris
+
+A successful sync (including "nothing to apply" and "already exists" skips) runs
+verify before it exits 0. Dry run does not. Verify failure is a non-zero exit.
 
 A migration that creates a view declares what must be true of it in header comments:
 "-- view: floodsense.discharge_daily", "-- columns: point_id string, date date" and
@@ -327,20 +330,22 @@ def cmd_status(migrations, problems, ledger_path) -> int:
     for name in missing:
         print(f"{name}: in the ledger but the file is gone")
     print(f"{len(pending)} pending, {len(changed)} changed, {len(missing)} missing")
-    return 0 if ok and not changed else 1
+    return 0 if ok and not changed and not missing else 1
 
 
 def cmd_sync(migrations, problems, ledger_path, env, dry_run, client) -> int:
     if not check_files(migrations, problems):
         return 1
     ledger = load_ledger(ledger_path)
-    pending, changed, _ = classify(migrations, ledger)
+    pending, changed, missing = classify(migrations, ledger)
     for migration in changed:
         print(
             f"error: {migration.name} changed after it was applied. "
             "Merged migrations are append-only: put the change in a new numbered file."
         )
-    if changed:
+    for name in missing:
+        print(f"error: {name}: in the ledger but the file is gone")
+    if changed or missing:
         return 1
     names = sorted({name for m in pending for name in m.placeholders})
     if dry_run:
@@ -349,33 +354,54 @@ def cmd_sync(migrations, problems, ledger_path, env, dry_run, client) -> int:
         if names:
             print("placeholders needed: " + ", ".join(names))
         return 0
-    if not pending:
+    if pending:
+        missing = [name for name in names if not env.get(name)]
+        if missing:
+            print("error: set these in ingestion/.env (names only): " + ", ".join(missing))
+            return 1
+        if client is None:
+            print("error: no Zetaris connection configured")
+            return 1
+        for migration in pending:
+            print(f"{migration.name}")
+            try:
+                total, existing = apply_one(migration, env, client)
+            except SyncError as error:
+                print(f"error: {error}")
+                # Views already in the ledger still get the gate. The exit stays non-zero.
+                if client is not None and load_ledger(ledger_path):
+                    print("verifying views already applied")
+                    cmd_verify(
+                        migrations,
+                        problems,
+                        ledger_path,
+                        [env.get("ZETARIS_API_KEY", "")],
+                        client,
+                    )
+                return 1
+            ledger[migration.name] = {
+                "file": migration.name,
+                "sha256": migration.sha256,
+                "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "statements": total,
+                "skipped_existing": existing,
+            }
+            save_ledger(ledger_path, ledger)
+        print(f"applied {len(pending)} file(s)")
+    else:
         print("nothing to apply")
-        return 0
-    missing = [name for name in names if not env.get(name)]
-    if missing:
-        print("error: set these in ingestion/.env (names only): " + ", ".join(missing))
-        return 1
     if client is None:
         print("error: no Zetaris connection configured")
         return 1
-    for migration in pending:
-        print(f"{migration.name}")
-        try:
-            total, existing = apply_one(migration, env, client)
-        except SyncError as error:
-            print(f"error: {error}")
-            return 1
-        ledger[migration.name] = {
-            "file": migration.name,
-            "sha256": migration.sha256,
-            "applied_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "statements": total,
-            "skipped_existing": existing,
-        }
-        save_ledger(ledger_path, ledger)
-    print(f"applied {len(pending)} file(s)")
-    return 0
+    # Already-exists skips and a clean ledger still have to prove the declared views.
+    print("verifying declared views")
+    return cmd_verify(
+        migrations,
+        problems,
+        ledger_path,
+        [env.get("ZETARIS_API_KEY", "")],
+        client,
+    )
 
 
 def describe_columns(client: Client, view: str) -> list[tuple[str, str]]:
@@ -407,22 +433,49 @@ def check_view(client: Client, spec: ViewSpec) -> str | None:
     return None
 
 
+def view_plan(migrations: list[Migration], ledger: dict[str, dict]):
+    """Latest applied declaration per view, and one skip for each view with none applied.
+
+    A later numbered file may CREATE OR REPLACE the same view. Verify checks that
+    declaration, not the earlier header.
+    """
+    latest: dict[str, tuple[Migration, ViewSpec]] = {}
+    order: list[str] = []
+    waiting: dict[str, Migration] = {}
+    for migration in migrations:
+        applied = migration.name in ledger
+        for spec in migration.views:
+            if applied:
+                if spec.name not in latest:
+                    order.append(spec.name)
+                latest[spec.name] = (migration, spec)
+                waiting.pop(spec.name, None)
+            elif spec.name not in latest and spec.name not in waiting:
+                waiting[spec.name] = migration
+    checks = [latest[name] for name in order]
+    skips = [(waiting[name], name) for name in waiting]
+    return checks, skips
+
+
 def cmd_verify(migrations, problems, ledger_path, secrets, client) -> int:
     ok = check_files(migrations, problems)
     ledger = load_ledger(ledger_path)
+    checks, skips = view_plan(migrations, ledger)
+    for migration, name in skips:
+        print(f"SKIP {name}: {migration.name} is not applied")
     checked = failed = 0
-    for migration in migrations:
-        for spec in migration.views:
-            if migration.name not in ledger:
-                print(f"SKIP {spec.name}: {migration.name} is not applied")
-                continue
-            checked += 1
-            reason = check_view(client, spec)
-            if reason is None:
-                print(f"OK   {spec.name}: {len(spec.columns)} columns, at least {spec.min_rows} rows")
-            else:
-                failed += 1
-                print(f"FAIL {spec.name}: {redact(reason, secrets)}")
+    for _migration, spec in checks:
+        checked += 1
+        reason = check_view(client, spec)
+        if reason is None:
+            print(f"OK   {spec.name}: {len(spec.columns)} columns, at least {spec.min_rows} rows")
+        else:
+            failed += 1
+            print(f"FAIL {spec.name}: {redact(reason, secrets)}")
+    declared = sum(len(migration.views) for migration in migrations)
+    if declared and checked == 0:
+        print("FAIL: declared views exist but none are applied")
+        failed += 1
     print(f"{checked} view(s) checked, {failed} failed")
     return 0 if ok and not failed else 1
 

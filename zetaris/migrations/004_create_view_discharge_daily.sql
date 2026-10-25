@@ -1,6 +1,6 @@
 -- view: floodsense.discharge_daily
 -- columns: point_id string, date date, discharge_m3s double, source string
--- min_rows: 8
+-- min_rows: 136
 -- One row per point per day. Values come back from REST as strings, so every column is cast.
 -- location_id is the request order in 003. Open-Meteo leaves it out for the first point, so it
 -- arrives as NULL there: COALESCE maps it to 0.

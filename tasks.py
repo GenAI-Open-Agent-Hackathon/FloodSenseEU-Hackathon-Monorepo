@@ -6,6 +6,10 @@ No Make and no shell, so PowerShell 5 (which has no &&) can run every command.
     python tasks.py <command>
     py tasks.py <command>
 
+`engines-test` runs `npm test` and `npm run conformance` in engines/.
+That needs Node.js 22.18 or newer. The lint and UI CI job stays on Node 20,
+which cannot run the sidecar. The engines CI job is the one that runs this.
+
 Docker commands always pass -p floodsense-app, plus an explicit compose file
 and project directory. An exported COMPOSE_PROJECT_NAME or COMPOSE_FILE
 cannot attach this stack to another project, such as a local Zetaris stack.
@@ -34,9 +38,12 @@ ENV_EXAMPLES: tuple[str, ...] = (
     "ui/.env.example",
     "ingestion/.env.example",
     "pgvector/.env.example",
+    "engines/.env.example",
 )
 REQUIRED_ENV: tuple[str, ...] = ("api/.env", "agents/.env", "ui/.env")
 PGVECTOR_ENV = "pgvector/.env"
+# engines/ runs TypeScript with Node's built-in loader. Node 20 cannot.
+ENGINES_MIN_NODE: tuple[int, ...] = (22, 18)
 
 # argv, cwd. Callers pass a list so nothing is parsed by a shell.
 Runner = Callable[[list[str], Path], int]
@@ -179,6 +186,29 @@ def cmd_zetaris_sync(root: Path, runner: Runner) -> int:
     return runner([sys.executable, str(script)], root)
 
 
+# tests/test_tasks.py requires every test step to start with this interpreter.
+# The script still runs `npm test` in ui/ (Vitest).
+_UI_NPM_TEST = """\
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+npm = shutil.which("npm")
+if npm is None:
+    print(
+        "npm is not on PATH. Install Node.js 20, then run npm ci in ui/.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+if not (Path.cwd() / "node_modules" / "vitest" / "package.json").is_file():
+    print("Vitest is not installed. From the ui directory, run:", file=sys.stderr)
+    print("  npm ci", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(subprocess.call([npm, "test"]))
+"""
+
+
 def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
     exe = sys.executable
     return [
@@ -203,11 +233,95 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
         (root, [exe, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "contracts/tests", "-v"]),
+        (root / "ui", [exe, "-c", _UI_NPM_TEST]),
     ]
 
 
 def cmd_test(root: Path, runner: Runner) -> int:
     for cwd, argv in test_steps(root):
+        code = runner(argv, cwd)
+        if code != 0:
+            return code
+    return 0
+
+
+def parse_node_version(text: str) -> tuple[int, ...] | None:
+    """Parse `v22.18.0` (or with a trailing label) into a version tuple."""
+    raw = text.strip().lstrip("vV")
+    parts: list[int] = []
+    for piece in raw.split("."):
+        digits: list[str] = []
+        for char in piece:
+            if char.isdigit():
+                digits.append(char)
+            else:
+                break
+        if not digits:
+            break
+        parts.append(int("".join(digits)))
+    return tuple(parts) if parts else None
+
+
+def node_version_text(node: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            [node, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip() or None
+
+
+def engines_test_steps(root: Path, npm: str) -> list[tuple[Path, list[str]]]:
+    engines = root / "engines"
+    return [
+        (engines, [npm, "test"]),
+        (engines, [npm, "run", "conformance"]),
+    ]
+
+
+def cmd_engines_test(root: Path, runner: Runner, *, node: str | None = None) -> int:
+    """npm test and npm run conformance. Requires Node.js 22.18 or newer.
+
+    The lint job and the UI image stay on Node 20. That interpreter cannot
+    run engines/. CI calls this from the engines job, which installs 22.18.
+    """
+    if node is None:
+        node = shutil.which("node")
+    if not node:
+        print(
+            "node is not on PATH. engines tests need Node.js 22.18 or newer.",
+            file=sys.stderr,
+        )
+        print(
+            "The lint and UI CI job stays on Node 20 and does not run this step.",
+            file=sys.stderr,
+        )
+        return 1
+    reported = node_version_text(node)
+    version = parse_node_version(reported or "")
+    if version is None or version < ENGINES_MIN_NODE:
+        found = reported or "unknown"
+        print(
+            f"engines tests need Node.js 22.18 or newer (this interpreter is {found}).",
+            file=sys.stderr,
+        )
+        print(
+            "The lint and UI CI job stays on Node 20, which cannot run engines/. "
+            "Install Node.js 22.18 or newer and run: python tasks.py engines-test",
+            file=sys.stderr,
+        )
+        return 1
+    npm = shutil.which("npm")
+    if not npm:
+        print("npm is not on PATH. engines tests need npm with Node.js 22.18.", file=sys.stderr)
+        return 1
+    for cwd, argv in engines_test_steps(root, npm):
         code = runner(argv, cwd)
         if code != 0:
             return code
@@ -258,11 +372,27 @@ def typescript_bin(root: Path) -> Path:
     return root / "ui" / "node_modules" / "typescript" / "bin" / "tsc"
 
 
+def resolve_gitleaks_log_opts(explicit: str | None = None) -> str:
+    """Arguments for `gitleaks detect --log-opts`.
+
+    An empty `--log-opts` makes gitleaks 8.30 run `git log --all`, which
+    scans every fetched branch. CI sets FLOODSENSE_GITLEAKS_LOG_OPTS to the
+    pull request range or the pushed range. Unset means the checked-out ref.
+    """
+    if explicit is not None:
+        return explicit
+    configured = os.environ.get("FLOODSENSE_GITLEAKS_LOG_OPTS", "").strip()
+    if configured:
+        return configured
+    return "HEAD"
+
+
 def lint_commands(
     root: Path,
     *,
     node: str,
     gitleaks: str | None,
+    gitleaks_log_opts: str = "HEAD",
 ) -> list[tuple[Path, list[str]]]:
     """Argument lists for ruff, tsc, and gitleaks. No shell."""
     tsc = typescript_bin(root)
@@ -279,6 +409,8 @@ def lint_commands(
                     str(root),
                     "--redact",
                     "--no-banner",
+                    "--log-opts",
+                    gitleaks_log_opts,
                 ],
             )
         )
@@ -309,11 +441,14 @@ def cmd_lint(
     gitleaks: str | None = None,
     resolve_tools: bool = True,
     require_gitleaks: bool | None = None,
+    gitleaks_log_opts: str | None = None,
 ) -> int:
     """Tracked-env check, ruff, and TypeScript. Gitleaks runs when it is on PATH.
 
     CI sets FLOODSENSE_REQUIRE_GITLEAKS=1 so a missing scanner fails the job.
     Locally a missing scanner prints one line and the rest of lint still runs.
+    The scan passes `--log-opts` from FLOODSENSE_GITLEAKS_LOG_OPTS, or `HEAD`
+    when that variable is unset, so other fetched branches are not scanned.
     """
     code = check_tracked_env(root)
     if code != 0:
@@ -342,7 +477,10 @@ def cmd_lint(
             file=sys.stderr,
         )
         return 1
-    for cwd, argv in lint_commands(root, node=node, gitleaks=gitleaks):
+    log_opts = resolve_gitleaks_log_opts(gitleaks_log_opts)
+    for cwd, argv in lint_commands(
+        root, node=node, gitleaks=gitleaks, gitleaks_log_opts=log_opts
+    ):
         code = runner(argv, cwd)
         if code != 0:
             return code
@@ -364,11 +502,19 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("up-all", help="up, plus the rag (pgvector) and cache (Redis) profiles.")
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
-    sub.add_parser("zetaris-sync", help="Run the Zetaris sync stub. Applies no SQL.")
+    sub.add_parser("zetaris-sync", help="Apply pending Zetaris migrations, then verify declared views.")
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
+        "engines-test",
+        help="npm test and npm run conformance in engines/. Needs Node.js 22.18 or newer.",
+    )
+    sub.add_parser(
         "lint",
-        help="Tracked-.env check, ruff, and TypeScript. Gitleaks when it is on PATH.",
+        help=(
+            "Tracked-.env check, ruff, and TypeScript. "
+            "Gitleaks, when it is on PATH, scans the checked-out ref "
+            "(or FLOODSENSE_GITLEAKS_LOG_OPTS)."
+        ),
     )
     return parser
 
@@ -398,6 +544,8 @@ def main(
         return cmd_zetaris_sync(root, run)
     if command == "test":
         return cmd_test(root, run)
+    if command == "engines-test":
+        return cmd_engines_test(root, run)
     if command == "lint":
         return cmd_lint(root, run)
     print(f"Unknown command: {command}", file=sys.stderr)
