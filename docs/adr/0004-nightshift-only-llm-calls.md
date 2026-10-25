@@ -31,4 +31,4 @@ The client is not written yet. This ADR does not choose the Python package that 
 
 - Whether Nightshift serves embeddings, and which model we use if it does not (Ayush, with Urvashi). `GET /v1/models` has not been recorded here.
 - Whether a container can reach Nightshift on `:8088` when that port is bound only to `127.0.0.1` (Ayush, Urvashi).
-- Python in-process engines, or a TypeScript sidecar, for H-MEM and World Model (Ayush). `engines/` is not created.
+- The engines sidecar is `engines/` (TypeScript, on main, Ayush). The agents package does not call `ENGINES_URL` yet.

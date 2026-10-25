@@ -10,7 +10,7 @@ The agents can recommend what an insurer should do in the next 6–72 hours. Sen
 
 ## Decision
 
-No outbound action runs unless a person approves it. The planned mechanism, already written on the HITL placeholder and in the gameplan, is LangGraph `interrupt()` with a SQLite checkpointer, resumed by the approval API. That code is not built.
+No outbound action runs unless a person approves it. On main the mechanism is LangGraph `interrupt()` with a SQLite checkpointer, resumed by the approval API. That landed in #4 and is unreleased. `v0.8.0` is not tagged.
 
 The Judge scores claims before the interrupt. It does not approve, delete, or silently rewrite a claim. The human sees the scores and is the final judge. Decisions are approve, edit, and reject. The contract status values are `pending`, `approved`, `edited`, and `rejected`.
 
@@ -18,7 +18,7 @@ An unsupported claim may get one repair round back to Playbook. Otherwise it is 
 
 ## Consequences
 
-- v0.8.0 owns the interrupt, the checkpointer, the approval API, and the audit log (Zain, tests with Mihir).
+- The interrupt, the SQLite checkpointer, and the approval API are on main from #4 (Zain). They are not the `v0.8.0` tag.
 - v0.10.0 puts per-claim Judge scores on the approval payload. The contract already has an optional `judge` object so that payload does not grow a new required field later.
 - The UI shows the decision. The channel that would carry an approved action is not selected, and this ADR does not add one.
 
