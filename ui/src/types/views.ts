@@ -1,0 +1,63 @@
+/**
+ * Column names match the Zetaris views on feat/zetaris-data-sync.
+ * discharge_daily and the seed view share one shape (migrations 004 and 012).
+ * hazard_timeline: 007 / 013. exposure_join: 014 / 016. provenance: 015 / 017.
+ * Valencia points are the prep CSV, not a view. point_id joins them to discharge.
+ */
+
+export interface DischargeDailyRow {
+  point_id: string;
+  /** Calendar date, YYYY-MM-DD. */
+  date: string;
+  discharge_m3s: number;
+  source: string;
+}
+
+export interface HazardTimelineRow {
+  point_id: string;
+  /** ISO 8601 timestamp. Seed rows are UTC. */
+  ts_utc: string;
+  rain_mm: number;
+  discharge_m3s: number;
+  warning_level: string | null;
+}
+
+export interface ExposureJoinRow {
+  policy_id: string;
+  site_id: string;
+  lat: number;
+  lon: number;
+  in_footprint: boolean;
+  sum_insured_eur: number;
+  segment: string;
+}
+
+export interface ProvenanceRow {
+  dataset: string;
+  source_url: string;
+  publisher: string;
+  licence: string;
+  attribution: string;
+  /** accessed_at from the prep CSV, cast to a timestamp the way the view does. */
+  fetched_at: string;
+}
+
+export interface ValenciaPoint {
+  point_id: string;
+  name: string;
+  municipality: string;
+  lat: number;
+  lon: number;
+  why: string;
+  verified_against_footprint: string;
+  in_flood: string;
+  dist_m_to_flood: number;
+}
+
+export type DataOrigin = "fixture" | "live";
+
+export interface LoadedRows<T> {
+  rows: T[];
+  origin: DataOrigin;
+  detail: string;
+}

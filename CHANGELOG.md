@@ -12,6 +12,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 ### Added
 
 - v0.1.0 data slice. `scripts/zetaris_sync.py` applies pending Zetaris migrations and verifies declared views before a successful exit, including when a statement was skipped because it already exists and when nothing was pending. GloFAS / Open-Meteo discharge, the seed views, and the rest of the current ingestion tip (through the live-feed tables) land together so a laptop can sync. `contracts/views.yaml` records the shared column lists. A cold laptop stages FILESTORE CSVs with `ingestion/prep/stage_local_zetaris.py` before migration 010. Ownership of `/zetaris/`, `/scripts/zetaris_sync.py`, and `zetaris-sync` behaviour moves to Mihir (2026-10-25). Saleeta stays secondary on ingestion prep and the demo.
+- The UI is a citizen page and an insurer desk instead of the Vite placeholder. The header has a light/dark control (stored in the browser), a notification bell, and an account stub. The desk shows a Valencia point map, a replay-date slider, point drill-down, an evidence drawer, a causal chain, Skeptic notes, Judge scores, and approve / edit / reject. Discharge, hazard, exposure, and provenance fixtures use the seed-view column names (`point_id`, `date`, `discharge_m3s`, `source`, and the matching hazard, exposure, and provenance columns). Rows stay labelled fixture unless `VITE_API_URL` returns a JSON array in that shape. The reviewed answer is a replay fixture and is labelled `cached at HH:MM`, not as live.
 
 ### Fixed
 
