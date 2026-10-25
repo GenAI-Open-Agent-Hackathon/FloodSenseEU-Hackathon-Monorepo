@@ -1,7 +1,8 @@
 """Turn the raw Overpass extract into a flat sites table, tagged against the EMSR773 footprint.
 
 Input : ingestion/raw/osm_valencia.json (git-ignored; query in raw/osm_query.txt, copy in prep/osm_query.overpassql)
-Output: ingestion/prep/osm_sites.csv
+Output: ingestion/prep/osm_sites.csv, or FLOODSENSE_OSM_SITES_OUT when a live pull sets it.
+A live pull must not overwrite the committed prep CSV. The synthetic portfolio join is pinned to it.
 
 Attribution: (c) OpenStreetMap contributors, ODbL 1.0.
 Run from the repo root:  .venv/Scripts/python.exe ingestion/prep/osm_sites.py
@@ -10,10 +11,6 @@ import csv
 import glob
 import json
 import os
-
-from shapely.geometry import Point, shape
-from shapely.ops import unary_union
-from shapely.prepared import prep
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RAW = os.path.join(HERE, "..", "raw")
@@ -31,7 +28,16 @@ def site_type(tags):
     return "industrial"
 
 
+def output_path():
+    override = os.environ.get("FLOODSENSE_OSM_SITES_OUT", "").strip()
+    return override or os.path.join(HERE, "osm_sites.csv")
+
+
 def main():
+    from shapely.geometry import Point, shape
+    from shapely.ops import unary_union
+    from shapely.prepared import prep
+
     with open(os.path.join(RAW, "osm_valencia.json"), encoding="utf-8") as f:
         elements = json.load(f)["elements"]
     geoms = []
@@ -57,7 +63,9 @@ def main():
             "in_flood_footprint": "yes" if flood.contains(Point(lon, lat)) else "no",
         })
     rows.sort(key=lambda r: r["site_id"])
-    with open(os.path.join(HERE, "osm_sites.csv"), "w", newline="", encoding="utf-8") as f:
+    dest = output_path()
+    os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
+    with open(dest, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)

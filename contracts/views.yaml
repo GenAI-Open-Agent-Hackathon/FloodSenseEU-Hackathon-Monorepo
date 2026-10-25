@@ -4,7 +4,7 @@
 # scripts/tests/test_migration_contract.py reads "  <view>:" and "- {name: ..., type: ...}".
 
 views:
-  # min_rows: 8 (live and seed)
+  # min_rows: 136 (live and seed; 8 points, 2024-10-20 through 2024-11-05)
   discharge_daily:
     - {name: point_id, type: string}
     - {name: date, type: date}
@@ -17,7 +17,8 @@ views:
     - {name: rain_mm, type: double}
     - {name: discharge_m3s, type: double}
     - {name: warning_level, type: string}
-  # min_rows: 359 (live and seed)
+  # min_rows: 359 (live and seed). synthetic is the portfolio flag (yes). Not a live book.
+  # Migration 018 is the column list verify checks once it is applied. 014 and 016 create the view first.
   exposure_join:
     - {name: policy_id, type: string}
     - {name: site_id, type: string}
@@ -26,7 +27,8 @@ views:
     - {name: in_footprint, type: boolean}
     - {name: sum_insured_eur, type: double}
     - {name: segment, type: string}
-  # min_rows: 6 (live and seed)
+    - {name: synthetic, type: string}
+  # min_rows: 7 cleared datasets. ds_dwd_brightsky stays in the CSV and is filtered out of the views.
   provenance:
     - {name: dataset, type: string}
     - {name: source_url, type: string}

@@ -15,10 +15,15 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `011_create_schemastore_container_floodsense_seed.sql` | Container for the `floodsense_seed.*` views | Urvashi |
 | `012_create_seed_view_discharge_daily.sql` | `floodsense_seed.discharge_daily`, a frozen copy of 004's rows | Urvashi |
 | `013_create_seed_view_hazard_timeline.sql` | `floodsense_seed.hazard_timeline`, a frozen copy of 28–30 Oct from 007 | Urvashi |
-| `014_create_view_exposure_join.sql` | `floodsense.exposure_join`: policies joined to OSM sites, reads the `010` tables | Urvashi |
-| `015_create_view_provenance.sql` | `floodsense.provenance`: one row per dataset, read from the `010` table | Urvashi |
-| `016_create_seed_view_exposure_join.sql` | `floodsense_seed.exposure_join`, same query as 014 | Urvashi |
+| `014_create_view_exposure_join.sql` | `floodsense.exposure_join` first create. Column list replaced by `018` | Urvashi |
+| `015_create_view_provenance.sql` | `floodsense.provenance`: cleared datasets from `010`, DWD row excluded | Urvashi |
+| `016_create_seed_view_exposure_join.sql` | `floodsense_seed.exposure_join` first create. Column list replaced by `018` | Urvashi |
 | `017_create_seed_view_provenance.sql` | `floodsense_seed.provenance`, same query as 015 | Urvashi |
+| `018_label_exposure_synthetic.sql` | Both exposure views keep `synthetic` (the book is not live) | Mihir |
+| `030_create_rest_table_glofas_discharge_live.sql` | Rolling-window GloFAS REST table. No view | Saleeta |
+| `031_create_lightning_db_openmeteo_forecast.sql` | Lightning database for the forecast rain REST table | Saleeta |
+| `032_create_rest_table_rain_live.sql` | Rolling-window rain REST table. No view | Saleeta |
+| `033_live_feed_tables.sql` | FILESTORE live tables except DWD. Header-only dirs are enough to create them | Saleeta |
 
 Rules (see [../README.md](../README.md)):
 
@@ -26,7 +31,7 @@ Rules (see [../README.md](../README.md)):
 - Do not edit a file after it has been merged. Add the next number.
 - No passwords, tokens, or cloud keys in SQL. Use `${VAR}` placeholders.
 - Put a `-- statement` line between statements so the sync tool can send them one at a time.
-- A migration that creates a view starts with `-- view: <container>.<view>`, `-- columns: <name> <type>, ...` and `-- min_rows: <n>`. `verify` checks the live view against these lines. Every `floodsense.<view>` needs a `floodsense_seed.<view>` with the same columns, and `contracts/views.yaml` is the reference.
+- A migration that creates a view starts with `-- view: <container>.<view>`, `-- columns: <name> <type>, ...` and `-- min_rows: <n>`. `verify` checks the latest applied declaration of each view (a later file may `CREATE OR REPLACE` it). Every `floodsense.<view>` needs a `floodsense_seed.<view>` with the same columns, and `contracts/views.yaml` matches that latest declaration.
 - Use `CREATE OR REPLACE SCHEMASTORE VIEW` for views and plain `CREATE` for everything else (no `IF NOT EXISTS` in Lightning SQL).
 - The raw seed tables live in the database `floodsense_seed_src`, and the seed views in the container `floodsense_seed`. Do not give a table and a view the same name in one name space: the view hides the table and reads itself. (A database and a container may share a name only if the database is created first, which is why they do not.)
 

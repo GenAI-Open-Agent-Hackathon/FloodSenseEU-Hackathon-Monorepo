@@ -1,9 +1,12 @@
 """Check every source and pull live + existing data, up to date.
 
   python ingestion/feeds/feeds.py check                     # reachability + newest data point per source
-  python ingestion/feeds/feeds.py pull                      # everything from --since (default 2024-10-20) to now
+  python ingestion/feeds/feeds.py pull                      # default sources from --since (default 2024-10-20) to now
   python ingestion/feeds/feeds.py pull --only aemet,dwd --since 2021-07-10
   python ingestion/feeds/feeds.py pull --stage              # also copy into the local Zetaris driver container
+
+Default check and pull skip dwd. DWD terms are Hold in docs/legal/sources.md (no full-text storage).
+Opt in with --only dwd. That still does not register a Zetaris table.
 
 Writes CSVs to ingestion/raw/live/<table>/ (git-ignored). Every row carries fetched_at. The AEMET key is read
 from ingestion/.env (AEMET_API_KEY) and never printed. Licences and attribution: docs/legal/sources.md.
@@ -253,16 +256,22 @@ def c_osm():
 
 
 def p_osm(since, fetched):
+    # Live extract goes under raw/live. Do not rewrite prep/osm_sites.csv: the 359-row
+    # portfolio join is pinned to that committed file.
     q = open(os.path.join(PREP, "osm_query.overpassql"), encoding="utf-8").read()
+    live_dir = os.path.join(OUT, "osm_sites")
+    os.makedirs(live_dir, exist_ok=True)
+    out_csv = os.path.join(live_dir, "live.csv")
     for host in ("overpass-api.de", "overpass.kumi.systems"):
         try:
             b = fetch(f"https://{host}/api/interpreter", data=urllib.parse.urlencode({"data": q}).encode(), timeout=180, tries=1)
             open(os.path.join(ING, "raw", "osm_valencia.json"), "wb").write(b)
-            subprocess.run([sys.executable, os.path.join(PREP, "osm_sites.py")], check=True)
+            env = {**os.environ, "FLOODSENSE_OSM_SITES_OUT": out_csv}
+            subprocess.run([sys.executable, os.path.join(PREP, "osm_sites.py")], check=True, env=env)
             return 1
         except Exception as e:
             print(f"  osm via {host}: {e}", file=sys.stderr)
-    raise RuntimeError("no Overpass host answered; keeping the existing osm_sites.csv")
+    raise RuntimeError("no Overpass host answered; prep/osm_sites.csv was not modified")
 
 
 def c_hochwasserzentralen():
@@ -289,6 +298,20 @@ SOURCES = {
     "saih_jucar": (c_saih, None),
 }
 
+# Terms not cleared. Stay out of check/pull unless --only names them.
+HELD_UNTIL_TERMS = frozenset({"dwd"})
+
+
+def selected_sources(only):
+    """Names to check or pull. None means every source except HELD_UNTIL_TERMS."""
+    if only is None:
+        return [name for name in SOURCES if name not in HELD_UNTIL_TERMS]
+    names = [part.strip() for part in only.split(",") if part.strip()]
+    unknown = [name for name in names if name not in SOURCES]
+    if unknown:
+        raise ValueError("unknown source: " + ", ".join(unknown))
+    return names
+
 
 def check(names):
     print(f"{'source':<22}{'status':<7}{'secs':<7}detail")
@@ -308,10 +331,14 @@ def provenance(fetched):
     with open(os.path.join(PREP, "provenance.csv"), newline="", encoding="utf-8") as f:
         rd = csv.DictReader(f)
         cols, rows = rd.fieldnames, list(rd)
+    kept = []
     for r in rows:
+        if r["dataset_id"] == "ds_dwd_brightsky":
+            continue
         if r["dataset_id"] in {"ds_open_meteo_flood", "ds_open_meteo_rain", "ds_ems_emsr773", "ds_aemet"}:
             r["accessed_at"] = fetched
-    write("provenance", cols, [[r[c] for c in cols] for r in rows], "provenance")
+        kept.append(r)
+    write("provenance", cols, [[r[c] for c in cols] for r in kept], "provenance")
 
 
 def stage(container):
@@ -356,7 +383,11 @@ def main():
     ap.add_argument("--container", default="zetaris-driver-1")
     ap.add_argument("--interval", type=int, default=0, help="pull: repeat every N seconds")
     a = ap.parse_args()
-    names = a.only.split(",") if a.only else list(SOURCES)
+    try:
+        names = selected_sources(a.only)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        sys.exit(2)
     if a.cmd == "check":
         sys.exit(1 if check(names) else 0)
     while True:
