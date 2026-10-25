@@ -33,7 +33,7 @@ export interface FixtureBundle {
 }
 
 function required<T>(rows: T[] | null, name: string): T[] {
-  if (!rows) throw new Error(`${name} fixture does not match its view columns.`);
+  if (rows === null) throw new Error(`${name} fixture does not match its view columns.`);
   return rows;
 }
 

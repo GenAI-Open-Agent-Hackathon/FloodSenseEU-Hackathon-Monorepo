@@ -1,3 +1,4 @@
+import { DRILLDOWN_RADIUS_KM } from "../config/scenario";
 import { useConsole } from "../context/ConsoleContext";
 import { formatDay, formatEur, formatHour, formatM3s, formatMm } from "../lib/format";
 import {
@@ -23,7 +24,7 @@ export function Drilldown() {
   const hours = hazardOnDate(desk.hazard.rows, desk.pointId, desk.date);
   const rain = rainSummary(hours);
   const twins = row ? sameDischargePoints(desk.discharge.rows, desk.pointId, desk.date) : [];
-  const nearby = point ? nearbyExposure(desk.exposure.rows, point, 8) : [];
+  const nearby = point ? nearbyExposure(desk.exposure.rows, point, DRILLDOWN_RADIUS_KM) : [];
   const nearbySum = nearby.reduce((total, item) => total + item.sum_insured_eur, 0);
   const warning =
     hours.length === 0
@@ -90,8 +91,9 @@ export function Drilldown() {
       <h3>hazard_timeline</h3>
       {hours.length === 0 ? (
         <p className="note">
-          No hazard rows for this point on this date. The seed extract covers 28–30 Oct 2024. warning_level is null
-          in that extract.
+          {desk.hazard.origin === "fixture"
+            ? "No hazard rows for this point on this date. The fixture extract covers 28–30 Oct 2024. warning_level is null in that extract."
+            : "No hazard rows for this point on this date."}
         </p>
       ) : (
         <dl className="kv">
@@ -128,11 +130,11 @@ export function Drilldown() {
               <dd>{point.dist_m_to_flood}</dd>
             </div>
             <div>
-              <dt>in_footprint within 8 km</dt>
+              <dt>in_footprint within {DRILLDOWN_RADIUS_KM} km</dt>
               <dd>{nearby.length}</dd>
             </div>
             <div>
-              <dt>sum_insured_eur</dt>
+              <dt>sum insured within {DRILLDOWN_RADIUS_KM} km</dt>
               <dd>{formatEur(nearbySum)}</dd>
             </div>
           </dl>

@@ -1,4 +1,6 @@
-export type SkepticOutcome = "held" | "challenged" | "revised";
+import type { SkepticOutcome } from "../types/skeptic";
+
+export type { SkepticOutcome };
 
 export interface CausalLink {
   id: "rain" | "catchment" | "river" | "site";

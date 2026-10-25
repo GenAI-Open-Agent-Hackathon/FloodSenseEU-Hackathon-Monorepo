@@ -6,14 +6,14 @@ export function useDismiss(open: boolean, onClose: () => void, ref: RefObject<HT
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
-    const onPointer = (event: MouseEvent) => {
+    const onPointer = (event: PointerEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) onClose();
     };
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("pointerdown", onPointer);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("pointerdown", onPointer);
     };
   }, [open, onClose, ref]);
 }

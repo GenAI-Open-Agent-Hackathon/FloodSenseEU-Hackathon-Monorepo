@@ -6,6 +6,8 @@ import type {
   ProvenanceRow,
   ValenciaPoint,
 } from "../types/views";
+import { normalizeUtcTimestamp } from "./time";
+import { isSafeHttpUrl } from "./urls";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -45,16 +47,22 @@ export function asHazardRow(value: unknown): HazardTimelineRow | null {
   const pointId = asNonEmpty(row.point_id);
   const stamp = asNonEmpty(row.ts_utc);
   const rain = asFinite(row.rain_mm);
-  const discharge = asFinite(row.discharge_m3s);
-  if (!pointId || !stamp || !/^\d{4}-\d{2}-\d{2}T/.test(stamp) || rain === null || discharge === null) {
-    return null;
+  if (!pointId || !stamp || rain === null) return null;
+  const ts = normalizeUtcTimestamp(stamp);
+  if (!ts) return null;
+  let discharge: number | null;
+  if (!("discharge_m3s" in row) || row.discharge_m3s === null) {
+    discharge = null;
+  } else {
+    const parsed = asFinite(row.discharge_m3s);
+    if (parsed === null) return null;
+    discharge = parsed;
   }
-  if (!("warning_level" in row)) return null;
-  const level = row.warning_level;
+  const level = "warning_level" in row ? row.warning_level : null;
   if (level !== null && typeof level !== "string") return null;
   return {
     point_id: pointId,
-    ts_utc: stamp,
+    ts_utc: ts,
     rain_mm: rain,
     discharge_m3s: discharge,
     warning_level: level === "" ? null : level,
@@ -93,6 +101,7 @@ export function asProvenanceRow(value: unknown): ProvenanceRow | null {
   const attribution = asNonEmpty(row.attribution);
   const fetchedAt = asNonEmpty(row.fetched_at);
   if (!dataset || !sourceUrl || !publisher || !licence || !attribution || !fetchedAt) return null;
+  if (!isSafeHttpUrl(sourceUrl)) return null;
   return {
     dataset,
     source_url: sourceUrl,
@@ -133,7 +142,7 @@ export function asValenciaPoint(value: unknown): ValenciaPoint | null {
 }
 
 export function parseRows<T>(value: unknown, parse: (row: unknown) => T | null): T[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null;
+  if (!Array.isArray(value)) return null;
   const rows: T[] = [];
   for (const item of value) {
     const row = parse(item);
@@ -161,6 +170,13 @@ export function assertAnswer(value: unknown): Answer {
   }
   if (served !== "live" && typeof row.cached_at !== "string") {
     throw new Error("Cached or replay answer is missing cached_at.");
+  }
+  for (const citation of row.citations) {
+    const record = asRecord(citation);
+    const sourceUrl = record ? asNonEmpty(record.source_url) : null;
+    if (!sourceUrl || !isSafeHttpUrl(sourceUrl)) {
+      throw new Error("Citation source_url must be an http or https URL.");
+    }
   }
   return value as Answer;
 }

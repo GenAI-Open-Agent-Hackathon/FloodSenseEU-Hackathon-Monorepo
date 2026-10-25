@@ -7,10 +7,9 @@ export function CacheBanner() {
   const serving = servingLabel(answer);
   return (
     <p className={`banner banner-${serving.kind}`} data-serving={serving.servedFrom} role="status">
-      <strong>{serving.text}</strong>
+      <strong>{serving.kind === "cached" ? `${serving.text} UTC` : serving.text}</strong>
       {serving.kind !== "live" && <span> · not live · {serving.servedFrom} · run {serving.runId}</span>}
       {serving.kind === "live" && <span> · run {serving.runId}</span>}
-      <span className="banner-note"> UTC</span>
     </p>
   );
 }

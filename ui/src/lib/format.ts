@@ -1,4 +1,5 @@
 import type { Answer } from "../types/contract";
+import { parseUtc } from "./time";
 
 export type ServingKind = "live" | "cached" | "unlabelled";
 
@@ -12,8 +13,8 @@ export interface ServingLabel {
 
 export function formatUtcHm(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
+  const date = parseUtc(iso);
+  if (!date) return null;
   const hours = String(date.getUTCHours()).padStart(2, "0");
   const minutes = String(date.getUTCMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;

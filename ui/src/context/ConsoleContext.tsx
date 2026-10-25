@@ -8,13 +8,23 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { adoptView } from "../api/adopt";
 import { loadLiveViews } from "../api/client";
+import {
+  DEFAULT_DATE,
+  DEFAULT_POINT_ID,
+  FIXTURE_DETAILS,
+  SIM_PLAY_INTERVAL_MS,
+  SIM_WINDOW_END,
+  SIM_WINDOW_START,
+  SIMULATED_ALERT_M3S,
+} from "../config/scenario";
 import { loadFixtures, type FixtureBundle } from "../fixtures/load";
-import { datesOf, pointById, pointsCrossing } from "../lib/series";
+import { datesOf, isModelledGlofasSource, pointById, pointsCrossing, rowAt } from "../lib/series";
 import { formatDay } from "../lib/format";
+import { fixtureDischargeNotice, replayNotice } from "../lib/notices";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
-import { SIMULATED_ALERT_M3S } from "../types/ui";
 import type {
   DataOrigin,
   DischargeDailyRow,
@@ -23,13 +33,6 @@ import type {
   ProvenanceRow,
   ValenciaPoint,
 } from "../types/views";
-
-const FIXTURE_DETAILS = {
-  discharge_daily: "Fixture copy of floodsense_seed.discharge_daily (migration 012).",
-  hazard_timeline: "Fixture copy of floodsense_seed.hazard_timeline for 28–30 Oct 2024 (migration 013).",
-  exposure_join: "Fixture copy of floodsense_seed.exposure_join (migration 016).",
-  provenance: "Fixture copy of floodsense_seed.provenance columns (migration 017).",
-} as const;
 
 interface ViewSlice<T> {
   rows: T;
@@ -84,23 +87,6 @@ function initialApproval(answer: Answer): Approval {
   };
 }
 
-const INITIAL_NOTICES: Notice[] = [
-  {
-    id: "replay-loaded",
-    tone: "info",
-    read: false,
-    title: "Replay on the insurer desk",
-    body: "The reviewed answer is a fixture with served_from replay. Its banner says cached at 14:32. It is not a live run.",
-  },
-  {
-    id: "seed-loaded",
-    tone: "info",
-    read: false,
-    title: "Discharge seed loaded",
-    body: "Eight Valencia points, 20 Oct–5 Nov 2024. The source column is seed:open-meteo-flood-glofas.",
-  },
-];
-
 function slice<T>(rows: T, detail: string): ViewSlice<T> {
   return { rows, origin: "fixture", detail };
 }
@@ -142,16 +128,19 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     slice(bundle.provenance, FIXTURE_DETAILS.provenance),
   );
   const dates = useMemo(() => datesOf(discharge.rows), [discharge.rows]);
-  const [date, setDateState] = useState("2024-10-29");
-  const [pointId, setPointId] = useState("VAL01");
+  const [date, setDateState] = useState(DEFAULT_DATE);
+  const [pointId, setPointId] = useState(DEFAULT_POINT_ID);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
-  const [notices, setNotices] = useState<Notice[]>(INITIAL_NOTICES);
+  const [notices, setNotices] = useState<Notice[]>(() => [
+    replayNotice(bundle.answer),
+    fixtureDischargeNotice(bundle.discharge),
+  ]);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
-  const playUntilRef = useRef("2024-10-31");
+  const playUntilRef = useRef(SIM_WINDOW_END);
   const raisedFor = useRef(new Set<string>());
   const previousDate = useRef(date);
 
@@ -179,28 +168,40 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       setHealthOk(live.health.ok);
       setHealthDetail(live.health.detail);
       const adopt = <T,>(
-        rows: T[] | null,
+        parsed: T[] | null,
         miss: string,
+        fixtureRows: T[],
         fixtureDetail: string,
-        setSlice: (value: ViewSlice<T[]> | ((current: ViewSlice<T[]>) => ViewSlice<T[]>)) => void,
+        setSlice: (value: ViewSlice<T[]>) => void,
       ) => {
-        if (rows) {
-          setSlice({ rows, origin: "live", detail: miss });
-          return;
-        }
-        if (live.health.ok) {
-          setSlice((current) => ({ ...current, detail: `${fixtureDetail} ${miss}.` }));
-        }
+        setSlice(
+          adoptView({
+            healthOk: live.health.ok,
+            parsed,
+            fixtureRows,
+            fixtureDetail,
+            missDetail: miss,
+          }),
+        );
       };
-      adopt(live.discharge_daily, live.details.discharge_daily, FIXTURE_DETAILS.discharge_daily, setDischarge);
-      adopt(live.hazard_timeline, live.details.hazard_timeline, FIXTURE_DETAILS.hazard_timeline, setHazard);
-      adopt(live.exposure_join, live.details.exposure_join, FIXTURE_DETAILS.exposure_join, setExposure);
-      adopt(live.provenance, live.details.provenance, FIXTURE_DETAILS.provenance, setProvenance);
+      adopt(live.discharge_daily, live.details.discharge_daily, bundle.discharge, FIXTURE_DETAILS.discharge_daily, setDischarge);
+      adopt(live.hazard_timeline, live.details.hazard_timeline, bundle.hazard, FIXTURE_DETAILS.hazard_timeline, setHazard);
+      adopt(live.exposure_join, live.details.exposure_join, bundle.exposure, FIXTURE_DETAILS.exposure_join, setExposure);
+      adopt(live.provenance, live.details.provenance, bundle.provenance, FIXTURE_DETAILS.provenance, setProvenance);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (discharge.origin === "fixture") return;
+    setNotices((list) =>
+      list.some((notice) => notice.id === "seed-loaded")
+        ? list.filter((notice) => notice.id !== "seed-loaded")
+        : list,
+    );
+  }, [discharge.origin]);
 
   useEffect(() => {
     if (!playing) return;
@@ -210,7 +211,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
         const index = dates.indexOf(current);
         return dates[index + 1] ?? current;
       });
-    }, 900);
+    }, SIM_PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [playing, dates]);
 
@@ -227,13 +228,16 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
           const point = pointById(bundle.points, id);
           return point ? `${id} ${point.name}` : id;
         });
+        const sources = ids.map((id) => rowAt(discharge.rows, id, date)?.source ?? "");
+        const modelled = sources.length > 0 && sources.every((source) => isModelledGlofasSource(source));
+        const what = modelled ? "Modelled GloFAS discharge" : "Discharge";
         setNotices((list) => [
           {
             id: `sim-${key}`,
             tone: "sim",
             read: false,
             title: "Simulated alert",
-            body: `Modelled discharge crossed ${SIMULATED_ALERT_M3S} m³/s on ${formatDay(date)} at ${names.join(", ")}. Simulation only. Not an official warning.`,
+            body: `${what} crossed ${SIMULATED_ALERT_M3S} m³/s on ${formatDay(date)} at ${names.join(", ")}. Simulation only. Not an official warning.`,
           },
           ...list,
         ]);
@@ -271,9 +275,9 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     if (dates.length < 2) return;
     setNotices((list) => list.filter((notice) => notice.tone !== "sim"));
     raisedFor.current.clear();
-    const end = dates.includes("2024-10-31") ? "2024-10-31" : dates[dates.length - 1];
+    const end = dates.includes(SIM_WINDOW_END) ? SIM_WINDOW_END : dates[dates.length - 1];
     playUntilRef.current = end;
-    const start = dates.find((item) => item >= "2024-10-28" && item < end) ?? dates[0];
+    const start = dates.find((item) => item >= SIM_WINDOW_START && item < end) ?? dates[0];
     setDateState(start);
     setPlaying(true);
   }, [dates]);

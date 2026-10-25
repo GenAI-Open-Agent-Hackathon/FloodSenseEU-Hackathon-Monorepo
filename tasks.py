@@ -179,6 +179,29 @@ def cmd_zetaris_sync(root: Path, runner: Runner) -> int:
     return runner([sys.executable, str(script)], root)
 
 
+# tests/test_tasks.py requires every test step to start with this interpreter.
+# The script still runs `npm test` in ui/ (Vitest).
+_UI_NPM_TEST = """\
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+npm = shutil.which("npm")
+if npm is None:
+    print(
+        "npm is not on PATH. Install Node.js 20, then run npm ci in ui/.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+if not (Path.cwd() / "node_modules" / "vitest" / "package.json").is_file():
+    print("Vitest is not installed. From the ui directory, run:", file=sys.stderr)
+    print("  npm ci", file=sys.stderr)
+    raise SystemExit(1)
+raise SystemExit(subprocess.call([npm, "test"]))
+"""
+
+
 def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
     exe = sys.executable
     return [
@@ -203,6 +226,7 @@ def test_steps(root: Path) -> list[tuple[Path, list[str]]]:
         (root, [exe, "-m", "unittest", "discover", "-s", "scripts/tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "tests", "-v"]),
         (root, [exe, "-m", "unittest", "discover", "-s", "contracts/tests", "-v"]),
+        (root / "ui", [exe, "-c", _UI_NPM_TEST]),
     ]
 
 

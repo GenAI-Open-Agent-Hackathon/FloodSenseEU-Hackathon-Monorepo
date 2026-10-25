@@ -1,9 +1,13 @@
 import { useEffect, useRef } from "react";
+import { SafeLink } from "./SafeLink";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
 import { formatCell, formatDay } from "../lib/format";
-import { pointById, provenanceForSource, rowAt, sourceExplanation } from "../lib/series";
+import { glofasDischargeNote, pointById, provenanceForSource, rowAt, sourceExplanation } from "../lib/series";
 import type { Evidence } from "../types/contract";
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const PREFERRED = [
   "point_id",
@@ -89,19 +93,48 @@ export function EvidenceDrawer() {
   const point = pointById(desk.points, desk.pointId);
   const row = rowAt(desk.discharge.rows, desk.pointId, desk.date);
   const dischargeProvenance = row ? provenanceForSource(row.source, desk.provenance.rows) : undefined;
+  const modelled = row ? glofasDischargeNote(row.source) : null;
   const rainProvenance = provenanceForSource("open-meteo-rain", desk.provenance.rows);
   useDismiss(desk.evidenceOpen, desk.closeEvidence, panelRef);
 
   useEffect(() => {
     if (!desk.evidenceOpen) return;
-    closeRef.current?.focus();
-    const previous = document.body.style.overflow;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const root = panelRef.current;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !root) return;
+      const nodes = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (nodes.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      const active = document.activeElement;
+      const inside = active instanceof Node && root.contains(active);
+      if (event.shiftKey && (active === first || !inside)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !inside)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      opener?.focus();
+    };
+  }, [desk.evidenceOpen]);
+
+  useEffect(() => {
+    if (!desk.evidenceOpen) return;
     const target = document.getElementById(desk.evidenceTopic === "rain" ? "why-rain" : "why-discharge");
     target?.scrollIntoView({ block: "start" });
-    return () => {
-      document.body.style.overflow = previous;
-    };
   }, [desk.evidenceOpen, desk.evidenceTopic]);
 
   if (!desk.evidenceOpen) return null;
@@ -125,7 +158,8 @@ export function EvidenceDrawer() {
               <>
                 <p>
                   {point ? `${point.name} (${row.point_id})` : row.point_id} on {formatDay(row.date)}.{" "}
-                  {sourceExplanation(row.source)} Values are modelled GloFAS discharge, not observed gauge readings.
+                  {sourceExplanation(row.source)}
+                  {modelled ? ` ${modelled}` : ""}
                 </p>
                 <dl className="kv">
                   <div>
@@ -184,9 +218,7 @@ export function EvidenceDrawer() {
                     {citation.attribution}
                   </p>
                   <p className="note">
-                    <a href={citation.source_url} target="_blank" rel="noreferrer">
-                      {citation.source_url}
-                    </a>
+                    <SafeLink href={citation.source_url}>{citation.source_url}</SafeLink>
                   </p>
                 </li>
               ))}
@@ -245,9 +277,7 @@ function ProvenanceList({
       <div>
         <dt>source_url</dt>
         <dd>
-          <a href={row.source_url} target="_blank" rel="noreferrer">
-            {row.source_url}
-          </a>
+          <SafeLink href={row.source_url}>{row.source_url}</SafeLink>
         </dd>
       </div>
       <div>

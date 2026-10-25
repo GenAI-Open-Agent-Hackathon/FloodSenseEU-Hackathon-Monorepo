@@ -22,15 +22,17 @@ npm run dev
 
 `npm run build` typechecks, then builds. npm runs the `&&` in that script through `cmd.exe` on Windows, where `&&` works. Do not paste that script into PowerShell 5, which has no `&&`.
 
-`npm run lint` is `tsc --noEmit`.
+`npm run lint` is `tsc --noEmit`. `npm test` runs Vitest. `python tasks.py test` runs that suite from the repo root after the Python tests.
 
-Compose publishes the dev server on host port 15173 (container port 5173). `VITE_API_URL` defaults to `http://localhost:18000`, which is the API as the browser sees it.
+Compose publishes the dev server on host port 15173 (container port 5173). `VITE_API_URL` defaults to `http://localhost:18000`, which is the API as the browser sees it. `VITE_API_TIMEOUT_MS` is optional and defaults to 1500.
 
 Do not put tokens in `ui/.env`. Vite exposes every `VITE_*` value to the browser. The NVIDIA provider key lives only in Nightshift's Providers tab. This package does not call Nightshift or Zetaris.
 
 ## What the screen does
 
-The header has the product name, Citizen and Insurer links (`#/citizen`, `#/insurer`), a light/dark control, a notification bell, and an account icon. The theme is stored in `localStorage` under `floodsense-theme`. The first visit follows the system preference. The account control is a stub: it does not collect credentials.
+The header has the product name, Citizen and Insurer links (`#/citizen`, `#/insurer`), a light/dark control, a notification bell, and an account icon. The theme key is `floodsense-theme`, the same string in `index.html` and `src/lib/theme.ts`. The first visit follows the system preference and does not write `localStorage` until the control is used, so a later OS change still applies until then. The account control is a stub: it does not collect credentials.
+
+Demo dates, the simulation window, map bounds, band cuts, the 8 km drill-down radius, fixture detail strings, and the optional view paths live in `src/config/scenario.ts`.
 
 The insurer desk shows:
 
@@ -57,13 +59,17 @@ On load the screen paints the fixtures, then checks the API.
    - `/views/exposure_join`
    - `/views/provenance`
 
-A 200 body is used only when every element has the view columns below (numbers as JSON numbers, `in_footprint` as a boolean, `warning_level` present and either a string or null). The header pill then says **Live view rows** for the views that matched. A 404, a network error, or a different shape keeps the fixture. The pill then stays **Fixture · not live**.
+A 200 body is used only when every element has the view columns below (numbers as JSON numbers, `in_footprint` as a boolean). `warning_level` may be missing; a missing value is null. `discharge_m3s` on hazard rows may be null. An empty JSON array is a live view with zero rows, not a silent return to the fixture. A 404, a network error, a failed health check, or a different shape keeps the fixture. The pill stays **Fixture · not live** in that case. When every loaded view is live and every discharge `source` starts with `seed:`, the pill says **API · seed rows**. Otherwise a full live load says **Live view rows**.
+
+`ts_utc` with no zone is treated as UTC. Provenance `source_url` and citation `source_url` must be `http:` or `https:`. Other schemes are rejected and are not put in an `href`.
 
 Those paths are a hook for later, not an API contract. The API today implements `/health` only. CORS must allow the UI origin before a browser can read even `/health`; a blocked call stays on the fixture.
 
 The reviewed answer is always the fixture in `ui/src/fixtures/answer.json`. It uses the shared contract (`served_from`, `cached_at`, claims, citations, evidence, judge, playbook action). `served_from` is `replay` and `cached_at` is `2026-10-24T14:32:00Z`, so the insurer banner reads **cached at 14:32**. Cache and replay are never labelled live. `query_id` values in that file are fixture ids, not Zetaris query ids, and the SQL is not executed.
 
-Skeptic notes in `ui/src/fixtures/console.ts` are display copy for this screen. They are not an agent payload and they do not choose a Nightshift lane. `model_id` on the judge fixture is the deep lane already named on the contract, so the file matches the schema. This UI does not call it.
+Skeptic notes in `ui/src/fixtures/console.ts` are display copy for this screen. The outcome names (`held`, `challenged`, `revised`) live in `src/types/skeptic.ts` and are not a shared contract yet. They are not an agent payload and they do not choose a Nightshift lane. The Judge tab shows `meterless/deep` or `meterless/fast` for the two contract model ids. The raw `model_id` stays in the fixture so it still matches the schema. Updating that `ModelId` union is Ayush’s. This UI does not call a model. Skeptic counter-checks that quote fixture numbers are hidden while discharge rows are live.
+
+`src/types/contract.ts` is a type-only re-export of `contracts/typescript`. Compose builds the UI image from `./ui` only, so that path is outside the image. Vite drops `import type` at build time, and `npm run dev` in the container does not need the file. `tsc` from a full checkout still resolves it. Do not copy `contracts/` into `ui/`.
 
 ## How the fixtures map to the views
 
@@ -74,10 +80,10 @@ Numbers and column names were copied on 24 Oct 2026 from `feat/zetaris-data-sync
 | `discharge_daily.json` | `floodsense_seed.discharge_daily` (migration 012; live twin is migration 004) | `point_id`, `date`, `discharge_m3s`, `source` |
 | `hazard_timeline.json` | `floodsense_seed.hazard_timeline` for 28–30 Oct 2024 (migration 013; live twin is 007) | `point_id`, `ts_utc`, `rain_mm`, `discharge_m3s`, `warning_level` |
 | `exposure_join.json` | `floodsense_seed.exposure_join` (migration 016; live twin is 014) | `policy_id`, `site_id`, `lat`, `lon`, `in_footprint`, `sum_insured_eur`, `segment` |
-| `provenance.json` | `floodsense_seed.provenance` (migration 017; live twin is 015) | `dataset`, `source_url`, `publisher`, `licence`, `attribution`, `fetched_at` |
+| `provenance.json` | `floodsense_seed.provenance` (migration 017; live twin is 015), six datasets | `dataset`, `source_url`, `publisher`, `licence`, `attribution`, `fetched_at` |
 | `valencia_points.json` | prep CSV `ingestion/prep/valencia_points.csv`, not a view | joins to discharge on `point_id` |
 
-`discharge_daily.source` in the seed extract is `seed:open-meteo-flood-glofas`. The live view stamps the same series as `open-meteo-flood-glofas`. The evidence drawer explains that. `fetched_at` is the prep `accessed_at` date written as midnight UTC, which is what the provenance view does when it casts that date to a timestamp.
+`discharge_daily.source` in the seed extract is `seed:open-meteo-flood-glofas`. The live view stamps the same series as `open-meteo-flood-glofas`. The evidence drawer says the series is modelled GloFAS only when the source stamp is that one. A fixture notice is built from the loaded rows and is removed when those rows are live. `fetched_at` is the prep `accessed_at` date written as midnight UTC, which is what the provenance view does when it casts that date to a timestamp. The provenance fixture is the six migration 017 datasets (EMSR773, OSM sites, the synthetic portfolio, Open-Meteo Flood, Open-Meteo historical rain, AEMET). PEGELONLINE and DWD prep rows are not in that view. Source stamps map to those datasets by a fixed table, not by searching for the word “flood”.
 
 The discharge figures are the frozen Open-Meteo Flood (GloFAS) copy from migration 012: VAL01–VAL08, 20 Oct–5 Nov 2024, modelled, not observed. Neighbouring points can share a value because Open-Meteo snaps them to a 0.05° cell. The portfolio behind `exposure_join` is synthetic.
 

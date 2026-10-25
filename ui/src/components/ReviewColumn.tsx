@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { causalChain, skepticVerdicts } from "../fixtures/console";
 import { useConsole } from "../context/ConsoleContext";
+import { laneLabel } from "../lib/lanes";
 import type { ApprovalStatus, Grounding } from "../types/contract";
-import type { SkepticOutcome } from "../fixtures/console";
+import type { SkepticOutcome } from "../types/skeptic";
 
 export function ReviewColumn() {
   const desk = useConsole();
@@ -12,6 +13,27 @@ export function ReviewColumn() {
   const judge = desk.answer.judge;
   const action = desk.answer.playbook_actions?.[0];
   const locked = desk.approval.status !== "pending";
+  const fixtureRows = desk.discharge.origin === "fixture";
+  const tabs = [
+    ["chain", "Causal chain"],
+    ["skeptic", "Skeptic"],
+    ["judge", "Judge"],
+    ["approval", desk.approval.status === "pending" ? "Approval" : `Approval · ${desk.approval.status}`],
+  ] as const;
+
+  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    const index = tabs.findIndex(([id]) => id === tab);
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    const id = tabs[next][0];
+    setTab(id);
+    document.getElementById(`tab-${id}`)?.focus();
+  }
 
   useEffect(() => {
     setNote(desk.approval.note ?? "");
@@ -39,28 +61,24 @@ export function ReviewColumn() {
         Skeptic notes and Judge scores are fixtures for this screen. They are not a Nightshift call, and they do not
         choose a model lane. The human still decides. Nothing here is sent.
       </p>
-      <div className="tablist" role="tablist" aria-label="Review sections">
-        {(
-          [
-            ["chain", "Causal chain"],
-            ["skeptic", "Skeptic"],
-            ["judge", "Judge"],
-            ["approval", desk.approval.status === "pending" ? "Approval" : `Approval · ${desk.approval.status}`],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`tab-${id}`}
-            className={tab === id ? "tab active" : "tab"}
-            aria-selected={tab === id}
-            aria-controls={`panel-${id}`}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="review-tabs">
+        <div className="tablist" role="tablist" aria-label="Review sections" onKeyDown={onTabKey}>
+          {tabs.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              className={tab === id ? "tab active" : "tab"}
+              aria-selected={tab === id}
+              aria-controls={`panel-${id}`}
+              tabIndex={tab === id ? 0 : -1}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button type="button" className="tab tab-link" onClick={() => desk.openEvidence("discharge")}>
           Evidence
         </button>
@@ -68,6 +86,9 @@ export function ReviewColumn() {
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === "chain" && (
           <ol className="chain">
+            {!fixtureRows && (
+              <li className="note">The chain quotes the recorded fixture answer, not the live discharge rows.</li>
+            )}
             {causalChain.map((link) => {
               const claim = desk.answer.claims.find((item) => item.claim_id === link.claim_id);
               const verdict = skepticVerdicts.find((item) => item.claim_id === link.claim_id);
@@ -87,7 +108,12 @@ export function ReviewColumn() {
             })}
           </ol>
         )}
-        {tab === "skeptic" && (
+        {tab === "skeptic" && !fixtureRows && (
+          <p className="note">
+            Skeptic counter-checks quote the fixture answer. They stay hidden while discharge rows are live.
+          </p>
+        )}
+        {tab === "skeptic" && fixtureRows && (
           <ul className="stack">
             {skepticVerdicts.map((verdict) => {
               const claim = desk.answer.claims.find((item) => item.claim_id === verdict.claim_id);
@@ -110,8 +136,8 @@ export function ReviewColumn() {
                 <span style={{ width: `${Math.max(0, Math.min(1, judge.overall_score)) * 100}%` }} />
               </div>
               <p className="note">
-                model_id on each claim is the contract’s deep lane, copied so the fixture matches the schema. This
-                screen did not call it.
+                The lane label is display-only. The contract still stores model_id. Updating that union is Ayush’s.
+                This screen did not call a model.
               </p>
             </div>
             {judge.claims.map((claim) => {
@@ -127,7 +153,7 @@ export function ReviewColumn() {
                   </div>
                   <h3>{text}</h3>
                   <p>{claim.rationale}</p>
-                  <p className="note">{claim.model_id}</p>
+                  <p className="note">{laneLabel(claim.model_id)}</p>
                 </article>
               );
             })}

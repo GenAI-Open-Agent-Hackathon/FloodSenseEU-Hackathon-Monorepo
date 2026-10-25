@@ -1,4 +1,4 @@
-import { apiBaseUrl } from "./config";
+import { VIEW_PATHS, type ViewName } from "../config/scenario";
 import type {
   DischargeDailyRow,
   ExposureJoinRow,
@@ -6,20 +6,9 @@ import type {
   ProvenanceRow,
 } from "../types/views";
 import { asDischargeRow, asExposureRow, asHazardRow, asProvenanceRow, parseRows } from "../lib/validate";
+import { apiBaseUrl, apiTimeoutMs } from "./config";
 
-/**
- * Optional reads. The API on main implements GET /health only.
- * A JSON array at these paths is used when every row matches the view columns.
- * Anything else stays on the fixture. These paths are not a new API contract.
- */
-const VIEW_PATHS = {
-  discharge_daily: "/views/discharge_daily",
-  hazard_timeline: "/views/hazard_timeline",
-  exposure_join: "/views/exposure_join",
-  provenance: "/views/provenance",
-} as const;
-
-export type ViewName = keyof typeof VIEW_PATHS;
+export type { ViewName };
 
 export interface HealthProbe {
   ok: boolean;
@@ -39,7 +28,7 @@ async function fetchHealth(base: string): Promise<HealthProbe> {
   try {
     const response = await fetch(`${base}/health`, {
       credentials: "omit",
-      signal: AbortSignal.timeout(1500),
+      signal: AbortSignal.timeout(apiTimeoutMs()),
     });
     if (!response.ok) {
       return { ok: false, detail: `GET /health returned ${response.status}` };
@@ -59,7 +48,7 @@ async function fetchJson(base: string, name: ViewName): Promise<{ body: unknown;
   try {
     const response = await fetch(`${base}${path}`, {
       credentials: "omit",
-      signal: AbortSignal.timeout(1500),
+      signal: AbortSignal.timeout(apiTimeoutMs()),
     });
     if (!response.ok) {
       return { body: null, ok: false, detail: `GET ${path} returned ${response.status}` };
@@ -76,7 +65,7 @@ function rowsOrNull<T>(ok: boolean, body: unknown, parse: (row: unknown) => T | 
 } {
   if (!ok) return { rows: null, detail };
   const rows = parseRows(body, parse);
-  if (!rows) return { rows: null, detail: `${pathDetail} did not match the view columns` };
+  if (rows === null) return { rows: null, detail: `${pathDetail} did not match the view columns` };
   return { rows, detail };
 }
 

@@ -1,14 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
+import { originPill } from "../lib/origin";
 import { applyTheme, readTheme, type ThemeName } from "../lib/theme";
-
-function originPill(origins: Array<"fixture" | "live">): { tone: "fixture" | "live" | "mixed"; label: string } {
-  const live = origins.filter((origin) => origin === "live").length;
-  if (live === 0) return { tone: "fixture", label: "Fixture · not live" };
-  if (live === origins.length) return { tone: "live", label: "Live view rows" };
-  return { tone: "mixed", label: "Mixed view rows" };
-}
 
 export function Header() {
   const desk = useConsole();
@@ -20,20 +14,19 @@ export function Header() {
   const bellTitle = useId();
   const profileTitle = useId();
   const unread = desk.notices.filter((notice) => !notice.read).length;
-  const pill = originPill([
-    desk.discharge.origin,
-    desk.hazard.origin,
-    desk.exposure.origin,
-    desk.provenance.origin,
-  ]);
+  const markNotificationsRead = desk.markNotificationsRead;
+  const pill = originPill(
+    [desk.discharge.origin, desk.hazard.origin, desk.exposure.origin, desk.provenance.origin],
+    desk.discharge,
+  );
 
   useEffect(() => {
-    applyTheme(theme);
+    document.documentElement.dataset.theme = theme;
   }, [theme]);
 
   useEffect(() => {
-    if (bellOpen) desk.markNotificationsRead();
-  }, [bellOpen, desk]);
+    if (bellOpen) markNotificationsRead();
+  }, [bellOpen, markNotificationsRead]);
 
   const closeBell = () => setBellOpen(false);
   const closeProfile = () => setProfileOpen(false);
@@ -76,7 +69,11 @@ export function Header() {
             className="icon-button"
             aria-pressed={theme === "dark"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            onClick={() => {
+              const next = theme === "dark" ? "light" : "dark";
+              setTheme(next);
+              applyTheme(next);
+            }}
           >
             {theme === "dark" ? <SunIcon /> : <MoonIcon />}
           </button>

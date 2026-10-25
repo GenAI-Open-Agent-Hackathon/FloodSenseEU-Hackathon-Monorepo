@@ -416,7 +416,8 @@ th, td { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--line); text-alig
 th { position: sticky; top: 0; background: var(--bg-sunken); font-family: var(--mono); font-size: 0.72rem; font-weight: 600; }
 tr.is-selected { background: var(--accent-soft); }
 
-.tablist { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.7rem 0; }
+.review-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin: 0.7rem 0; }
+.tablist { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
 .tab {
   border: 1px solid transparent;
   background: transparent;

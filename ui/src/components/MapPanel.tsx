@@ -1,5 +1,18 @@
 import { useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
+import {
+  BAND_ELEVATED_M3S,
+  BAND_TYPICAL_M3S,
+  COAST_LAT,
+  COAST_LON,
+  MAP_BOUNDS,
+  MAP_CHANNEL_IDS,
+  MOUTH_LAT,
+  MOUTH_LON,
+  SIM_WINDOW_END,
+  SIM_WINDOW_START,
+  SIMULATED_ALERT_M3S,
+} from "../config/scenario";
 import { formatDay, formatEur, formatM3s } from "../lib/format";
 import {
   dischargeBand,
@@ -9,9 +22,7 @@ import {
   markerText,
   project,
   rowsOnDate,
-  MAP_BOUNDS,
 } from "../lib/series";
-import { SIMULATED_ALERT_M3S } from "../types/ui";
 import type { ValenciaPoint } from "../types/views";
 
 export function MapPanel({
@@ -30,12 +41,12 @@ export function MapPanel({
   const stats = useMemo(() => exposureStats(desk.exposure.rows), [desk.exposure.rows]);
   const peakCount = rowsToday.filter((row) => row.discharge_m3s >= SIMULATED_ALERT_M3S).length;
   const dateIndex = Math.max(0, desk.dates.indexOf(desk.date));
-  const coastX = project(39.4, -0.34).x;
-  const channel = ["VAL08", "VAL07", "VAL01"]
+  const coastX = project(COAST_LAT, COAST_LON).x;
+  const channel = MAP_CHANNEL_IDS
     .map((id) => desk.points.find((point) => point.point_id === id))
     .filter((point): point is ValenciaPoint => Boolean(point))
     .map((point) => project(point.lat, point.lon));
-  const mouth = project(39.41, -0.3);
+  const mouth = project(MOUTH_LAT, MOUTH_LON);
   const channelPoints = [...channel, mouth].map((point) => `${point.x},${point.y}`).join(" ");
 
   return (
@@ -73,7 +84,7 @@ export function MapPanel({
       </div>
       {simulate && (
         <p className="note">
-          Steps 28–31 Oct 2024. A notice is added when modelled discharge crosses {SIMULATED_ALERT_M3S} m³/s.
+          Steps {formatDay(SIM_WINDOW_START)}–{formatDay(SIM_WINDOW_END)}. A notice is added when discharge crosses {SIMULATED_ALERT_M3S} m³/s.
           Simulation only. Not an official warning.
           {desk.playing ? " Playing." : ""}
         </p>
@@ -155,9 +166,9 @@ export function MapPanel({
         </div>
       </div>
       <ul className="legend">
-        <li><i data-band="low" /> under 1 m³/s</li>
-        <li><i data-band="typical" /> 1–20</li>
-        <li><i data-band="elevated" /> 20–{SIMULATED_ALERT_M3S}</li>
+        <li><i data-band="low" /> under {BAND_TYPICAL_M3S} m³/s</li>
+        <li><i data-band="typical" /> {BAND_TYPICAL_M3S}–{BAND_ELEVATED_M3S}</li>
+        <li><i data-band="elevated" /> {BAND_ELEVATED_M3S}–{SIMULATED_ALERT_M3S}</li>
         <li><i data-band="peak" /> ≥ {SIMULATED_ALERT_M3S}</li>
         <li><i className="dot-sample" /> in_footprint</li>
       </ul>

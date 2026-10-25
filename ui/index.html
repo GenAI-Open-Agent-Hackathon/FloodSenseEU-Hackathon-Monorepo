@@ -7,6 +7,7 @@
     <script>
       (function () {
         var key = "floodsense-theme";
+        // Same key as THEME_STORAGE_KEY in src/lib/theme.ts. This script does not write storage.
         var theme = "light";
         try {
           var stored = localStorage.getItem(key);

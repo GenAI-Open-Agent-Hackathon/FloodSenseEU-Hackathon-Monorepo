@@ -1,6 +1,16 @@
 import { useConsole } from "../context/ConsoleContext";
 import { formatDay, formatHour, formatM3s, formatMm } from "../lib/format";
-import { hazardOnDate, peakRow, pointById, provenanceForSource, rainSummary, rowAt, seriesFor } from "../lib/series";
+import { allSourcesAreSeed } from "../lib/origin";
+import {
+  glofasDischargeNote,
+  hazardOnDate,
+  peakRow,
+  pointById,
+  provenanceForSource,
+  rainSummary,
+  rowAt,
+  seriesFor,
+} from "../lib/series";
 import { Colophon, OriginBanner } from "./Banners";
 import { MapPanel } from "./MapPanel";
 import { Sparkline } from "./Sparkline";
@@ -14,7 +24,13 @@ export function CitizenView() {
   const peak = peakRow(series);
   const rain = rainSummary(hazardOnDate(desk.hazard.rows, desk.pointId, desk.date));
   const provenance = row ? provenanceForSource(row.source, desk.provenance.rows) : undefined;
-  const origin = desk.discharge.origin === "live" ? "Live view row" : "Fixture · not live";
+  const origin =
+    desk.discharge.origin === "live" && allSourcesAreSeed(desk.discharge.rows)
+      ? "API · seed rows"
+      : desk.discharge.origin === "live"
+        ? "Live view row"
+        : "Fixture · not live";
+  const modelled = row ? glofasDischargeNote(row.source) : null;
 
   return (
     <div className="workspace">
@@ -26,7 +42,7 @@ export function CitizenView() {
           <h2>{point ? point.name : desk.pointId}</h2>
           <p className="figure-caption">{origin}</p>
           <p className="figure">{row ? formatM3s(row.discharge_m3s) : "—"}</p>
-          <p className="figure-unit">m³/s modelled discharge</p>
+          <p className="figure-unit">m³/s discharge</p>
           <Sparkline
             values={series.map((item) => item.discharge_m3s)}
             activeIndex={activeIndex}
@@ -34,7 +50,7 @@ export function CitizenView() {
           />
           <p>
             {row && point
-              ? `On ${formatDay(desk.date)}, ${point.name} shows ${formatM3s(row.discharge_m3s)} m³/s in the loaded discharge series. The source column is ${row.source}. This is modelled GloFAS discharge, not an observed gauge and not an official warning.`
+              ? `On ${formatDay(desk.date)}, ${point.name} shows ${formatM3s(row.discharge_m3s)} m³/s in the loaded discharge series. The source column is ${row.source}. ${modelled ? `${modelled} ` : ""}Not an official warning.`
               : `No discharge row for ${desk.pointId} on ${formatDay(desk.date)}.`}
             {peak && row && peak.date === row.date ? " This is the highest day in the loaded series for this point." : ""}
           </p>

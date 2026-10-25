@@ -15,10 +15,13 @@ export interface DischargeDailyRow {
 
 export interface HazardTimelineRow {
   point_id: string;
-  /** ISO 8601 timestamp. Seed rows are UTC. */
+  /**
+   * ISO 8601 timestamp. Migration 007 has no zone; validators store that form as UTC (Z).
+   */
   ts_utc: string;
   rain_mm: number;
-  discharge_m3s: number;
+  /** Null when the view omitted the column or stored SQL NULL. */
+  discharge_m3s: number | null;
   warning_level: string | null;
 }
 

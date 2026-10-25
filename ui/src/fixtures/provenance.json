@@ -46,21 +46,5 @@
     "licence": "Reuse allowed incl. commercial; no distortion",
     "attribution": "© AEMET",
     "fetched_at": "2026-10-23T00:00:00Z"
-  },
-  {
-    "dataset": "PEGELONLINE Rhine water levels (Bonn, Koeln, Koblenz)",
-    "source_url": "https://www.pegelonline.wsv.de/",
-    "publisher": "Wasserstrassen- und Schifffahrtsverwaltung des Bundes (WSV)",
-    "licence": "DL-DE->Zero-2.0",
-    "attribution": "Quelle: WSV, PEGELONLINE",
-    "fetched_at": "2026-10-24T00:00:00Z"
-  },
-  {
-    "dataset": "DWD hourly rain, Ahr valley points (via Bright Sky)",
-    "source_url": "https://brightsky.dev/",
-    "publisher": "Deutscher Wetterdienst",
-    "licence": "Not confirmed (DWD terms not read)",
-    "attribution": "Quelle: Deutscher Wetterdienst (suggested, unconfirmed)",
-    "fetched_at": "2026-10-24T00:00:00Z"
   }
 ]

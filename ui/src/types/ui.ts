@@ -14,5 +14,4 @@ export interface Notice {
 
 export type DischargeBand = "low" | "typical" | "elevated" | "peak";
 
-/** Demo threshold for the alert simulation. Not a warning level from the hazard view. */
-export const SIMULATED_ALERT_M3S = 80;
+export { SIMULATED_ALERT_M3S } from "../config/scenario";

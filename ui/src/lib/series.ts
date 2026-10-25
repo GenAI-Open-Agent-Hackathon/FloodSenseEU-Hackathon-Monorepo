@@ -5,15 +5,15 @@ import type {
   ProvenanceRow,
   ValenciaPoint,
 } from "../types/views";
+import {
+  BAND_ELEVATED_M3S,
+  BAND_TYPICAL_M3S,
+  MAP_BOUNDS,
+  SIMULATED_ALERT_M3S,
+} from "../config/scenario";
 import type { DischargeBand } from "../types/ui";
-import { SIMULATED_ALERT_M3S } from "../types/ui";
 
-export const MAP_BOUNDS = {
-  minLat: 39.12,
-  maxLat: 39.64,
-  minLon: -1.3,
-  maxLon: -0.18,
-};
+export { MAP_BOUNDS };
 
 export function mapAspectRatio(): string {
   const midLat = ((MAP_BOUNDS.minLat + MAP_BOUNDS.maxLat) / 2) * (Math.PI / 180);
@@ -54,8 +54,8 @@ export function rowsOnDate(rows: DischargeDailyRow[], date: string): DischargeDa
 
 export function dischargeBand(m3s: number): DischargeBand {
   if (m3s >= SIMULATED_ALERT_M3S) return "peak";
-  if (m3s >= 20) return "elevated";
-  if (m3s >= 1) return "typical";
+  if (m3s >= BAND_ELEVATED_M3S) return "elevated";
+  if (m3s >= BAND_TYPICAL_M3S) return "typical";
   return "low";
 }
 
@@ -119,22 +119,34 @@ export function pointsCrossing(
     .sort();
 }
 
+/** Source stamp, without a seed: prefix, mapped to a stable fragment of dataset. */
+const SOURCE_DATASET_KEY: Record<string, string> = {
+  "open-meteo-flood-glofas": "open-meteo flood",
+  "open-meteo-rain": "historical weather",
+};
+
+export function sourceStamp(source: string): string {
+  const value = source.trim().toLowerCase();
+  return value.startsWith("seed:") ? value.slice("seed:".length) : value;
+}
+
 export function provenanceForSource(
   source: string,
   rows: ProvenanceRow[],
 ): ProvenanceRow | undefined {
-  const value = source.toLowerCase();
-  // Match the dataset name, not the substring "flood". EMSR773's dataset also contains that word.
-  if (value.includes("glofas") || value.includes("open-meteo-flood")) {
-    return rows.find((row) => {
-      const name = row.dataset.toLowerCase();
-      return name.includes("glofas") || name.includes("open-meteo flood");
-    });
-  }
-  if (value.includes("historical") || value.includes("open-meteo-rain") || value.includes("archive")) {
-    return rows.find((row) => row.dataset.toLowerCase().includes("historical weather"));
-  }
-  return undefined;
+  const key = SOURCE_DATASET_KEY[sourceStamp(source)];
+  if (!key) return undefined;
+  return rows.find((row) => row.dataset.toLowerCase().includes(key));
+}
+
+export function isModelledGlofasSource(source: string): boolean {
+  return sourceStamp(source) === "open-meteo-flood-glofas";
+}
+
+/** GloFAS wording only when the source stamp is that series. Other sources stay quiet. */
+export function glofasDischargeNote(source: string): string | null {
+  if (!isModelledGlofasSource(source)) return null;
+  return "Values are modelled GloFAS discharge, not observed gauge readings.";
 }
 
 export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -202,6 +214,5 @@ export function sourceExplanation(source: string): string {
 }
 
 export function prefersGlofasGridNote(source: string): boolean {
-  const value = source.toLowerCase();
-  return value.includes("glofas") || value.includes("open-meteo");
+  return sourceStamp(source) === "open-meteo-flood-glofas";
 }
