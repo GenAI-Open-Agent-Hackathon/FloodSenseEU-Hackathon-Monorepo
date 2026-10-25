@@ -68,6 +68,7 @@ class FloodState(TypedDict, total=False):
     provenance: list[dict[str, Any]]  # rows of the provenance view (layer b)
     claims: list[dict[str, Any]]  # Claim[]
     memories: list[dict[str, Any]]  # H-MEM recall for this run: context, never evidence
+    thread: list[dict[str, Any]]  # earlier turns of this conversation: short-term memory
     summary: str
     judge_summary: dict[str, Any]  # JudgeSummary
     revise_rounds: int
