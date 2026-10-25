@@ -26,6 +26,7 @@ GET  /readiness                    the eight foundations checked against the new
 POST /runs                         RunRequest -> runs until the HITL interrupt; returns the run snapshot (status awaiting_approval)
 GET  /runs/past                    runs started by this process, newest first (the checkpointer holds every run's state)
 GET  /runs/{id}                    snapshot: contract state + claims, evidence, judge_summary, trace
+GET  /runs/{id}/replay             the same run labelled as a replay (served_from replay, cached_at its start)
 GET  /runs/{id}/approval           what the reviewer sees (409 unless awaiting approval)
 POST /runs/{id}/approval           ApprovalDecision {action: approve|edit|reject, edits?, reviewer_note?, reviewer?} -> resumes the run
 GET  /runs/{id}/citations          every citation record of the run plus the evidence and provenance they point at
@@ -370,6 +371,27 @@ def get_run(run_id: str):
         return _envelope(_stored(run_id))
     except RunNotFound:
         raise HTTPException(404, f"run {run_id} not found")
+
+
+@app.get("/runs/{run_id}/replay")
+def replay_run(run_id: str):
+    """A recorded run, labelled as a replay.
+
+    cached_at is the run's start. The row comes from the in-memory index, or
+    from the snapshot just read after a restart. This does not call past(),
+    which lists every checkpoint and deadlocks the shared SqliteSaver.
+    """
+    rt = runtime()
+    try:
+        run = rt.snapshot(run_id)
+    except RunNotFound:
+        raise HTTPException(404, f"run {run_id} not found")
+    row = rt.index.get(run_id)
+    if row is None:
+        row = rt._remember(run_id, run)
+    run["served_from"] = labelling.REPLAY
+    run["cached_at"] = row.get("created_at")
+    return _envelope(run)
 
 
 @app.get("/runs/{run_id}/approval")
