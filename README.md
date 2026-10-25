@@ -122,7 +122,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 
 ## Branching
 
-`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Release tags are `v0.x` (increments), `v0.x.y` (fixes), and `v1.0.0-rc.N` (candidates). Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
+`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, then `v0.3.0`. There is no `v0.x.y` fix tag. Candidates are `v1.0.0-rc.N`. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
 
 ## Secrets
 

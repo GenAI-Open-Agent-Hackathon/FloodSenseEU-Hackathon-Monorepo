@@ -5,9 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MINOR.PATCH`. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, next `v0.3.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
+
+### Changed
+
+- Tag policy. After `v0.2.0`, the next product tag may be `v0.3.0`, and tags on the 0.x line are `v0.MINOR.0` only. Patch tags (`v0.MINOR.PATCH`, `v0.x.y` fixes) are not used. The gameplan defines `v0.3.0` as core sources and provenance (already on main) plus live gauges (PEGELONLINE, Mihir). The `[0.3.0]` section is written when that tag is cut. H-MEM and the World Model stay not load-bearing until #15 and #16. Citation layer (c) and pgvector are stretch.
 
 ## [0.2.0] - 2026-10-25
 
