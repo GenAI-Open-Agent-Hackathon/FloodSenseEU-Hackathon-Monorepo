@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MINOR.PATCH`. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, next `v0.3.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
@@ -17,6 +17,7 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 
 ### Changed
 
+- Tag policy. After `v0.2.0`, the next product tag may be `v0.3.0`, and tags on the 0.x line are `v0.MINOR.0` only. Patch tags (`v0.MINOR.PATCH`, `v0.x.y` fixes) are not used. `v0.3.0` adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and #24 `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0` and are not new `v0.3.0` work. Cut `v0.3.0` once `main` is green and e2e passes. The `[0.3.0]` section is written when that tag is cut. H-MEM and the World Model stay not load-bearing until #15 and #16. Citation layer (c) and pgvector are stretch.
 - Judge `model_id` in `contracts/schemas/floodsense.schema.json` accepts the routing names `meterless/fast` and `meterless/deep`, the Nightshift ids a reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is no longer accepted. Contract examples and the insurer-desk fixture use `meterless/deep`. Which model answers a routing name today stays the one table at the top of `docs/architecture/c4.md`. ADR 0004 and ADR 0007 are corrected to match and stay Proposed. The desk shows a routing name as stored. A concrete Nightshift id is labelled "answered by" that model. Super VL is not shown as one lane, and Lightning is not shown as `meterless/fast`.
 
 ### Fixed
