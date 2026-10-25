@@ -96,6 +96,24 @@ def memory_block(memories: list[dict] | None) -> str:
     )
 
 
+def thread_block(turns: list[dict] | None) -> str:
+    """Earlier turns of this conversation, for the prompt. Context, not evidence: a
+    follow-up re-derives every claim from this run's queries."""
+    if not turns:
+        return ""
+    lines = []
+    for turn in turns:
+        lines.append(
+            f"- Q: {turn.get('question', '')} [{turn.get('approval') or turn.get('status')}] "
+            f"A: {turn.get('summary') or '(no summary yet)'}"
+        )
+    return (
+        "EARLIER IN THIS THREAD (short-term memory; context only, not evidence; do not cite):\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
 def _fmt(v) -> str:
     return f"{v:g}" if isinstance(v, (int, float)) else str(v)
 
@@ -308,7 +326,8 @@ def _model(
     user = (
         f"EVENT: {state['event']['name']} ({state['event_id']}); river "
         f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
-        f"ANOMALIES: {state.get('anomalies')}\n{memory_block(state.get('memories'))}"
+        f"ANOMALIES: {state.get('anomalies')}\n{thread_block(state.get('thread'))}"
+        f"{memory_block(state.get('memories'))}"
         f"\nEVIDENCE:\n{rows_block(evidence)}"
     )
     text, model_id = deps.llm.complete(
