@@ -5,9 +5,10 @@ contract (docs/GAMEPLAN.md) and proxies the run lifecycle to the agents
 service at AGENTS_URL: http://agents:8100 under Compose, 127.0.0.1:8100 on the
 host.
 
-Run responses gain a ``contract`` object: a projection of the graph snapshot
-onto ``contracts/schemas/floodsense.schema.json``. The graph payload stays
-beside it. Fake, seed, cache, and replay answers are not relabelled live here;
+``POST /runs`` and ``GET /runs/{id}`` gain a ``contract`` object: a projection
+of the graph snapshot onto ``contracts/schemas/floodsense.schema.json``.
+The graph payload stays beside it. Approval and citation payloads are left
+alone. Fake, seed, cache, and replay answers are not relabelled live here;
 the agents service sets ``served_from``.
 
 GET  /health                      this service
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -41,6 +43,10 @@ UI_ORIGINS = [
     )
     if o
 ]
+# Full run snapshots only. /runs/{id}/approval and /citations are thinner
+# and must not grow a contract that fills missing citation URLs.
+_RUN_SNAPSHOT = re.compile(r"^/runs/[^/]+$")
+
 TIMEOUT = httpx.Timeout(
     600.0, connect=5.0
 )  # a run waits for the deep lane; the connect timeout stays short
@@ -65,10 +71,10 @@ async def _agents_request(
 
 
 def _attach_contract(path: str, response: Response) -> Response:
-    """Add the schema projection on run payloads. Leave errors and lists alone."""
-    if response.status_code >= 400 or path == "/runs/past" or path.endswith("/events"):
+    """Add the schema projection on POST /runs and GET /runs/{id} only."""
+    if response.status_code >= 400:
         return response
-    if path != "/runs" and not path.startswith("/runs/"):
+    if path != "/runs" and _RUN_SNAPSHOT.match(path) is None:
         return response
     media = response.media_type or ""
     if "json" not in media:

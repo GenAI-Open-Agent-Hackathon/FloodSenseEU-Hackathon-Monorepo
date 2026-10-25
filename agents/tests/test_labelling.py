@@ -117,6 +117,53 @@ class LabelOverTheApiTest(unittest.TestCase):
         self.assertFalse(run["label"]["live"])
         self.assertEqual(run["cached_at"], "2024-10-29T12:00:00Z")
 
+    def test_a_clocked_replay_stays_a_replay_when_it_is_read_back(self) -> None:
+        run = self.c.post(
+            "/runs",
+            json={
+                "question": "Which sites are exposed?",
+                "event_id": "EMSR773",
+                "replay_ts": "2024-10-29T12:00:00Z",
+            },
+        ).json()
+        again = self.c.get(f"/runs/{run['run_id']}").json()
+        self.assertEqual(again["served_from"], "replay")
+        self.assertEqual(again["label"]["kind"], "replay")
+        self.assertNotIn("Cached answer", again["label"]["text"])
+        self.assertIn("Replay", again["label"]["text"])
+        self.assertEqual(again["cached_at"], "2024-10-29T12:00:00Z")
+
+    def test_fake_zetaris_envelopes_are_not_live(self) -> None:
+        for path in (
+            "/ready",
+            "/config",
+            "/version",
+            "/runs/past",
+            "/desk/events",
+            "/desk/dispatch-target",
+        ):
+            body = self.c.get(path).json()
+            self.assertNotEqual(body["served_from"], "live", path)
+            self.assertFalse(body["label"]["live"], path)
+            self.assertEqual(body["served_from"], "replay", path)
+            self.assertIsNotNone(body["cached_at"], path)
+        health = self.c.get("/health").json()
+        self.assertEqual(health["served_from"], "live")
+        self.assertTrue(health["label"]["live"])
+
+    def test_an_unlabelled_body_does_not_default_to_live_on_the_stand_in(self) -> None:
+        got = labelling.labelled({"status": "ready"}, zetaris=FakeZetaris())
+        self.assertEqual(got["served_from"], "replay")
+        self.assertFalse(got["label"]["live"])
+
+    def test_an_explicit_live_label_is_kept_for_liveness(self) -> None:
+        got = labelling.labelled(
+            {"status": "ok", "served_from": "live"}, zetaris=FakeZetaris()
+        )
+        self.assertEqual(got["served_from"], "live")
+        self.assertTrue(got["label"]["live"])
+        self.assertIsNone(got["cached_at"])
+
 
 if __name__ == "__main__":
     unittest.main()

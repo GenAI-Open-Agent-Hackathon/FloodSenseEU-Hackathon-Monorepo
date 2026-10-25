@@ -19,7 +19,7 @@ from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.settings import settings
 from floodsense_agents.models import ApprovalDecision, RunRequest
-from floodsense_agents.zetaris import FakeZetaris, now_utc
+from floodsense_agents.zetaris import now_utc
 
 log = logging.getLogger("floodsense.runtime")
 STATE_KEYS = (
@@ -100,10 +100,12 @@ class Runtime:
         kind, at = labelling.computation_label(
             v.get("replay_ts"), live=self._answers_are_live()
         )
-        # A checkpoint may still say live from an older build. The data path
-        # decides. A caller that already marked this snapshot cache keeps that.
+        # A clocked replay stays replay. A stored "cache" mark must not hide
+        # the clock on the way out of the checkpointer.
         stored = v.get("served_from")
-        if stored == labelling.CACHE and v.get("cached_at"):
+        if v.get("replay_ts"):
+            pass
+        elif stored == labelling.CACHE and v.get("cached_at"):
             kind, at = labelling.CACHE, v.get("cached_at")
         elif stored in labelling.KINDS and stored != labelling.LIVE:
             kind = stored
@@ -156,21 +158,9 @@ class Runtime:
         self.index[run_id] = row
 
     def _answers_are_live(self) -> bool:
-        """True only for the live schema read through live Zetaris.
-
-        FakeZetaris and ``floodsense_seed`` are stand-ins. A run on either
-        is not a live answer, even when it was computed just now.
-        """
-        if not settings.live_data:
-            return False
+        """True only for the live schema read through live Zetaris."""
         zetaris = getattr(self.deps, "zetaris", None) if self.deps else None
-        if isinstance(zetaris, FakeZetaris):
-            return False
-        if settings.zetaris_mode == "fake":
-            return False
-        if settings.zetaris_mode == "auto" and not settings.zetaris_rest_url:
-            return False
-        return zetaris is not None
+        return labelling.data_plane_is_live(zetaris)
 
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]

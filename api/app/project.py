@@ -5,12 +5,12 @@ playbook ``text``, and one approval for the run. The UI binds to
 ``contracts/schemas/floodsense.schema.json``. This module is that projection
 at the API boundary. It does not write back into the graph.
 
-Offline judge ids (``deterministic``, ``fake-deep``) are not in the schema
-enum. The Judge node calls the deep lane, so those ids project onto the
-contract's deep lane id. ``meterless/fast`` projects onto the contract fast
-id. The graph trace is unchanged and still carries the id the client returned.
-The only runtime lane map is ``settings.lane`` (``meterless/fast`` and
-``meterless/deep``).
+The schema's ``model_id`` enum is the two older NVIDIA ids. ``docs/architecture/c4.md``
+says Nemotron 3.5 Super VL answers both lanes today, and the graph also
+records ``meterless/fast``, ``meterless/deep``, ``fake-deep``, and
+``deterministic``. None of those are substituted for a schema id. When the
+graph id is outside the enum, the judge is omitted. The discontinued Super
+id is not invented. Lane choice stays in ``settings.lane``.
 """
 
 from __future__ import annotations
@@ -23,13 +23,17 @@ _DT = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
 )
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-_URI = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:\S+$")
+_HTTP = re.compile(r"^https?://\S+$")
 _LOOSE_UTC = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?$")
 
-# Inverse of the two ids the UI already labels. Not a second routing table.
-_CONTRACT_FAST = "nvidia/nemotron-3.5-lightning-30b-a3b"
-_CONTRACT_DEEP = "nvidia/nemotron-3-super-120b-a12b"
-_FAST_IDS = {_CONTRACT_FAST, "meterless/fast", "fake-fast"}
+# The schema enum, copied so a graph id can be kept or dropped. Not a map
+# onto these ids. Super VL (c4.md) is intentionally absent.
+_SCHEMA_MODEL_IDS = frozenset(
+    {
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3-super-120b-a12b",
+    }
+)
 
 _APPROVAL = {
     "not_reached": "pending",
@@ -38,11 +42,11 @@ _APPROVAL = {
     "approved": "approved",
     "edited": "edited",
     "rejected": "rejected",
-    "auto": "approved",
 }
 
 
-def _as_dt(value: Any, fallback: str) -> str:
+def _as_dt(value: Any) -> str | None:
+    """A timestamp the payload already carried. Never a stand-in epoch."""
     if isinstance(value, str):
         if _DT.match(value):
             return value
@@ -52,7 +56,7 @@ def _as_dt(value: Any, fallback: str) -> str:
         if match:
             date, hour, minute, second = match.groups()
             return f"{date}T{hour}:{minute}:{second or '00'}Z"
-    return fallback
+    return None
 
 
 def _sha(text: str) -> str:
@@ -73,13 +77,16 @@ def _evidence_records(body: dict[str, Any]) -> list[dict[str, Any]]:
 def _project_evidence(body: dict[str, Any]) -> list[dict[str, Any]]:
     out = []
     for row in _evidence_records(body):
+        # A failed query is not an empty success. Dropping ``error`` and
+        # keeping the row would look like the read returned nothing.
+        if row.get("error"):
+            continue
         query_id = row.get("query_id")
         view = row.get("view")
         sql = row.get("sql")
-        executed = row.get("executed_at_utc")
+        executed = _as_dt(row.get("executed_at_utc"))
         if not all(isinstance(v, str) and v for v in (query_id, view, sql, executed)):
             continue
-        executed = _as_dt(executed, "")
         if not _DT.match(executed):
             continue
         sample = row.get("rows_sample") or []
@@ -138,23 +145,31 @@ def _project_citations(
             query_id = raw.get("query_id") if isinstance(raw.get("query_id"), str) else None
             ev = by_query.get(query_id or "")
             prov = _provenance_row((ev or {}).get("view") or raw.get("title") or "", provenance)
-            fallback_time = (ev or {}).get("executed_at_utc") or "1970-01-01T00:00:00Z"
-            pointer = query_id or citation_id
             source = raw.get("source_url") or prov.get("source_url")
-            if not (isinstance(source, str) and _URI.match(source)):
-                source = f"urn:floodsense:query:{pointer}"
+            # http(s) only. A urn: stand-in fails the Vite rule and is not a source.
+            if not (isinstance(source, str) and _HTTP.match(source)):
+                continue
+            accessed = _as_dt(raw.get("accessed_at") or prov.get("fetched_at"))
+            if accessed is None:
+                continue
+            title = raw.get("title") or (ev or {}).get("view") or prov.get("dataset")
+            publisher = raw.get("publisher") or prov.get("publisher")
+            licence = raw.get("licence") or prov.get("licence")
+            attribution = raw.get("attribution") or prov.get("attribution")
+            if not all(isinstance(v, str) and v.strip() for v in (title, publisher, licence, attribution)):
+                continue
             quote = raw.get("quote") if isinstance(raw.get("quote"), str) else None
-            hashed = quote if quote else f"pointer:{citation_id}:{pointer}"
+            hashed = quote if quote else source
             item: dict[str, Any] = {
                 "citation_id": citation_id,
                 "claim_id": claim_id,
                 "layer": layer,
                 "source_url": source,
-                "title": raw.get("title") or (ev or {}).get("view") or prov.get("dataset") or "evidence",
-                "publisher": raw.get("publisher") or prov.get("publisher") or "unspecified",
-                "accessed_at": _as_dt(raw.get("accessed_at") or prov.get("fetched_at"), fallback_time),
-                "licence": raw.get("licence") or prov.get("licence") or "unspecified",
-                "attribution": raw.get("attribution") or prov.get("attribution") or "unspecified",
+                "title": title,
+                "publisher": publisher,
+                "accessed_at": accessed,
+                "licence": licence,
+                "attribution": attribution,
                 "content_sha256": raw.get("content_sha256")
                 if isinstance(raw.get("content_sha256"), str)
                 and re.fullmatch(r"[a-f0-9]{64}", raw["content_sha256"])
@@ -168,12 +183,6 @@ def _project_citations(
             seen.add(citation_id)
             out.append(item)
     return out
-
-
-def _contract_model(model_id: Any) -> str:
-    if isinstance(model_id, str) and model_id.strip() in _FAST_IDS:
-        return _CONTRACT_FAST
-    return _CONTRACT_DEEP
 
 
 def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
@@ -199,6 +208,11 @@ def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
             continue
         if score < 0 or score > 1:
             continue
+        model_id = row.get("model_id")
+        # One id outside the enum drops the judge. Rewriting it to Lightning
+        # or the discontinued Super id would claim a model that did not run.
+        if not isinstance(model_id, str) or model_id not in _SCHEMA_MODEL_IDS:
+            return None
         claims.append(
             {
                 "claim_id": claim_id,
@@ -207,7 +221,7 @@ def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
                 "numbers_match": bool(row.get("numbers_match")),
                 "score": score,
                 "rationale": rationale,
-                "model_id": _contract_model(row.get("model_id")),
+                "model_id": model_id,
             }
         )
     if not claims:
@@ -275,7 +289,12 @@ def _project_approvals(
     judge: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     approval = body.get("approval") if isinstance(body.get("approval"), dict) else {}
-    status = _APPROVAL.get(str(approval.get("status") or ""), "pending")
+    status_raw = str(approval.get("status") or "")
+    # ``auto`` is FF_HITL off. It is not a human approval, and the schema has
+    # no value for it. Do not rewrite it to approved.
+    if status_raw == "auto":
+        return []
+    status = _APPROVAL.get(status_raw, "pending")
     note = approval.get("reviewer_note") or approval.get("note")
     out = []
     for action in actions:
@@ -332,8 +351,9 @@ def project_run(body: dict[str, Any]) -> dict[str, Any] | None:
     if served == "live":
         cached: str | None = None
     else:
-        fallback = evidence[0]["executed_at_utc"] if evidence else "1970-01-01T00:00:00Z"
-        cached = _as_dt(body.get("cached_at"), _as_dt(body.get("replay_ts"), fallback))
+        cached = _as_dt(body.get("cached_at")) or _as_dt(body.get("replay_ts"))
+        if cached is None:
+            return None
 
     actions = _project_actions(body, run_id, citations)
     judge = _project_judge(body)

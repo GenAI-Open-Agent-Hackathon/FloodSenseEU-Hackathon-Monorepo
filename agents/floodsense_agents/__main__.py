@@ -3,6 +3,8 @@
 Routes follow the contract in docs/GAMEPLAN.md. Every data response carries
 served_from (live | cache | replay) and cached_at when it is not live.
 Fake Zetaris, the seed schema, a replay clock, and a re-read are not live.
+GET /health is liveness only and may say live. Other envelopes follow the
+data plane. A run posted with replay_ts stays replay when it is read back.
 
 The product UI is the Vite console in ``ui/`` (compose port 15173). This
 service does not ship ``ui/app`` or ``ui/mock``. ``GET /`` and ``GET /console``
@@ -74,8 +76,17 @@ def set_runtime(rt: Runtime) -> None:
     _rt = rt
 
 
-def _live(body: dict) -> dict:
-    return labelling.labelled(body)
+def _envelope(body: dict) -> dict:
+    """Label a response that is not itself a finished computation.
+
+    Does not force live. FakeZetaris and the seed schema become replay.
+    A caller that already set served_from keeps that value, so GET /health
+    can stay a liveness check.
+    """
+    zetaris = None
+    if _rt is not None and getattr(_rt, "deps", None) is not None:
+        zetaris = _rt.deps.zetaris
+    return labelling.labelled(body, zetaris=zetaris)
 
 
 def _with_run_label(body: dict, run: dict) -> dict:
@@ -87,13 +98,20 @@ def _with_run_label(body: dict, run: dict) -> dict:
 
 
 def _stored(run_id: str) -> dict:
-    """A snapshot of a run computed earlier. Serving it as live would be a lie."""
+    """A snapshot of a run computed earlier. Serving it as live would be a lie.
+
+    A clocked replay stays replay. Only a re-read with no replay clock is cache.
+    """
     rt = runtime()
     run = rt.snapshot(run_id)
     row = next((r for r in rt.past() if r["run_id"] == run_id), None)
     if row:
-        run["served_from"] = labelling.CACHE
-        run["cached_at"] = run.get("cached_at") or row.get("created_at")
+        kind, at = labelling.reread_label(
+            run.get("cached_at") or row.get("created_at"),
+            replay_ts=run.get("replay_ts"),
+        )
+        run["served_from"] = kind
+        run["cached_at"] = at
     return run
 
 
@@ -127,7 +145,7 @@ def desk_events():
         # The list points at runs computed earlier. The catalog itself is not a live answer.
         body["served_from"] = labelling.CACHE
         body["cached_at"] = stamped[0]
-    return _live(body)
+    return _envelope(body)
 
 
 @app.get("/desk/events/{event_id}", include_in_schema=False)
@@ -198,7 +216,7 @@ def desk_timeline(event_id: str):
 @app.get("/desk/dispatch-target", include_in_schema=False)
 def desk_dispatch_target():
     target = desk.webhook_target()
-    return _live({"configured": bool(target), "target": target})
+    return _envelope({"configured": bool(target), "target": target})
 
 
 def _released_run(run_id: str) -> dict:
@@ -227,12 +245,12 @@ def run_exposure_csv(run_id: str):
 @app.get("/runs/{run_id}/verify", include_in_schema=False)
 def run_verify(run_id: str):
     """Every agent step, checked against the run's own record."""
-    return _live(verify_report(_stored(run_id)))
+    return _envelope(verify_report(_stored(run_id)))
 
 
 @app.get("/runs/{run_id}/record", include_in_schema=False)
 def run_record(run_id: str):
-    return _live(desk.record(_stored(run_id)))
+    return _envelope(desk.record(_stored(run_id)))
 
 
 @app.post("/runs/{run_id}/dispatch", include_in_schema=False)
@@ -251,7 +269,7 @@ def readiness(run_id: str | None = None):
         run_id = past[0]["run_id"] if past else None
     run = _stored(run_id) if run_id else {}
     routes = {getattr(r, "path", "") for r in app.routes}
-    return _live(readiness_report(run, rt.deps, routes))
+    return _envelope(readiness_report(run, rt.deps, routes))
 
 
 def _dep_name(rt: Runtime, attr: str) -> str:
@@ -261,12 +279,16 @@ def _dep_name(rt: Runtime, attr: str) -> str:
 @app.get("/health")
 def health():
     # Liveness only. A slow probe here marks every app on the node unhealthy.
-    return _live(
+    # served_from live here is the process, not a Zetaris answer. Data-plane
+    # routes leave it unset so FakeZetaris cannot inherit this label.
+    return labelling.labelled(
         {
             "status": "ok",
             "service": "floodsense-agents",
             "graph": "compiled",
             "version": __version__,
+            "served_from": labelling.LIVE,
+            "cached_at": None,
         }
     )
 
@@ -282,7 +304,7 @@ def ready():
     if probe is None or getattr(probe, "error", None):
         detail = getattr(probe, "error", None) or "no result"
         raise HTTPException(503, f"zetaris unreachable: {detail}")
-    return _live(
+    return _envelope(
         {
             "status": "ready",
             "llm": _dep_name(rt, "llm"),
@@ -293,12 +315,12 @@ def ready():
 
 @app.get("/version")
 def version():
-    return _live({"sha": settings.git_sha, "built": settings.built_at, "version": __version__})
+    return _envelope({"sha": settings.git_sha, "built": settings.built_at, "version": __version__})
 
 
 @app.get("/config")
 def config():
-    return _live(
+    return _envelope(
         {
             "flags": {
                 "FF_LIVE_DATA": settings.live_data,
@@ -322,20 +344,20 @@ def config():
 @app.post("/runs", status_code=201)
 def start_run(req: RunRequest):
     try:
-        return _live(runtime().start(req))
+        return _envelope(runtime().start(req))
     except KeyError as e:
         raise HTTPException(422, str(e))
 
 
 @app.get("/runs/past")
 def past_runs(limit: int = 50):
-    return _live({"runs": runtime().past(limit)})
+    return _envelope({"runs": runtime().past(limit)})
 
 
 @app.get("/runs/{run_id}")
 def get_run(run_id: str):
     try:
-        return _live(_stored(run_id))
+        return _envelope(_stored(run_id))
     except RunNotFound:
         raise HTTPException(404, f"run {run_id} not found")
 
@@ -343,7 +365,7 @@ def get_run(run_id: str):
 @app.get("/runs/{run_id}/approval")
 def get_approval(run_id: str):
     try:
-        return _live(runtime().approval(run_id))
+        return _envelope(runtime().approval(run_id))
     except RunNotFound:
         raise HTTPException(404, f"run {run_id} not found")
     except NotAwaitingApproval as e:
@@ -355,7 +377,7 @@ def post_approval(run_id: str, decision: ApprovalDecision):
     if decision.action == "edit" and not (decision.edits or "").strip():
         raise HTTPException(422, "action=edit requires edits")
     try:
-        return _live(runtime().resume(run_id, decision))
+        return _envelope(runtime().resume(run_id, decision))
     except RunNotFound:
         raise HTTPException(404, f"run {run_id} not found")
     except NotAwaitingApproval as e:
@@ -365,7 +387,7 @@ def post_approval(run_id: str, decision: ApprovalDecision):
 @app.get("/runs/{run_id}/citations")
 def get_citations(run_id: str):
     try:
-        return _live(runtime().citations(run_id))
+        return _envelope(runtime().citations(run_id))
     except RunNotFound:
         raise HTTPException(404, f"run {run_id} not found")
 

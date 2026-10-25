@@ -177,7 +177,7 @@ DATA_PRODUCTS: tuple[Product, ...] = (
     Product(
         name="desk",
         route="/desk/events",
-        consumer="the duty underwriter opening the app",
+        consumer="the duty underwriter opening the Vite console",
         promise="every known event, and the case standing on it",
         shape="EventSpec + case row",
         fields=("events",),

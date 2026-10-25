@@ -69,13 +69,22 @@ class ProxyTest(unittest.TestCase):
         self.assertIn("contract", run)
         self.assertEqual(run["contract"]["answer"]["served_from"], "replay")
         self.assertIsNotNone(run["contract"]["answer"]["cached_at"])
+        self.assertNotIn("urn:floodsense:query:", r.text)
         rid = run["run_id"]
-        self.assertEqual(self.c.get(f"/runs/{rid}/approval").status_code, 200)
+        fetched = self.c.get(f"/runs/{rid}")
+        self.assertEqual(fetched.status_code, 200)
+        self.assertIn("contract", fetched.json())
+        approval = self.c.get(f"/runs/{rid}/approval")
+        self.assertEqual(approval.status_code, 200)
+        self.assertNotIn("contract", approval.json())
         done = self.c.post(
             f"/runs/{rid}/approval", json={"action": "approve", "reviewer": "zain"}
         ).json()
         self.assertEqual(done["status"], "approved")
-        self.assertEqual(self.c.get(f"/runs/{rid}/citations").status_code, 200)
+        self.assertNotIn("contract", done)
+        citations = self.c.get(f"/runs/{rid}/citations")
+        self.assertEqual(citations.status_code, 200)
+        self.assertNotIn("contract", citations.json())
         self.assertEqual(self.c.get("/runs/past").json()["runs"][0]["run_id"], rid)
         self.assertEqual(
             self.c.get("/config").json()["lanes"],
