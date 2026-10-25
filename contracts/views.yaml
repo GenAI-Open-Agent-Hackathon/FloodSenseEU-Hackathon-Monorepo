@@ -17,6 +17,22 @@ views:
     - {name: rain_mm, type: double}
     - {name: discharge_m3s, type: double}
     - {name: warning_level, type: string}
+  # min_rows: live 1152 (8 points x 144 hours, rolling), seed 576.
+  # horizon is the rolling-window label (039): observed or forecast. Seed rows are replay (040).
+  hazard_now:
+    - {name: point_id, type: string}
+    - {name: ts_utc, type: timestamp}
+    - {name: rain_mm, type: double}
+    - {name: discharge_m3s, type: double}
+    - {name: warning_level, type: string}
+    - {name: horizon, type: string}
+  # min_rows: live 0 until a PEGELONLINE pull replaces the header, seed 6 (no invented levels).
+  gauge_levels:
+    - {name: station, type: string}
+    - {name: water, type: string}
+    - {name: ts_utc, type: timestamp}
+    - {name: level_cm, type: double}
+    - {name: source, type: string}
   # min_rows: 359 (live and seed). synthetic is the portfolio flag (yes). Not a live book.
   # Migration 018 is the column list verify checks once it is applied. 014 and 016 create the view first.
   exposure_join:
@@ -28,7 +44,8 @@ views:
     - {name: sum_insured_eur, type: double}
     - {name: segment, type: string}
     - {name: synthetic, type: string}
-  # min_rows: 7 cleared datasets. ds_dwd_brightsky stays in the CSV and is filtered out of the views.
+  # min_rows: 8 cleared datasets. ds_dwd_brightsky stays in the CSV and is filtered out of the views.
+  # 041 is the count verify checks once it is applied. 015 and 017 create the view first.
   provenance:
     - {name: dataset, type: string}
     - {name: source_url, type: string}

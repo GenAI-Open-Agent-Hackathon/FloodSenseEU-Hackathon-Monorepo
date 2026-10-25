@@ -24,6 +24,14 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `031_create_lightning_db_openmeteo_forecast.sql` | Lightning database for the forecast rain REST table | Saleeta |
 | `032_create_rest_table_rain_live.sql` | Rolling-window rain REST table. No view | Saleeta |
 | `033_live_feed_tables.sql` | FILESTORE live tables except DWD. Header-only dirs are enough to create them | Saleeta |
+| `034_create_view_hazard_now.sql` | `floodsense.hazard_now`: 007's columns over the rolling live tables. Column list replaced by `039` | Zain |
+| `035_create_seed_view_hazard_now.sql` | `floodsense_seed.hazard_now`, the seed rows of 013. Column list replaced by `040` | Zain |
+| `036_reregister_live_filestore.sql` | FILESTORE live tables again, new names, same paths, after the CSVs exist. No view | Mihir |
+| `037_create_view_gauge_levels.sql` | `floodsense.gauge_levels` over `pegel_levels_staged` | Mihir |
+| `038_create_seed_view_gauge_levels.sql` | `floodsense_seed.gauge_levels`. Stations only, no invented level | Mihir |
+| `039_label_hazard_now_horizon.sql` | `floodsense.hazard_now` labels each hour `observed` or `forecast` | Mihir |
+| `040_label_seed_hazard_now_horizon.sql` | `floodsense_seed.hazard_now` stays on 013 and is labelled `replay` | Mihir |
+| `041_provenance_forecast_source.sql` | Both provenance views. Cleared count 8 after the forecast row | Mihir |
 
 Rules (see [../README.md](../README.md)):
 
@@ -35,4 +43,4 @@ Rules (see [../README.md](../README.md)):
 - Use `CREATE OR REPLACE SCHEMASTORE VIEW` for views and plain `CREATE` for everything else (no `IF NOT EXISTS` in Lightning SQL).
 - The raw seed tables live in the database `floodsense_seed_src`, and the seed views in the container `floodsense_seed`. Do not give a table and a view the same name in one name space: the view hides the table and reads itself. (A database and a container may share a name only if the database is created first, which is why they do not.)
 
-`py tasks.py zetaris-sync` applies pending files and then verifies declared views. For `--dry-run`, `status`, and `verify` on their own, run `python scripts/zetaris_sync.py` directly. Cold laptops stage seed CSVs before `010`. See [ingestion/prep/README.md](../../ingestion/prep/README.md).
+`py tasks.py zetaris-sync` applies pending files and then verifies declared views. For `--dry-run`, `status`, and `verify` on their own, run `python scripts/zetaris_sync.py` directly. Cold laptops stage seed CSVs and the live header files before `010`, `033`, and `036`. See [ingestion/prep/README.md](../../ingestion/prep/README.md).

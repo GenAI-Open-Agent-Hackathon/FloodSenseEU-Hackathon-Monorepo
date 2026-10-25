@@ -10,8 +10,12 @@ python ingestion/feeds/feeds.py pull --stage --interval 900
 ```
 
 `--stage` copies the CSVs into the local Zetaris volume (`.../shared/floodsense_live/<table>`). Migration
-`033_live_feed_tables.sql` registers them as `floodsense_live_src.*`. Migrations 030-032 add two REST tables that
-Zetaris fills by calling Open-Meteo at query time (rolling window, so always current).
+`033_live_feed_tables.sql` registered those directories before the files existed, so those table names
+answer `COUNT(*)` and fail a named column. `DROP` was refused. `036_reregister_live_filestore.sql`
+registers `*_staged` on the same paths after the CSVs are in place. `floodsense.gauge_levels` reads
+`pegel_levels_staged`. Migrations 030-032 add two REST tables that Zetaris fills by calling Open-Meteo
+at query time (rolling window, so always current). `hazard_now` labels each of those hours `observed`
+or `forecast`.
 
 | Source | Table | Notes |
 | --- | --- | --- |
@@ -20,7 +24,7 @@ Zetaris fills by calling Open-Meteo at query time (rolling window, so always cur
 | Copernicus EMS | `ems_activations` | activation status for EMSR773 |
 | AEMET | `aemet_daily` | 21 Valencia-province stations. Needs `AEMET_API_KEY` in `ingestion/.env`. 15 days per request |
 | DWD via Bright Sky | `ingestion/raw/live/dwd_rain_hourly` | **Hold.** Not in the default pull and not registered by migration `033`. `--only dwd` stores a CSV locally. Do not cite it. Terms: `docs/legal/sources.md` |
-| PEGELONLINE | `pegel_levels` | Rhine at Bonn, Köln, Koblenz, last 30 days. Terms read (DL-DE->Zero-2.0). The provenance views include this row |
+| PEGELONLINE | `pegel_levels` | Rhine at Bonn, Köln, Koblenz, last 30 days. Terms read (DL-DE->Zero-2.0). Zetaris name after 036 is `pegel_levels_staged`. View `floodsense.gauge_levels`. Attribution `Quelle: WSV, PEGELONLINE` |
 | OSM Overpass | `ingestion/raw/live/osm_sites/live.csv` | Does not rewrite `prep/osm_sites.csv`. The 359-row portfolio join stays on that committed extract |
 
 Not available: hochwasserzentralen.de (HTTP 200 with an empty body on 24 Oct 2026, including the documented calls)

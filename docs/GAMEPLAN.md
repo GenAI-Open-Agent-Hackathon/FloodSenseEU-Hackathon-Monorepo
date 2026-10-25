@@ -106,7 +106,7 @@ The plan was thirteen product increments, a release candidate, and the release. 
 
 `v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. All three have GitHub Releases. The next product tag is `v0.3.0`.
 
-`v0.3.0` adds two things that are not in `v0.1.0`. The live-gauges feature pull request is still landing. `#24` is already on main: `floodsense.hazard_now` and its seed twin, migrations `034` and `035`. Core sources, provenance, `ingestion/feeds/`, and the `pegel_levels` table in migration `033` already shipped in `v0.1.0`. They are not new `v0.3.0` work. Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25). This docs change does not cut the tag. Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes. The `[0.3.0]` changelog section is written in the release pull request that cuts it.
+`v0.3.0` adds two things that are not in `v0.1.0`. [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) is merged (live gauge views and the FILESTORE re-registration). `#24` is already on main: `floodsense.hazard_now` and its seed twin, migrations `034` and `035`. Core sources, provenance, `ingestion/feeds/`, and the `pegel_levels` table in migration `033` already shipped in `v0.1.0`. They are not new `v0.3.0` work. Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25). This docs change does not cut the tag. Cut `v0.3.0` once `main` is green and e2e passes. The `[0.3.0]` changelog section is written in the release pull request that cuts it.
 
 `v0.2.0` includes the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. These planned rows shipped early inside that tag, so they are not tags of their own:
 
@@ -124,7 +124,7 @@ The plan was thirteen product increments, a release candidate, and the release. 
 | v0.0.0 (tagged) | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
 | v0.1.0 (tagged) | First Zetaris source and seed views | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Open-Meteo Flood (GloFAS), seed views, sync + verify. Also in this tag: core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` |
 | v0.2.0 (tagged) | Live demo stack | Ayush, Zain | Agents graph, HITL, Judge, insurer desk, engines sidecar (present, not called), fast lane, parallel Zetaris. Early landings of v0.4, v0.5, v0.6, v0.7, v0.8, and v0.10, as listed above |
-| v0.3.0 (next) | Live gauges and hazard_now | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Adds the live-gauges feature pull request (still landing) and #24 `hazard_now` (migrations `034` and `035`, Zain, already on main). Not this tag: core sources, provenance, `ingestion/feeds/`, and `033` `pegel_levels` (those shipped in v0.1.0). Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes |
+| v0.3.0 (next) | Live gauges and hazard_now | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and #24 `hazard_now` (migrations `034` and `035`, Zain, already on main). Not this tag: core sources, provenance, `ingestion/feeds/`, and `033` `pegel_levels` (those shipped in v0.1.0). Cut `v0.3.0` once `main` is green and e2e passes |
 | v0.4.0 (inside v0.2.0) | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds. World Model board waits on #15 |
 | v0.5.0 (inside v0.2.0) | Live views, API, compose | Zain, Ayush, Mihir | `FF_LIVE_DATA`, FastAPI runs and SSE, compose. Urvashi remains Zetaris expertise |
 | v0.6.0 (inside v0.2.0) | Exposure and playbook | Ayush, Zain | Deterministic exposure SQL, playbook actions that cite claims |
@@ -239,7 +239,7 @@ Working decision for this build:
 2. Then go EU-wide for the demo and the product path: Copernicus EMS (EMSR773 Valencia, July 2021 rapid mapping, EFAS as stretch), GloFAS discharge, AEMET and SAIH Júcar for Valencia, OpenStreetMap sites, plus a synthetic insurer portfolio that is clearly labelled synthetic.
 3. Open-Meteo (Flood / GloFAS REST and the rain archive) is fine for the hackathon. The data is CC BY 4.0 and the public API is free for non-commercial use. Replace Open-Meteo before any paid product. It is not a dependency we ship in a commercial offering.
 
-Migration `033` `pegel_levels` and `ingestion/feeds/` shipped in `v0.1.0` (PEGELONLINE, WSV; Rhine at Bonn, Köln, and Koblenz). Mihir owns that path (takeover 2026-10-25). The live-gauges feature pull request is still landing. That pull request, plus `#24` `hazard_now`, is what `v0.3.0` adds. The state portals in the list above stay a terms check. DWD via Bright Sky stays Hold (`docs/legal/sources.md`).
+Migration `033` `pegel_levels` and `ingestion/feeds/` shipped in `v0.1.0` (PEGELONLINE, WSV; Rhine at Bonn, Köln, and Koblenz). Mihir owns that path (takeover 2026-10-25). [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) is merged. That pull request, plus `#24` `hazard_now`, is what `v0.3.0` adds. The state portals in the list above stay a terms check. DWD via Bright Sky stays Hold (`docs/legal/sources.md`).
 
 Attribution strings we show, aligned with `ingestion/prep/provenance.csv` and `docs/legal/sources.md`:
 
@@ -331,7 +331,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, and `v0.2.0`. The next tag is `v0.3.0`: the live-gauges feature pull request (still landing) and `#24` `hazard_now`. Cut it once that pull request is merged, `main` is green, and e2e passes. There is no `v0.x.y` fix tag. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, and `v0.2.0`. The next tag is `v0.3.0`: [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and `#24` `hazard_now`. Cut it once `main` is green and e2e passes. There is no `v0.x.y` fix tag. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix on the 0.x line does not get its own tag. It is part of the next `v0.MINOR.0`. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Those candidates are `rc.2`, `rc.3`, and so on.
 
@@ -376,7 +376,7 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 
 ## Still open
 
-- The next tag is `v0.3.0` (`v0.MINOR.0` only, no patch tag). It adds the live-gauges feature pull request (still landing) and `#24` `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0`. Cut `v0.3.0` once the live-gauges pull request is merged, `main` is green, and e2e passes. This docs change does not cut the tag.
+- The next tag is `v0.3.0` (`v0.MINOR.0` only, no patch tag). It adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and `#24` `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0`. Cut `v0.3.0` once `main` is green and e2e passes. This docs change does not cut the tag.
 - The HITL interrupt from #4 is in `v0.2.0`.
 - H-MEM and the World Model are not load-bearing until Ayush #15 and #16 merge. The agents package does not call `engines/`. `FF_HMEM` defaults off. The default memory is `NoMemory`.
 - Citation layer (c) and pgvector are stretch. `FF_RAG_DOCS` stays off.
