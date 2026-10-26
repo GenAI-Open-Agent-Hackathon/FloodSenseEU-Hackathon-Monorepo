@@ -754,3 +754,36 @@ a.button.primary { color: #f4fffc; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; }
 }
+
+/* Now page: live hazard_now view. New rules only. */
+.now-page { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.now-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap; }
+.now-title { margin: 0; font-size: 1.25rem; }
+.now-meta, .now-note, .now-source, .now-detail { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.now-live-tag { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-weight: 600; margin-right: 0.35rem; }
+.now-refresh { border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink); border-radius: 6px; padding: 0.35rem 0.8rem; cursor: pointer; min-height: 36px; }
+.now-refresh:hover { border-color: var(--accent); }
+.now-status { margin: 0; color: var(--muted); }
+.now-error { border: 1px solid var(--danger); border-radius: 8px; padding: 0.75rem; background: var(--bg-raised); }
+.now-error p:first-child { margin: 0; color: var(--danger); font-weight: 600; }
+.now-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.75rem; }
+.now-card { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-raised); padding: 0.75rem; min-width: 0; }
+.now-card-title { margin: 0 0 0.4rem; font-size: 1rem; }
+.now-id { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+.now-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; margin: 0; }
+.now-stats dt { color: var(--muted); font-size: 0.75rem; }
+.now-stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.now-trend { font-weight: 700; }
+.now-trend-up { color: var(--danger); }
+.now-trend-down { color: var(--ok); }
+.now-trend-flat, .now-trend-unknown { color: var(--muted); }
+.now-forecast { margin: 0.5rem 0 0; font-size: 0.85rem; }
+.now-subtitle { margin: 0 0 0.3rem; font-size: 1rem; }
+.now-gauges { border-top: 1px solid var(--line); padding-top: 0.6rem; }
+.now-gauge-list { margin: 0; padding-left: 1.1rem; }
+.spark-forecast { stroke-dasharray: 4 3; opacity: 0.8; }
+.spark-now { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; }
+.spark-now-label { fill: var(--muted); font-size: 10px; }
+@media (max-width: 600px) {
+  .now-grid { grid-template-columns: 1fr; }
+}

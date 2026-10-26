@@ -17,6 +17,19 @@ describe("parseHash", () => {
     expect(insurerHome(false)).toBe("portfolio");
   });
 
+  it("parses the Now page on both desks without making it a home", () => {
+    expect(parseHash("#/citizen/now")).toEqual({ role: "citizen", page: "now" });
+    expect(parseHash("#/insurer/now")).toEqual({ role: "insurer", page: "now" });
+    expect(parseHash("#/insurer/now", false)).toEqual({ role: "insurer", page: "now" });
+    expect(parseHash("#/citizen")).toEqual({ role: "citizen", page: "overview" });
+    expect(parseHash("#/insurer")).toEqual({ role: "insurer", page: "approvals" });
+    expect(parseHash("#/now")).toEqual({ role: "insurer", page: "approvals" });
+    expect(routeHref("citizen", "now")).toBe("#/citizen/now");
+    expect(routeHref("insurer", "now")).toBe("#/insurer/now");
+    expect(DESK_NAV.citizen[0].page).toBe("now");
+    expect(DESK_NAV.insurer[0].page).toBe("now");
+  });
+
   it("treats a role with no page as that desk's home", () => {
     expect(parseHash("#/insurer")).toEqual({ role: "insurer", page: "approvals" });
     expect(parseHash("#/citizen")).toEqual({ role: "citizen", page: "overview" });
@@ -76,8 +89,9 @@ describe("parseHash", () => {
 
 describe("DESK_NAV", () => {
   it("matches the approved IA", () => {
-    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Overview", "My area", "What to do", "Evidence"]);
+    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Now", "Overview", "My area", "What to do", "Evidence"]);
     expect(DESK_NAV.insurer.map((item) => item.label)).toEqual([
+      "Now",
       "Approvals",
       "Portfolio",
       "Sites / map",
