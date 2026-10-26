@@ -225,6 +225,68 @@ class ContractTests(unittest.TestCase):
             ["live", "cache", "replay"],
         )
 
+    def test_layer_c_requires_locator_and_chunk_id_stays_optional(self) -> None:
+        layer_c = example("citation_layer_c.json")
+        digest = hashlib.sha256(layer_c["quote"].encode()).hexdigest()
+        self.assertEqual(layer_c["content_sha256"], digest)
+        validator_for("citation").validate(layer_c)
+        parsed = Citation.model_validate(layer_c)
+        again = parsed.model_dump(mode="json", exclude_none=True)
+        validator_for("citation").validate(again)
+
+        without_chunk = dict(layer_c)
+        del without_chunk["chunk_id"]
+        validator_for("citation").validate(without_chunk)
+        self.assertIsNone(Citation.model_validate(without_chunk).chunk_id)
+
+        layer_b = example("citation.json")
+        self.assertEqual(layer_b["layer"], "b")
+        bare = dict(layer_b)
+        bare.pop("locator", None)
+        bare.pop("quote", None)
+        bare.pop("query_id", None)
+        validator_for("citation").validate(bare)
+        Citation.model_validate(bare)
+
+        layer_a = dict(bare)
+        layer_a["layer"] = "a"
+        validator_for("citation").validate(layer_a)
+        Citation.model_validate(layer_a)
+
+        for key in ("quote", "query_id", "locator"):
+            missing = dict(layer_c)
+            del missing[key]
+            assert_invalid(self, "citation", missing)
+            with self.assertRaises(PydanticError):
+                Citation.model_validate(missing)
+
+        no_lines = deepcopy(layer_c)
+        del no_lines["locator"]["lines"]
+        assert_invalid(self, "citation", no_lines)
+        with self.assertRaises(PydanticError):
+            Citation.model_validate(no_lines)
+
+        no_page = deepcopy(layer_c)
+        del no_page["locator"]["page"]
+        assert_invalid(self, "citation", no_page)
+        with self.assertRaises(PydanticError):
+            Citation.model_validate(no_page)
+
+        section_only = deepcopy(layer_c)
+        section_only["locator"]["section"] = "s19"
+        del section_only["locator"]["page"]
+        assert_invalid(self, "citation", section_only)
+        with self.assertRaises(PydanticError):
+            Citation.model_validate(section_only)
+
+        section_and_page = deepcopy(layer_c)
+        section_and_page["locator"]["section"] = "s19"
+        section_and_page["locator"]["page"] = 1
+        validator_for("citation").validate(section_and_page)
+        self.assertEqual(
+            Citation.model_validate(section_and_page).locator.page, 1
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
