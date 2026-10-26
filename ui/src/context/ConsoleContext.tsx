@@ -23,6 +23,7 @@ import { loadFixtures, type FixtureBundle } from "../fixtures/load";
 import { datesOf, isModelledGlofasSource, pointById, pointsCrossing, rowAt } from "../lib/series";
 import { formatDay } from "../lib/format";
 import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
+import { parseHash, type DeskRoute, type PageId } from "../lib/route";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
 import type {
@@ -42,6 +43,7 @@ interface ViewSlice<T> {
 
 export interface ConsoleValue {
   route: RouteId;
+  page: PageId;
   healthOk: boolean;
   healthDetail: string;
   discharge: ViewSlice<DischargeDailyRow[]>;
@@ -71,9 +73,8 @@ export interface ConsoleValue {
 
 const ConsoleContext = createContext<ConsoleValue | null>(null);
 
-function readRoute(): RouteId {
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  return hash.startsWith("citizen") ? "citizen" : "insurer";
+function readRoute(): DeskRoute {
+  return parseHash(window.location.hash);
 }
 
 function initialApproval(answer: Answer): Approval {
@@ -112,7 +113,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
 }
 
 function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: ReactNode }) {
-  const [route, setRoute] = useState<RouteId>(readRoute);
+  const [deskRoute, setDeskRoute] = useState<DeskRoute>(readRoute);
   const [healthOk, setHealthOk] = useState(false);
   const [healthDetail, setHealthDetail] = useState("Checking API health. Rows on screen are fixtures until a view route answers.");
   const [discharge, setDischarge] = useState<ViewSlice<DischargeDailyRow[]>>(
@@ -152,7 +153,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     if (!window.location.hash) {
       window.history.replaceState(null, "", "#/insurer");
     }
-    const onHash = () => setRoute(readRoute());
+    const onHash = () => setDeskRoute(readRoute());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -299,7 +300,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      route,
+      route: deskRoute.role,
+      page: deskRoute.page,
       healthOk,
       healthDetail,
       discharge,
@@ -327,7 +329,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       stopSimulation,
     }),
     [
-      route,
+      deskRoute,
       healthOk,
       healthDetail,
       discharge,
