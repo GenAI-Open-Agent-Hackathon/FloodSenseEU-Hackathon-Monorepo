@@ -31,3 +31,6 @@ dist/
 *.sqlite
 *.sqlite3
 checkpoints/
+
+# laptop-only e2e scripts and JSON out
+local/
