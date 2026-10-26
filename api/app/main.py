@@ -81,7 +81,12 @@ app = FastAPI(title="FloodSense EU", version="0.12.0")
 cache = AnswerCache()
 limiter = RateLimiter()
 app.add_middleware(
-    CORSMiddleware, allow_origins=UI_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=UI_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+    # The UI reads the Zetaris query id and row metadata of /views from these headers.
+    expose_headers=["x-query-id", "x-schema", "x-executed-at", "x-dropped-rows", "x-truncated", "Retry-After"],
 )
 
 
