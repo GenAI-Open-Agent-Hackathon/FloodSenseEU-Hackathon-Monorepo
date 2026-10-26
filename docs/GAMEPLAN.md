@@ -12,7 +12,7 @@ An agent team that watches European flood and weather data and explains why a pl
 
 The demo replays the Valencia floods of 29 Oct 2024 (Copernicus EMS activation EMSR773) on public data federated through Zetaris. Every number on screen links to the query, the dataset, and the original source.
 
-Mandatory stack: Zetaris (each person runs their own local Docker Compose), Meterless Nightshift (all LLM calls, NVIDIA Nemotron lanes), the Meterless engines in `engines/` (H-MEM and World Model), Cursor. The sidecar is in compose. H-MEM and the World Model are not load-bearing on main until Ayush #15 and #16 merge. Until then the agents keep `NoMemory` and do not call `ENGINES_URL`.
+Mandatory stack: Zetaris (each person runs their own local Docker Compose), Meterless Nightshift (all LLM calls, NVIDIA Nemotron lanes), the Meterless engines in `engines/` (H-MEM and World Model), Cursor. The sidecar is in compose. `v0.9.0` wires the agents to it. With `ENGINES_URL` set, Watchers' anomalies and the hypothesis board go to the World Model. H-MEM recall and write-on-approval run behind `FF_HMEM`, which still defaults off (`NoMemory`). Short-term thread memory is in the same tag and does not use the sidecar. Lane names stay `meterless/fast` and `meterless/deep`. The model that answers a lane today is the one table at the top of [architecture/c4.md](architecture/c4.md).
 
 Our stack: Python and LangGraph (agents, human-in-the-loop), FastAPI, React with TSX on Vite, GitHub, docker compose for our app, optional pgvector and Redis. pgvector is stretch (citation layer (c)), not a v1 gate. GitHub Actions runs lint, tests, and secret scans on pull requests and on pushes to `main` ([adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md)).
 
@@ -30,10 +30,10 @@ A2A and MCP are out of this hackathon. Agents read through Zetaris and call mode
 | --- | --- |
 | Impact | Insurer event-response console. Valencia replay. One business-model slide: insurers pay first; lenders, site operators, and reinsurers follow; citizens get it free. |
 | Technical | Small tagged increments, contract tests, HITL tests, cache and rate limits, a C4 diagram and ADRs. |
-| Innovation | Skeptic loop, Judge before the human, citations for layers (a) and (b). Layer (c) is stretch. H-MEM is not load-bearing until Ayush #15 and #16 merge. |
+| Innovation | Skeptic loop, Judge before the human, citations for layers (a) and (b). Layer (c) is stretch. H-MEM recall and write-on-approval are in `v0.9.0`, behind `FF_HMEM` (default off). |
 | Demo | A 3–4 minute script (Saleeta). Live when Nemotron is up. Labelled cached replay when it is not. Approval on screen. |
 | Product | One screen: map, causal chain, Skeptic verdicts, Judge scores, evidence drawer, approve / edit / reject. |
-| Sponsor tech | Every claim cites a Zetaris `queryId`. Every LLM call goes through Nightshift on pinned Nemotron lanes. The engines sidecar is in the tree. H-MEM and World Model are not load-bearing on main until Ayush #15 and #16 merge. |
+| Sponsor tech | Every claim cites a Zetaris `queryId`. Every LLM call goes through Nightshift on `meterless/fast` and `meterless/deep`. The engines sidecar is in the tree. `v0.9.0` calls it when `ENGINES_URL` is set (World Model on that URL, H-MEM behind `FF_HMEM`). |
 
 Win line we hold ourselves to: grounded and cited answers, Zetaris as the only data path for agents, 100% of LLM calls through Nightshift, no outbound action without approval, and cached output always labelled.
 
@@ -104,35 +104,35 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 
 The plan was thirteen product increments, a release candidate, and the release. Each increment merges through a pull request and is demoed at 20:00. Tags are immutable. On the 0.x line they are `v0.MINOR.0` only. There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix lands on `main` and rides the next minor tag. `v1.0.0-rc.N` is the candidate series after the Monday freeze. A slipped increment merges behind its flag. The tag records what actually works. A docs change does not create a tag.
 
-`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. `v0.3.0` is the annotated tag for live gauges and `hazard_now`. All four have GitHub Releases. Laptop Zetaris e2e for `v0.3.0` (stage, `zetaris-sync`, and verify on a machine with the engine) is deferred to the morning of 26 Oct 2026. The tag records the code on main after CI.
+`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. `v0.3.0` is the annotated tag for live gauges and `hazard_now`. `v0.9.0` is the annotated memory tag (H-MEM, World Model, thread memory, and the sqlite hang fix). All five have GitHub Releases. Laptop Zetaris e2e for `v0.3.0` (stage, `zetaris-sync`, and verify on a machine with the engine) is deferred to the morning of 26 Oct 2026. The tag records the code on main after CI.
 
 `v0.3.0` adds what was not in `v0.1.0`. [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) is the live gauge views and the FILESTORE re-registration. [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) is `floodsense.hazard_now` and its seed twin, migrations `034` and `035`. [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) is the should-fixes: migration `042` labels each rolling hour `past` or `forecast`, and migration `043` keeps the seed gauge rows to the three Ahr Rhine gauges (Bonn, Köln, Koblenz) with no invented level. [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) is the `v0.MINOR.0` tag policy. [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) accepts lane names on judge `model_id`. Core sources, provenance, `ingestion/feeds/`, and the `pegel_levels` table in migration `033` already shipped in `v0.1.0`. Built: Urvashi, Saleeta. `hazard_now`: Zain. Owner now: Mihir (takeover 2026-10-25).
 
-After `v0.3.0`, the next product tag is `v0.9.0` once Ayush #15 and #16 are load-bearing. If that work is still open at the Monday freeze, the next tag is `v1.0.0-rc.1` (Mon 26 Oct 20:00 CET). `v0.4.0`, `v0.5.0`, `v0.6.0`, `v0.7.0`, `v0.8.0`, and `v0.10.0` already shipped inside `v0.2.0` and stay there. `v0.11.0` is stretch. `v0.12.0` is not in this tree. The 0.x line stays `v0.MINOR.0` only.
+`v0.9.0` is the memory tag on main after `v0.3.0`. It includes [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) (H-MEM recall, write-on-approval, the World Model bridge, and the sidecar trust ledger those stores append to), [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) (short-term thread memory), and [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) (the sqlite checkpointer hang fix, already on main). `FF_HMEM` still defaults off. `v0.4.0`, `v0.5.0`, `v0.6.0`, `v0.7.0`, `v0.8.0`, and `v0.10.0` already shipped inside `v0.2.0` and stay there. There is no `v0.4.0`–`v0.8.0` ladder and no patch tag. `v0.11.0` is stretch. `v0.12.0` is not in this tree. The next tag on the calendar is `v1.0.0-rc.1` (Mon 26 Oct 20:00 CET). The 0.x line stays `v0.MINOR.0` only.
 
 `v0.2.0` includes the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. These planned rows shipped early inside that tag, so they are not tags of their own:
 
-- `v0.4.0` — Watchers → Investigator → Skeptic, at most 3 rounds. The World Model board is not in the graph.
+- `v0.4.0` — Watchers → Investigator → Skeptic, at most 3 rounds. The World Model board was not in that graph. `v0.9.0` posts hypotheses to it.
 - `v0.5.0` — FastAPI runs and SSE, and the compose stack. `FF_LIVE_DATA` selects `floodsense.*`.
 - `v0.6.0` — Deterministic exposure SQL, and playbook actions that cite claim ids.
 - `v0.7.0` — UI v1 (map, chain, evidence drawer, layers (a) and (b)). Zain owns the UI path. Content: Saleeta. Mihir landed the console.
 - `v0.8.0` — `interrupt()`, the SQLite checkpointer, and the approval API.
 - `v0.10.0` — Judge scores on the approval payload.
 
-`v0.9.0` did not ship as a load-bearing increment. H-MEM and the World Model are not load-bearing on main until Ayush #15 and #16 merge. The agents package does not call `engines/` yet. `FF_HMEM` defaults off. The default memory is `NoMemory`. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree. Citation layer (c) and pgvector are stretch.
+`v0.9.0` is load-bearing for the World Model whenever `ENGINES_URL` is set, and for H-MEM when `FF_HMEM` is also on. The flag still defaults off, and then the graph keeps `NoMemory`. Short-term thread memory does not use the flag. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree. Citation layer (c) and pgvector are stretch.
 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
 | v0.0.0 (tagged) | Skeleton and guardrails | Mihir | README, folders, env examples, gitignores, contracts, CI that blocks a tracked `.env` and an NVIDIA key string |
 | v0.1.0 (tagged) | First Zetaris source and seed views | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | Open-Meteo Flood (GloFAS), seed views, sync + verify. Also in this tag: core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` |
-| v0.2.0 (tagged) | Live demo stack | Ayush, Zain | Agents graph, HITL, Judge, insurer desk, engines sidecar (present, not called), fast lane, parallel Zetaris. Early landings of v0.4, v0.5, v0.6, v0.7, v0.8, and v0.10, as listed above |
-| v0.3.0 (tagged) | Live gauges and hazard_now | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) `hazard_now` (`034`, `035`), [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) gauge views, [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) `042`/`043`. [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) tag policy and [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) judge lane ids are in the same tag. Laptop Zetaris e2e deferred to the morning of 26 Oct 2026. Not this tag: core sources, provenance, `ingestion/feeds/`, and `033` `pegel_levels` (those shipped in v0.1.0). Next tag: `v0.9.0` when #15 and #16 are load-bearing, otherwise `v1.0.0-rc.1` |
-| v0.4.0 (inside v0.2.0) | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds. World Model board waits on #15 |
+| v0.2.0 (tagged) | Live demo stack | Ayush, Zain | Agents graph, HITL, Judge, insurer desk, engines sidecar (present in this tag, called from v0.9.0), fast lane, parallel Zetaris. Early landings of v0.4, v0.5, v0.6, v0.7, v0.8, and v0.10, as listed above |
+| v0.3.0 (tagged) | Live gauges and hazard_now | Built: Urvashi, Saleeta. Owner now: Mihir (takeover 2026-10-25) | [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) `hazard_now` (`034`, `035`), [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) gauge views, [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) `042`/`043`. [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) tag policy and [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) judge lane ids are in the same tag. Laptop Zetaris e2e deferred to the morning of 26 Oct 2026. Not this tag: core sources, provenance, `ingestion/feeds/`, and `033` `pegel_levels` (those shipped in v0.1.0) |
+| v0.4.0 (inside v0.2.0) | Investigator + Skeptic | Zain, Ayush | Watchers → Investigator → Skeptic, at most 3 rounds. World Model board arrived in v0.9.0 |
 | v0.5.0 (inside v0.2.0) | Live views, API, compose | Zain, Ayush, Mihir | `FF_LIVE_DATA`, FastAPI runs and SSE, compose. Urvashi remains Zetaris expertise |
 | v0.6.0 (inside v0.2.0) | Exposure and playbook | Ayush, Zain | Deterministic exposure SQL, playbook actions that cite claims |
 | v0.7.0 (inside v0.2.0) | UI v1 | Zain (UI path). Content: Saleeta | Map, chain, evidence drawer with layers (a) and (b), licence badges. Mihir landed the console |
 | v0.8.0 (inside v0.2.0) | Human-in-the-loop | Zain (tests: Mihir) | `interrupt()`, SQLite checkpointer, approval API, audit log |
-| v0.9.0 (not shipped) | Memory | Ayush (tests: Zain) | Not load-bearing until #15 and #16. H-MEM recall and write-on-approval, trust ledger, thread memory. Sidecar is `engines/` |
+| v0.9.0 (tagged) | Memory | Ayush (tests: Zain) | [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) H-MEM recall and write-on-approval, World Model bridge, trust ledger on the sidecar. [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) short-term thread memory. [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) sqlite hang fix. `FF_HMEM` defaults off. Sidecar is `engines/` |
 | v0.10.0 (inside v0.2.0) | Judge before HITL | Zain, Mihir | Per-claim grounding and citation scores in the approval payload |
 | v0.11.0 (stretch) | Layer (c) | Urvashi, Saleeta, Mihir | Stretch. Hierarchical chunks in pgvector (`FF_RAG_DOCS` stays off). Valencia 2024 and Ahr 2021 eval items are already in `evals/` inside v0.2.0 |
 | v0.12.0 (not shipped) | Cache, limits, replay | Ayush, Mihir, Zain | Semantic cache, rate limits, past runs, labelled replay. Not in this tree |
@@ -149,7 +149,7 @@ Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `age
 | `FF_SKEPTIC` | on | Skeptic loop |
 | `FF_JUDGE` | on | Score claims before the approval interrupt |
 | `FF_HITL` | on | Approval interrupt before any outbound action |
-| `FF_HMEM` | off until #15 and #16 merge | Long-term memory. Not load-bearing on main. Default in code is off (`NoMemory`) |
+| `FF_HMEM` | off | Long-term memory. `v0.9.0` wires recall and write-on-approval when this is on and `ENGINES_URL` is set. Default in code is off (`NoMemory`). Thread memory does not use this flag |
 | `FF_RAG_DOCS` | off | Stretch. Layer (c) document citations in pgvector. Not a v1 gate |
 | `FF_SEMANTIC_CACHE` | off (not in tree) | Similar query served from a previous good answer, labelled |
 | `FF_CACHED_REPLAY` | off, on if a live service fails | Labelled replay of a recorded run |
@@ -167,7 +167,7 @@ tasks.py              # up, down, zetaris-sync, engines-test, test, lint. No Mak
 .env.example
 ingestion/            # Mihir, including live gauges (PEGELONLINE). Saleeta secondary on prep and the demo
 zetaris/migrations/   # Mihir — numbered SQL, applied by zetaris-sync
-agents/               # Ayush, Zain — LangGraph graph, HITL, Judge. No engines client yet
+agents/               # Ayush, Zain — LangGraph graph, HITL, Judge, engines client, thread memory
 api/                  # Zain, Ayush — FastAPI proxies runs, SSE, and approval
 ui/                   # Citizen page and insurer console. Zain owns the path
 engines/              # Ayush — H-MEM and World Model sidecar
@@ -333,7 +333,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, `v0.2.0`, and `v0.3.0` (live gauges and `hazard_now`). Laptop Zetaris e2e for `v0.3.0` is deferred to the morning of 26 Oct 2026. The next tag is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.1` at the Monday freeze. There is no `v0.x.y` fix tag. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0` (live gauges and `hazard_now`), and `v0.9.0` (memory). Laptop Zetaris e2e for `v0.3.0` is deferred to the morning of 26 Oct 2026. There is no `v0.4.0`–`v0.8.0` tag and no `v0.x.y` fix tag. The next tag is `v1.0.0-rc.1` at the Monday freeze. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix on the 0.x line does not get its own tag. It is part of the next `v0.MINOR.0`. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Those candidates are `rc.2`, `rc.3`, and so on.
 
@@ -357,7 +357,7 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 - Container access to host services under WSL for Zetaris `:8888` and Nightshift `:8088` (Ayush, Urvashi).
 - Terms of every source, especially `hnd.bayern.de` (offline during the check), the Ahr gauges, SAIH Júcar, and Open-Meteo for commercial use (Saleeta, Urvashi). Open-Meteo is accepted for the hackathon and is to be replaced before a paid product.
 - Lightning SQL on Zetaris 2.4.3.1: `IF NOT EXISTS` is not supported. `OR REPLACE` works for `SCHEMASTORE VIEW`. Recorded in `zetaris/README.md`.
-- The engines sidecar is `engines/` (TypeScript, Ayush). The agents package does not call `ENGINES_URL` yet.
+- The engines sidecar is `engines/` (TypeScript, Ayush). From `v0.9.0` the agents call `ENGINES_URL` when it is set. H-MEM stays behind `FF_HMEM` (default off).
 - Cursor plan features and cost for Bugbot and cloud agents (Mihir).
 - Whether the repository owner has GitHub Pro. Not assumed. Rulesets while private are not part of the plan.
 - View column names in the contracts section are a proposal until checked against the real source fields (Urvashi, Saleeta).
@@ -378,9 +378,9 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 
 ## Still open
 
-- `v0.3.0` is tagged (live gauges, `hazard_now`, migrations `042` and `043`, the tag policy, and judge lane ids). Laptop Zetaris e2e is deferred to the morning of 26 Oct 2026. The next tag is `v0.9.0` when #15 and #16 are load-bearing, otherwise `v1.0.0-rc.1`. The 0.x line stays `v0.MINOR.0` only.
+- `v0.3.0` is tagged (live gauges, `hazard_now`, migrations `042` and `043`, the tag policy, and judge lane ids). Laptop Zetaris e2e is deferred to the morning of 26 Oct 2026. `v0.9.0` is tagged (H-MEM, World Model, thread memory, sqlite hang fix). The next tag is `v1.0.0-rc.1`. The 0.x line stays `v0.MINOR.0` only. There is no `v0.4.0`–`v0.8.0` tag.
 - The HITL interrupt from #4 is in `v0.2.0`.
-- H-MEM and the World Model are not load-bearing until Ayush #15 and #16 merge. The agents package does not call `engines/`. `FF_HMEM` defaults off. The default memory is `NoMemory`.
+- H-MEM recall and write-on-approval are in `v0.9.0` behind `FF_HMEM` (default off, `NoMemory`). The World Model runs when `ENGINES_URL` is set. Short-term thread memory is on main from [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16).
 - Citation layer (c) and pgvector are stretch. `FF_RAG_DOCS` stays off.
 - Semantic cache and rate limits are not in this tree.
 - `knowledge/` and `demo/` are not folders yet.

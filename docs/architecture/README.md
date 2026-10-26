@@ -4,6 +4,6 @@ Owner: Mihir. The diagrams are in [c4.md](c4.md): system context, containers, an
 
 On `v0.2.0`, `build_graph()` in `agents/floodsense_agents/graph.py` compiles the graph (scope, Watchers, Investigator, Skeptic, Exposure, Playbook, Judge, HITL). It does not raise `NotImplementedError`. The API proxies runs, SSE, and approval. `GET /health` is the liveness check, not the only route. `zetaris-sync` applies migrations and verifies declared views.
 
-The engines sidecar is in `compose.yaml`. The agents package does not call it. H-MEM and the World Model are not load-bearing on main until Ayush #15 and #16 merge. That split is drawn in [c4.md](c4.md).
+The engines sidecar is in `compose.yaml`. From `v0.9.0` the agents call it when `ENGINES_URL` is set: the World Model takes anomalies and hypotheses, and H-MEM recall plus write-on-approval run behind `FF_HMEM` (default off). Short-term thread memory does not use the sidecar. Lane names stay `meterless/fast` and `meterless/deep`. The model that answers a lane today is the one table at the top of [c4.md](c4.md).
 
 Decisions are proposed in [../adr/](../adr/). The team accepts or changes them at stand-up.

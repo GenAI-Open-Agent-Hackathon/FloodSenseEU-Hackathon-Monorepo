@@ -32,4 +32,4 @@ All LLM calls go through one Nightshift client (`agents/floodsense_agents/nights
 
 - Whether Nightshift serves embeddings, and which model we use if it does not (Ayush, with Urvashi). `GET /v1/models` has not been recorded here.
 - Whether a container can reach Nightshift on `:8088` when that port is bound only to `127.0.0.1` (Ayush, Urvashi).
-- The engines sidecar is `engines/` (TypeScript, on main, Ayush). The agents package does not call `ENGINES_URL` yet.
+- The engines sidecar is `engines/` (TypeScript, on main, Ayush). From `v0.9.0` the agents call `ENGINES_URL` when it is set. H-MEM stays behind `FF_HMEM` (default off). Model calls stay on Nightshift. Lane names stay `meterless/fast` and `meterless/deep`.

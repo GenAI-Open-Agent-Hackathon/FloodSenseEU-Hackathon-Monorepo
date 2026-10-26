@@ -4,7 +4,7 @@ Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, 
 
 The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
 
-Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`), [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`), [v0.2.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.2.0) (live demo stack: agents graph, insurer desk, engines, fast lane, and parallel Zetaris), and [v0.3.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.3.0) (live gauges and `hazard_now`). Laptop Zetaris e2e for v0.3.0 is deferred to the morning of 26 Oct 2026. There is no wiki.
+Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`), [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`), [v0.2.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.2.0) (live demo stack: agents graph, insurer desk, engines, fast lane, and parallel Zetaris), [v0.3.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.3.0) (live gauges and `hazard_now`), and [v0.9.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.9.0) (H-MEM recall and write-on-approval, World Model bridge, short-term thread memory, sqlite hang fix). Laptop Zetaris e2e for v0.3.0 is deferred to the morning of 26 Oct 2026. There is no `v0.4.0`–`v0.8.0` tag. There is no wiki.
 
 ## Team
 
@@ -67,7 +67,7 @@ Compose is always `docker compose -p floodsense-app` with this repo's `compose.y
 
 `zetaris-sync` applies pending files in `zetaris/migrations/` and then verifies declared views. It reads `ingestion/.env` (`127.0.0.1`), not `agents/.env`. A cold laptop stages FILESTORE CSVs with `ingestion/prep/stage_local_zetaris.py` before migration 010. Details are in [zetaris/README.md](zetaris/README.md).
 
-`test` compiles the Python packages and runs the unit tests with the current interpreter. Install the agents, API, contract, and dev requirements into a virtualenv first, then run `test` and `lint` with that interpreter. The engines tests need Node.js 22.18 or newer: `python tasks.py engines-test` (Windows: `py tasks.py engines-test`). The agents package does not call the sidecar yet. Lane names are `meterless/fast` and `meterless/deep`. The one map to the model that answers today is the table at the top of [docs/architecture/c4.md](docs/architecture/c4.md).
+`test` compiles the Python packages and runs the unit tests with the current interpreter. Install the agents, API, contract, and dev requirements into a virtualenv first, then run `test` and `lint` with that interpreter. The engines tests need Node.js 22.18 or newer: `python tasks.py engines-test` (Windows: `py tasks.py engines-test`). With `ENGINES_URL` set, the agents call that sidecar: the World Model takes anomalies and hypotheses, and H-MEM recall plus write-on-approval run behind `FF_HMEM` (default off, so the graph keeps `NoMemory`). Short-term thread memory is `thread_id` on `POST /runs` and does not use the sidecar. Lane names are `meterless/fast` and `meterless/deep`. The one map to the model that answers today is the table at the top of [docs/architecture/c4.md](docs/architecture/c4.md).
 
 PowerShell:
 
@@ -109,7 +109,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 | --- | --- | --- |
 | `ingestion/` | Fetch and stage datasets, seed content | Mihir. Saleeta is secondary on prep and the demo |
 | `zetaris/migrations/` | Numbered SQL, applied by `zetaris-sync` | Mihir |
-| `agents/` | LangGraph graph, HITL interrupt, Judge. No engines client yet | Ayush, Zain |
+| `agents/` | LangGraph graph, HITL interrupt, Judge, engines client, short-term thread memory | Ayush, Zain |
 | `api/` | FastAPI. Proxies runs, SSE, and approval. `GET /health` as well | Zain, Ayush |
 | `ui/` | Citizen page and insurer console (Vite, React, TypeScript) | Zain. Mihir landed the console |
 | `engines/` | H-MEM and World Model sidecar | Ayush |
@@ -122,7 +122,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 
 ## Branching
 
-`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, and `v0.3.0`. The next tag is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.1` at the Monday freeze. There is no `v0.x.y` fix tag. Candidates are `v1.0.0-rc.N`. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
+`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, and `v0.9.0` (memory). `v0.4.0` through `v0.8.0` are not tags. The next tag is `v1.0.0-rc.1` at the Monday freeze. There is no `v0.x.y` fix tag. Candidates are `v1.0.0-rc.N`. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
 
 ## Secrets
 

@@ -20,7 +20,7 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/zetaris/` | Mihir | Migrations, sync, views, including the live-gauge tables. Takeover 2026-10-25. Urvashi remains on the team for Zetaris expertise |
 | `/scripts/zetaris_sync.py` | Mihir | The one sync command. Takeover 2026-10-25 |
 | `/scripts/nightshift_check.py` | Ayush | Live check of the local Nightshift runtime |
-| `/engines/` | Ayush | H-MEM and World Model sidecar. On main, in v0.2.0. Not load-bearing until #15 and #16. The agents package does not call it yet |
+| `/engines/` | Ayush | H-MEM and World Model sidecar. On main since v0.2.0. v0.9.0 calls it when `ENGINES_URL` is set: World Model on that URL, H-MEM recall and write-on-approval behind `FF_HMEM` (default off). The trust ledger stays on the sidecar (`GET /hmem/ledger`) |
 | `/agents/` | Ayush, Zain | Nightshift, graph, memory |
 | `/agents/floodsense_agents/hitl.py` | Zain | Approval interrupt and checkpointer |
 | `/agents/floodsense_agents/nodes/judge.py` | Zain, Mihir | LLM-as-a-Judge |
@@ -30,4 +30,4 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/evals/` | Saleeta, Zain, Mihir | In v0.2.0: Valencia 2024 and Ahr 2021. Not its own increment tag |
 | `/demo/` | Saleeta | No folder yet. Deck, script, video |
 
-`engines/` and `evals/` are on main, in v0.2.0. Live gauge views and `hazard_now` are in v0.3.0 (`/zetaris/`, `/ingestion/`). Laptop Zetaris e2e for that tag is deferred to the morning of 26 Oct 2026. The next tag after `v0.3.0` is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.1` at the Monday 20:00 CET freeze. `v0.4.0` through `v0.8.0` and `v0.10.0` stay inside `v0.2.0`. Tags stay `v0.MINOR.0` only. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+`engines/` and `evals/` are on main, in v0.2.0. Live gauge views and `hazard_now` are in v0.3.0 (`/zetaris/`, `/ingestion/`). Laptop Zetaris e2e for that tag is deferred to the morning of 26 Oct 2026. `v0.9.0` is memory: the agents call `engines/` when `ENGINES_URL` is set, and short-term thread memory lives in `/agents/`. The next tag is `v1.0.0-rc.1` at the Monday 20:00 CET freeze. `v0.4.0` through `v0.8.0` and `v0.10.0` stay inside `v0.2.0`. There is no `v0.4.0`–`v0.8.0` tag. Tags stay `v0.MINOR.0` only. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
