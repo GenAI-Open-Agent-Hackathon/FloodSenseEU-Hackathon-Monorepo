@@ -26,6 +26,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import cache as cache_mod  # noqa: E402
 from app import main as api  # noqa: E402
+from app.ratelimit import RateLimiter, RateLimitSettings  # noqa: E402
 from app.cache import (  # noqa: E402
     AnswerCache,
     CacheSettings,
@@ -510,6 +511,11 @@ class ApiFlowTest(unittest.TestCase):
         for p in self._patches:
             p.start()
             self.addCleanup(p.stop)
+        # These tests exercise the cache and proxy, not the rate limits.
+        unlimited = RateLimiter(RateLimitSettings(runs_per_min=0, max_concurrent_runs=0))
+        limits = mock.patch.object(api, "limiter", unlimited)
+        limits.start()
+        self.addCleanup(limits.stop)
         self.c = TestClient(api.app)
 
     def finished(self, question="Which sites are exposed?", action="approve", **extra) -> dict:

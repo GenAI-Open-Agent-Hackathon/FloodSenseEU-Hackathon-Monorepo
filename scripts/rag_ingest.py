@@ -14,7 +14,7 @@ from collections.abc import Callable
 from html.parser import HTMLParser
 from pathlib import Path
 
-MODEL = "nvidia/llama-nemotron-embed-1b-v2"
+MODEL = "nvidia/nemotron-3.5-embed-1b"
 _BYTE_LIMIT = 8192 * 4
 _COLUMNS = (
     "chunk_id",

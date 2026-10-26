@@ -232,7 +232,7 @@ What we store depends on the licence:
 
 Documents are split on their own structure (document, then page or section, then paragraph), not into blind fixed-size windows. `lines` is a locator field on the citation, not a chunk level. A retrieved paragraph keeps that path next to its embedding. `content_sha256` is the SHA-256 of the verbatim quote. The chunk row keeps a separate `text_sha256` of the full passage. The Judge compares the quote hash. The passage check against `text_sha256` is the next pull request.
 
-Vector search for document chunks is recorded in ADR 0009 and is not a v1 gate. pgvector in the `rag` profile stores hierarchical chunks and embeddings. Agents rank with `<=>` in that Postgres only. The same Postgres is registered in Zetaris as a JDBC source so text, licence, and locator are read there and every layer (c) citation keeps a `query_id`. `FF_RAG_DOCS` stays off. Nightshift does not serve embeddings. The model is `nvidia/llama-nemotron-embed-1b-v2` on NVIDIA NIM `POST /v1/embeddings`, dimension 2048. The design is [superpowers/specs/2026-10-26-rag-layer-c-design.md](superpowers/specs/2026-10-26-rag-layer-c-design.md). Ingest and `retrieve_docs` shipped in `v0.14.0`. `v0.11.0` is the retired name and is not a tag.
+Vector search for document chunks is recorded in ADR 0009 and is not a v1 gate. pgvector in the `rag` profile stores hierarchical chunks and embeddings. Agents rank with `<=>` in that Postgres only. The same Postgres is registered in Zetaris as a JDBC source so text, licence, and locator are read there and every layer (c) citation keeps a `query_id`. `FF_RAG_DOCS` stays off. Nightshift does not serve embeddings. The model is `nvidia/nemotron-3.5-embed-1b` on NVIDIA NIM `POST /v1/embeddings`, dimension 2048. The design is [superpowers/specs/2026-10-26-rag-layer-c-design.md](superpowers/specs/2026-10-26-rag-layer-c-design.md). Ingest and `retrieve_docs` shipped in `v0.14.0`. `v0.11.0` is the retired name and is not a tag.
 
 ## Data we start with
 
@@ -357,7 +357,7 @@ The repo stays private during the build and switches to public before submission
 Owners in parentheses. A line that names a result is settled. The rest is still open.
 
 - Zetaris `<=>` is settled in ADR 0009: it is null-safe equality, not cosine distance. Ranking stays in pgvector. The signed-in search of `:8888/redoc` for vector features is still open (Urvashi). A feature found there does not put `<=>` into Zetaris SQL.
-- Embeddings for layer (c) are settled: NVIDIA NIM `nvidia/llama-nemotron-embed-1b-v2`, dimension 2048. Nightshift does not serve them. See ADR 0009.
+- Embeddings for layer (c) are settled: NVIDIA NIM `nvidia/nemotron-3.5-embed-1b`, dimension 2048. Nightshift does not serve them. See ADR 0009.
 - Container access to host services under WSL for Zetaris `:8888` and Nightshift `:8088` (Ayush, Urvashi).
 - Terms of every source, especially `hnd.bayern.de` (offline during the check), the Ahr gauges, SAIH Júcar, and Open-Meteo for commercial use (Saleeta, Urvashi). Open-Meteo is accepted for the hackathon and is to be replaced before a paid product.
 - Lightning SQL on Zetaris 2.4.3.1: `IF NOT EXISTS` is not supported. `OR REPLACE` works for `SCHEMASTORE VIEW`. Recorded in `zetaris/README.md`.
