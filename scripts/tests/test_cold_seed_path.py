@@ -37,6 +37,27 @@ class ColdSeedPathTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.feeds.selected_sources("not-a-source")
 
+    def test_stage_container_uses_the_sync_default(self) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import zetaris_sync as zs
+
+        self.assertIs(self.stage.DEFAULT_CONTAINER, zs.DEFAULT_CONTAINER)
+        previous = os.environ.get("ZETARIS_CONTAINER")
+        os.environ.pop("ZETARIS_CONTAINER", None)
+        try:
+            self.assertEqual(self.stage.container_name(["stage"]), zs.DEFAULT_CONTAINER)
+            os.environ["ZETARIS_CONTAINER"] = "from-env"
+            self.assertEqual(self.stage.container_name(["stage"]), "from-env")
+            self.assertEqual(
+                self.stage.container_name(["stage", "from-argv"]),
+                "from-argv",
+            )
+        finally:
+            if previous is None:
+                os.environ.pop("ZETARIS_CONTAINER", None)
+            else:
+                os.environ["ZETARIS_CONTAINER"] = previous
+
     def test_pegel_names_are_the_event_rhine_gauges(self) -> None:
         sys.path.insert(0, str(ROOT / "agents"))
         from floodsense_agents.events import RHINE_GAUGES

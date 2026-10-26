@@ -54,7 +54,7 @@ Zetaris cannot read files on the laptop. Migration `010_seed_sources.sql` create
 file:///home/zetaris/customer-data/shared/floodsense_seed/<table>
 ```
 
-`stage_local_zetaris.py` copies `<table>.csv` to `<table>/<table>.csv` in that directory. The default container name is `zetaris-driver-1`. Pass another name when `docker ps` shows one. The script stops if a CSV is missing or Docker cannot see the container.
+`stage_local_zetaris.py` copies `<table>.csv` to `<table>/<table>.csv` in that directory. The container is `ZETARIS_CONTAINER` from `ingestion/.env` (see `.env.example`), or the first argument, otherwise the same default as `zetaris_sync.py` (`zetaris-driver-1`). The script stops if a CSV is missing or Docker cannot see the container.
 
 From a fresh clone, with Zetaris already listening on `:8888`. No `AEMET_API_KEY`. Do not pull DWD.
 

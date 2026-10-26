@@ -292,6 +292,48 @@ class SyncTest(unittest.TestCase):
         self.assertIn("nothing sent", out)
         self.assertEqual(self.fake.requests, [])
 
+    def test_read_staged_csv_headers_from_docker(self) -> None:
+        path = "/home/zetaris/customer-data/shared/floodsense_live/pegel_levels"
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **_kwargs):
+            calls.append(list(argv))
+
+            class _Done:
+                returncode = fake_run.code
+                stdout = fake_run.stdout
+                stderr = fake_run.stderr
+
+            return _Done()
+
+        fake_run.code = 0
+        fake_run.stdout = f"{path}\t\n"
+        fake_run.stderr = ""
+        with patch("zetaris_sync.subprocess.run", fake_run):
+            missing = zs.read_staged_csv_headers([path], "zetaris-driver-1")
+        self.assertEqual(missing, {path: ""})
+        self.assertEqual(
+            zs.csv_header_problems(missing),
+            [f"{path}: no CSV header"],
+        )
+        self.assertEqual(calls[0][:3], ["docker", "exec", "zetaris-driver-1"])
+        self.assertIn(path, calls[0][-1])
+
+        fake_run.stdout = f"{path}\tstation,water,time\n"
+        with patch("zetaris_sync.subprocess.run", fake_run):
+            header_only = zs.read_staged_csv_headers([path], "zetaris-driver-1")
+        self.assertEqual(header_only, {path: "station,water,time"})
+        self.assertEqual(zs.csv_header_problems(header_only), [])
+
+        fake_run.code = 1
+        fake_run.stdout = ""
+        fake_run.stderr = "No such container"
+        with patch("zetaris_sync.subprocess.run", fake_run):
+            with self.assertRaises(zs.SyncError) as raised:
+                zs.read_staged_csv_headers([path], "missing-driver")
+        self.assertIn("missing-driver", str(raised.exception))
+        self.assertIn("docker exit 1", str(raised.exception))
+
     def test_a_blank_header_line_is_refused_and_a_name_line_is_kept(self) -> None:
         self.assertEqual(
             zs.csv_header_problems({"/data/pegel_levels": ""}),

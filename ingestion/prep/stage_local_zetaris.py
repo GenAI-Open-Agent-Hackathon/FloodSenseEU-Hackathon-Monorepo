@@ -15,8 +15,9 @@ at CREATE time. It also creates header-only files under floodsense_live/<table>
 for every live table except DWD, so those creates do not need an AEMET pull and
 do not store DWD. Those files are placeholders, not observations. 036 registers
 new table names on these paths because 033's names were created before the files
-existed and cannot be dropped. Default container is `zetaris-driver-1`. If
-`docker ps` shows another name, pass it.
+existed and cannot be dropped. The container is the first argument, otherwise
+`ZETARIS_CONTAINER` from the environment or `ingestion/.env`, otherwise the
+same default `zetaris_sync.py` uses (`zetaris-driver-1`).
 
     cp ingestion/.env.example ingestion/.env   # then set ZETARIS_API_KEY only
     python ingestion/prep/stage_local_zetaris.py [container]
@@ -30,8 +31,13 @@ Windows, from the repo root:
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS = os.path.abspath(os.path.join(HERE, "..", "..", "scripts"))
+if _SCRIPTS not in sys.path:
+    sys.path.insert(0, _SCRIPTS)
+from zetaris_sync import DEFAULT_CONTAINER, load_env_file  # noqa: E402
 TABLES = ["ems_footprint", "osm_sites", "portfolio_synthetic", "provenance", "valencia_points"]
 DEST = "/home/zetaris/customer-data/shared/floodsense_seed"
 LIVE_DEST = "/home/zetaris/customer-data/shared/floodsense_live"
@@ -60,8 +66,22 @@ def docker(*args):
     subprocess.run(["docker", *args], check=True, env=env)
 
 
+def container_name(argv: list[str] | None = None) -> str:
+    """Argument, then ZETARIS_CONTAINER, then the sync tool's default.
+
+    Process environment wins over ingestion/.env, matching zetaris_sync.py.
+    """
+    args = list(sys.argv if argv is None else argv)
+    if len(args) > 1 and args[1]:
+        return args[1]
+    file_env = load_env_file(Path(HERE).resolve().parent / ".env")
+    if os.environ.get("ZETARIS_CONTAINER"):
+        file_env["ZETARIS_CONTAINER"] = os.environ["ZETARIS_CONTAINER"]
+    return file_env.get("ZETARIS_CONTAINER") or DEFAULT_CONTAINER
+
+
 def main():
-    container = sys.argv[1] if len(sys.argv) > 1 else "zetaris-driver-1"
+    container = container_name()
     missing = [f"{t}.csv" for t in TABLES if not os.path.isfile(os.path.join(HERE, f"{t}.csv"))]
     if missing:
         print(

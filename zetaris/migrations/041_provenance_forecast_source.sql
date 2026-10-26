@@ -3,9 +3,8 @@
 -- min_rows: 8
 -- Same query as 015. The cleared count is now 8. provenance.csv gained ds_open_meteo_forecast
 -- for the rolling rain and discharge behind hazard_now (032 and 030). ds_dwd_brightsky stays
--- in the CSV and is still filtered out while DWD is Hold. docker cp overwrites the staged
--- seed file, so running stage_local_zetaris.py again replaces provenance.csv. Only the live
--- header files are skip-if-present.
+-- in the CSV and is still filtered out while DWD is Hold. A laptop that staged provenance.csv
+-- before this row existed must replace that staged file (the stage script does not overwrite).
 CREATE OR REPLACE SCHEMASTORE VIEW provenance WITH CONTAINER floodsense AS
 SELECT dataset, source_url, publisher, licence, attribution, CAST(accessed_at AS TIMESTAMP) AS fetched_at
 FROM floodsense_seed_src.provenance
