@@ -18,7 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 
 from floodsense_agents import retrieve_docs as retrieve_mod  # noqa: E402
 from floodsense_agents.graph import build_graph  # noqa: E402
-from floodsense_agents.models import Citation, Claim, Evidence  # noqa: E402
+from floodsense_agents.models import Citation, Claim, Evidence, RunRequest  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.nodes.investigator import _attach_documents  # noqa: E402
 from floodsense_agents.nodes.judge import score_claim  # noqa: E402
@@ -257,6 +257,40 @@ class RetrieveDocsTest(unittest.TestCase):
             )
             out, _ = start(graph, rid=f"rag-{flag}")
             self.assertNotIn("retrieve_docs error", str(out.get("trace")))
+
+    def test_zetaris_string_columns_still_cite(self) -> None:
+        # Zetaris REST hydrates page and paragraph as strings ('3', '1').
+        row = _hit_row("kept", "Paiporta recorded 140 mm in six hours.", 3)
+        row.update(page="3", paragraph="1")
+        result = retrieve_docs(
+            "rainfall",
+            1,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, input_type: [[0.1] * 2048],
+            search=lambda vector, event_id, k: [("kept", 0.1)],
+            hydrate=lambda ids: ("qid", [row]),
+        )
+        self.assertEqual(len(result.citations), 1)
+        self.assertEqual(result.citations[0]["locator"]["page"], 3)
+        self.assertEqual(result.citations[0]["locator"]["paragraph"], 1)
+        row.update(page="0")
+        self.assertEqual(
+            retrieve_docs(
+                "rainfall",
+                1,
+                None,
+                embedder=lambda texts, input_type: [[0.1] * 2048],
+                search=lambda vector, event_id, k: [("kept", 0.1)],
+                hydrate=lambda ids: ("qid", [row]),
+            ).citations,
+            [],
+        )
+
+    def test_the_run_request_keeps_doc_query(self) -> None:
+        # The runtime hands req.model_dump() to the graph; a dropped field never retrieves.
+        req = RunRequest(question="Why Paiporta?", doc_query="Barranc del Poyo discharge")
+        self.assertEqual(req.model_dump()["doc_query"], "Barranc del Poyo discharge")
+        self.assertIsNone(RunRequest(question="q").model_dump()["doc_query"])
 
 
 def _hit_row(chunk_id: str, text: str, page: int) -> dict:

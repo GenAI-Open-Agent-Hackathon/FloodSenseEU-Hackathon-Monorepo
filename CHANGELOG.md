@@ -9,6 +9,13 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- Layer (c) embeddings use `nvidia/nemotron-3.5-embed-1b`. NVIDIA NIM retired `nvidia/llama-nemotron-embed-1b-v2` on 2026-08-25 and answers it with HTTP 410, so `rag_ingest` could not embed. The new model takes the same request at 2048 dimensions. `pgvector/migrations/002_rag_embed_model_nemotron35.sql` moves the `rag_chunks_embed_model` check. `FF_RAG_DOCS` stays off by default.
+- `RunRequest` keeps `doc_query`. The field was missing, so pydantic dropped it and a run through `POST /runs` never reached `retrieve_docs` even with `FF_RAG_DOCS` on.
+- The agents image installs `psycopg[binary]`. `python:3.12-slim` has no libpq, so `retrieve_docs` failed with `no pq wrapper available`.
+- `retrieve_docs` accepts `page` and `paragraph` as digit strings. Zetaris REST hydrates every column as a string, so every live layer (c) passage was dropped and a run had no layer (c) citation.
+
 ### Added
 
 - `retrieve_docs` ranks paragraph chunks in Postgres and hydrates the passage through Zetaris when `FF_RAG_DOCS` is on. The Investigator calls it once when the request sets `doc_query`. The Judge requires a layer (c) quote to be a substring of the cited passage, and a layer (c) citation alone does not pass. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.

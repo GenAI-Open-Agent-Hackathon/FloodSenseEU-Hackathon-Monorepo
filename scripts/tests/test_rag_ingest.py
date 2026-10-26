@@ -66,7 +66,7 @@ class IngestTest(unittest.TestCase):
         self.assertGreaterEqual(para["paragraph"], 1)
         self.assertTrue(para["lines"])
         self.assertIsNone(next(row["embedding"] for row in rows if row["level"] == "doc"))
-        self.assertEqual(para["embed_model"], "nvidia/llama-nemotron-embed-1b-v2")
+        self.assertEqual(para["embed_model"], "nvidia/nemotron-3.5-embed-1b")
         self.assertEqual(len(para["embedding"]), 2048)
         self.assertNotIn("retrieve_docs", Path(rag_ingest.__file__).read_text(encoding="utf-8"))
 
