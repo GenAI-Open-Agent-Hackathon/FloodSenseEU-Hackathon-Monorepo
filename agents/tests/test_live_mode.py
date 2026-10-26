@@ -54,6 +54,7 @@ def state(mode, question=QUESTION) -> dict:
     }
 
 
+@mock.patch.object(settings, "live_data", True)
 class Resolution(unittest.TestCase):
     def test_explicit_mode_wins(self) -> None:
         self.assertEqual(resolve_mode({"question": QUESTION, "mode": "event"})["mode"], "event")
@@ -64,7 +65,7 @@ class Resolution(unittest.TestCase):
             QUESTION,
             "What is the river doing right now?",
             "Any rain tonight in Chiva?",
-            "Show me the forecast for Paiporta",
+            "Show me the forecast for the next 24 hours",
             "¿Hay riesgo de inundación mañana en Paiporta?",
             "¿Qué dice el pronóstico para hoy?",
             "Wie ist die Vorhersage für morgen?",
@@ -189,6 +190,115 @@ class FullRun(unittest.TestCase):
         self.assertEqual(out["mode"]["mode"], "event")
         views = {e["view"] for e in out["evidence"].values()}
         self.assertNotIn("floodsense.hazard_now", views)
+
+
+@mock.patch.object(settings, "live_data", True)
+class ReviewFixes(unittest.TestCase):
+    def test_classifier_sends_the_past_to_event(self) -> None:
+        for q in (
+            "What happened in 2024 at Paiporta right now?",
+            "What was the discharge on 2024-10-29?",
+            "How much rain fell on 29 Oct?",
+            "Summarise EMSR773 today",
+            "What did the river do on that day?",
+            "Guten Morgen, wie war die Flut?",
+            "What is the current exposure?",
+            "Show me the forecast for Paiporta",
+        ):
+            self.assertEqual(classify(q)[0], "event", q)
+        self.assertEqual(classify("Regnet es morgen in Chiva?")[0], "live")
+
+    def test_agents_and_api_patterns_are_identical(self) -> None:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "api"))
+        from app import cache  # noqa: PLC0415
+
+        from floodsense_agents import live  # noqa: PLC0415
+
+        self.assertEqual(live.LIVE_PATTERNS, cache._LIVE_PATTERNS)
+        self.assertEqual(live.EVENT_PATTERNS, cache._EVENT_PATTERNS)
+
+    def test_seed_schema_disables_live(self) -> None:
+        with mock.patch.object(settings, "live_data", False):
+            got = resolve_mode({"question": QUESTION})
+            self.assertEqual(got["mode"], "event")
+            self.assertIn("live data disabled", got["reason"])
+            got = resolve_mode({"question": QUESTION, "mode": "live"})
+            self.assertEqual(got["mode"], "live")
+            self.assertIn("live data disabled", got["reason"])
+
+    def test_numbers_in_skips_timestamps_and_relative_hours(self) -> None:
+        got = investigator.numbers_in(
+            "Peak 180 m3/s at 2026-10-27 19:00:00 (in 17 h), low 4 at 2026-10-24T00:00:00Z (71 h ago)."
+        )
+        self.assertEqual(got, [180.0, 4.0])
+
+    def test_old_sync_is_flagged_stale(self) -> None:
+        z = FakeZetaris()
+        # Only 6 forecast hours left: the sync is a day and a half old.
+        z._conn.execute(
+            "DELETE FROM floodsense.hazard_now WHERE horizon = 'forecast' AND ts_utc > "
+            "strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '+6 hours')"
+        )
+        out = investigator.make(deps(z))(state(LIVE))
+        self.assertTrue(out["live_findings"]["stale"])
+        self.assertTrue(any("STALE" in c["text"] for c in out["claims"]))
+        self.assertIn("STALE", out["trace"][-1]["summary"])
+        self.assertIn("stale sync", " ".join(c["text"] for c in out["claims"]))
+        fresh = investigator.make(deps())(state(LIVE))
+        self.assertFalse(fresh["live_findings"]["stale"])
+        self.assertIn("forecast up to", fresh["claims"][0]["text"])
+
+    def test_model_shaped_hypothesis_citing_an_empty_threshold_query(self) -> None:
+        """The real-Zetaris bug: claims cited 0-row threshold queries and were rejected unchecked."""
+        z = quiet()
+        w = watchers.make(deps(z))(state(LIVE))
+        empty = next(e for e in w["evidence"].values() if "discharge_m3s >=" in e["sql"])
+        self.assertEqual(empty["row_count"], 0)
+        s = state(LIVE)
+        s.update(evidence=w["evidence"], live_findings={"discharge_crosses": False})
+        cit = {"citation_id": "C1-a1", "claim_id": "C1", "layer": "a", "query_id": empty["query_id"]}
+        s["claims"] = [
+            {"claim_id": "C1", "text": "No point crosses 100 m3/s.", "citations": [cit]},
+            {"claim_id": "C2", "text": "Nothing cited.", "citations": []},
+        ]
+        s["hypotheses"] = [
+            {"id": "H2", "link": "catchment->river", "statement": "No crossing", "citations": ["C1"]},
+            {"id": "H9", "link": "site->exposure", "statement": "Model extra", "citations": ["C1"]},
+            {"id": "H8", "link": "rain->catchment", "statement": "Uncited", "citations": ["C2"]},
+        ]
+        out = skeptic.make(deps(z))(s)
+        by = {h["id"]: h for h in out["hypotheses"]}
+        self.assertEqual(by["H2"]["status"], "supported", by["H2"]["rationale"])
+        self.assertGreater(by["H2"]["rounds"], 0)
+        self.assertEqual(by["H9"]["status"], "proposed")
+        self.assertEqual(by["H8"]["status"], "proposed")
+        self.assertNotIn("not_supported", {h["status"] for h in out["hypotheses"]})
+
+    def test_live_run_with_a_model_keeps_the_deterministic_chain(self) -> None:
+        class ModelLLM(FakeNightshift):
+            def complete(self, lane, system, user):
+                if "MODE: live" in user:
+                    raise AssertionError("live investigator must not take a model chain")
+                return super().complete(lane, system, user)
+
+        out = Runtime(deps=Deps(zetaris=quiet(), llm=ModelLLM(), memory=NoMemory())).start(
+            RunRequest(question=QUESTION)
+        )
+        self.assertIn("No point's forecast discharge reaches 100 m3/s", out["summary"])
+        h2 = next(h for h in out["hypotheses"] if h["link"] == "catchment->river")
+        self.assertEqual(h2["status"], "supported")
+
+    def test_crossing_on_a_receding_river_is_not_refuted(self) -> None:
+        z = FakeZetaris()
+        z._conn.execute(
+            "UPDATE floodsense.hazard_now SET discharge_m3s = 400 WHERE point_id = 'VAL01' "
+            "AND horizon = 'past'"
+        )
+        s = state(LIVE)
+        s.update(investigator.make(deps(z))(s))
+        out = skeptic.make(deps(z))(s)
+        h2 = next(h for h in out["hypotheses"] if h["id"] == "H2")
+        self.assertEqual(h2["status"], "supported", h2["rationale"])
 
 
 if __name__ == "__main__":

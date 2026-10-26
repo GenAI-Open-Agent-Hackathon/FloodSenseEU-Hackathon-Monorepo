@@ -20,8 +20,9 @@ import time
 from floodsense_agents.events import point_label
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
 from floodsense_agents.live import (
-    FORECAST_HOURS,
     LIVE_ROWS,
+    STALE_FORECAST_H,
+    hours_between,
     is_live,
     points_sql,
     relative,
@@ -48,9 +49,10 @@ MEMORY_PROMPT_MAX = 5  # recalled findings shown to the model
 
 def numbers_in(text: str) -> list[float]:
     out = []
-    for n in _NUM.findall(
-        re.sub(r"\d{4}-\d{2}-\d{2}T?[\d:]*Z?", " ", text)
-    ):  # timestamps are not numbers to check
+    # Timestamps (T or space separated) and relative hours are not numbers to check.
+    text = re.sub(r"\d{4}-\d{2}-\d{2}(?:[ T][\d:.]*Z?)?", " ", text)
+    text = re.sub(r"\bin \d+ ?h\b|\b\d+ ?h ago\b", " ", text)
+    for n in _NUM.findall(text):
         try:
             out.append(float(n.replace(",", "")))
         except ValueError:
@@ -409,15 +411,42 @@ def _live_deterministic(
         rel = relative(ts, now)
         return f"{ts} ({rel})" if rel else str(ts)
 
+    # How far the synced rows actually reach. The view is only as fresh as the
+    # last zetaris sync: an old sync has fewer forecast hours left, and its
+    # "past" hours were forecast hours when they were fetched.
+    ends = {r.get("horizon"): r.get("to_utc") for r in span.rows_sample}
+    past_to, fc_to = ends.get("past"), ends.get("forecast")
+    left = hours_between(fc_to, now) if fc_to else None
+    stale = left is None or left < STALE_FORECAST_H
+    ahead = f"forecast window to {when(fc_to)}" if fc_to else "forecast window (no forecast rows)"
+    past_word = "observed-modelled" + (", stale sync" if stale else "")
+
     # H1 rain -> catchment, forecast first, then the past days.
     h1 = []
+    if span.rows_sample:
+        h1.append(
+            claim(
+                f"Live rows: past ({past_word}) up to {when(past_to)}, forecast up to "
+                f"{when(fc_to)}."
+                + (
+                    f" STALE: the forecast reaches less than {STALE_FORECAST_H} h past now, so "
+                    f"the last sync is old and some past hours were forecasts when fetched."
+                    if stale
+                    else ""
+                ),
+                "fact",
+                [span],
+                "H1",
+                [],
+            )
+        )
     by_h = {"forecast": [], "past": []}
     for r in rain.rows_sample:
         by_h.setdefault(r.get("horizon"), []).append(r)
     rain_crosses = False
     for horizon, label in (
-        ("forecast", f"Forecast, next {FORECAST_HOURS} h"),
-        ("past", "Past days, observed-modelled (Open-Meteo, not a station reading)"),
+        ("forecast", f"Forecast, {ahead}"),
+        ("past", f"Past days, {past_word} (Open-Meteo, not a station reading)"),
     ):
         rows = by_h.get(horizon) or []
         if not rows:
@@ -441,11 +470,10 @@ def _live_deterministic(
         top = forecast_rain[0]
         rain_statement = (
             f"Forecast rain reaches {_fmt(top['max_hourly_mm'])} mm in an hour at "
-            f"{point_label(top['point_id'])} within {FORECAST_HOURS} h, at or above the "
+            f"{point_label(top['point_id'])} within the {ahead}, at or above the "
             f"{_fmt(rain_at.value)} mm/h anomaly line"
             if rain_crosses
-            else f"No point's forecast rain reaches {_fmt(rain_at.value)} mm/h in the next "
-            f"{FORECAST_HOURS} h"
+            else f"No point's forecast rain reaches {_fmt(rain_at.value)} mm/h in the {ahead}"
         )
     else:
         rain_statement = f"No live rain rows in {s}.hazard_now"
@@ -470,13 +498,13 @@ def _live_deterministic(
         p = fpeak.rows_sample[0]
         if crossing:
             text = (
-                f"The highest forecast discharge in the next {FORECAST_HOURS} h is "
+                f"The highest forecast discharge in the {ahead} is "
                 f"{_fmt(p['discharge_m3s'])} m3/s at {point_label(p['point_id'])}, "
                 f"{when(p['ts_utc'])}."
             )
         else:
             text = (
-                f"No point crosses {_fmt(flow_at.value)} m3/s in the next {FORECAST_HOURS} h: "
+                f"No point crosses {_fmt(flow_at.value)} m3/s in the {ahead}: "
                 f"the highest forecast discharge is {_fmt(p['discharge_m3s'])} m3/s at "
                 f"{point_label(p['point_id'])}, {when(p['ts_utc'])}."
             )
@@ -485,7 +513,7 @@ def _live_deterministic(
         p = ppeak.rows_sample[0]
         h2.append(
             claim(
-                f"Past days (observed-modelled, not a gauge reading): the highest discharge was "
+                f"Past days ({past_word}, not a gauge reading): the highest discharge was "
                 f"{_fmt(p['discharge_m3s'])} m3/s at {point_label(p['point_id'])}, "
                 f"{when(p['ts_utc'])}.",
                 "number",
@@ -498,12 +526,11 @@ def _live_deterministic(
         names = ", ".join(point_label(c["point_id"]) for c in crossing)
         flow_statement = (
             f"{names} {'is' if len(crossing) == 1 else 'are'} forecast to reach "
-            f"{_fmt(flow_at.value)} m3/s or more within {FORECAST_HOURS} h"
+            f"{_fmt(flow_at.value)} m3/s or more within the {ahead}"
         )
     elif fpeak.rows_sample:
         flow_statement = (
-            f"No point's forecast discharge reaches {_fmt(flow_at.value)} m3/s in the next "
-            f"{FORECAST_HOURS} h"
+            f"No point's forecast discharge reaches {_fmt(flow_at.value)} m3/s in the {ahead}"
         )
     else:
         flow_statement = f"No live discharge rows in {s}.hazard_now"
@@ -540,10 +567,7 @@ def _live_deterministic(
             ),
         )
     )
-    window_note = ""
-    for r in span.rows_sample:
-        if r.get("horizon") == "forecast":
-            window_note = f" Forecast rows run to {r['to_utc']}."
+    window_note = " STALE live data: the last sync is old." if stale else ""
     summary = f"Live data ({s}.hazard_now, as of {now}). " + " ".join(
         f"{h.statement} [{', '.join(h.citations)}]." if h.citations else f"{h.statement}."
         for h in hyps
@@ -553,6 +577,10 @@ def _live_deterministic(
         "rain_crosses": rain_crosses,
         "discharge_crosses": bool(crossing),
         "crossing_points": [c["point_id"] for c in crossing],
+        "past_to_utc": past_to,
+        "forecast_to_utc": fc_to,
+        "forecast_hours_left": left,
+        "stale": stale,
     }
     return hyps, claims, summary, [span, rain, fpeak, ppeak, cross, foot], findings
 
@@ -743,7 +771,10 @@ def make(deps: Deps):
         model_id = "deterministic"
         lane = "sql"
         try:
-            got = _model(state, deps, extra)
+            # Live: the deterministic hazard_now chain stands. A model-written
+            # chain cited the empty threshold queries and lost the "nothing
+            # crosses" answer; its numbers and past/forecast labels are not ours.
+            got = None if findings is not None else _model(state, deps, extra)
             if got:
                 m_hyps, m_claims, m_summary, model_id = got
                 if m_hyps and m_claims:
@@ -783,7 +814,8 @@ def make(deps: Deps):
             "trace": trace(
                 state,
                 "investigator",
-                f"{len(hyps)} hypotheses, {len(claims)} cited claims{doc_note}",
+                f"{len(hyps)} hypotheses, {len(claims)} cited claims{doc_note}"
+                + (" (STALE live data)" if (findings or {}).get("stale") else ""),
                 lane=lane,
                 model_id=model_id,
                 started=t,

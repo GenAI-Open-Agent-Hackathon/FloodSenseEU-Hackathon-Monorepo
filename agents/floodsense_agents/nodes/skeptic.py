@@ -98,11 +98,10 @@ def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, t
                     (),
                 ),
                 (
-                    "the forecast peak is above the past days' peak (a rise, not a constant)",
-                    f"SELECT MAX(f.discharge_m3s) AS forecast_peak, MAX(p.discharge_m3s) AS "
-                    f"past_peak FROM {s}.hazard_now f, {s}.hazard_now p WHERE f.point_id IN "
-                    f"({pts}) AND f.horizon = 'forecast' AND p.point_id = f.point_id AND "
-                    f"p.horizon = 'past' HAVING MAX(f.discharge_m3s) > MAX(p.discharge_m3s)",
+                    "the forecast maximum at the crossing points reaches the line",
+                    f"SELECT MAX(discharge_m3s) AS max_m3s FROM {s}.hazard_now WHERE {where} AND "
+                    f"horizon = 'forecast' AND point_id IN ({pts}) HAVING MAX(discharge_m3s) >= "
+                    f"{flow_at}",
                     (),
                 ),
             ]
@@ -200,11 +199,19 @@ def _generic_ok(h: Hypothesis, state: FloodState) -> tuple[bool, str]:
     if not h.citations:
         return False, "hypothesis has no claims"
     ev = state["evidence"]
+    live = is_live(state)
     for c in state["claims"]:
         if c["claim_id"] in h.citations:
             qids = [
                 x["query_id"] for x in c["citations"] if x["layer"] == "a" and x.get("query_id")
             ]
+            # Live: an answered hazard_now threshold query with no rows is the
+            # evidence for "nothing crosses". Only an errored or missing query is not.
+            if live and qids and any(
+                q in ev and not ev[q].get("error") and "hazard_now" in str(ev[q].get("view"))
+                for q in qids
+            ):
+                continue
             if not qids or not any(ev.get(q, {}).get("row_count", 0) > 0 for q in qids):
                 return False, f"claim {c['claim_id']} cites no query with rows"
     return True, ""
@@ -219,8 +226,9 @@ def make(deps: Deps):
         for h in hyps:
             ok, why = _generic_ok(h, state)
             rounds, qids, notes = 0, [], []
+            checks = _checks_for(h, state)[: settings.skeptic_max_rounds] if ok else []
             if ok:
-                for name, sql, params in _checks_for(h, state)[: settings.skeptic_max_rounds]:
+                for name, sql, params in checks:
                     rounds += 1
                     e = deps.zetaris.run_sql(sql, params or None)
                     new_ev.append(e)
@@ -232,6 +240,12 @@ def make(deps: Deps):
                         break
             verdict = "supported" if ok else "not_supported"
             rationale = why or "; ".join(notes)
+            # No counter-check ran, so nothing was tested: the hypothesis stays
+            # proposed. Live mode never rejects without a failed check.
+            if ok and not checks:
+                verdict, rationale = "proposed", "unchecked: no counter-check applies to this link"
+            elif not ok and rounds == 0 and is_live(state):
+                verdict, rationale = "proposed", f"unchecked: {why}"
             try:  # optional model rationale from the same rows
                 text, model_id = deps.llm.complete(
                     "fast",
