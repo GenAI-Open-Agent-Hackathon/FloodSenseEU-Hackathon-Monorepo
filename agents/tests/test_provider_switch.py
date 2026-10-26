@@ -28,6 +28,7 @@ from floodsense_agents.nightshift import (  # noqa: E402
     ProviderSwitch,
     available_providers,
     build_llm,
+    current_provider,
 )
 from floodsense_agents.runtime import Runtime  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
@@ -76,11 +77,31 @@ class GateTest(unittest.TestCase):
         with patch.dict(os.environ, ON):
             self.assertEqual(available_providers(), ["nightshift", "anthropic"])
 
-    def test_build_llm_wraps_only_when_on(self) -> None:
+    def test_build_llm_always_wraps_so_gate_is_read_per_call(self) -> None:
         with patch.dict(os.environ, OFF):
-            self.assertNotIsInstance(build_llm(), ProviderSwitch)
-        with patch.dict(os.environ, ON):
-            self.assertIsInstance(build_llm(), ProviderSwitch)
+            llm = build_llm()  # built while the gate is off...
+        self.assertIsInstance(llm, ProviderSwitch)
+        fake = LabelledFake("anthropic")
+        llm.anthropic = fake
+        token = current_provider.set("anthropic")
+        try:
+            with patch.dict(os.environ, ON):  # ...turned on later: still routes
+                _, mid = llm.complete("fast", "TASK: skeptic", "u")
+        finally:
+            current_provider.reset(token)
+        self.assertEqual(mid, "anthropic/fast")
+
+    def test_anthropic_run_without_gate_raises(self) -> None:
+        night = LabelledFake("nightshift")
+        llm = ProviderSwitch(night, LabelledFake("anthropic"))
+        token = current_provider.set("anthropic")
+        try:
+            with patch.dict(os.environ, OFF):
+                with self.assertRaises(RuntimeError):
+                    llm.complete("fast", "TASK: skeptic", "u")
+        finally:
+            current_provider.reset(token)
+        self.assertFalse(night.calls)
 
 
 class AnthropicClientTest(unittest.TestCase):
@@ -96,6 +117,20 @@ class AnthropicClientTest(unittest.TestCase):
         self.assertEqual(sent["headers"]["x-api-key"], "test-not-a-key")
         self.assertNotIn("temperature", sent["json"])
         self.assertIn("JSON", sent["json"]["system"])
+
+    def _reply(self, body: dict):
+        def post(url, json=None, headers=None, timeout=None):
+            return httpx.Response(200, json=body, request=httpx.Request("POST", url))
+
+        return post
+
+    def test_max_tokens_and_empty_text_raise(self) -> None:
+        cut = {"model": "m", "stop_reason": "max_tokens", "content": [{"type": "text", "text": "{"}]}
+        empty = {"model": "m", "stop_reason": "end_turn", "content": [{"type": "thinking"}]}
+        with patch.dict(os.environ, ON), patch("floodsense_agents.nightshift.time.sleep"):
+            for body in (cut, empty):
+                with self.assertRaises(RuntimeError):
+                    AnthropicClient(post=self._reply(body)).complete("fast", "TASK: x", "u")
 
     def test_model_override(self) -> None:
         http = FakeAnthropicHTTP()

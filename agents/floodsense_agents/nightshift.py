@@ -203,9 +203,13 @@ class AnthropicClient:
                 js = r.json()
                 if js.get("stop_reason") == "refusal":
                     raise RuntimeError("Anthropic declined the request (refusal)")
+                if js.get("stop_reason") == "max_tokens":
+                    raise RuntimeError("Anthropic reply cut off at max_tokens")
                 text = "".join(
                     b.get("text", "") for b in js.get("content", []) if b.get("type") == "text"
                 )
+                if not text.strip():
+                    raise RuntimeError("Anthropic returned no text")
                 answered = js.get("model") or model
                 log.info("anthropic lane=%s model=%s %.1fs", lane, answered, time.time() - t0)
                 return text, f"anthropic/{answered}"
@@ -224,14 +228,22 @@ class ProviderSwitch:
         self.anthropic = anthropic or AnthropicClient()
 
     def complete(self, lane: str, system: str, user: str, *, json: bool = True) -> tuple[str, str]:
-        if current_provider.get() == "anthropic" and "anthropic" in available_providers():
+        if current_provider.get() == "anthropic":
+            # Never answer an Anthropic run with Nightshift: the run is labelled
+            # and cached as anthropic, so a silent fallback would mislead.
+            if "anthropic" not in available_providers():
+                raise RuntimeError(
+                    "run asked for llm_provider=anthropic but the switch or key is gone"
+                )
             return self.anthropic.complete(lane, system, user, json=json)
         return self.nightshift.complete(lane, system, user, json=json)
 
 
 def build_llm() -> LLM:
-    base = _build_nightshift()
-    return ProviderSwitch(base) if _switch_on() else base
+    # Always wrapped: the gate is read per call, the same way the RunRequest
+    # validator and GET /config read it, so the three can never disagree.
+    # With the gate off every call goes to Nightshift.
+    return ProviderSwitch(_build_nightshift())
 
 
 def _build_nightshift() -> LLM:
