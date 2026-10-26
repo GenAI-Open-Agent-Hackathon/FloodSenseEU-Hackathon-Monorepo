@@ -63,6 +63,16 @@ class ProxyTest(unittest.TestCase):
         self.addCleanup(limits.stop)
         self.c = TestClient(api.app)
 
+    def test_views_are_proxied_with_headers(self) -> None:
+        r = self.c.get("/views/discharge_daily")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsInstance(r.json(), list)
+        self.assertTrue(r.headers.get("x-query-id"))
+        self.assertEqual(r.headers.get("cache-control"), "no-store")
+
+    def test_unknown_view_is_404_through_the_api(self) -> None:
+        self.assertEqual(self.c.get("/views/policies").status_code, 404)
+
     def test_start_approve_through_the_api(self) -> None:
         r = self.c.post(
             "/runs", json={"question": "Which sites are exposed?", "event_id": "EMSR773"}
