@@ -65,6 +65,9 @@ export function CitizenOverview() {
           <a className="button" href={routeHref("citizen", "area")}>
             See my area
           </a>
+          <button type="button" className="button ghost" onClick={desk.openAsk}>
+            See the reviewed answer
+          </button>
         </div>
       </section>
       <section className="card" aria-label="Why">

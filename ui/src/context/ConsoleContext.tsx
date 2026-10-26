@@ -63,6 +63,10 @@ export interface ConsoleValue {
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
   closeEvidence: () => void;
+  /** Ask FloodSense popup. Closed at start. A route change never opens it. */
+  askOpen: boolean;
+  openAsk: () => void;
+  closeAsk: () => void;
   approval: Approval;
   decide: (status: ApprovalStatus, note: string) => void;
   resetApproval: () => void;
@@ -139,6 +143,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [pointId, setPointId] = useState(DEFAULT_POINT_ID);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
+  const [askOpen, setAskOpen] = useState(false);
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
   const approvalPendingRef = useRef(true);
   approvalPendingRef.current = approval.status === "pending";
@@ -279,6 +284,10 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const closeEvidence = useCallback(() => setEvidenceOpen(false), []);
 
+  const openAsk = useCallback(() => setAskOpen(true), []);
+
+  const closeAsk = useCallback(() => setAskOpen(false), []);
+
   const decide = useCallback((status: ApprovalStatus, note: string) => {
     setApproval((current) => ({ ...current, status, note }));
   }, []);
@@ -330,6 +339,9 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       evidenceTopic,
       openEvidence,
       closeEvidence,
+      askOpen,
+      openAsk,
+      closeAsk,
       approval,
       decide,
       resetApproval,
@@ -357,6 +369,9 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       evidenceTopic,
       openEvidence,
       closeEvidence,
+      askOpen,
+      openAsk,
+      closeAsk,
       approval,
       decide,
       resetApproval,

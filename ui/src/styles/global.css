@@ -203,7 +203,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .replay-bar strong { color: var(--ink); font-weight: 650; }
 .replay-state[data-playing="true"] { color: var(--accent-strong); font-weight: 650; }
 
-.replay-dock {
+/* The dock box spans the launcher's column. Only the panel and the launcher take clicks, so the page under it stays usable. */
+.ask-dock {
   position: fixed;
   right: 1.1rem;
   bottom: 1.1rem;
@@ -212,9 +213,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
-  max-width: min(24rem, calc(100vw - 2rem));
+  pointer-events: none;
 }
-.replay-chip {
+.ask-dock > * { pointer-events: auto; }
+.ask-launcher {
   border: 0;
   border-radius: 999px;
   padding: 0.7rem 1.05rem;
@@ -224,20 +226,39 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
   font-weight: 650;
 }
-.replay-chip:hover { filter: brightness(1.08); }
-:root[data-theme="dark"] .replay-chip {
+.ask-launcher:hover { filter: brightness(1.08); }
+:root[data-theme="dark"] .ask-launcher {
   background: var(--accent);
   color: #10211e;
 }
-.replay-dock-card {
-  width: min(24rem, calc(100vw - 2rem));
+.ask-panel {
+  width: min(380px, calc(100vw - 2rem));
+  max-height: min(70vh, calc(100vh - 6rem));
+  display: flex;
+  flex-direction: column;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  padding: 0.85rem 1rem 1rem;
+  overflow: hidden;
 }
-.replay-question { margin: 0.35rem 0; }
+.ask-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.ask-head h2 { font-size: 1.05rem; }
+.ask-badge { display: inline-block; margin: 0.2rem 0 0; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 650; }
+.ask-badge-cached, .ask-badge-unlabelled { background: var(--warn-soft); color: var(--warn); }
+.ask-badge-live { background: var(--ok-soft); color: var(--ok); }
+.ask-body { overflow: auto; padding: 0.4rem 1rem 1rem; font-size: 0.92rem; }
+.ask-question { font-weight: 650; margin: 0.7rem 0 0.3rem; }
+.ask-claims, .ask-citations, .ask-trace { margin: 0.3rem 0 0.6rem; padding-left: 1.1rem; display: grid; gap: 0.4rem; }
+.ask-citations { list-style: none; padding-left: 0; color: var(--muted); font-size: 0.82rem; }
+.ask-trace { padding-left: 0; list-style: none; }
 
 .header-inner {
   min-height: var(--header);
