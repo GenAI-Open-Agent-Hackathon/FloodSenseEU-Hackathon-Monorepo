@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- `retrieve_docs` ranks paragraph chunks in Postgres and hydrates the passage through Zetaris when `FF_RAG_DOCS` is on. The Investigator calls it once when the request sets `doc_query`. The Judge requires a layer (c) quote to be a substring of the cited passage, and a layer (c) citation alone does not pass. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - NIM embeddings client for `nvidia/llama-nemotron-embed-1b-v2` (2048 dimensions, `input_type` `passage` or `query`). `scripts/rag_ingest.py` writes paragraph vectors into `rag.chunks` and caches them under `corpus/.embed-cache/`. A section-only paragraph uses the section index as `page` so `page` stays at least 1. No `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - Empty `rag.chunks` table and halfvec HNSW index in `pgvector/migrations/001_rag_chunks.sql`. Zetaris JDBC registration is `zetaris/migrations/044_register_pgvector_rag_chunks.sql`, with the password left as `${PGVECTOR_PASSWORD}`. No embeddings are ingested. No `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - Layer (c) corpus manifest and redistributable Tier 1 and Tier 2 copies under `corpus/` (EMSR773 Horta Sud delineation map, EMSR517 Bad Neuenahr-Ahrweiler grading map, the HESS and NHESS papers, and the EasyxLab S19 paper snapshot). `python tasks.py fetch-rag-corpus` checks sha256 and downloads `placement: fetch` files into `corpus/fetched/`. It does not embed and it does not start Docker. No `rag.chunks` table and no `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut. Licences for EMSR517, the two papers, and EasyxLab S19 are in `docs/legal/sources.md`.
@@ -18,6 +19,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- pgvector search binds the query vector and the event id on every reuse in the halfvec statement and the exact fallback. The Judge matches each layer (c) quote to its own passage when one hydrate returns several chunks under one query id. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - `rag.chunks` checks reject a null `embed_model` on a row that has an embedding, and a null `page` or `paragraph` on a paragraph row. A comparison with null is unknown, and a `CHECK` allows unknown.
 - The EasyxLab S19 snapshot omits the Cloudflare challenge script and Web Analytics beacon that the host appended after the footer. `.gitleaksignore` names that beacon on commit `934bd03` only. The current file has no beacon.
 
