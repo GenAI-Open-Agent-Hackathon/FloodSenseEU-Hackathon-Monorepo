@@ -65,30 +65,42 @@ _UTC_CANON = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 # mode keys on the mode the agents will resolve, so a live answer is never
 # served for an event question or the other way round. Change both together.
 _LIVE_PATTERNS: tuple[str, ...] = (
-    r"\bnow\b",
-    r"\bright now\b",
-    r"\bcurrently\b",
-    r"\bcurrent\b",
-    r"\btoday\b",
-    r"\btonight\b",
-    r"\btomorrow\b",
-    r"\bthis week\b",
-    r"\bforecast\w*\b",
-    r"\bnext \d+ ?(?:h|hours?|days?)\b",
-    r"\bnext (?:few )?(?:hours?|days?)\b",
-    r"\bcoming (?:hours?|days?)\b",
-    r"\bahora\b",
-    r"\bhoy\b",
-    r"\bma(?:ñ|n)ana\b",
-    r"\bpron(?:ó|o)stico\b",
-    r"\bpr(?:ó|o)xim[ao]s \d+ ?(?:h|horas?)\b",
-    r"\bjetzt\b",
-    r"\bheute\b",
-    r"\bmorgen\b",
-    r"\bvorhersage\b",
-    r"\bn(?:ä|a)chsten \d+ ?(?:h|stunden)\b",
+    r"now",
+    r"right now",
+    r"currently",
+    r"today",
+    r"tonight",
+    r"tomorrow",
+    r"this week",
+    r"next \d+ ?(?:h|hours?|days?)",
+    r"next (?:few )?(?:hours?|days?)",
+    r"coming (?:hours?|days?)",
+    # Spanish
+    r"ahora",
+    r"hoy",
+    r"ma(?:ñ|n)ana",
+    r"pr(?:ó|o)xim[ao]s \d+ ?(?:h|horas?)",
+    # German. "Guten Morgen" is a greeting, not tomorrow.
+    r"jetzt",
+    r"heute",
+    r"(?<!guten )morgen",
+    r"n(?:ä|a)chsten \d+ ?(?:h|stunden)",
 )
-_LIVE_RE = re.compile("|".join(_LIVE_PATTERNS), re.IGNORECASE | re.UNICODE)
+# A question that names the past is an event question, whatever else it says.
+_EVENT_PATTERNS: tuple[str, ...] = (
+    r"(?:19\d{2}|20(?:[01]\d|2[0-4]))",  # a year up to 2024
+    r"\d{4}-\d{2}-\d{2}",  # an explicit date
+    r"\d{1,2}\.? (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ene|abr|ago|dic|"
+    r"okt|dez|mai|juli?|juni?|m(?:ä|a)r)\w*",
+    r"emsr\d*",
+    r"on that day",
+)
+_EVENT_RE = re.compile(
+    "|".join(rf"\b(?:{p})\b" for p in _EVENT_PATTERNS), re.IGNORECASE | re.UNICODE
+)
+_LIVE_RE = re.compile(
+    "|".join(rf"\b(?:{p})\b" for p in _LIVE_PATTERNS), re.IGNORECASE | re.UNICODE
+)
 
 
 def _flag(name: str, default: bool) -> bool:
@@ -173,7 +185,20 @@ def mode_of(source: dict[str, Any]) -> str:
     explicit = resolved if resolved in ("event", "live") else request.get("mode")
     if explicit in ("event", "live"):
         return explicit
-    return "live" if _LIVE_RE.search(question_text(source)) else "event"
+    question = question_text(source)
+    if _EVENT_RE.search(question):
+        return "event"
+    return "live" if _LIVE_RE.search(question) else "event"
+
+
+def recorded_mode(run: dict[str, Any]) -> str:
+    """The mode a recorded run answered in. A run from before live mode has none: event."""
+    resolved = run.get("mode")
+    if isinstance(resolved, dict) and resolved.get("mode") in ("event", "live"):
+        return resolved["mode"]
+    if resolved in ("event", "live"):
+        return resolved
+    return "event"
 
 
 def key_of(request: dict[str, Any], flags: str) -> tuple:
@@ -309,7 +334,7 @@ def ask_of(source: dict[str, Any]) -> tuple:
 
 def same_ask(request: dict[str, Any], run: dict[str, Any]) -> bool:
     """True when the run answered this question, event, customer, clock and language."""
-    return ask_of(request) == ask_of(run)
+    return ask_of(request) == (recorded_mode(run), *ask_of(run)[1:])
 
 
 def past_row_matches(request: dict[str, Any], row: dict[str, Any]) -> bool:
@@ -337,8 +362,8 @@ def past_row_matches(request: dict[str, Any], row: dict[str, Any]) -> bool:
         return False
     if normalize_utc(row.get("replay_ts")) != normalize_utc(request.get("replay_ts")):
         return False
-    row_mode = row.get("mode")
-    if row_mode in ("event", "live") and row_mode != mode_of(request):
+    # A row without a mode predates live mode, so it answered the event window.
+    if recorded_mode(row) != mode_of(request):
         return False
     row_lang = row.get("lang")
     if row_lang not in (None, "") and str(row_lang) != (request.get("lang") or DEFAULT_LANG):

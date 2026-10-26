@@ -30,7 +30,7 @@ class ModeCacheTest(unittest.TestCase):
         self.assertEqual(mode_of({**LIVE_Q, "mode": "event"}), "event")
         self.assertEqual(mode_of({**LIVE_Q, "replay_ts": "2024-10-29T16:00:00Z"}), "event")
         self.assertEqual(mode_of({"question": "¿Qué pasa mañana?"}), "live")
-        self.assertEqual(mode_of({"question": "Wie ist die Vorhersage?"}), "live")
+        self.assertEqual(mode_of({"question": "Wie ist die Vorhersage für morgen?"}), "live")
         run = {"request": dict(EVENT_Q), "mode": {"mode": "live", "reason": "x"}}
         self.assertEqual(mode_of(run), "live")
 
@@ -53,6 +53,19 @@ class ModeCacheTest(unittest.TestCase):
         }
         self.assertFalse(past_row_matches(EVENT_Q, row))
         self.assertTrue(past_row_matches({**EVENT_Q, "mode": "live"}, row))
+
+    def test_a_run_recorded_before_live_mode_is_event(self) -> None:
+        old_run = {"run_id": "r0", "request": dict(LIVE_Q), "event_id": "EMSR773"}
+        self.assertFalse(same_ask(LIVE_Q, old_run))
+        self.assertTrue(same_ask({**LIVE_Q, "mode": "event"}, old_run))
+        row = {
+            "run_id": "r0",
+            "status": "approved",
+            "approval": "approved",
+            "event_id": "EMSR773",
+            "question": LIVE_Q["question"],
+        }
+        self.assertFalse(past_row_matches(LIVE_Q, row))
 
     def test_live_mode_gets_the_short_ttl(self) -> None:
         cache = AnswerCache(CacheSettings(ttl_live_s=60, ttl_replay_s=86400))
