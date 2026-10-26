@@ -1,19 +1,29 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { askFloodSense, DEFAULT_EVENT_ID, runBadge } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
 import { servingLabel, servingQualifier } from "../lib/format";
+import { PROVIDER_LABELS } from "../lib/llmProvider";
+import { routeHref } from "../lib/route";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
+interface Turn {
+  question: string;
+  run: RecordedRun | null;
+  error: string | null;
+}
+
 /**
  * Gmail-style dock, bottom right. Non-modal: it never covers or pushes the page, and it never opens on a route change.
- * The answer is the fixture already on the desk, or a recorded run when VITE_REPLAY_RUN_ID is set and fetches. There is no question box, because nothing here calls a model.
+ * The first message is the recorded run (VITE_REPLAY_RUN_ID) or the fixture already on the desk. The composer posts
+ * a question to POST /runs; each answer is labelled by its own served_from, so a replay is never called live.
  */
 export function AskFloodSense() {
   const desk = useConsole();
-  const { answer, askOpen, closeAsk, evidenceOpen } = desk;
+  const { answer, askOpen, closeAsk, evidenceOpen, llmProvider, llmProviders } = desk;
   const panelId = useId();
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
@@ -45,6 +55,66 @@ export function AskFloodSense() {
     });
     return () => controller.abort();
   }, []);
+
+  // Conversation typed in this popup. Newest at the bottom; it survives closing the popup.
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<{ question: string; started: number; provider: string } | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const inflightRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => () => inflightRef.current?.abort(), []);
+  useEffect(() => {
+    if (!pending) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - pending.started) / 1000));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [pending]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns, pending, askOpen]);
+
+  const send = async () => {
+    const question = draft.trim();
+    if (!question || pending) return;
+    const controller = new AbortController();
+    inflightRef.current = controller;
+    const allowed = llmProviders.includes(llmProvider);
+    // Follow-ups continue the thread of the newest answered run.
+    const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
+    setDraft("");
+    setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider" });
+    const result = await askFloodSense(
+      {
+        question,
+        eventId: DEFAULT_EVENT_ID,
+        provider: llmProvider,
+        allowedProviders: llmProviders,
+        threadId: previous ? previous.threadId ?? previous.runId : null,
+      },
+      controller.signal,
+    );
+    if (controller.signal.aborted) return;
+    inflightRef.current = null;
+    setPending(null);
+    setTurns((prev) => [
+      ...prev,
+      result.ok ? { question, run: result.run, error: null } : { question, run: null, error: result.message },
+    ]);
+  };
+  const cancel = () => {
+    inflightRef.current?.abort();
+    inflightRef.current = null;
+    setPending(null);
+  };
+  const onComposerKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void send();
+    }
+  };
 
   useEffect(() => {
     if (!askOpen) return;
@@ -96,7 +166,7 @@ export function AskFloodSense() {
             <div>
               <h2 id={titleId}>Ask FloodSense</h2>
               {recorded ? (
-                <p className="ask-badge ask-badge-replay">Replay · recorded run {recorded.runId} · not live</p>
+                <p className="ask-badge ask-badge-replay">Recorded run · not live</p>
               ) : (
                 <p className={`ask-badge ask-badge-${serving.kind}`}>
                   {badge} · {when}
@@ -107,63 +177,107 @@ export function AskFloodSense() {
               <CloseIcon />
             </button>
           </header>
-          <div className="ask-body">
-            {recorded ? (
-              <RecordedAnswer run={recorded} />
-            ) : (
-            <>
-            <p className="note">
-              Reviewed answer, {servingQualifier(serving)}, run {serving.runId}. Not live. This panel does not take questions
-              or call a model.
-            </p>
-            <p className="ask-question">{answer.question}</p>
-            <ul className="ask-claims">
-              {answer.claims.map((claim) => (
-                <li key={claim.claim_id}>
-                  {claim.text} <span className="cite-marks">{citationMarks(citationsForClaim(answer, claim.claim_id))}</span>
-                </li>
-              ))}
-            </ul>
-            <ol className="ask-citations">
-              {numberedCitations(answer).map(({ n, citation }) => (
-                <li key={citation.citation_id}>
-                  [{n}] {citation.title} · {citation.publisher}
-                </li>
-              ))}
-            </ol>
-            <details className="disclosure">
-              <summary>How I got this</summary>
-              <ol className="ask-trace">
-                {answer.evidence.map((evidence) => (
-                  <li key={evidence.query_id}>
-                    <p className="menu-title">{evidence.view}</p>
-                    <p className="note">
-                      {evidence.query_id} · {evidence.row_count} row{evidence.row_count === 1 ? "" : "s"} · {evidence.executed_at_utc}
-                    </p>
-                    <pre className="sql">{evidence.sql}</pre>
-                  </li>
-                ))}
-              </ol>
-              <p className="note">Fixture SQL, packed with the answer.</p>
-              {!hasLayerC && <p className="note">This answer has no layer (c) document citations.</p>}
-            </details>
-            </>
-            )}
-            <div className="button-row">
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  // Move focus out first, so the drawer records the launcher as its opener.
-                  launcherRef.current?.focus();
-                  dismiss();
-                  desk.openEvidence("discharge");
-                }}
-              >
-                Open evidence
-              </button>
+          <div className="ask-body" ref={scrollRef} aria-live="polite">
+            <div className="ask-turn">
+              {recorded ? (
+                <RecordedAnswer run={recorded} badge={`Recorded run · not live · ${recorded.runId}`} />
+              ) : (
+                <>
+                  <p className="note">
+                    Reviewed answer, {servingQualifier(serving)}, run {serving.runId}. Not live.
+                  </p>
+                  <p className="ask-question">{answer.question}</p>
+                  <ul className="ask-claims">
+                    {answer.claims.map((claim) => (
+                      <li key={claim.claim_id}>
+                        {claim.text} <span className="cite-marks">{citationMarks(citationsForClaim(answer, claim.claim_id))}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <ol className="ask-citations">
+                    {numberedCitations(answer).map(({ n, citation }) => (
+                      <li key={citation.citation_id}>
+                        [{n}] {citation.title} · {citation.publisher}
+                      </li>
+                    ))}
+                  </ol>
+                  <details className="disclosure">
+                    <summary>How I got this</summary>
+                    <ol className="ask-trace">
+                      {answer.evidence.map((evidence) => (
+                        <li key={evidence.query_id}>
+                          <p className="menu-title">{evidence.view}</p>
+                          <p className="note">
+                            {evidence.query_id} · {evidence.row_count} row{evidence.row_count === 1 ? "" : "s"} ·{" "}
+                            {evidence.executed_at_utc}
+                          </p>
+                          <pre className="sql">{evidence.sql}</pre>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="note">Fixture SQL, packed with the answer.</p>
+                    {!hasLayerC && <p className="note">This answer has no layer (c) document citations.</p>}
+                  </details>
+                </>
+              )}
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    // Move focus out first, so the drawer records the launcher as its opener.
+                    launcherRef.current?.focus();
+                    dismiss();
+                    desk.openEvidence("discharge");
+                  }}
+                >
+                  Open evidence
+                </button>
+              </div>
             </div>
+            {turns.map((turn, i) => (
+              <div key={i} className="ask-turn">
+                <p className="ask-bubble">{turn.question}</p>
+                {turn.run ? (
+                  <RecordedAnswer run={turn.run} badge={runBadge(turn.run)} />
+                ) : (
+                  <p className="ask-error" role="alert">
+                    {turn.error}
+                  </p>
+                )}
+              </div>
+            ))}
+            {pending && (
+              <div className="ask-turn">
+                <p className="ask-bubble">{pending.question}</p>
+                <p className="ask-working" role="status">
+                  Working… {elapsed} s · {pending.provider}. The answer arrives when the run reaches review.{" "}
+                  <button type="button" className="ask-link" onClick={cancel}>
+                    Cancel
+                  </button>
+                </p>
+              </div>
+            )}
           </div>
+          <form
+            className="ask-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send();
+            }}
+          >
+            <textarea
+              aria-label="Your question"
+              rows={2}
+              value={draft}
+              placeholder="Ask about flood risk, exposure, or a place…"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onComposerKey}
+            />
+            <button type="submit" className="button" disabled={pending !== null || draft.trim() === ""}>
+              Send
+            </button>
+          </form>
         </section>
       )}
       <button
@@ -180,14 +294,18 @@ export function AskFloodSense() {
   );
 }
 
-/** A recorded agent run. Always labelled as a replay: nothing here is live. */
-function RecordedAnswer({ run }: { run: RecordedRun }) {
+/** An agent run, labelled by its own served_from: live, cache or replay. */
+function RecordedAnswer({ run, badge }: { run: RecordedRun; badge: string }) {
+  const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
   return (
     <>
-      <p className="note">
-        <strong>Replay · recorded run {run.runId} · not live</strong>
-      </p>
-      <p className="note">{run.label}</p>
+      <p className={`ask-badge ask-badge-${kind}`}>{badge}</p>
+      {run.servedFrom !== "live" && run.label !== badge && <p className="note">{run.label}</p>}
+      {run.status === "awaiting_approval" && (
+        <p className="note ask-approval">
+          Pending your approval on the <a href={routeHref("insurer", "approvals")}>Approvals page</a> · run {run.runId}
+        </p>
+      )}
       <p className="ask-question">{run.summary}</p>
       <ul className="ask-claims">
         {run.claims.map((claim) => (
@@ -203,7 +321,7 @@ function RecordedAnswer({ run }: { run: RecordedRun }) {
             {claim.citations
               .filter((citation) => citation.layer === "c" && citation.quote)
               .map((citation) => (
-                <blockquote key={`${citation.id}-q`} className="note">
+                <blockquote key={`${citation.id}-q`} className="note ask-quote">
                   “{citation.quote}” {citation.publisher ?? ""}
                   {citation.licence ? ` · ${citation.licence}` : ""}
                 </blockquote>
