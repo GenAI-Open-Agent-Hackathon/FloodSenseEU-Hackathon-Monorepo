@@ -145,7 +145,7 @@ Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `age
 
 | Flag | v1.0 default | Purpose |
 | --- | --- | --- |
-| `FF_LIVE_DATA` | on | Read `floodsense.*` instead of `floodsense_seed.*` |
+| `FF_LIVE_DATA` | off | Read `floodsense.*` instead of `floodsense_seed.*`. The code default is false (`agents/.env.example`, `settings.live_data`). Leave it off unless that live schema is the one you mean to read |
 | `FF_SKEPTIC` | on | Skeptic loop |
 | `FF_JUDGE` | on | Score claims before the approval interrupt |
 | `FF_HITL` | on | Approval interrupt before any outbound action |

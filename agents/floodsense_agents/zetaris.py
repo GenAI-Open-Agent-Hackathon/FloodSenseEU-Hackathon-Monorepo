@@ -10,7 +10,7 @@ Fake  the same views as in-memory SQLite, so the graph, the tests and the UI
       from public reporting plus a synthetic portfolio, pending real migrations.
 
 Views, as in the contract; schema floodsense_seed.* or floodsense.* via
-FF_LIVE_DATA (default false; live as the default is v0.5):
+FF_LIVE_DATA (default false):
   hazard_timeline(point_id, ts_utc, rain_mm, discharge_m3s, warning_level)
   discharge_daily(point_id, date, discharge_m3s, source)
   exposure_join(policy_id, site_id, lat, lon, in_footprint, sum_insured_eur, segment)
@@ -294,6 +294,8 @@ class ZetarisClient:
 
 # Fake Zetaris: the contract views in SQLite. ATTACH gives the
 # floodsense_seed.<view> names, so the nodes' SQL is identical.
+# in_footprint is INTEGER because SQLite stores TRUE as 1. The warehouse
+# column is boolean, so the predicate is `= TRUE`, not `= 1`.
 _DDL = """
 CREATE TABLE {s}.hazard_timeline(point_id TEXT, ts_utc TEXT, rain_mm REAL, discharge_m3s REAL, warning_level TEXT);
 CREATE TABLE {s}.discharge_daily(point_id TEXT, date TEXT, discharge_m3s REAL, source TEXT);
@@ -316,12 +318,21 @@ def _gauge_seed_rows() -> list[tuple]:
     return rows
 
 
-# Valencia 29 Oct 2024 (seed, approximate): AEMET reported ~491 mm in ~8 h at
-# Chiva and ~185 mm in one hour at Turís; CHJ estimated the Poyo ravine peak
-# above 2,000 m3/s around 17:55 UTC, with the sensor failing after 1,686 m3/s
-# at 16:45 UTC; AEMET red warning 06:30 UTC; ES-Alert to phones 19:11 UTC.
-# Ahr 2021: Altenahr > 5.7 m on 14 Jul evening, gauge failed; DWD
-# 100-150 mm / 24 h; discharge estimated ~1,000 m3/s.
+# Valencia 29 Oct 2024 (seed, approximate), stored under the warehouse point
+# ids. Chiva is VAL07. Paiporta on the Barranco del Poyo is VAL01. Turís is
+# not on ingestion/prep/valencia_points.csv, so it is not a row. AEMET reported
+# ~491 mm in ~8 h at Chiva; CHJ estimated the Poyo ravine peak above 2,000 m3/s
+# around 17:55 UTC, with the sensor failing after 1,686 m3/s at 16:45 UTC;
+# AEMET red warning 06:30 UTC; ES-Alert to phones 19:11 UTC.
+# Ahr 2021, under AHR01 (Altenahr) and AHR02 (Ahrweiler): Altenahr > 5.7 m on
+# 14 Jul evening, gauge failed; DWD 100-150 mm / 24 h; discharge estimated
+# ~1,000 m3/s. floodsense_seed hazard views do not hold these rows.
+# in_footprint is 1 or 0 because SQLite stores TRUE as 1. The warehouse column
+# is boolean. Queries use in_footprint = TRUE / FALSE (governance).
+_VAL_RIVER = EVENTS["EMSR773"].river_points[0]
+_VAL_RAIN = EVENTS["EMSR773"].rain_points[0]
+_AHR_RIVER = EVENTS["EMSR517"].river_points[0]
+_AHR_RAIN = EVENTS["EMSR517"].rain_points[0]
 _CHIVA = [
     (9, 18),
     (10, 35),
@@ -334,34 +345,32 @@ _CHIVA = [
     (17, 31),
     (18, 12),
 ]
-_TURIS = [(13, 20), (14, 42), (15, 71), (16, 185), (17, 60), (18, 15)]
 _POYO = [(12, 6), (13, 9), (14, 40), (15, 310), (16, 1686), (17, 2282), (18, None)]
 _SEED = {
     "hazard_timeline": [
-        ("chiva", f"2024-10-29T{h:02d}:00:00Z", mm, None, "red" if h >= 7 else None)
+        (_VAL_RAIN, f"2024-10-29T{h:02d}:00:00Z", mm, None, "red" if h >= 7 else None)
         for h, mm in _CHIVA
     ]
-    + [("turis", f"2024-10-29T{h:02d}:00:00Z", mm, None, "red") for h, mm in _TURIS]
     + [
-        ("poyo-ribaroja", f"2024-10-29T{h:02d}:00:00Z", None, q, "es-alert" if h >= 19 else None)
+        (_VAL_RIVER, f"2024-10-29T{h:02d}:00:00Z", None, q, "es-alert" if h >= 19 else None)
         for h, q in _POYO
     ]
-    + [("poyo-ribaroja", "2024-10-29T19:11:00Z", None, None, "es-alert")]
+    + [(_VAL_RIVER, "2024-10-29T19:11:00Z", None, None, "es-alert")]
     + [
-        ("ahrweiler", "2021-07-14T14:00:00Z", 38.0, None, "3"),
-        ("ahrweiler", "2021-07-14T16:00:00Z", 61.0, None, "4"),
-        ("ahrweiler", "2021-07-14T18:00:00Z", 43.0, None, "4"),
-        ("altenahr", "2021-07-13T06:00:00Z", None, 8.2, None),
-        ("altenahr", "2021-07-14T19:00:00Z", None, 1000.0, "4"),
-        ("altenahr", "2021-07-14T20:00:00Z", None, None, "4"),
+        (_AHR_RAIN, "2021-07-14T14:00:00Z", 38.0, None, "3"),
+        (_AHR_RAIN, "2021-07-14T16:00:00Z", 61.0, None, "4"),
+        (_AHR_RAIN, "2021-07-14T18:00:00Z", 43.0, None, "4"),
+        (_AHR_RIVER, "2021-07-13T06:00:00Z", None, 8.2, None),
+        (_AHR_RIVER, "2021-07-14T19:00:00Z", None, 1000.0, "4"),
+        (_AHR_RIVER, "2021-07-14T20:00:00Z", None, None, "4"),
     ],
     "discharge_daily": [
-        ("poyo-ribaroja", "2024-10-28", 3.0, "GloFAS via Open-Meteo"),
-        ("poyo-ribaroja", "2024-10-29", 2100.0, "GloFAS via Open-Meteo"),
-        ("poyo-ribaroja", "2024-10-30", 240.0, "GloFAS via Open-Meteo"),
-        ("altenahr", "2021-07-13", 8.0, "GloFAS via Open-Meteo"),
-        ("altenahr", "2021-07-14", 1000.0, "GloFAS via Open-Meteo"),
-        ("altenahr", "2021-07-15", 210.0, "GloFAS via Open-Meteo"),
+        (_VAL_RIVER, "2024-10-28", 3.0, "GloFAS via Open-Meteo"),
+        (_VAL_RIVER, "2024-10-29", 2100.0, "GloFAS via Open-Meteo"),
+        (_VAL_RIVER, "2024-10-30", 240.0, "GloFAS via Open-Meteo"),
+        (_AHR_RIVER, "2021-07-13", 8.0, "GloFAS via Open-Meteo"),
+        (_AHR_RIVER, "2021-07-14", 1000.0, "GloFAS via Open-Meteo"),
+        (_AHR_RIVER, "2021-07-15", 210.0, "GloFAS via Open-Meteo"),
     ],
     "gauge_levels": _gauge_seed_rows(),
     # Synthetic portfolio of the demo insurer around the EMSR773 footprint.
@@ -405,10 +414,10 @@ _SEED = {
         ),
         (
             "exposure_join",
-            "https://emergency.copernicus.eu/mapping/list-of-components/EMSR773",
-            "Copernicus EMS",
-            "Copernicus terms",
-            "Generated using Copernicus Emergency Management Service information 2024",
+            "https://mapping.emergency.copernicus.eu/activations/EMSR773",
+            "European Commission / Copernicus EMS",
+            "CEMS On-Demand Mapping Terms and Conditions (07/06/2023)",
+            "Copernicus Emergency Management Service (© 2024 European Union), EMSR773",
             "2026-10-22",
         ),
         (

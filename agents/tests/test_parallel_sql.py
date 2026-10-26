@@ -45,7 +45,7 @@ _JOBS = [
     ),
     (
         "SELECT COUNT(*) AS policies, SUM(sum_insured_eur) AS sum_insured_eur "
-        "FROM floodsense_seed.exposure_join WHERE in_footprint = 1",
+        "FROM floodsense_seed.exposure_join WHERE in_footprint = TRUE",
         None,
     ),
 ]

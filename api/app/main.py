@@ -75,7 +75,7 @@ TIMEOUT = httpx.Timeout(
     600.0, connect=5.0
 )  # a run waits for the deep lane; the connect timeout stays short
 
-app = FastAPI(title="FloodSense EU", version="0.4.0")
+app = FastAPI(title="FloodSense EU", version="0.12.0")
 cache = AnswerCache()
 app.add_middleware(
     CORSMiddleware, allow_origins=UI_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"]

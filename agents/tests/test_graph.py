@@ -199,7 +199,7 @@ class GraphTest(unittest.TestCase):
         )
         p = out["__interrupt__"][0].value
         self.assertEqual(p["event_id"], "EMSR517")
-        self.assertTrue(any("altenahr" in c["text"] for c in p["claims"]))
+        self.assertTrue(any("AHR01" in c["text"] for c in p["claims"]))
 
     def test_planted_false_hypothesis_is_not_supported_and_removed_on_revise(self) -> None:
         llm = FakeNightshift({"investigator": planted_investigator})

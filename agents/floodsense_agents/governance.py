@@ -17,7 +17,14 @@ from dataclasses import dataclass, field
 # Rung 06. The agents read these and nothing else. zetaris.py builds them
 # in the fake and expects them in the live warehouse; readiness checks that no
 # executed query reached past them. gauge_levels is the PEGELONLINE contract.
-# FF_LIVE_DATA stays off until v0.5, so the default schema is floodsense_seed.
+# FF_LIVE_DATA defaults false, so the schema is floodsense_seed until someone
+# sets the flag and means to read floodsense.*.
+# exposure_join.in_footprint is boolean. Migrations 014, 016, and 018 set it
+# with (in_flood_footprint = 'yes'). Comparing to 1 matches the FakeZetaris
+# integer column and matches nothing on the warehouse boolean.
+IN_FOOTPRINT_SQL = "in_footprint = TRUE"
+OUTSIDE_FOOTPRINT_SQL = "in_footprint = FALSE"
+
 CONTRACT_VIEWS = (
     "hazard_timeline",
     "discharge_daily",
@@ -99,6 +106,8 @@ DEFINITIONS: dict[str, Definition] = {
         used_by="watchers",
         owner="hazard data lead",
     ),
+    # The map's demo line is SIMULATED_ALERT_M3S (80) in ui/src/config/scenario.ts.
+    # That simulation is not this anomaly, and the two numbers are not one constant.
     "anomaly_discharge": Definition(
         term="anomaly_discharge",
         value=100,

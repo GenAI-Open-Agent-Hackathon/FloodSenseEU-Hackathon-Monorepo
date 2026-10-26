@@ -17,6 +17,7 @@ import logging
 import re
 import time
 
+from floodsense_agents.governance import IN_FOOTPRINT_SQL
 from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
@@ -152,7 +153,7 @@ def _deterministic(
             ),
             (
                 f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
-                f"{s}.exposure_join WHERE in_footprint = 1",
+                f"{s}.exposure_join WHERE {IN_FOOTPRINT_SQL}",
                 None,
             ),
             (

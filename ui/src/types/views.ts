@@ -57,7 +57,7 @@ export interface ValenciaPoint {
   dist_m_to_flood: number;
 }
 
-/** fixture: local JSON. seed: a view response whose sources are seed-stamped. live: a view response that is not seed. Health alone is never live. */
+/** fixture: local JSON, an empty array, or rows with no source stamp. seed: a view response whose sources are seed-stamped. live: every row carries a non-seed source stamp. Health alone is never live. */
 export type DataOrigin = "fixture" | "seed" | "live";
 
 export interface LoadedRows<T> {

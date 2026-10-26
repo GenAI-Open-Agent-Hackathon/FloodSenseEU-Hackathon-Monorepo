@@ -31,7 +31,7 @@ describe("adoptView", () => {
     expect(adopted.detail).toContain("did not match");
   });
 
-  it("adopts an empty array as live with zero rows", () => {
+  it("keeps an empty array empty and does not call it live", () => {
     const adopted = adoptView({
       healthOk: true,
       parsed: [],
@@ -39,13 +39,28 @@ describe("adoptView", () => {
       fixtureDetail,
       missDetail: "GET /views/discharge_daily",
     });
-    expect(adopted.origin).toBe("live");
+    expect(adopted.origin).toBe("fixture");
     expect(adopted.rows).toEqual([]);
     expect(adopted.detail).toContain("0 rows");
+    expect(adopted.detail).not.toMatch(/\blive\b/);
   });
 
-  it("adopts valid rows as live", () => {
-    const rows = [{ point_id: "LIVE" }];
+  it("does not label unstamped rows as live", () => {
+    const rows = [{ point_id: "VAL01" }];
+    const adopted = adoptView({
+      healthOk: true,
+      parsed: rows,
+      fixtureRows: fixture,
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    expect(adopted.origin).toBe("fixture");
+    expect(adopted.rows).toEqual(rows);
+    expect(adopted.detail).not.toMatch(/\blive\b/);
+  });
+
+  it("adopts stamped non-seed rows as live", () => {
+    const rows = [{ point_id: "LIVE", source: "open-meteo-flood-glofas" }];
     const adopted = adoptView({
       healthOk: true,
       parsed: rows,
@@ -113,6 +128,51 @@ describe("adoptView", () => {
     );
     expect(hazard.origin).toBe("seed");
     expect(hazard.detail).toBe("GET /views/hazard_timeline · seed");
+    expect(hazard.detail).not.toMatch(/\blive\b/);
+  });
+
+  it("labels an unstamped sibling live only when discharge is a stamped live response", () => {
+    const discharge = adoptView({
+      healthOk: true,
+      parsed: [{ source: "open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    const hazard = markBatchSeed(
+      discharge,
+      adoptView({
+        healthOk: true,
+        parsed: [{ point_id: "VAL01" }],
+        fixtureRows: [],
+        fixtureDetail,
+        missDetail: "GET /views/hazard_timeline",
+      }),
+    );
+    expect(hazard.origin).toBe("live");
+    expect(hazard.rows).toEqual([{ point_id: "VAL01" }]);
+  });
+
+  it("does not relabel a missed sibling as live", () => {
+    const discharge = adoptView<{ source: string }>({
+      healthOk: true,
+      parsed: [{ source: "open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    const hazard = markBatchSeed(
+      discharge,
+      adoptView({
+        healthOk: true,
+        parsed: null,
+        fixtureRows: fixture,
+        fixtureDetail,
+        missDetail: "GET /views/hazard_timeline returned 404",
+      }),
+    );
+    expect(hazard.origin).toBe("fixture");
+    expect(hazard.rows).toEqual(fixture);
     expect(hazard.detail).not.toMatch(/\blive\b/);
   });
 });

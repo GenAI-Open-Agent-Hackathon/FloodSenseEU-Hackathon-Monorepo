@@ -17,14 +17,26 @@ from __future__ import annotations
 
 import hashlib
 import re
+import urllib.parse
 from typing import Any
 
 _DT = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
 )
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-_HTTP = re.compile(r"^https?://\S+$")
 _LOOSE_UTC = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?$")
+
+
+def _http_url(value: object) -> bool:
+    """http or https with a host, parsed the way the UI uses new URL().
+
+    javascript:, a bare scheme, and whitespace are not links. The allowlist
+    stays those two schemes.
+    """
+    if not isinstance(value, str) or not value or any(ch.isspace() for ch in value):
+        return False
+    parts = urllib.parse.urlparse(value)
+    return parts.scheme.lower() in {"http", "https"} and bool(parts.hostname)
 
 # Copied from judge_claim.model_id so a graph id is kept or the judge is
 # dropped. Not a map onto these ids. The API image does not ship the schema
@@ -151,7 +163,7 @@ def _project_citations(
             prov = _provenance_row((ev or {}).get("view") or raw.get("title") or "", provenance)
             source = raw.get("source_url") or prov.get("source_url")
             # http(s) only. A urn: stand-in fails the Vite rule and is not a source.
-            if not (isinstance(source, str) and _HTTP.match(source)):
+            if not _http_url(source):
                 continue
             accessed = _as_dt(raw.get("accessed_at") or prov.get("fetched_at"))
             if accessed is None:

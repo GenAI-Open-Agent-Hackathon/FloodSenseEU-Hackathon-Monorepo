@@ -123,7 +123,8 @@ class DeskTest(unittest.TestCase):
         self.approve(run_id)
         rec = self.c.get(f"/runs/{run_id}/record").json()
         self.assertEqual(rec["approval"]["reviewer"], "zain")
-        self.assertEqual(len(rec["claims"]), 10)
+        # One rain series (VAL07). Turís is not a warehouse point id.
+        self.assertEqual(len(rec["claims"]), 9)
         self.assertTrue(rec["sources"])
         self.assertTrue(any("to confirm" in (s["licence"] or "") for s in rec["sources"]))
         self.assertEqual(rec["figures"]["policies"], 7)
@@ -153,6 +154,11 @@ class DeskTest(unittest.TestCase):
         out = self.c.post(f"/runs/{run_id}/dispatch").json()
         self.assertFalse(out["sent"])
         self.assertIn("https", out["reason"])
+        for bad in ("javascript:alert(1)", "https://", "https:///no-host"):
+            os.environ[desk.WEBHOOK_ENV] = bad
+            refused = self.c.post(f"/runs/{run_id}/dispatch").json()
+            self.assertFalse(refused["sent"], bad)
+            self.assertIn("https", refused["reason"])
 
     def test_the_app_reports_whether_a_target_is_set(self) -> None:
         self.assertFalse(self.c.get("/desk/dispatch-target").json()["configured"])
