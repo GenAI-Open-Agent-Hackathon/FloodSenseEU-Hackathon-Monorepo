@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { originPill, statusLabel } from "./origin";
+import { honestyChip, originPill, statusLabel } from "./origin";
+
+describe("honestyChip", () => {
+  it("says Preview while any row is a fixture or seed, even with a live answer", () => {
+    expect(honestyChip(["fixture", "fixture", "fixture", "fixture"], "cached").label).toBe("Preview");
+    expect(honestyChip(["live", "live", "seed", "live"], "live").label).toBe("Preview");
+    expect(honestyChip(["live", "fixture", "live", "live"], "live").state).toBe("preview");
+    expect(honestyChip([], "live").state).toBe("preview");
+  });
+
+  it("says Cached when every view is live but the answer is not", () => {
+    expect(honestyChip(["live", "live", "live", "live"], "cached")).toEqual({ state: "cached", label: "Cached" });
+    expect(honestyChip(["live", "live", "live", "live"], "unlabelled").state).toBe("cached");
+  });
+
+  it("says Live only when every view and the answer are live", () => {
+    expect(honestyChip(["live", "live", "live", "live"], "live")).toEqual({ state: "live", label: "Live" });
+  });
+});
 
 describe("originPill", () => {
   it("labels a seed desk as seed, without the live tone", () => {
