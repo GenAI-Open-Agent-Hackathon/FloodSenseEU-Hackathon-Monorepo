@@ -12,6 +12,15 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 ### Added
 
 - Test-only LLM provider switch for local benchmarking. With `LLM_PROVIDER_SWITCH=true` and `ANTHROPIC_API_KEY` set, a run may carry `llm_provider: "anthropic"`; trace `model_id` reads `anthropic/<model>`. `GET /config` lists `llm_providers`; the operator console and the desk header show a select only when more than one is listed. The API semantic cache and replay matching key on the provider. Off by default; the demo and the submission run Nightshift.
+- Ask FloodSense chat. The popup has a composer: a question starts a run through `POST /runs` (with `doc_query`, the header's LLM choice when offered, and the thread of the last live answer), shows a working state with Cancel, and renders the answer with its citations, layer (c) quotes, Judge score, flagged claims and trace. A fresh run is labelled Live with its model; cache and replay keep their labels. A run awaiting approval links to Approvals. The recorded run stays the first message.
+- Now page on both desks, first in the nav. It reads live `floodsense.hazard_now` through `GET /views/hazard_now`: per point the latest hourly discharge and rain, 24 h rain, trend against 24 h ago, the 48 h forecast peak, and a sparkline with a now divider and a dashed forecast. It refreshes every 5 minutes, names the Zetaris query, and says "Could not load live data" instead of falling back to fixtures. Modelled GloFAS discharge, not an official warning.
+- Live Zetaris views at `GET /views/{name}` (agents, proxied by the API) for an allowlist of six views; rows that fail the UI's validators are dropped and counted in `x-dropped-rows`.
+
+### Fixed
+
+- Ask answers stay inside the panel: an implicit grid column grew to the longest quote and pushed text past the edge. Each source's attribution is listed once.
+- The API exposes `x-query-id`, `x-schema`, `x-executed-at`, `x-dropped-rows`, `x-truncated` and `Retry-After` to the browser.
+- A chain the Skeptic emptied still carries a summary ([#53](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/53), closes #52).
 
 ## [0.14.0] - 2026-10-26
 
