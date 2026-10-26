@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { askFloodSense, buildRunRequest, mapRunResponse, runBadge } from "./ask";
+import { askFloodSense, buildRunRequest, capTurns, followUpThreadId, mapRunResponse, runBadge } from "./ask";
 
 const runBody = (over: Record<string, unknown> = {}) => ({
   run_id: "r1",
@@ -77,6 +77,22 @@ describe("mapRunResponse", () => {
     const s = mapRunResponse(503, { detail: "agents unreachable" }, null);
     expect(s).toMatchObject({ ok: false, kind: "server" });
     expect(!s.ok && s.message).toContain("agents unreachable");
+  });
+});
+
+describe("followUpThreadId", () => {
+  it("continues only a live run's well-formed thread", () => {
+    expect(followUpThreadId({ servedFrom: "live", threadId: "c491ba68840c" })).toBe("c491ba68840c");
+    expect(followUpThreadId({ servedFrom: "replay", threadId: "abc" })).toBeNull();
+    expect(followUpThreadId({ servedFrom: "cache", threadId: "abc" })).toBeNull();
+    expect(followUpThreadId({ servedFrom: "live", threadId: null })).toBeNull();
+    expect(followUpThreadId({ servedFrom: "live", threadId: "../x" })).toBeNull();
+    expect(followUpThreadId({ servedFrom: "live", threadId: "a".repeat(65) })).toBeNull();
+    expect(followUpThreadId(null)).toBeNull();
+  });
+  it("caps the conversation to the newest turns", () => {
+    expect(capTurns([1, 2, 3], 2)).toEqual([2, 3]);
+    expect(capTurns([1], 2)).toEqual([1]);
   });
 });
 

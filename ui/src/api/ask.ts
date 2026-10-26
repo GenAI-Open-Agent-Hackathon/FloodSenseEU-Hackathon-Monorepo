@@ -13,6 +13,21 @@ export interface AskInput {
   threadId?: string | null;
 }
 
+const THREAD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Pure: the thread a follow-up continues. Only a live run's own, well-formed thread_id; never a replay's or cache hit's. */
+export function followUpThreadId(previous: Pick<RecordedRun, "servedFrom" | "threadId"> | null): string | null {
+  if (!previous || previous.servedFrom !== "live" || !previous.threadId) return null;
+  return THREAD_ID.test(previous.threadId) ? previous.threadId : null;
+}
+
+export const MAX_TURNS = 20;
+
+/** Pure: the conversation capped to the newest MAX_TURNS. */
+export function capTurns<T>(turns: T[], max = MAX_TURNS): T[] {
+  return turns.length > max ? turns.slice(turns.length - max) : turns;
+}
+
 /** Pure: the POST /runs body. */
 export function buildRunRequest(input: AskInput): Record<string, string> {
   const question = input.question.trim();
@@ -86,7 +101,7 @@ export async function askFloodSense(input: AskInput, signal?: AbortSignal, base 
     });
   } catch (error) {
     if (signal?.aborted) return { ok: false, kind: "aborted", message: "Cancelled." };
-    return { ok: false, kind: "network", message: `Could not reach the API (${(error as Error)?.message ?? "network error"}).` };
+    return { ok: false, kind: "network", message: `Could not reach the API (${(error as Error)?.message ?? "network error"}). The run may still have started; check the Approvals page.` };
   }
   let body: unknown = null;
   try {
