@@ -163,7 +163,7 @@ class FakeAgents:
         self.fail_runs = False
         self.started = 0
 
-    async def __call__(self, method, path, body=None, params=None):
+    def __call__(self, method, path, body=None, params=None):
         if self.down:
             raise httpx.ConnectError("connection refused")
         json = body
