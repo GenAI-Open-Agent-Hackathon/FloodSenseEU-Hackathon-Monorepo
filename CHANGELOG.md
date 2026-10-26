@@ -17,6 +17,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- `rag.chunks` checks reject a null `embed_model` on a row that has an embedding, and a null `page` or `paragraph` on a paragraph row. A comparison with null is unknown, and a `CHECK` allows unknown.
 - The EasyxLab S19 snapshot omits the Cloudflare challenge script and Web Analytics beacon that the host appended after the footer. `.gitleaksignore` names that beacon on commit `934bd03` only. The current file has no beacon.
 
 ## [0.13.0] - 2026-10-26

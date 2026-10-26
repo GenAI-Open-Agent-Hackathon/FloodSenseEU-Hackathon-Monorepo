@@ -261,12 +261,17 @@ CREATE TABLE rag.chunks (
     OR (
       embedding IS NOT NULL
       AND level = 'paragraph'
+      AND embed_model IS NOT NULL
       AND embed_model = 'nvidia/llama-nemotron-embed-1b-v2'
     )
   ),
   CONSTRAINT rag_chunks_paragraph_locator CHECK (
     level <> 'paragraph'
-    OR (page >= 1 AND paragraph >= 1 AND lines IS NOT NULL AND lines <> '')
+    OR (
+      page IS NOT NULL AND page >= 1
+      AND paragraph IS NOT NULL AND paragraph >= 1
+      AND lines IS NOT NULL AND lines <> ''
+    )
   )
 );
 

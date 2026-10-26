@@ -22,6 +22,9 @@ class RagSchemaTest(unittest.TestCase):
         )
         self.assertIn("embedding::halfvec(2048) <=> $1::halfvec(2048)", sql)
         self.assertIn("ORDER BY embedding <=> $1::vector", sql)
+        self.assertIn("AND embed_model IS NOT NULL", sql)
+        self.assertIn("page IS NOT NULL AND page >= 1", sql)
+        self.assertIn("paragraph IS NOT NULL AND paragraph >= 1", sql)
         self.assertNotIn("nvapi-", sql)
 
     def test_zetaris_registration_keeps_the_password_placeholder(self) -> None:

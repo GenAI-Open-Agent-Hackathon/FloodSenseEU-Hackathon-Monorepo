@@ -41,7 +41,7 @@ Ranking still returns chunk ids and distances from Postgres. Text, licence, and 
 ## Consequences
 
 - This is the exception [ADR 0003](0003-zetaris-only-data-path.md) asks for: agents call pgvector directly for ranking only. Text and metadata still come through Zetaris. Mihir accepts or changes it.
-- A migration that registers the datasource needs the pgvector password as a `${VAR}` placeholder (a new `PGVECTOR_PASSWORD` in `ingestion/.env`). Nothing was added to `zetaris/migrations/` for this yet.
+- `zetaris/migrations/044_register_pgvector_rag_chunks.sql` registers datasource `PGVECTOR_RAG` and table `chunks`. The password stays `${PGVECTOR_PASSWORD}`. `PGVECTOR_PASSWORD` in `ingestion/.env` matches `POSTGRES_PASSWORD` in `pgvector/.env`.
 - The datasource needs `host.docker.internal:15432` reachable from the Zetaris containers. It is on Docker Desktop for Windows. Linux and WSL are not tested.
 - The 26 Oct lock keeps direct pgvector ranking plus a Zetaris hydrate. The earlier fallback, one `CREATE DATASOURCE VIEW` per search with the vector inside the native SQL, stays available only if that lock is reversed. It creates and drops a view on every question.
 
