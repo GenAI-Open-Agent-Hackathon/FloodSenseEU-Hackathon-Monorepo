@@ -199,17 +199,33 @@ def _citation(query_id: str, row: dict) -> dict | None:
     return citation
 
 
+def bind_search(
+    statement: str, vector: list[float], event_id: str | None, k: int
+) -> tuple[str, dict]:
+    """Bind $1, $2, and $3 by name. The statements reuse $1 and $2."""
+    sql = (
+        statement.replace("$1", "%(vector)s")
+        .replace("$2", "%(event_id)s")
+        .replace("$3", "%(k)s")
+    )
+    rendered = "[" + ",".join(str(item) for item in vector) + "]"
+    return sql, {"vector": rendered, "event_id": event_id, "k": k}
+
+
+def _connect(dsn: str):
+    import psycopg
+
+    return psycopg.connect(dsn)
+
+
 def _search(
     dsn: str, statement: str, vector: list[float], event_id: str | None, k: int
 ) -> list[tuple[str, float]]:
-    import psycopg
-
-    sql = statement.replace("$1", "%s").replace("$2", "%s").replace("$3", "%s")
-    rendered = "[" + ",".join(str(item) for item in vector) + "]"
+    sql, params = bind_search(statement, vector, event_id, k)
     try:
-        with psycopg.connect(dsn) as conn:
+        with _connect(dsn) as conn:
             with conn.cursor() as cur:
-                cur.execute(sql, (rendered, event_id, k))
+                cur.execute(sql, params)
                 return [(str(chunk_id), float(distance)) for chunk_id, distance in cur.fetchall()]
     except Exception as exc:
         message = _hide(str(exc), dsn)

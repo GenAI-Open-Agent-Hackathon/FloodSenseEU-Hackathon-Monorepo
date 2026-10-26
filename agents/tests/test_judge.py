@@ -273,6 +273,70 @@ class LayerCFaithfulTest(unittest.TestCase):
         }
         self.assertFalse(score_claim(wrong_row, drifted, None).citation_faithful)
 
+    def test_each_hit_under_one_query_id_matches_its_own_passage(self) -> None:
+        first = "The gauge at Altenahr rose."
+        second = "Paiporta recorded 140 mm in six hours."
+        self.assertNotIn("140 mm", first)
+        later = "140 mm in six hours."
+        claim = Claim(
+            claim_id="C1",
+            text="Altenahr rose and Paiporta recorded 140 mm.",
+            citations=[
+                Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q-sql"),
+                Citation(
+                    citation_id="C1-c1",
+                    claim_id="C1",
+                    layer="c",
+                    query_id="qid",
+                    chunk_id="kept",
+                    quote=first,
+                    content_sha256=hashlib.sha256(first.encode()).hexdigest(),
+                ),
+                Citation(
+                    citation_id="C1-c2",
+                    claim_id="C1",
+                    layer="c",
+                    query_id="qid",
+                    chunk_id="other",
+                    quote=later,
+                    content_sha256=hashlib.sha256(later.encode()).hexdigest(),
+                ),
+            ],
+        )
+        evidence = {
+            "q-sql": Evidence(
+                query_id="q-sql",
+                view="floodsense_seed.hazard_timeline",
+                sql="SELECT 1",
+                rows_sample=[{"rain_mm": 1}],
+                row_count=1,
+                executed_at_utc="2026-10-26T12:00:00Z",
+            ),
+            "qid": Evidence(
+                query_id="qid",
+                view="PGVECTOR_RAG.chunks",
+                sql="SELECT text FROM PGVECTOR_RAG.chunks",
+                rows_sample=[
+                    {
+                        "chunk_id": "kept",
+                        "text": first,
+                        "text_sha256": hashlib.sha256(first.encode()).hexdigest(),
+                    },
+                    {
+                        "chunk_id": "other",
+                        "text": second,
+                        "text_sha256": hashlib.sha256(second.encode()).hexdigest(),
+                    },
+                ],
+                row_count=2,
+                executed_at_utc="2026-10-26T12:00:00Z",
+            ),
+        }
+        self.assertTrue(score_claim(claim, evidence, None).citation_faithful)
+        swapped = claim.model_copy(deep=True)
+        swapped.citations[2].chunk_id = "kept"
+        self.assertFalse(score_claim(swapped, evidence, None).citation_faithful)
+
 
 if __name__ == "__main__":
     unittest.main()

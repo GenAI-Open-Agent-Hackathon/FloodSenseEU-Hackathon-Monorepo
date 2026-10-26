@@ -439,7 +439,10 @@ def _attach_documents(claims, raws, request, query):
         text = raw.get("text")
         digest = raw.get("text_sha256")
         if qid and isinstance(text, str) and isinstance(digest, str):
-            rows_for_q.setdefault(qid, []).append({"text": text, "text_sha256": digest})
+            sample = {"text": text, "text_sha256": digest}
+            if chunk_id and len(chunk_id) <= 128:
+                sample["chunk_id"] = chunk_id
+            rows_for_q.setdefault(qid, []).append(sample)
     evidence = [
         Evidence(
             query_id=qid,

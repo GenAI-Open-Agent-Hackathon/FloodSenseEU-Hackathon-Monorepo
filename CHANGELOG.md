@@ -19,6 +19,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- pgvector search binds the query vector and the event id on every reuse in the halfvec statement and the exact fallback. The Judge matches each layer (c) quote to its own passage when one hydrate returns several chunks under one query id. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - `rag.chunks` checks reject a null `embed_model` on a row that has an embedding, and a null `page` or `paragraph` on a paragraph row. A comparison with null is unknown, and a `CHECK` allows unknown.
 - The EasyxLab S19 snapshot omits the Cloudflare challenge script and Web Analytics beacon that the host appended after the footer. `.gitleaksignore` names that beacon on commit `934bd03` only. The current file has no beacon.
 

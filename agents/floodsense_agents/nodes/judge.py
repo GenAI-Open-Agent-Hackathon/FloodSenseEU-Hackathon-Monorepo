@@ -67,6 +67,16 @@ def _match(n: float, vals: list[float]) -> bool:
     return any(math.isclose(n, v, rel_tol=tol, abs_tol=0.5 if abs(n) < 10 else 0.0) for v in vals)
 
 
+def _passage_rows(citation: Citation, rows: list[dict]) -> list[dict]:
+    """The chunk named on the citation, or every row when the sample has no chunk id."""
+    chunk_id = citation.chunk_id
+    if not isinstance(chunk_id, str) or not chunk_id:
+        return rows
+    if not any(isinstance(row.get("chunk_id"), str) for row in rows):
+        return rows
+    return [row for row in rows if row.get("chunk_id") == chunk_id]
+
+
 def layer_c_matches_passage(citation: Citation, evidence: dict[str, Evidence]) -> bool:
     if not citation.quote or not citation.content_sha256:
         return False
@@ -75,14 +85,16 @@ def layer_c_matches_passage(citation: Citation, evidence: dict[str, Evidence]) -
     ev = evidence.get(citation.query_id or "")
     if ev is None or ev.error or not ev.rows_sample:
         return False
-    row = ev.rows_sample[0]
-    text = row.get("text")
-    digest = row.get("text_sha256")
-    if not isinstance(text, str) or not isinstance(digest, str):
-        return False
-    if hashlib.sha256(text.encode()).hexdigest() != digest:
-        return False
-    return citation.quote in text
+    for row in _passage_rows(citation, ev.rows_sample):
+        text = row.get("text")
+        digest = row.get("text_sha256")
+        if not isinstance(text, str) or not isinstance(digest, str):
+            continue
+        if hashlib.sha256(text.encode()).hexdigest() != digest:
+            continue
+        if citation.quote in text:
+            return True
+    return False
 
 
 def score_claim(c: Claim, evidence: dict[str, Evidence], deps: Deps | None) -> JudgeScore:
