@@ -638,6 +638,7 @@ details.card.disclosure > summary { color: var(--ink); }
 .cite-marks { font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .why-list, .action-list, .claim-summary { margin: 0.5rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.55rem; }
 .claim-summary { list-style: none; padding-left: 0; font-size: 0.92rem; }
+.status-note { margin: 0.6rem 0; padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--warn-soft); color: var(--warn); }
 a.button { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
 a.button.primary { color: #f4fffc; }
 :root[data-theme="dark"] a.button.primary { color: #10211e; }
@@ -665,7 +666,7 @@ a.button.primary { color: #f4fffc; }
   border-radius: 10px;
   border: 1px solid var(--line);
 }
-.queue-item[aria-current="true"] { background: var(--accent-soft); border-color: transparent; }
+.queue-item.is-selected { background: var(--accent-soft); border-color: transparent; }
 .queue-title { font-weight: 650; }
 .badge-status-pending { background: var(--warn-soft); color: var(--warn); }
 .badge-status-approved, .badge-status-edited { background: var(--ok-soft); color: var(--ok); }

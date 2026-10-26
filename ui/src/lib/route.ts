@@ -72,7 +72,8 @@ function insurerPage(token: string): InsurerPage | null {
 /**
  * `#/role/page`. One segment is that desk's home: Overview for the citizen, `insurerHome` for the insurer.
  * An unknown page, or extra segments, is that desk's home. An empty hash or an unknown role is the insurer home.
- * `approvalPending` defaults to true, which is how every session starts.
+ * `approvalPending` defaults to true, which is how every session starts: approval state lives in memory
+ * (ConsoleContext) and resets on reload. Pass the persisted status here once approvals are persisted.
  */
 export function parseHash(hash: string, approvalPending = true): DeskRoute {
   const home: DeskRoute = { role: "insurer", page: insurerHome(approvalPending) };
