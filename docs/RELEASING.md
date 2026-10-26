@@ -6,7 +6,7 @@ The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 | Tag | When |
 | --- | --- |
-| `v0.MINOR.0` | One product increment. Tagged: `v0.0.0`, `v0.1.0`, `v0.2.0`. The next tag is `v0.3.0`. |
+| `v0.MINOR.0` | One product increment. Tagged: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`. The next tag is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.1` at the Monday freeze. |
 | `v1.0.0-rc.N` | A release candidate. `v1.0.0-rc.1` is the Monday demo freeze. Later candidates are `rc.2`, `rc.3`, and so on. |
 
 Tags on the 0.x line are `v0.MINOR.0` only. There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on that line lands on `main` and is included in the next minor tag. Tags are annotated. They are not moved, deleted, or recreated. A mistake is not retagged in place. The next tag is the next `v0.MINOR.0`, or the next `v1.0.0-rc.N` after the freeze. Mihir creates the tag once `main` is green.
@@ -32,8 +32,9 @@ git push origin vX.Y.Z
 
 4. Publish a GitHub Release for that existing tag. Title it `vX.Y.Z - short name`. Use the new changelog section as the notes. GitHub can draft notes from merged pull requests; `.github/release.yml` sets the groups. `enhancement` is Features, `bug` is Fixes, `documentation` is Docs & ADRs, and `ci` is CI & Tooling. Anything else is Other. `enhancement`, `bug`, and `documentation` already exist. Add `ci` and `skip-changelog` when you first apply them. There are no `agents`, `data`, `api`, or `ui` labels, so those areas have no group of their own until the labels exist. Edit the draft so the published text matches the changelog section.
 
-Three annotated tags exist. Do not move them. `v0.3.0` is the next `v0.MINOR.0`. Its scope is in [GAMEPLAN.md](GAMEPLAN.md): [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and #24 `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0`. Cut `v0.3.0` once `main` is green and e2e passes. Writing the `## [0.3.0]` changelog section is that release pull request. A docs-only change does not create the tag.
+Four annotated tags exist. Do not move them. `v0.3.0` is live gauges and `hazard_now`. Its scope is in [GAMEPLAN.md](GAMEPLAN.md): [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) `hazard_now` (migrations `034` and `035`), [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) gauge views, [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) migrations `042` and `043`, [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) tag policy, and [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) judge lane ids. Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0`. Laptop Zetaris e2e is deferred to the morning of 26 Oct 2026. The next `v0.MINOR.0` is `v0.9.0` when #15 and #16 are load-bearing. Until then the next tag on the calendar is `v1.0.0-rc.1`.
 
 - `v0.0.0` is the skeleton tag on `eacf34c`. Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0
 - `v0.1.0` is the data-slice tag on `7045fc5`. Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0
 - `v0.2.0` is the live demo stack on `71390b6` (agents graph, insurer desk, engines sidecar, fast lane, parallel Zetaris). Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.2.0
+- `v0.3.0` is live gauges and `hazard_now`. Release: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.3.0

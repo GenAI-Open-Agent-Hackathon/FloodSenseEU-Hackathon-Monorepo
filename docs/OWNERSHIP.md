@@ -30,4 +30,4 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/evals/` | Saleeta, Zain, Mihir | In v0.2.0: Valencia 2024 and Ahr 2021. Not its own increment tag |
 | `/demo/` | Saleeta | No folder yet. Deck, script, video |
 
-`engines/` and `evals/` are on main, in v0.2.0. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
+`engines/` and `evals/` are on main, in v0.2.0. Live gauge views and `hazard_now` are in v0.3.0 (`/zetaris/`, `/ingestion/`). Laptop Zetaris e2e for that tag is deferred to the morning of 26 Oct 2026. The next tag after `v0.3.0` is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.1` at the Monday 20:00 CET freeze. `v0.4.0` through `v0.8.0` and `v0.10.0` stay inside `v0.2.0`. Tags stay `v0.MINOR.0` only. Planned paths that still have no folder (`knowledge/`, `demo/`) follow the same owners when they appear. See [GAMEPLAN.md](GAMEPLAN.md).
