@@ -3,7 +3,7 @@ import { SIMULATED_ALERT_M3S } from "../config/scenario";
 import { useConsole } from "../context/ConsoleContext";
 import { formatDay, formatEur } from "../lib/format";
 import { exposureStats, rowsOnDate } from "../lib/series";
-import { OriginBanner } from "./Banners";
+import { OriginList } from "./Banners";
 
 /** Book KPIs (moved from the map card) and the in-footprint split by segment. */
 export function Portfolio() {
@@ -64,7 +64,7 @@ export function Portfolio() {
       </section>
       <details className="card disclosure">
         <summary>Data origin</summary>
-        <OriginBanner />
+        <OriginList />
       </details>
     </div>
   );

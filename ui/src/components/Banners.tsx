@@ -3,11 +3,12 @@ import { statusLabel } from "../lib/origin";
 import { useConsole } from "../context/ConsoleContext";
 import type { ProvenanceRow } from "../types/views";
 
-export function CacheBanner() {
+/** Answer serving line. It was the cache banner on every insurer page. It now sits under the top-bar chip. */
+export function ServingLine() {
   const { answer } = useConsole();
   const serving = servingLabel(answer);
   return (
-    <p className={`banner banner-${serving.kind}`} data-serving={serving.servedFrom} role="status">
+    <p className={`serving serving-${serving.kind}`} data-serving={serving.servedFrom}>
       <strong>{serving.kind === "cached" ? `${serving.text} UTC` : serving.text}</strong>
       <span>
         {" "}
@@ -17,7 +18,8 @@ export function CacheBanner() {
   );
 }
 
-export function OriginBanner() {
+/** Origin of each view. It was the origin banner. It now sits under the top-bar chip and on Portfolio. */
+export function OriginList() {
   const desk = useConsole();
   const parts = [
     ["discharge_daily", desk.discharge],
@@ -26,15 +28,19 @@ export function OriginBanner() {
     ["provenance", desk.provenance],
   ] as const;
   return (
-    <p className="banner banner-origin" data-origin={parts.map(([, slice]) => slice.origin).join(" ")}>
-      {parts.map(([name, slice], index) => (
-        <span key={name}>
-          {index > 0 && " · "}
-          <span className="origin-name">{name}</span> {statusLabel(slice.origin)}
-        </span>
-      ))}
-      <span> · {desk.healthDetail}</span>
-    </p>
+    <div className="origin-list" data-origin={parts.map(([, slice]) => slice.origin).join(" ")}>
+      <dl className="kv">
+        {parts.map(([name, slice]) => (
+          <div key={name}>
+            <dt>{name}</dt>
+            <dd>
+              {statusLabel(slice.origin)} · {slice.detail}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="note">{desk.healthDetail}</p>
+    </div>
   );
 }
 

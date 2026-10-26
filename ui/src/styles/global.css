@@ -274,7 +274,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   white-space: nowrap;
 }
-.pill-fixture, .pill-seed { background: var(--warn-soft); color: var(--warn); }
+button.pill { cursor: pointer; font-weight: 650; }
+.pill-fixture, .pill-seed, .pill-preview { background: var(--warn-soft); color: var(--warn); }
+.pill-cached { background: var(--accent-soft); color: var(--accent-strong); }
 .pill-live { background: var(--ok-soft); color: var(--ok); }
 .pill-mixed { background: var(--accent-soft); color: var(--accent-strong); }
 
@@ -367,19 +369,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .lede { color: var(--muted); }
 
-.banner {
-  margin: 0;
-  border-radius: 12px;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--line);
-  font-size: 0.95rem;
-}
-.banner-cached, .banner-unlabelled { background: var(--warn-soft); color: var(--warn); }
-.banner-live { background: var(--ok-soft); color: var(--ok); }
-.banner-origin { background: var(--bg-sunken); color: var(--ink); font-size: 0.82rem; }
-.banner strong { font-weight: 700; }
-.banner-note { color: inherit; opacity: 0.8; font-size: 0.78rem; }
-.origin-name { font-family: var(--mono); font-size: 0.78rem; }
+.serving { margin: 0.2rem 0 0.5rem; font-size: 0.88rem; overflow-wrap: anywhere; }
+.serving-cached, .serving-unlabelled { color: var(--warn); }
+.serving-live { color: var(--ok); }
+.origin-list .kv { grid-template-columns: 1fr; }
+.menu-wide { width: min(26rem, calc(100vw - 2rem)); }
 
 .field { display: grid; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); flex: 1; }
 .field select, .field textarea {
@@ -712,6 +706,9 @@ a.button.primary { color: #f4fffc; }
   /* The header wraps here, so pin the decision to the bottom edge instead of under the header. */
   .decision-bar { top: auto; bottom: 0.5rem; }
   .approvals .queue { order: 2; }
+  /* The chip wraps to the left, so its menu spans the header instead of hanging off the chip. */
+  .chip-anchor { position: static; }
+  .menu-wide { left: 1rem; right: 1rem; width: auto; }
   .product-sub { display: none; }
   .header-inner { flex-wrap: wrap; padding: 0.5rem 0; }
   .header-tools { margin-left: 0; }
@@ -720,7 +717,6 @@ a.button.primary { color: #f4fffc; }
   .insurer-top > *,
   .citizen-grid > *,
   .card,
-  .banner,
   .toolbar,
   .card-head,
   .replay-bar {
@@ -728,7 +724,6 @@ a.button.primary { color: #f4fffc; }
     max-width: 100%;
   }
   .toolbar, .card-head, .replay-bar { flex-wrap: wrap; }
-  .banner { overflow-wrap: anywhere; }
 }
 
 @media (prefers-reduced-motion: reduce) {

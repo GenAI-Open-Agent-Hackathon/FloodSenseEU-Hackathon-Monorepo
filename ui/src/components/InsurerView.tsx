@@ -1,6 +1,5 @@
 import { Alerts } from "./Alerts";
 import { Approvals } from "./Approvals";
-import { CacheBanner } from "./Banners";
 import { Drilldown } from "./Drilldown";
 import { MapPanel } from "./MapPanel";
 import { Portfolio } from "./Portfolio";
@@ -11,12 +10,7 @@ import type { InsurerPage } from "../lib/route";
 export function InsurerView({ page }: { page: InsurerPage }) {
   switch (page) {
     case "approvals":
-      return (
-        <div className="page-stack">
-          <CacheBanner />
-          <Approvals />
-        </div>
-      );
+      return <Approvals />;
     case "portfolio":
       return <Portfolio />;
     case "sites":
@@ -29,11 +23,6 @@ export function InsurerView({ page }: { page: InsurerPage }) {
     case "alerts":
       return <Alerts />;
     case "review":
-      return (
-        <div className="page-stack">
-          <CacheBanner />
-          <ReviewColumn />
-        </div>
-      );
+      return <ReviewColumn />;
   }
 }
