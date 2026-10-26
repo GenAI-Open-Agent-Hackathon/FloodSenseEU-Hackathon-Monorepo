@@ -21,6 +21,9 @@ from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.zetaris import now_utc
 
 log = logging.getLogger("floodsense.runtime")
+# Short-term thread memory: how much of a conversation a follow-up carries.
+THREAD_TURNS_MAX = 3
+TURN_SUMMARY_MAX = 600
 STATE_KEYS = (
     "run_id",
     "thread_id",
@@ -38,6 +41,7 @@ STATE_KEYS = (
     "event",
     "claims",
     "memories",
+    "thread",
     "summary",
     "judge_summary",
     "evidence",
@@ -56,6 +60,30 @@ class RunNotFound(KeyError):
 
 class NotAwaitingApproval(RuntimeError):
     pass
+
+
+class ThreadNotFound(KeyError):
+    pass
+
+
+def started_at(state: dict[str, Any]) -> str | None:
+    """When a run started: its first trace event. Survives a restart, unlike a clock read."""
+    trace = state.get("trace") or []
+    return trace[0].get("ts") if trace else None
+
+
+def turn_of(s: dict[str, Any]) -> dict[str, Any]:
+    """One earlier turn of a thread, as a follow-up sees it."""
+    approval = (s.get("approval") or {}).get("status")
+    return {
+        "run_id": s.get("run_id"),
+        "question": (s.get("request") or {}).get("question"),
+        "event_id": s.get("event_id"),
+        "status": s.get("status"),
+        "approval": approval,
+        "summary": (s.get("summary") or "")[:TURN_SUMMARY_MAX],
+        "at": started_at(s),
+    }
 
 
 class Runtime:
@@ -85,6 +113,7 @@ class Runtime:
             ("trace", []),
             ("claims", []),
             ("memories", []),
+            ("thread", []),
             ("model_ids", []),
             ("evidence", {}),
             ("exposure", {}),
@@ -143,9 +172,12 @@ class Runtime:
     def _remember(self, run_id: str, snap: dict[str, Any]) -> dict[str, Any]:
         """Record one snapshot in the process index. Does not read the checkpointer."""
         now = now_utc()
-        row = self.index.get(run_id, {"run_id": run_id, "created_at": now})
+        # created_at comes from the run's own trace, so a rebuilt index after a
+        # restart keeps the real start time (cached_at labels read it).
+        row = self.index.get(run_id, {"run_id": run_id, "created_at": started_at(snap) or now})
         row.update(
             status=snap["status"],
+            thread_id=snap.get("thread_id") or run_id,
             question=(snap.get("request") or {}).get("question"),
             event_id=snap.get("event_id"),
             customer_id=snap.get("customer_id"),
@@ -167,9 +199,25 @@ class Runtime:
         zetaris = getattr(self.deps, "zetaris", None) if self.deps else None
         return labelling.data_plane_is_live(zetaris)
 
+    def thread(self, thread_id: str) -> list[dict[str, Any]]:
+        """The last THREAD_TURNS_MAX turns of a conversation, oldest first.
+
+        A thread is the runs that share a thread_id; the first run's id names
+        it. An unknown thread is an error rather than a silent new thread, so
+        a client continuing a conversation hears when it is not.
+        """
+        self._rebuild_index()
+        rows = [r for r in self.index.values() if r.get("thread_id") == thread_id]
+        if not rows:
+            raise ThreadNotFound(thread_id)
+        rows.sort(key=lambda r: r.get("created_at") or "")
+        return [turn_of(self.snapshot(r["run_id"])) for r in rows[-THREAD_TURNS_MAX:]]
+
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
         ev = spec(req.event_id)
+        thread_id = req.thread_id or run_id
+        turns = self.thread(req.thread_id) if req.thread_id else []
         served_from, cached_at = labelling.computation_label(
             req.replay_ts, live=self._answers_are_live()
         )
@@ -177,7 +225,8 @@ class Runtime:
             self.graph.invoke(
                 {
                     "run_id": run_id,
-                    "thread_id": run_id,
+                    "thread_id": thread_id,
+                    "thread": turns,
                     "event_id": ev.event_id,
                     "customer_id": req.customer_id,
                     "replay_ts": req.replay_ts,
@@ -243,9 +292,10 @@ class Runtime:
             log.warning("could not read past runs from the checkpointer: %s", str(e)[:120])
             return False
 
-    def past(self, limit: int = 50) -> list[dict[str, Any]]:
+    def past(self, limit: int = 50, thread_id: str | None = None) -> list[dict[str, Any]]:
         whole = self._rebuild_index()
-        rows = sorted(self.index.values(), key=lambda r: r["updated_at"], reverse=True)[:limit]
+        rows = [r for r in self.index.values() if not thread_id or r.get("thread_id") == thread_id]
+        rows = sorted(rows, key=lambda r: r["updated_at"], reverse=True)[:limit]
         for r in rows:
             r["scope"] = "all runs on this checkpointer" if whole else "this process only"
         return rows

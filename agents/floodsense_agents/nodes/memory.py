@@ -6,12 +6,17 @@ flood event, puts them in state["memories"], and adds a `memory` trace event.
 Memories are context, never evidence: the Investigator still cites only this
 run's query ids, and the reviewer sees what was recalled.
 
+Short-term thread memory needs no flag. A run that continues a thread
+(RunRequest.thread_id) arrives with the thread's earlier turns in
+state["thread"], put there by Runtime.start; the same `memory` trace event
+says how many there are.
+
 make_learn(deps) is the node after hitl. An approved or edited run's claims
 go to memory with their Zetaris query ids. A rejected or auto-approved run
 writes nothing.
 
-Both sit behind FF_HMEM. With the flag off, or with NoMemory, the graph runs
-as before and the trace gets nothing. A memory that fails becomes a trace
+Recall and Learn sit behind FF_HMEM. With the flag off, or with NoMemory, and
+no earlier turns, the graph runs as before and the trace gets nothing. A memory that fails becomes a trace
 note; the run and the approval stand.
 """
 
@@ -41,20 +46,28 @@ def recalling(node: Node, deps: Deps) -> Node:
 
     def run(state: FloodState) -> dict:
         revising = bool(state.get("hypotheses")) and state.get("revise_rounds", 0) > 0
-        if revising or not memory_on(deps):
+        turns = state.get("thread") or []
+        long_term = memory_on(deps)
+        if revising or not (turns or long_term):
             return node(state)
         t = time.time()
-        try:
-            memories = list(deps.memory.recall(state.get("request") or {}))
-            note = f"recalled {len(memories)} past approved finding(s) for the Investigator"
-        except Exception as e:  # noqa: BLE001 - memory never fails a run
-            log.warning("memory: recall failed: %s", short(e))
-            memories = []
-            note = f"recall failed: {short(e)}; the Investigator runs without memory"
+        notes = []
+        if turns:
+            notes.append(f"{len(turns)} earlier turn(s) in thread {state.get('thread_id', '?')}")
+        memories: list[dict[str, Any]] = []
+        if long_term:
+            try:
+                memories = list(deps.memory.recall(state.get("request") or {}))
+                notes.append(
+                    f"recalled {len(memories)} past approved finding(s) for the Investigator"
+                )
+            except Exception as e:  # noqa: BLE001 - memory never fails a run
+                log.warning("memory: recall failed: %s", short(e))
+                notes.append(f"recall failed: {short(e)}; the Investigator runs without it")
         before = {
             **state,
             "memories": memories,
-            "trace": trace(state, "memory", note, lane="none", started=t),
+            "trace": trace(state, "memory", "; ".join(notes), lane="none", started=t),
         }
         out = node(before)
         return {**out, "memories": memories, "trace": out.get("trace", before["trace"])}

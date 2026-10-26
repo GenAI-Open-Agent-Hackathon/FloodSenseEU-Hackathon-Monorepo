@@ -51,7 +51,7 @@ from floodsense_agents.events import spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.readiness import report as readiness_report
 from floodsense_agents.verify import report as verify_report
-from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime
+from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime, ThreadNotFound
 from floodsense_agents.settings import settings
 from floodsense_agents.zetaris import now_utc
 
@@ -353,13 +353,15 @@ def config():
 def start_run(req: RunRequest):
     try:
         return _envelope(runtime().start(req))
+    except ThreadNotFound as e:
+        raise HTTPException(404, f"thread {e.args[0]} not found; omit thread_id to start one")
     except KeyError as e:
         raise HTTPException(422, str(e))
 
 
 @app.get("/runs/past")
-def past_runs(limit: int = 50):
-    return _envelope({"runs": runtime().past(limit)})
+def past_runs(limit: int = 50, thread_id: str | None = None):
+    return _envelope({"runs": runtime().past(limit, thread_id=thread_id)})
 
 
 @app.get("/runs/{run_id}")

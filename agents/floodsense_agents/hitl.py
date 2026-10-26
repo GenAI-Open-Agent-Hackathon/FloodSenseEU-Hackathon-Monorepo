@@ -37,6 +37,8 @@ def approval_payload(state: FloodState) -> dict[str, Any]:
         "claims": state.get("claims", []),
         # What H-MEM recalled for the Investigator. Context, not evidence.
         "memories": state.get("memories", []),
+        # Earlier turns this follow-up builds on (short-term thread memory).
+        "thread": state.get("thread", []),
         "exposure": state.get("exposure", {}),
         "playbook": state.get("playbook", []),
         "judge": state.get("judge", []),

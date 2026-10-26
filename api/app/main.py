@@ -14,7 +14,8 @@ the agents service sets ``served_from``.
 GET  /health                      this service
 GET  /config                      flags and lanes, from the agents
 POST /runs                        start a run; returns when the graph pauses for human approval
-GET  /runs/past                   earlier runs
+                                  (thread_id continues a conversation: short-term thread memory)
+GET  /runs/past                   earlier runs (?thread_id= for one conversation)
 GET  /runs/{id}                   run snapshot
 GET  /runs/{id}/events            SSE trace stream (proxied as-is)
 GET  /runs/{id}/approval          the approval payload (409 unless awaiting approval)
@@ -122,8 +123,11 @@ async def start_run(request: Request) -> Response:
 
 
 @app.get("/runs/past")
-async def past_runs(limit: int = 50) -> Response:
-    return await _forward("GET", "/runs/past", params={"limit": limit})
+async def past_runs(limit: int = 50, thread_id: str | None = None) -> Response:
+    params: dict = {"limit": limit}
+    if thread_id:
+        params["thread_id"] = thread_id
+    return await _forward("GET", "/runs/past", params=params)
 
 
 @app.get("/runs/{run_id}")
