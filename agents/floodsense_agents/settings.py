@@ -48,6 +48,13 @@ class Settings:
         "LLM_MODE", "auto"
     )  # auto | live | fake   (fake = deterministic offline model)
 
+    # Engines sidecar (engines/): H-MEM and the World Model. Unset = off.
+    engines_url: str | None = _env("ENGINES_URL")
+    engines_timeout_s: float = float(_env("ENGINES_TIMEOUT_S", "5"))
+    hmem_recall_top_n: int = int(_env("HMEM_RECALL_TOP_N", "3"))
+    # 0 while the engines embed with their reference hash; see engines.RECALL_POOL
+    hmem_recall_threshold: float = float(_env("HMEM_RECALL_THRESHOLD", "0"))
+
     # Feature flags (defaults from agents/.env.example; a slipped increment stays behind its flag)
     ff_skeptic: bool = _flag("FF_SKEPTIC", True)
     ff_hitl: bool = _flag("FF_HITL", True)

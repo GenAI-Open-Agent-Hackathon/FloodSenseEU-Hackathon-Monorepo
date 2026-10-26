@@ -34,6 +34,7 @@ _NUM = re.compile(
     r"|(?<![A-Za-z\d.,])-?\d+(?:\.\d+)?"  # plain, including decimals
 )
 LINKS = ("rain->catchment", "catchment->river", "river->site", "site->exposure")
+MEMORY_PROMPT_MAX = 5  # recalled findings shown to the model
 
 
 def numbers_in(text: str) -> list[float]:
@@ -76,6 +77,23 @@ def cite(claim_id: str, ev: Evidence, provenance: list[dict], n: int) -> list[Ci
             )
         )
     return cits
+
+
+def memory_block(memories: list[dict] | None) -> str:
+    """Past approved findings from H-MEM, for the prompt. Never cited: their query ids
+    belong to earlier runs, and only this run's evidence can back a claim."""
+    if not memories:
+        return ""
+    lines = [
+        f"- {m.get('content', '')} (run {m.get('run_id', '?')}, relevance "
+        f"{float(m.get('relevance') or 0):.2f})"
+        for m in memories[:MEMORY_PROMPT_MAX]
+    ]
+    return (
+        "PAST APPROVED FINDINGS (H-MEM; context only, not evidence; do not cite):\n"
+        + "\n".join(lines)
+        + "\n"
+    )
 
 
 def _fmt(v) -> str:
@@ -290,7 +308,8 @@ def _model(
     user = (
         f"EVENT: {state['event']['name']} ({state['event_id']}); river "
         f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
-        f"ANOMALIES: {state.get('anomalies')}\n\nEVIDENCE:\n{rows_block(evidence)}"
+        f"ANOMALIES: {state.get('anomalies')}\n{memory_block(state.get('memories'))}"
+        f"\nEVIDENCE:\n{rows_block(evidence)}"
     )
     text, model_id = deps.llm.complete(
         "fast", INVESTIGATOR.replace("{lang}", state["request"].get("lang", "en")), user

@@ -7,8 +7,10 @@ Owner: Ayush (Nightshift client, H-MEM, World Model, memory, embeddings) and Zai
 ```
 watchers → investigator → skeptic ─┬─ not_supported, first time → revise → investigator → skeptic
                                    └─ → exposure → playbook → judge ─┬─ flagged, first time → playbook (repair) → judge
-                                                                      └─ → hitl (interrupt) → end
+                                                                      └─ → hitl (interrupt) → learn → end
 ```
+
+With `ENGINES_URL` set, the Watchers, Investigator and Skeptic also write to the World Model board, and behind `FF_HMEM` the Investigator recalls past approved findings and Learn stores the approved run. See [Engines: memory and World Model](#engines-memory-and-world-model).
 
 | Node | Lane | What it does | Owner |
 | --- | --- | --- | --- |
@@ -16,9 +18,11 @@ watchers → investigator → skeptic ─┬─ not_supported, first time → re
 | `nodes/investigator.py` | fast | Hypotheses H1–H3 (rain→catchment→river→site) backed by claims; every claim cites a `query_id` (layer a) and the provenance row (layer b). Deterministic chain from aggregate queries run together; the model refines it from the same evidence on `meterless/fast` | Zain, Ayush |
 | `nodes/skeptic.py` | SQL (+fast rationale) | ≤ `SKEPTIC_MAX_ROUNDS` counter-check queries per hypothesis (default 3; a smoke run can set 1) → `supported` / `not_supported`; one revise edge back to the Investigator, which drops what was not supported. The rationale is `meterless/fast` | Zain, Ayush |
 | `nodes/exposure.py` | SQL | `exposure_join` with `in_footprint = 1`: policies, sum insured, by segment → H4 with number claims. The sample, the segment rollup, and the total run together | Ayush, Zain |
-| `nodes/playbook.py` | fast draft, deep repair | Actions for 6 / 24 / 72 h citing claim ids; `outbound` ones wait for approval. The first draft is `meterless/fast`. The repair round, when the Judge flags a claim, stays on `meterless/deep` | Ayush, Zain |
+| `nodes/playbook.py` | fast draft, deep repair | Actions for 6 / 24 / 72 h citing claim ids; `outbound` ones wait for approval. The first draft is `meterless/fast`. A model action that cites no claim of this run is dropped. The repair round, when the Judge flags a claim, stays on `meterless/deep` | Ayush, Zain |
 | `nodes/judge.py` | deep | Per-claim coverage, citation faithfulness, numbers match, licence, grounding → `judge[]` + `judge_summary`. Never deletes or rewrites | Zain, Mihir |
 | `hitl.py` | — | `interrupt()`; approve / edit / reject; `approval{}`; outbound actions released only on approve / edit | Zain |
+| `nodes/memory.py` | — | Behind `FF_HMEM`: recall before the Investigator's first pass, and the Learn node after `hitl`, which stores an approved or edited run | Ayush |
+| `nodes/world_model.py` | — | With `ENGINES_URL`: writes the Watchers' anomalies and each hypothesis write to the World Model board | Ayush |
 
 Contracts (gameplan v2 §5.5) are in `models.py` field for field: Evidence, Citation, Judge score, agent state (`run_id, thread_id, event_id, customer_id, replay_ts, anomalies[], hypotheses[], exposure{}, playbook[], judge[], approval{}, trace[]`), trace events. Extras (`claims[]`, `evidence{}`, `judge_summary`, `summary`) sit next to them and the UI may ignore them. The nodes use only the contract views (`hazard_timeline`, `discharge_daily`, `exposure_join`, `gauge_levels`, `provenance`), so switching to live is `FF_LIVE_DATA=true` plus credentials. `FF_LIVE_DATA` defaults to false. Live as the default is v0.5.
 
@@ -59,10 +63,30 @@ The product UI is the Vite console in `ui/` (compose publishes it on `127.0.0.1:
 
 Eval set and runner: [`../evals/`](../evals/README.md).
 
+## Engines: memory and World Model
+
+`engines.py` is the client for the `engines/` sidecar (Meterless H-MEM and World Model behind HTTP on `:8300`). `ENGINES_URL` unset means the engines are off: the graph keeps `NoMemory` and `NoWorld`, sends nothing, and the trace is the same as without them.
+
+| What | When | Engines call | Trace event |
+| --- | --- | --- | --- |
+| Anomalies become observations | after the Watchers | `POST /wm/observations` | `world_model`: observed, already known, events appended |
+| Hypotheses with their status | after the Investigator and after the Skeptic | `POST /wm/hypotheses`, `at` = the replay clock | `world_model`: the board, for example `H1 supported, H2 not_supported` |
+| Past approved findings on the same event | before the Investigator's first pass, `FF_HMEM` | `POST /hmem/recall` with the question; keeps memories tagged with the run's event | `memory`: how many were recalled |
+| Write-on-approval | `learn`, after `hitl`, `FF_HMEM` | `POST /hmem/store` with the run's claims and `approval` | `learn`: stored, already remembered, or why nothing was stored |
+
+- Recalled findings go into the Investigator's prompt as context, never as evidence: claims still cite only this run's query ids. The reviewer sees them as `memories` in the approval payload.
+- Recall is scoped to the run's flood event. The engines' reference embedder is a token hash, not semantic, so a related and an unrelated question score alike (about 0.2 to 0.3). Recall therefore asks for a wide pool with no score cut (`HMEM_RECALL_THRESHOLD`, default 0) and keeps the findings tagged with the same event. Recall across events needs real embeddings, from Nightshift's embed lane; raise the threshold then.
+- Only an `approved` or `edited` run is remembered. `rejected` and `auto` write nothing. A retried store writes nothing twice, because the engines key a memory by `(run_id, claim_id)`.
+- `at` is the scenario clock (the end of the event window, cut at `replay_ts`), so a replayed run appends no new World Model events.
+- The engines never fail a run. A call that fails, or engines that are not running, become a trace note, and the run and the approval stand.
+
+To try it on the host: `cd engines && npm start` (Node 22.18 or newer), then run the agents with `ENGINES_URL=http://127.0.0.1:8300` and `FF_HMEM=true`. In compose the agents service uses `ENGINES_URL=http://engines:8300` (`compose.yaml` sets it). `ENGINES_TIMEOUT_S` (default 5) caps each call, and `HMEM_RECALL_TOP_N` (default 3) is how many findings are recalled. `GET /ready` names the memory and World Model in use.
+
 ## Hooks for the pair
 
 - **Nightshift client** (Ayush): `nightshift.LLM.complete(lane, system, user, json=True) -> (text, model_id)`. `NightshiftClient` here sends the three headers and `enable_thinking=false`; replace or extend it, the nodes only use the protocol. `FakeNightshift` keys on the `TASK:` line of each system prompt (`prompts.py`).
-- **Memory** (Ayush, `FF_HMEM`): `state.Memory.recall(request)` and `.store(run_id, request, claims, approval)`; `store` runs on approval only (`runtime.py`).
+- **Memory** (Ayush, `FF_HMEM`): `state.Memory.recall(request)` and `.store(run_id, request, claims, approval)`. `recall` runs before the Investigator; `store` runs in the Learn node after the decision, on approve or edit only (`nodes/memory.py`). `engines.EnginesClient` implements it over the sidecar; plain `NoMemory` means memory is off.
+- **World Model** (Ayush): `Deps.world`, `engines.WorldModel` (`observe`, `update_hypotheses`). `NoWorld` records nothing.
 - **Views** (Mihir; Saleeta secondary on prep): every SQL string lives in the node that runs it; column names follow `contracts` v1. If a real field differs, change the SQL there and the matching seed row in `zetaris.py`. Urvashi remains for Zetaris expertise.
 
 In compose, the agents service reaches the engines sidecar at `ENGINES_URL=http://engines:8300`. On the host that URL is `http://127.0.0.1:8300`. `compose.yaml` sets the compose value.
