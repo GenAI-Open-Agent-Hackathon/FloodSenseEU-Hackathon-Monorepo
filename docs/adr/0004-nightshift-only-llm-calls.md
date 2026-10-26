@@ -12,7 +12,7 @@ Corrected 2026-10-25, still Proposed. The first draft named Lightning as the fas
 
 ## Decision
 
-Chat completions go through one Nightshift client (`agents/floodsense_agents/nightshift.py`). No agent, API handler, or test calls a chat-model vendor directly. Document embeddings are not a chat call. They are the [0009](0009-vector-search-next-to-zetaris.md) exception: NVIDIA NIM `POST /v1/embeddings` for `nvidia/llama-nemotron-embed-1b-v2`, authenticated with `NVIDIA_NIM_API_KEY` from a gitignored env file. That key is not the Providers-tab chat key, and it is not committed.
+Chat completions go through one Nightshift client (`agents/floodsense_agents/nightshift.py`). No agent, API handler, or test calls a chat-model vendor directly. Document embeddings are not a chat call. They are the [0009](0009-vector-search-next-to-zetaris.md) exception: NVIDIA NIM `POST /v1/embeddings` for `nvidia/nemotron-3.5-embed-1b`, authenticated with `NVIDIA_NIM_API_KEY` from a gitignored env file. That key is not the Providers-tab chat key, and it is not committed.
 
 - Base URL from `METERLESS_BASE_URL`, timeout 180 seconds.
 - `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`.

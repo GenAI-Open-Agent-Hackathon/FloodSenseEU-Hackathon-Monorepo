@@ -167,7 +167,7 @@ def _positive_int(value: object) -> int | None:
     """Zetaris REST returns every column as a string, so '3' counts as 3."""
     if isinstance(value, bool):
         return None
-    if isinstance(value, str) and value.isdigit():
+    if isinstance(value, str) and value.isascii() and value.isdigit():
         value = int(value)
     if isinstance(value, int) and value >= 1:
         return value
