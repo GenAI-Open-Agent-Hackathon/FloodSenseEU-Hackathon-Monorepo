@@ -90,7 +90,7 @@ def _draft(system: str, user: str) -> str:
                         "action_id": "A9",
                         "horizon_h": 6,
                         "text": "Watch the gauges.",
-                        "claim_ids": [],
+                        "claim_ids": ["C1"],
                         "outbound": False,
                     }
                 ]
@@ -132,7 +132,11 @@ class LaneChoiceTest(unittest.TestCase):
 
     def test_playbook_draft_uses_the_fast_lane(self) -> None:
         llm = FakeNightshift({"playbook": _draft})
-        out = make_playbook(_deps(llm))(_state())
+        state = _state()
+        # The draft has to cite a claim of this run. An uncited model action
+        # is dropped and the deterministic playbook stays on lane "none".
+        state["claims"] = [{"claim_id": "C1", "text": "Rain fell on the catchment."}]
+        out = make_playbook(_deps(llm))(state)
         self.assertEqual([lane for lane, _task, _user in llm.calls], ["fast"])
         self.assertEqual(out["trace"][-1]["lane"], "fast")
         self.assertEqual(out["playbook"][0]["action_id"], "A9")
