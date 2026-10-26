@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- The UI shell adds a collapsible left nav and hash pages (`#/citizen/place`, `#/insurer/review`, and the other desk pages). An empty hash opens the insurer overview. An unknown page opens that desk's overview. A replay strip shows the date, point, and playback state, and a Replay answer chip reads the fixture answer. Page bodies still use the current citizen page and insurer desk.
 - In-repo merge bar for cloud agents at `.cursor/skills/floodsense-pr-review/SKILL.md` ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). Architect-bot findings are written in chat first and posted on GitHub only after the user approves. Edits stay in the labelled area folder, and `compose.yaml` stays architect-owned. Which model answers a lane, including deep, is the one table at the top of `docs/architecture/c4.md` (ADR 0004).
 
 ### Fixed
