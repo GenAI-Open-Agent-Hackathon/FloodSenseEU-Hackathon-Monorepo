@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsById } from "../lib/citations";
+import { decisionNoteError } from "../lib/decision";
 import { routeHref } from "../lib/route";
 import type { ApprovalStatus } from "../types/contract";
 import { GroundingBadge } from "./ReviewColumn";
@@ -20,7 +21,7 @@ export function Approvals() {
         <p className="section-label">Queue</p>
         <ul>
           <li>
-            <div className="queue-item" aria-current="true">
+            <div className="queue-item is-selected">
               <span className="queue-title">{action ? action.title : "Reviewed answer"}</span>
               <span className={`badge badge-status-${desk.approval.status}`}>{desk.approval.status}</span>
             </div>
@@ -98,8 +99,9 @@ function DecisionBar() {
   }, [desk.approval]);
 
   function commit(status: ApprovalStatus) {
-    if ((status === "rejected" || status === "edited") && note.trim().length === 0) {
-      setNoteError(status === "rejected" ? "A note is required to reject." : "Add a note to record the edit.");
+    const error = decisionNoteError(status, note);
+    if (error) {
+      setNoteError(error);
       return;
     }
     setNoteError("");
