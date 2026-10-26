@@ -11,7 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Changed
 
-- In-repo merge bar for cloud agents at `.cursor/skills/floodsense-pr-review/SKILL.md`. Architect-bot findings go in chat before GitHub. Edits stay in the labelled area folder, and `compose.yaml` stays architect-owned. Which model answers a lane is the table at the top of `docs/architecture/c4.md` (ADR 0004). Deep is `nvidia/nemotron-3.5-super-vl-120b-a12b`.
+- In-repo merge bar for cloud agents at `.cursor/skills/floodsense-pr-review/SKILL.md` ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). Architect-bot findings go in chat before GitHub. Edits stay in the labelled area folder, and `compose.yaml` stays architect-owned. Which model answers a lane is the table at the top of `docs/architecture/c4.md` (ADR 0004). Deep is `nvidia/nemotron-3.5-super-vl-120b-a12b`.
 
 ### Fixed
 
