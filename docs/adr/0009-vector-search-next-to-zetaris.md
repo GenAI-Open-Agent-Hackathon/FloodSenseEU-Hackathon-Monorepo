@@ -36,10 +36,11 @@ Embeddings are `nvidia/nemotron-3.5-embed-1b`, dimension 2048 (it replaced `nvid
 
 Why NIM and why this model. To be confirmed by Ayush (embedding client) and Urvashi (store); until then these are the working reasons, not a measured comparison:
 
+- Why `nvidia/nemotron-3.5-embed-1b` and not the model this ADR first named: NIM retired `nvidia/llama-nemotron-embed-1b-v2` on 2026-08-25 and answers it with HTTP 410 `Gone` (checked 26 Oct 2026), so `rag_ingest` could not embed. `nemotron-3.5-embed-1b` is NVIDIA's current 1B embedder on the same endpoint. It takes the same request (`input_type` `passage` or `query`) and returns 2048 dimensions (checked 26 Oct 2026: HTTP 200, 2048 values), so `rag.chunks` and the halfvec index stay as they are. Only the `embed_model` check moves (`002`), and the corpus is re-embedded.
 - Nightshift does not answer embeddings today. On 26 Oct its `GET /v1/models` lists `meterless/embed` (endpoints `chat`, `embeddings`; availability `cloud`) and `nvidia/nemotron-3-embed-1b`, but `POST /v1/embeddings` returns 404 `not_found` for those ids and for `nvidia/llama-nemotron-embed-1b-v2`. So the embedding call needs a provider outside Nightshift. If a later Nightshift serves that route, moving the call onto it is a change to `nim_embed.py` and this ADR, and a re-embed if the model or dimension changes. NIM keeps it on NVIDIA, the same vendor and Nemotron family as the chat lanes, and needs no extra local GPU or container.
 - It is a retrieval embedder with separate `passage` and `query` input types, which suits short analyst questions ranked against document paragraphs.
-- The corpus mixes English, Spanish (Valencia, EMSR773) and German (Ahr, EMSR517) sources, and the model is multilingual.
-- Its input limit (8192 tokens) lets one paragraph go in whole; `scripts/rag_ingest.py` only splits a paragraph above that.
+- The corpus mixes English, Spanish (Valencia, EMSR773) and German (Ahr, EMSR517) sources. Multilingual support was a reason for the first model; confirm it on the `nemotron-3.5-embed-1b` model card.
+- `scripts/rag_ingest.py` assumes an 8192-token input limit and only splits a paragraph above that. Confirm the limit on the `nemotron-3.5-embed-1b` model card.
 - Cost for the hackathon is within the free build.nvidia.com trial credits. A paid product would re-check price, terms and a self-hosted NIM.
 
 Not chosen: the engines' token-hash embedder (not semantic, see `agents/README.md`); a local open model (another container and model download during the build); a non-NVIDIA API (a second vendor key for no gain in the demo). Disclosure: this is the one model call that does not go through Nightshift. The deck and video say "every chat call goes through Nightshift", not "every LLM call".

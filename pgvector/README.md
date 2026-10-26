@@ -25,7 +25,7 @@ Host port `127.0.0.1:15432` (not published on the LAN). The password in `.env.ex
 Filling the table with `scripts/rag_ingest.py` needs an NVIDIA NIM key in `NVIDIA_NIM_API_KEY` and `PGVECTOR_DSN` in the environment of that command:
 
 1. Sign in at [build.nvidia.com](https://build.nvidia.com) with a free NVIDIA account.
-2. Open the `nvidia/llama-nemotron-embed-1b-v2` model page.
+2. Open the `nvidia/nemotron-3.5-embed-1b` model page. (`nvidia/llama-nemotron-embed-1b-v2` is retired and answers HTTP 410.)
 3. Choose **Get API Key**, then **Generate**. The key starts with `nvapi-`. The free tier's trial credits cover the corpus.
 4. Put it in your gitignored `agents/.env` as `NVIDIA_NIM_API_KEY=`. Leave `NIM_EMBEDDINGS_URL` empty to use the default `https://integrate.api.nvidia.com/v1/embeddings`.
 5. Do not commit it, paste it in chat, or put it in a fixture or screenshot. CI's gitleaks rule fails on an `nvapi-` string.
