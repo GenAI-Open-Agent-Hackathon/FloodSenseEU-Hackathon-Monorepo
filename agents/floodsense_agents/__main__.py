@@ -18,6 +18,7 @@ GET  /runs/{id}/exposure.csv       exposed policies for the claims system
 GET  /runs/{id}/verify             every agent step checked, plus which data path it used
 GET  /runs/{id}/record             the decision record: answer, sources, scores, signature
 POST /runs/{id}/dispatch           post the decision to DECISION_WEBHOOK, off unless set
+GET  /views/{name}                  rows of one allowlisted contract view (bare JSON array)
 GET  /health                       liveness: service, graph, version. Touches nothing.
 GET  /ready                        readiness: Zetaris answers a trivial query (503 if not)
 GET  /version                      build sha and timestamp
@@ -40,11 +41,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
+import re
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from floodsense_agents import __version__
 from floodsense_agents import desk, labelling
@@ -452,6 +455,72 @@ async def events(run_id: str):
             await asyncio.sleep(0.5)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# GET /views/{name}. Column types from contracts/views.yaml. Only these names
+# reach SQL, and only as identifiers from this dict, never from the request.
+_NUM, _BOOL = "double", "boolean"
+VIEW_COLUMNS: dict[str, dict[str, str]] = {
+    "discharge_daily": {"discharge_m3s": _NUM},
+    "hazard_timeline": {"rain_mm": _NUM, "discharge_m3s": _NUM},
+    "hazard_now": {"rain_mm": _NUM, "discharge_m3s": _NUM},
+    "gauge_levels": {"level_cm": _NUM},
+    "exposure_join": {"lat": _NUM, "lon": _NUM, "sum_insured_eur": _NUM, "in_footprint": _BOOL},
+    "provenance": {},
+}
+# No contract view has an event_id column today; the filter applies only if one does.
+_EVENT_VIEWS: frozenset[str] = frozenset()
+VIEW_ROW_LIMIT = 5000
+_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+
+def _coerce(value, kind: str):
+    """Zetaris REST returns strings. Numbers and booleans go back to their types."""
+    if value is None or value == "":
+        return None
+    if kind == _NUM:
+        try:
+            out = float(value)
+        except (TypeError, ValueError):
+            return None
+        return out if math.isfinite(out) else None
+    if kind == _BOOL:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return str(value).strip().lower() in ("true", "t", "1", "yes")
+    return value
+
+
+@app.get("/views/{name}")
+def get_view(name: str, event_id: str | None = None):
+    """Rows of one contract view, from the schema the graph reads (FF_LIVE_DATA)."""
+    types = VIEW_COLUMNS.get(name)
+    if types is None:
+        raise HTTPException(404, f"unknown view {name!r}")
+    sql = f"SELECT * FROM {settings.schema}.{name}"
+    if event_id is not None and name in _EVENT_VIEWS:
+        if not _EVENT_ID.fullmatch(event_id):
+            raise HTTPException(422, "event_id must be letters, digits, _ or -")
+        sql += f" WHERE event_id = '{event_id}'"
+    sql += f" LIMIT {VIEW_ROW_LIMIT}"
+    ev = runtime().deps.zetaris.run_sql(sql, sample=VIEW_ROW_LIMIT)
+    if getattr(ev, "error", None):
+        raise HTTPException(502, f"zetaris could not read {name}: {ev.error[:200]}")
+    rows = [
+        {k: (_coerce(v, types[k]) if k in types else v) for k, v in row.items()}
+        for row in ev.rows_sample
+    ]
+    return JSONResponse(
+        rows,
+        headers={
+            "x-query-id": ev.query_id,
+            "x-schema": settings.schema,
+            "x-executed-at": ev.executed_at_utc,
+            "cache-control": "no-store",
+        },
+    )
 
 
 def main() -> None:
