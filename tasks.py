@@ -19,6 +19,7 @@ cannot attach this stack to another project, such as a local Zetaris stack.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import shlex
 import shutil
@@ -433,6 +434,18 @@ def _gitleaks_required(flag: bool | None) -> bool:
     return flag
 
 
+def cmd_fetch_rag_corpus(root: Path) -> int:
+    """Check corpus sha256 and download placement fetch. Does not embed."""
+    path = Path(__file__).resolve().parent / "scripts" / "rag_corpus.py"
+    spec = importlib.util.spec_from_file_location("rag_corpus", path)
+    if spec is None or spec.loader is None:
+        print("scripts/rag_corpus.py is missing", file=sys.stderr)
+        return 1
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.fetch_rag_corpus(root)
+
+
 def cmd_lint(
     root: Path,
     runner: Runner,
@@ -503,6 +516,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
     sub.add_parser("zetaris-sync", help="Apply pending Zetaris migrations, then verify declared views.")
+    sub.add_parser(
+        "fetch-rag-corpus",
+        help=(
+            "Check corpus sha256. Download placement fetch into corpus/fetched/. "
+            "Does not embed and does not start Docker."
+        ),
+    )
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
         "engines-test",
@@ -542,6 +562,8 @@ def main(
         return cmd_config(root, run)
     if command == "zetaris-sync":
         return cmd_zetaris_sync(root, run)
+    if command == "fetch-rag-corpus":
+        return cmd_fetch_rag_corpus(root)
     if command == "test":
         return cmd_test(root, run)
     if command == "engines-test":

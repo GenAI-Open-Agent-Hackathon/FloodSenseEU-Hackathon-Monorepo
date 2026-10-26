@@ -1,0 +1,58 @@
+# Layer (c) corpus. Tier 1 and Tier 2 only. Tier 3 has no file yet.
+# placement git: the file is committed under corpus/pdf/. fetch-rag-corpus
+# checks sha256 and does not download these. It does not embed.
+- doc_id: emsr773-aoi03-del
+  title: "[EMSR773] Horta Sud (AOI03): Delineation Map"
+  publisher: "Copernicus Emergency Management Service"
+  url: "https://mapping.emergency.copernicus.eu/activations/EMSR773"
+  licence: "CEMS On-Demand Mapping terms"
+  attribution: "Copernicus Emergency Management Service (© 2024 European Union), EMSR773"
+  sha256: "ebc8b28215ea5b110814aeb279ae715f05b9e18813546cf80b7123529750d42d"
+  tier: 1
+  event_id: "EMSR773"
+  path: "pdf/emsr773-aoi03-delineation-map.pdf"
+  placement: "git"
+- doc_id: emsr517-aoi15-gra
+  title: "[EMSR517] Bad Neuenahr-Ahrweiler (AOI15): Grading Map"
+  publisher: "Copernicus Emergency Management Service"
+  url: "https://mapping.emergency.copernicus.eu/activations/EMSR517"
+  licence: "CEMS On-Demand Mapping terms"
+  attribution: "Copernicus Emergency Management Service (© 2021 European Union), EMSR517"
+  sha256: "53731bb424a814e0202980ed40428b1fe7b5bf49e7b9f25b8eebfca0aa47bcdb"
+  tier: 1
+  event_id: "EMSR517"
+  path: "pdf/emsr517-aoi15-grading-map.pdf"
+  placement: "git"
+- doc_id: hess-29-6715-2025
+  title: "Torrential rainfall in Valencia, Spain, recorded by personal weather stations preceding and during the 29 October 2024 floods"
+  publisher: "Copernicus Publications"
+  url: "https://hess.copernicus.org/articles/29/6715/2025/hess-29-6715-2025.pdf"
+  licence: "CC-BY-4.0"
+  attribution: "Rombeek, Hrachowitz, and Uijlenhoet (2025), CC BY 4.0, https://doi.org/10.5194/hess-29-6715-2025"
+  sha256: "9fc5796a8a1243099401fb97271e35d1c2213b06aa250ceb437b1b68a2ff8319"
+  tier: 2
+  event_id: "EMSR773"
+  path: "pdf/hess-29-6715-2025.pdf"
+  placement: "git"
+- doc_id: nhess-23-1287-2023
+  title: "A multi-disciplinary analysis of the exceptional flood event of July 2021 in central Europe – Part 2: Historical context and relation to climate change"
+  publisher: "Copernicus Publications"
+  url: "https://nhess.copernicus.org/articles/23/1287/2023/nhess-23-1287-2023.pdf"
+  licence: "CC-BY-4.0"
+  attribution: "Ludwig, Mohr, and co-authors (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-1287-2023"
+  sha256: "251bf798c20a4abe313f718ed72fe48369b5779c82affe223deb58815e29787c"
+  tier: 2
+  event_id: "EMSR517"
+  path: "pdf/nhess-23-1287-2023.pdf"
+  placement: "git"
+- doc_id: easyxlab-s19
+  title: "What the maps did not show: dwellings inside the observed extent of the October 2024 DANA in Valencia, and the official flood maps"
+  publisher: "EasyxLab"
+  url: "https://easybyte.es/lab/studies/s19/paper/"
+  licence: "CC-BY-4.0"
+  attribution: "EasyxLab (2026), Study S19, CC BY 4.0, https://easybyte.es/lab/studies/s19/paper/"
+  sha256: "d1a2d3a4677bf87158e99818cddb18dbdad6c843d0a08780a232ed04ac877934"
+  tier: 2
+  event_id: "EMSR773"
+  path: "pdf/easyxlab-s19.html"
+  placement: "git"

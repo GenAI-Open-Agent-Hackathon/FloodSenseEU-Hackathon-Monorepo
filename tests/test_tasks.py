@@ -136,6 +136,13 @@ class TaskTest(unittest.TestCase):
         self.assertIn("-p", seen[0])
         self.assertIn("floodsense-app", seen[0])
 
+    def test_fetch_rag_corpus_reports_a_missing_manifest(self) -> None:
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = tasks.main(["fetch-rag-corpus"], root=self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("corpus/manifest.yaml", err.getvalue())
+
     def test_zetaris_sync_uses_this_interpreter(self) -> None:
         seen: list[list[str]] = []
 
