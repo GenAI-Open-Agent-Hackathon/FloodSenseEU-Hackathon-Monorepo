@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
 import { servingLabel, servingQualifier } from "../lib/format";
@@ -8,7 +9,7 @@ const FOCUSABLE =
 
 /**
  * Gmail-style dock, bottom right. Non-modal: it never covers or pushes the page, and it never opens on a route change.
- * The answer is the fixture already on the desk. There is no question box, because nothing here calls a model.
+ * The answer is the fixture already on the desk, or a recorded run when VITE_REPLAY_RUN_ID is set and fetches. There is no question box, because nothing here calls a model.
  */
 export function AskFloodSense() {
   const desk = useConsole();
@@ -33,6 +34,17 @@ export function AskFloodSense() {
   const when = serving.kind === "cached" ? `${serving.text} UTC` : serving.text;
   const badge = serving.kind === "live" ? "Live" : servingQualifier(serving) === "cache" ? "Cached" : "Replay";
   const hasLayerC = answer.citations.some((citation) => citation.layer === "c");
+  // Optional recorded run. Unset or failed keeps the fixture answer.
+  const [recorded, setRecorded] = useState<RecordedRun | null>(null);
+  useEffect(() => {
+    const runId = replayRunId();
+    if (!runId) return;
+    const controller = new AbortController();
+    void fetchRecordedRun(runId, undefined, controller.signal).then((run) => {
+      if (!controller.signal.aborted) setRecorded(run);
+    });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!askOpen) return;
@@ -77,15 +89,23 @@ export function AskFloodSense() {
           <header className="ask-head">
             <div>
               <h2 id={titleId}>Ask FloodSense</h2>
-              <p className={`ask-badge ask-badge-${serving.kind}`}>
-                {badge} · {when}
-              </p>
+              {recorded ? (
+                <p className="ask-badge ask-badge-replay">Replay · recorded run {recorded.runId} · not live</p>
+              ) : (
+                <p className={`ask-badge ask-badge-${serving.kind}`}>
+                  {badge} · {when}
+                </p>
+              )}
             </div>
             <button ref={closeRef} type="button" className="icon-button" aria-label="Close Ask FloodSense" onClick={dismiss}>
               <CloseIcon />
             </button>
           </header>
           <div className="ask-body">
+            {recorded ? (
+              <RecordedAnswer run={recorded} />
+            ) : (
+            <>
             <p className="note">
               Reviewed answer, {servingQualifier(serving)}, run {serving.runId}. Not live. This panel does not take questions
               or call a model.
@@ -121,6 +141,8 @@ export function AskFloodSense() {
               <p className="note">Fixture SQL, packed with the answer.</p>
               {!hasLayerC && <p className="note">This answer has no layer (c) document citations.</p>}
             </details>
+            </>
+            )}
             <div className="button-row">
               <button
                 type="button"
@@ -149,6 +171,67 @@ export function AskFloodSense() {
         Ask FloodSense
       </button>
     </div>
+  );
+}
+
+/** A recorded agent run. Always labelled as a replay: nothing here is live. */
+function RecordedAnswer({ run }: { run: RecordedRun }) {
+  return (
+    <>
+      <p className="note">
+        <strong>Replay · recorded run {run.runId} · not live</strong>
+      </p>
+      <p className="note">{run.label}</p>
+      <p className="ask-question">{run.summary}</p>
+      <ul className="ask-claims">
+        {run.claims.map((claim) => (
+          <li key={claim.id}>
+            {claim.text}{" "}
+            {run.flaggedClaimIds.includes(claim.id) && <strong className="note">[Flagged by Judge] </strong>}
+            {claim.citations.map((citation) => (
+              <span key={citation.id} className="cite-marks" title={citation.quote ?? citation.title}>
+                [{citation.layer}: {citation.title}
+                {citation.page !== null ? `, p. ${citation.page}` : ""}]{" "}
+              </span>
+            ))}
+            {claim.citations
+              .filter((citation) => citation.layer === "c" && citation.quote)
+              .map((citation) => (
+                <blockquote key={`${citation.id}-q`} className="note">
+                  “{citation.quote}” {citation.publisher ?? ""}
+                  {citation.licence ? ` · ${citation.licence}` : ""}
+                </blockquote>
+              ))}
+            {claim.citations
+              .filter((citation) => citation.layer === "c" && citation.quote && citation.attribution)
+              .map((citation) => (
+                <p key={`${citation.id}-attr`} className="note">
+                  {citation.attribution}
+                </p>
+              ))}
+          </li>
+        ))}
+      </ul>
+      {run.judgeOverall !== null && (
+        <p className="note">
+          Judge score {run.judgeOverall.toFixed(2)}
+          {run.judgePasses === null ? "" : run.judgePasses ? " · passes" : " · does not pass"}
+          {run.hallucinationRate === null ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)} %`}
+        </p>
+      )}
+      <details className="disclosure">
+        <summary>How I got this</summary>
+        <ol className="ask-trace">
+          {run.trace.map((step, i) => (
+            <li key={`${step.seq}-${i}`}>
+              <p className="menu-title">{step.node}</p>
+              <p className="note">{step.summary}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="note">Trace recorded with run {run.runId}.</p>
+      </details>
+    </>
   );
 }
 
