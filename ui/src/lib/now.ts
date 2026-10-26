@@ -177,11 +177,21 @@ export function latestPastStamp(rows: HazardNowRow[]): string | null {
   return best?.ts_utc ?? null;
 }
 
+/** Sparkline values with null discharge dropped (never drawn as 0); split is the last past index. */
+export function sparkSeries(summary: PointNow): { values: number[]; split: number | undefined } {
+  const past = summary.past.map((row) => row.discharge_m3s).filter((v): v is number => v !== null);
+  const forecast = summary.forecast.map((row) => row.discharge_m3s).filter((v): v is number => v !== null);
+  return {
+    values: [...past, ...forecast],
+    split: past.length > 0 && forecast.length > 0 ? past.length - 1 : undefined,
+  };
+}
+
 export function relativeTime(fromMs: number, nowMs: number): string {
-  const seconds = Math.max(0, Math.round((nowMs - fromMs) / 1000));
+  const seconds = Math.max(0, (nowMs - fromMs) / 1000);
   if (seconds < 45) return "just now";
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (seconds < 59.5 * 60) return `${Math.max(1, Math.round(seconds / 60))} min ago`;
+  const minutes = seconds / 60;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
   return `${Math.round(hours / 24)} d ago`;

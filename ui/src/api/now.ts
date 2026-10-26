@@ -13,7 +13,15 @@ export interface HazardNowResult {
 function signalFor(signal: AbortSignal): AbortSignal {
   const timeout = AbortSignal.timeout(apiTimeoutMs());
   if (typeof AbortSignal.any === "function") return AbortSignal.any([signal, timeout]);
-  return signal;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), apiTimeoutMs());
+  const stop = () => {
+    clearTimeout(timer);
+    ctrl.abort();
+  };
+  if (signal.aborted) stop();
+  else signal.addEventListener("abort", stop, { once: true });
+  return ctrl.signal;
 }
 
 async function getJson(path: string, signal: AbortSignal): Promise<{ body: unknown; headers: Headers }> {
