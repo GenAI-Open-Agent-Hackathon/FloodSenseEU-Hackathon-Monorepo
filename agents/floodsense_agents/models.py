@@ -97,6 +97,7 @@ class Anomaly(BaseModel):
     unit: str | None = None
     why: str
     query_id: str
+    horizon: str | None = None  # extra: live mode only, past | forecast (hazard_now.horizon)
 
 
 class ExposedAsset(BaseModel):
@@ -214,6 +215,10 @@ class RunRequest(BaseModel):
     # Test only: which LLM answers this run. Nightshift unless LLM_PROVIDER_SWITCH
     # is on and ANTHROPIC_API_KEY is set (local benchmarking; see agents/README.md).
     llm_provider: str = "nightshift"
+    # extra: event replays the event window; live reads hazard_now (past days and
+    # the ~48 h forecast). Null lets live.resolve_mode classify the question.
+    # replay_ts set always means event.
+    mode: Literal["event", "live"] | None = None
 
     @field_validator("llm_provider")
     @classmethod

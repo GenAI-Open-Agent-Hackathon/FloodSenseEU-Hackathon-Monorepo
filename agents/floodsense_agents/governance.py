@@ -27,6 +27,7 @@ OUTSIDE_FOOTPRINT_SQL = "in_footprint = FALSE"
 
 CONTRACT_VIEWS = (
     "hazard_timeline",
+    "hazard_now",
     "discharge_daily",
     "exposure_join",
     "gauge_levels",
@@ -47,6 +48,12 @@ class Owner:
 OWNERS: dict[str, Owner] = {
     "hazard_timeline": Owner(
         view="hazard_timeline",
+        owner="hazard data lead",
+        steward="ingestion",
+        releases="duty underwriter",
+    ),
+    "hazard_now": Owner(
+        view="hazard_now",
         owner="hazard data lead",
         steward="ingestion",
         releases="duty underwriter",

@@ -14,6 +14,7 @@ import logging
 import time
 
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
+from floodsense_agents.live import LIVE_ROWS, is_live, points_sql
 from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
@@ -24,8 +25,114 @@ from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 log = logging.getLogger("floodsense.skeptic")
 
 
+def _footprint_checks(s: str) -> list[tuple[str, str, tuple[str, ...]]]:
+    return [
+        (
+            "the footprint contains insured sites",
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} HAVING "
+            f"COUNT(*) >= 1",
+            (),
+        ),
+        (
+            "the footprint does not swallow every site (it is a footprint, not a region)",
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {OUTSIDE_FOOTPRINT_SQL} HAVING "
+            f"COUNT(*) >= 1",
+            (),
+        ),
+        (
+            "sites in the footprint carry coordinates",
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} AND lat IS "
+            f"NOT NULL AND lon IS NOT NULL HAVING COUNT(*) >= 1",
+            (),
+        ),
+    ]
+
+
+def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
+    """Live counter-checks: the same view the claims cite (hazard_now), other predicates.
+
+    A "nothing crosses" hypothesis is checked in its own direction: the check
+    passes when the forecast maximum stays under the line, so a quiet forecast
+    survives and a wrong "quiet" is caught.
+    """
+    s = settings.schema
+    where = f"point_id IN ({points_sql(state['event'])}) AND {LIVE_ROWS}"
+    found = state.get("live_findings") or {}
+    rain_at = DEFINITIONS["anomaly_rain"].value
+    flow_at = DEFINITIONS["anomaly_discharge"].value
+    if h.link == "rain->catchment":
+        direction = (
+            ("forecast rain reaches the anomaly line", f">= {rain_at}")
+            if found.get("rain_crosses")
+            else ("forecast rain stays under the anomaly line", f"< {rain_at}")
+        )
+        return [
+            (
+                "hazard_now holds both past and forecast rows",
+                f"SELECT COUNT(DISTINCT horizon) AS horizons FROM {s}.hazard_now WHERE {where} "
+                f"HAVING COUNT(DISTINCT horizon) >= 2",
+                (),
+            ),
+            (
+                direction[0],
+                f"SELECT MAX(rain_mm) AS max_mm FROM {s}.hazard_now WHERE {where} AND "
+                f"horizon = 'forecast' HAVING MAX(rain_mm) {direction[1]}",
+                (),
+            ),
+            (
+                "rain is recorded for more than one forecast hour",
+                f"SELECT COUNT(*) AS hours FROM {s}.hazard_now WHERE {where} AND "
+                f"horizon = 'forecast' AND rain_mm IS NOT NULL HAVING COUNT(*) >= 2",
+                (),
+            ),
+        ]
+    if h.link == "catchment->river":
+        if found.get("discharge_crosses"):
+            pts = ", ".join(f"'{p}'" for p in found.get("crossing_points") or [])
+            direction = [
+                (
+                    "the crossing point's forecast stays at or above the line for an hour or more",
+                    f"SELECT point_id, COUNT(*) AS hours FROM {s}.hazard_now WHERE {where} AND "
+                    f"horizon = 'forecast' AND point_id IN ({pts}) AND discharge_m3s >= "
+                    f"{flow_at} GROUP BY point_id HAVING COUNT(*) >= 1",
+                    (),
+                ),
+                (
+                    "the forecast peak is above the past days' peak (a rise, not a constant)",
+                    f"SELECT MAX(f.discharge_m3s) AS forecast_peak, MAX(p.discharge_m3s) AS "
+                    f"past_peak FROM {s}.hazard_now f, {s}.hazard_now p WHERE f.point_id IN "
+                    f"({pts}) AND f.horizon = 'forecast' AND p.point_id = f.point_id AND "
+                    f"p.horizon = 'past' HAVING MAX(f.discharge_m3s) > MAX(p.discharge_m3s)",
+                    (),
+                ),
+            ]
+        else:
+            direction = [
+                (
+                    "no point's forecast discharge reaches the anomaly line",
+                    f"SELECT MAX(discharge_m3s) AS max_m3s FROM {s}.hazard_now WHERE {where} AND "
+                    f"horizon = 'forecast' HAVING MAX(discharge_m3s) < {flow_at}",
+                    (),
+                ),
+            ]
+        return [
+            (
+                "forecast discharge is present for the event's points",
+                f"SELECT COUNT(*) AS n FROM {s}.hazard_now WHERE {where} AND horizon = "
+                f"'forecast' AND discharge_m3s IS NOT NULL HAVING COUNT(*) >= 1",
+                (),
+            ),
+            *direction,
+        ]
+    if h.link == "river->site":
+        return _footprint_checks(s)
+    return []
+
+
 def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
     """(name, sql): each query must return >= 1 row for the check to pass."""
+    if is_live(state):
+        return _live_checks_for(h, state)
     s, ev = settings.schema, state["event"]
     t0, t1 = window(state)
     clock = (t0, t1)
@@ -84,26 +191,7 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
             ),
         ]
     if h.link == "river->site":
-        return [
-            (
-                "the footprint contains insured sites",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} HAVING "
-                f"COUNT(*) >= 1",
-                (),
-            ),
-            (
-                "the footprint does not swallow every site (it is a footprint, not a region)",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {OUTSIDE_FOOTPRINT_SQL} HAVING "
-                f"COUNT(*) >= 1",
-                (),
-            ),
-            (
-                "sites in the footprint carry coordinates",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} AND lat IS "
-                f"NOT NULL AND lon IS NOT NULL HAVING COUNT(*) >= 1",
-                (),
-            ),
-        ]
+        return _footprint_checks(s)
     return []
 
 

@@ -18,7 +18,14 @@ import re
 import time
 
 from floodsense_agents.events import point_label
-from floodsense_agents.governance import IN_FOOTPRINT_SQL
+from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
+from floodsense_agents.live import (
+    FORECAST_HOURS,
+    LIVE_ROWS,
+    is_live,
+    points_sql,
+    relative,
+)
 from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis, Locator
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
@@ -321,11 +328,252 @@ def _deterministic(
     return hyps, claims, summary, [rain, flow, daily, foot, warn]
 
 
+def _live_deterministic(
+    state: FloodState, deps: Deps
+) -> tuple[list[Hypothesis], list[Claim], str, list[Evidence], dict]:
+    """The same chain, read from {schema}.hazard_now: the past days and the forecast.
+
+    Every number a claim states is a cell of the query it cites, so the Judge's
+    numeric check holds. Times are absolute UTC plus a relative "in N h" against
+    the clock of this run. Past rows are Open-Meteo / GloFAS model output, not a
+    station reading, and the text says so.
+    """
+    s, ev, prov = settings.schema, state["event"], state.get("provenance", [])
+    pts = points_sql(ev)
+    rain_at = DEFINITIONS["anomaly_rain"]
+    flow_at = DEFINITIONS["anomaly_discharge"]
+    now = now_utc()
+    where = f"point_id IN ({pts}) AND {LIVE_ROWS}"
+    span, rain, fpeak, ppeak, cross, foot = run_sql_parallel(
+        deps.zetaris,
+        [
+            (
+                f"SELECT horizon, MIN(ts_utc) AS from_utc, MAX(ts_utc) AS to_utc, "
+                f"COUNT(*) AS point_hours FROM {s}.hazard_now WHERE {where} "
+                f"GROUP BY horizon ORDER BY horizon",
+                None,
+            ),
+            (
+                f"SELECT point_id, horizon, SUM(rain_mm) AS total_mm, MAX(rain_mm) AS "
+                f"max_hourly_mm, COUNT(*) AS hours FROM {s}.hazard_now WHERE {where} AND "
+                f"rain_mm IS NOT NULL GROUP BY point_id, horizon ORDER BY total_mm DESC",
+                None,
+            ),
+            (
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_now WHERE {where} "
+                f"AND horizon = 'forecast' AND discharge_m3s IS NOT NULL "
+                f"ORDER BY discharge_m3s DESC, ts_utc",
+                None,
+            ),
+            (
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_now WHERE {where} "
+                f"AND horizon = 'past' AND discharge_m3s IS NOT NULL "
+                f"ORDER BY discharge_m3s DESC, ts_utc",
+                None,
+            ),
+            (
+                f"SELECT point_id, MIN(ts_utc) AS first_utc, MAX(discharge_m3s) AS peak_m3s, "
+                f"COUNT(*) AS hours FROM {s}.hazard_now WHERE {where} AND horizon = 'forecast' "
+                f"AND discharge_m3s >= {flow_at.value} GROUP BY point_id ORDER BY first_utc",
+                None,
+            ),
+            (
+                f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
+                f"{s}.exposure_join WHERE {IN_FOOTPRINT_SQL}",
+                None,
+            ),
+        ],
+    )
+
+    claims: list[Claim] = []
+    hyps: list[Hypothesis] = []
+    n = 0
+
+    def claim(text, kind, evs, hid, numbers):
+        nonlocal n
+        n += 1
+        cid = f"C{n}"
+        claims.append(
+            Claim(
+                claim_id=cid,
+                text=text,
+                kind=kind,
+                numbers=numbers,
+                hypothesis_id=hid,
+                citations=[c for i, e in enumerate(evs, 1) for c in cite(cid, e, prov, i)],
+            )
+        )
+        return cid
+
+    def when(ts) -> str:
+        rel = relative(ts, now)
+        return f"{ts} ({rel})" if rel else str(ts)
+
+    # H1 rain -> catchment, forecast first, then the past days.
+    h1 = []
+    by_h = {"forecast": [], "past": []}
+    for r in rain.rows_sample:
+        by_h.setdefault(r.get("horizon"), []).append(r)
+    rain_crosses = False
+    for horizon, label in (
+        ("forecast", f"Forecast, next {FORECAST_HOURS} h"),
+        ("past", "Past days, observed-modelled (Open-Meteo, not a station reading)"),
+    ):
+        rows = by_h.get(horizon) or []
+        if not rows:
+            continue
+        r = rows[0]
+        if horizon == "forecast":
+            rain_crosses = float(r["max_hourly_mm"] or 0) >= rain_at.value
+        h1.append(
+            claim(
+                f"{label}: {point_label(r['point_id'])} has the most rain, "
+                f"{_fmt(r['total_mm'])} mm over {r['hours']} hours, peak hour "
+                f"{_fmt(r['max_hourly_mm'])} mm.",
+                "number",
+                [rain],
+                "H1",
+                [r["total_mm"], r["hours"], r["max_hourly_mm"]],
+            )
+        )
+    forecast_rain = by_h.get("forecast") or []
+    if forecast_rain:
+        top = forecast_rain[0]
+        rain_statement = (
+            f"Forecast rain reaches {_fmt(top['max_hourly_mm'])} mm in an hour at "
+            f"{point_label(top['point_id'])} within {FORECAST_HOURS} h, at or above the "
+            f"{_fmt(rain_at.value)} mm/h anomaly line"
+            if rain_crosses
+            else f"No point's forecast rain reaches {_fmt(rain_at.value)} mm/h in the next "
+            f"{FORECAST_HOURS} h"
+        )
+    else:
+        rain_statement = f"No live rain rows in {s}.hazard_now"
+    hyps.append(Hypothesis(id="H1", link="rain->catchment", citations=h1, statement=rain_statement))
+
+    # H2 catchment -> river: does any point's forecast discharge cross the line?
+    h2 = []
+    crossing = cross.rows_sample
+    for c in crossing[:3]:
+        h2.append(
+            claim(
+                f"Forecast: discharge at {point_label(c['point_id'])} is at or above "
+                f"{_fmt(flow_at.value)} m3/s for {c['hours']} hours from {when(c['first_utc'])}, "
+                f"peaking at {_fmt(c['peak_m3s'])} m3/s (GloFAS model via Open-Meteo).",
+                "number",
+                [cross],
+                "H2",
+                [c["hours"], c["peak_m3s"]],
+            )
+        )
+    if fpeak.rows_sample:
+        p = fpeak.rows_sample[0]
+        if crossing:
+            text = (
+                f"The highest forecast discharge in the next {FORECAST_HOURS} h is "
+                f"{_fmt(p['discharge_m3s'])} m3/s at {point_label(p['point_id'])}, "
+                f"{when(p['ts_utc'])}."
+            )
+        else:
+            text = (
+                f"No point crosses {_fmt(flow_at.value)} m3/s in the next {FORECAST_HOURS} h: "
+                f"the highest forecast discharge is {_fmt(p['discharge_m3s'])} m3/s at "
+                f"{point_label(p['point_id'])}, {when(p['ts_utc'])}."
+            )
+        h2.append(claim(text, "number", [fpeak], "H2", [p["discharge_m3s"]]))
+    if ppeak.rows_sample:
+        p = ppeak.rows_sample[0]
+        h2.append(
+            claim(
+                f"Past days (observed-modelled, not a gauge reading): the highest discharge was "
+                f"{_fmt(p['discharge_m3s'])} m3/s at {point_label(p['point_id'])}, "
+                f"{when(p['ts_utc'])}.",
+                "number",
+                [ppeak],
+                "H2",
+                [p["discharge_m3s"]],
+            )
+        )
+    if crossing:
+        names = ", ".join(point_label(c["point_id"]) for c in crossing)
+        flow_statement = (
+            f"{names} {'is' if len(crossing) == 1 else 'are'} forecast to reach "
+            f"{_fmt(flow_at.value)} m3/s or more within {FORECAST_HOURS} h"
+        )
+    elif fpeak.rows_sample:
+        flow_statement = (
+            f"No point's forecast discharge reaches {_fmt(flow_at.value)} m3/s in the next "
+            f"{FORECAST_HOURS} h"
+        )
+    else:
+        flow_statement = f"No live discharge rows in {s}.hazard_now"
+    hyps.append(
+        Hypothesis(id="H2", link="catchment->river", citations=h2, statement=flow_statement)
+    )
+
+    # H3 river -> site. The only footprint is the 2024 EMSR773 observed extent.
+    h3 = []
+    if foot.rows_sample and foot.rows_sample[0]["sites_in_footprint"]:
+        f = foot.rows_sample[0]
+        h3.append(
+            claim(
+                f"Historical flood footprint, not a forecast extent: the {ev['event_id']} "
+                f"Copernicus EMS observed extent covers {f['sites_in_footprint']} insured sites "
+                f"across {f['segments']} segments; it is used here as a proxy for where water "
+                f"reached last time.",
+                "number",
+                [foot],
+                "H3",
+                [f["sites_in_footprint"], f["segments"]],
+            )
+        )
+    hyps.append(
+        Hypothesis(
+            id="H3",
+            link="river->site",
+            citations=h3,
+            statement=(
+                f"Insured sites lie inside the historical {ev['event_id']} flood footprint "
+                f"(a proxy, not a forecast extent)"
+                if h3
+                else "No insured site lies inside the historical footprint"
+            ),
+        )
+    )
+    window_note = ""
+    for r in span.rows_sample:
+        if r.get("horizon") == "forecast":
+            window_note = f" Forecast rows run to {r['to_utc']}."
+    summary = f"Live data ({s}.hazard_now, as of {now}). " + " ".join(
+        f"{h.statement} [{', '.join(h.citations)}]." if h.citations else f"{h.statement}."
+        for h in hyps
+    ) + window_note
+    findings = {
+        "now_utc": now,
+        "rain_crosses": rain_crosses,
+        "discharge_crosses": bool(crossing),
+        "crossing_points": [c["point_id"] for c in crossing],
+    }
+    return hyps, claims, summary, [span, rain, fpeak, ppeak, cross, foot], findings
+
+
+LIVE_PROMPT = (
+    "MODE: live. The evidence is {schema}.hazard_now, a rolling window: horizon 'past' rows are "
+    "Open-Meteo / GloFAS model output for the last days (not station readings), horizon "
+    "'forecast' rows are the next ~48 h. NOW is {now}. Phrase every time in absolute UTC and "
+    "relative to NOW (e.g. 'in 17 h', '5 h ago'), say whether each value is past or forecast, "
+    "and do not describe any historical event window as current.\n"
+)
+
+
 def _model(
     state: FloodState, deps: Deps, extra: list[Evidence]
 ) -> tuple[list[Hypothesis], list[Claim], str, str] | None:
     evidence = [Evidence(**e) for e in state["evidence"].values()] + extra
-    user = (
+    live = (
+        LIVE_PROMPT.format(schema=settings.schema, now=now_utc()) if is_live(state) else ""
+    )
+    user = live + (
         f"EVENT: {state['event']['name']} ({state['event_id']}); river "
         f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
         f"ANOMALIES: {state.get('anomalies')}\n{thread_block(state.get('thread'))}"
@@ -487,7 +735,11 @@ def make(deps: Deps):
                 ),
             }
 
-        hyps, claims, summary, extra = _deterministic(state, deps)
+        findings = None
+        if is_live(state):
+            hyps, claims, summary, extra, findings = _live_deterministic(state, deps)
+        else:
+            hyps, claims, summary, extra = _deterministic(state, deps)
         model_id = "deterministic"
         lane = "sql"
         try:
@@ -519,7 +771,9 @@ def make(deps: Deps):
                             claims, result.citations, request, doc_query
                         )
                         extra = [*extra, *doc_evidence]
+        out_live = {"live_findings": findings} if findings is not None else {}
         return {
+            **out_live,
             "hypotheses": [h.model_dump() for h in hyps],
             "claims": [c.model_dump() for c in claims],
             "summary": summary,

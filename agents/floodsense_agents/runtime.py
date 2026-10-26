@@ -50,6 +50,8 @@ STATE_KEYS = (
     "revise_rounds",
     "repair_rounds",
     "scope",
+    "mode",
+    "live_findings",
     "model_ids",
     "error",
 )
@@ -183,6 +185,7 @@ class Runtime:
             event_id=snap.get("event_id"),
             customer_id=snap.get("customer_id"),
             replay_ts=snap.get("replay_ts"),
+            mode=(snap.get("mode") or {}).get("mode"),
             updated_at=now,
             judge_overall=(snap.get("judge_summary") or {}).get("overall"),
             approval=(snap.get("approval") or {}).get("status"),

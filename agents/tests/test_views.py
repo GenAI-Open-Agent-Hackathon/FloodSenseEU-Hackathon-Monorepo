@@ -58,6 +58,12 @@ class RowsZetaris:
                         row_count=len(self.rows), executed_at_utc="2026-10-26T00:00:00Z")
 
 
+def _without_hazard_now() -> FakeZetaris:
+    z = FakeZetaris()
+    z._conn.execute(f"DROP TABLE {settings.schema}.hazard_now")
+    return z
+
+
 class ViewsTest(unittest.TestCase):
     def _client(self, zetaris) -> TestClient:
         deps = Deps(zetaris=zetaris, llm=FakeNightshift(), memory=NoMemory())
@@ -126,7 +132,7 @@ class ViewsTest(unittest.TestCase):
         self.assertNotIn("x-truncated", r.headers)
 
     def test_502_hides_the_zetaris_error(self) -> None:
-        r = self._client(FakeZetaris()).get("/views/hazard_now")
+        r = self._client(_without_hazard_now()).get("/views/hazard_now")
         self.assertEqual(r.status_code, 502)
         self.assertEqual(r.json()["detail"], "could not read view hazard_now")
 
@@ -146,8 +152,8 @@ class ViewsTest(unittest.TestCase):
         self.assertNotIn("WHERE", z.sql[0])
 
     def test_a_failed_read_is_502(self) -> None:
-        # The fake has no hazard_now table, so the read errors.
-        self.assertEqual(self._client(FakeZetaris()).get("/views/hazard_now").status_code, 502)
+        # hazard_now is dropped from this fake, so the read errors.
+        self.assertEqual(self._client(_without_hazard_now()).get("/views/hazard_now").status_code, 502)
 
 
 if __name__ == "__main__":

@@ -75,6 +75,8 @@ class FloodState(TypedDict, total=False):
     judge_summary: dict[str, Any]  # JudgeSummary
     revise_rounds: int
     repair_rounds: int
+    live_findings: dict[str, Any]  # live mode: what the Investigator found crossing
+    mode: dict[str, Any]  # live.resolve_mode: {mode event|live, explicit, reason}
     scope: dict[str, Any]  # the gate's verdict: can this run honestly answer
     status: str  # running | awaiting_approval | approved | rejected | failed
     served_from: str  # live | cache | replay. live only for a fresh live-schema read

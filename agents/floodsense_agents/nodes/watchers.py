@@ -13,6 +13,7 @@ import time
 from datetime import datetime, timedelta
 
 from floodsense_agents.governance import DEFINITIONS
+from floodsense_agents.live import LIVE_ROWS, horizon_word, is_live, points_sql
 from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -50,15 +51,49 @@ def window(state: FloodState) -> tuple[str, str]:
     return start, min(end, cap)
 
 
+def _why(wording: str, row: dict, live: bool) -> str:
+    """Event mode keeps the definition's wording. Live says past or forecast, and when."""
+    if not live:
+        return wording
+    ts = row.get("ts_utc") or row.get("first_utc")
+    return f"{wording}; {horizon_word(row.get('horizon'))} at {ts}"
+
+
 def make(deps: Deps):
     def watchers(state: FloodState) -> dict:
         t = time.time()
         s = settings.schema
         rain_at = DEFINITIONS["anomaly_rain"]
         flow_at = DEFINITIONS["anomaly_discharge"]
-        t0, t1 = window(state)
+        live = is_live(state)
+        if live:
+            # hazard_now is a rolling window (past ~3 days, forecast ~48 h).
+            # No clock predicate: the view already is "now". Same thresholds.
+            pts = points_sql(state["event"])
+            t0, t1 = "now-past", "now+forecast"
+            live_q = {
+                "rain": (
+                    f"SELECT point_id, ts_utc, rain_mm, horizon FROM {s}.hazard_now WHERE "
+                    f"point_id IN ({pts}) AND {LIVE_ROWS} AND rain_mm >= {rain_at.value} ORDER BY rain_mm DESC",
+                    None,
+                ),
+                "discharge": (
+                    f"SELECT point_id, ts_utc, discharge_m3s, horizon FROM {s}.hazard_now WHERE "
+                    f"point_id IN ({pts}) AND {LIVE_ROWS} AND discharge_m3s >= {flow_at.value} "
+                    f"ORDER BY discharge_m3s DESC",
+                    None,
+                ),
+                "warning": (
+                    f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level, horizon FROM "
+                    f"{s}.hazard_now WHERE point_id IN ({pts}) AND {LIVE_ROWS} AND warning_level IS NOT NULL "
+                    f"GROUP BY point_id, warning_level, horizon ORDER BY first_utc",
+                    None,
+                ),
+            }
+        else:
+            t0, t1 = window(state)
         clock = (t0, t1)
-        q = {
+        q = live_q if live else {
             "rain": (
                 f"SELECT point_id, ts_utc, rain_mm FROM {s}.hazard_timeline WHERE ts_utc "
                 f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value} ORDER BY rain_mm DESC",
@@ -79,7 +114,7 @@ def make(deps: Deps):
             ),
         }
         # Valencia lists none. The Ahr lists the Rhine gauges between Koblenz and Bonn.
-        if state["event"].get("gauges"):
+        if state["event"].get("gauges") and not live:
             q["gauges"] = (
                 f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
                 f"WHERE ts_utc BETWEEN ? AND ? ORDER BY station, ts_utc",
@@ -112,7 +147,8 @@ def make(deps: Deps):
                     ts_utc=r["ts_utc"],
                     value=r["rain_mm"],
                     unit="mm/h",
-                    why=rain_at.wording,
+                    why=_why(rain_at.wording, r, live),
+                    horizon=r.get("horizon") if live else None,
                     query_id=evid["rain"].query_id,
                 )
             )
@@ -125,7 +161,8 @@ def make(deps: Deps):
                     ts_utc=r["ts_utc"],
                     value=r["discharge_m3s"],
                     unit="m3/s",
-                    why=flow_at.wording,
+                    why=_why(flow_at.wording, r, live),
+                    horizon=r.get("horizon") if live else None,
                     query_id=evid["discharge"].query_id,
                 )
             )
@@ -136,7 +173,8 @@ def make(deps: Deps):
                     kind="warning",
                     point_id=r["point_id"],
                     ts_utc=r["first_utc"],
-                    why=f"warning level {r['warning_level']}",
+                    why=_why(f"warning level {r['warning_level']}", r, live),
+                    horizon=r.get("horizon") if live else None,
                     query_id=evid["warning"].query_id,
                 )
             )
@@ -148,8 +186,13 @@ def make(deps: Deps):
             "trace": trace(
                 state,
                 "watchers",
-                f"{len(items)} anomalies in window {t0[:16]}..{t1[:16]} ({len(evid)} view "
-                f"queries)",
+                (
+                    f"live: {len(items)} anomalies in hazard_now past + forecast "
+                    f"({len(evid)} view queries)"
+                    if live
+                    else f"{len(items)} anomalies in window {t0[:16]}..{t1[:16]} "
+                    f"({len(evid)} view queries)"
+                ),
                 lane="sql",
                 started=t,
                 evidence_ids=[e.query_id for e in evid.values()],
