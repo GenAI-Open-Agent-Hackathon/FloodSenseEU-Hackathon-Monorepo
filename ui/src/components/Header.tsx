@@ -14,6 +14,7 @@ export function Header() {
   const [chipOpen, setChipOpen] = useState(false);
   const chipRef = useRef<HTMLDivElement>(null);
   const chipTitle = useId();
+  const chipMenu = useId();
   const bellRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const bellTitle = useId();
@@ -73,6 +74,7 @@ export function Header() {
               className={`pill pill-${chip.state}`}
               data-state={chip.state}
               aria-expanded={chipOpen}
+              aria-controls={chipOpen ? chipMenu : undefined}
               aria-label={`Data status: ${chip.label}. Rows ${rows.label}.`}
               onClick={() => {
                 setBellOpen(false);
@@ -83,7 +85,7 @@ export function Header() {
               {chip.label}
             </button>
             {chipOpen && (
-              <div className="menu menu-wide" role="dialog" aria-labelledby={chipTitle}>
+              <div className="menu menu-wide" id={chipMenu} role="region" aria-labelledby={chipTitle}>
                 <p className="menu-kicker" id={chipTitle}>
                   {chip.label}
                 </p>

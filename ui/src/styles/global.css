@@ -276,7 +276,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 button.pill { cursor: pointer; font-weight: 650; }
 .pill-fixture, .pill-seed, .pill-preview { background: var(--warn-soft); color: var(--warn); }
-.pill-cached { background: var(--accent-soft); color: var(--accent-strong); }
+/* Warn, not accent: Cached must never read as close to Live. */
+.pill-cached { background: var(--warn-soft); color: var(--warn); }
 .pill-live { background: var(--ok-soft); color: var(--ok); }
 .pill-mixed { background: var(--accent-soft); color: var(--accent-strong); }
 
@@ -372,6 +373,8 @@ button.pill { cursor: pointer; font-weight: 650; }
 .serving { margin: 0.2rem 0 0.5rem; font-size: 0.88rem; overflow-wrap: anywhere; }
 .serving-cached, .serving-unlabelled { color: var(--warn); }
 .serving-live { color: var(--ok); }
+.serving-inline { margin: 0; padding: 0.4rem 0.75rem; border-radius: 10px; border: 1px solid var(--line); background: var(--warn-soft); }
+.serving-inline.serving-live { background: var(--ok-soft); }
 .origin-list .kv { grid-template-columns: 1fr; }
 .menu-wide { width: min(26rem, calc(100vw - 2rem)); }
 

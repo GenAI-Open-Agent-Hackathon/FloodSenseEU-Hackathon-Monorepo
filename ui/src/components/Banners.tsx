@@ -3,16 +3,24 @@ import { statusLabel } from "../lib/origin";
 import { useConsole } from "../context/ConsoleContext";
 import type { ProvenanceRow } from "../types/views";
 
-/** Answer serving line. It was the cache banner on every insurer page. It now sits under the top-bar chip. */
-export function ServingLine() {
+/**
+ * Answer serving line (ADR 0006: cached or replayed output is always labelled). It was the cache banner.
+ * `inline` puts it above the answer on Approvals and Review, announced as a status. The chip menu repeats it.
+ */
+export function ServingLine({ inline = false }: { inline?: boolean }) {
   const { answer } = useConsole();
   const serving = servingLabel(answer);
   return (
-    <p className={`serving serving-${serving.kind}`} data-serving={serving.servedFrom}>
+    <p
+      className={`serving serving-${serving.kind}${inline ? " serving-inline" : ""}`}
+      data-serving={serving.servedFrom}
+      role={inline ? "status" : undefined}
+    >
       <strong>{serving.kind === "cached" ? `${serving.text} UTC` : serving.text}</strong>
       <span>
         {" "}
-        · {servingQualifier(serving)} · run {serving.runId}
+        · {servingQualifier(serving)}
+        {serving.kind === "live" ? "" : " · not live"} · original run {serving.runId}
       </span>
     </p>
   );
