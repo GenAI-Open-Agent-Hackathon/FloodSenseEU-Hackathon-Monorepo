@@ -101,17 +101,22 @@ def _stored(run_id: str) -> dict:
     """A snapshot of a run computed earlier. Serving it as live would be a lie.
 
     A clocked replay stays replay. Only a re-read with no replay clock is cache.
+
+    The label comes from the in-memory index when this process has the row.
+    After a restart that row is missing, so this records the snapshot it just
+    read. It does not call past(), which lists every checkpoint.
     """
     rt = runtime()
     run = rt.snapshot(run_id)
-    row = next((r for r in rt.past() if r["run_id"] == run_id), None)
-    if row:
-        kind, at = labelling.reread_label(
-            run.get("cached_at") or row.get("created_at"),
-            replay_ts=run.get("replay_ts"),
-        )
-        run["served_from"] = kind
-        run["cached_at"] = at
+    row = rt.index.get(run_id)
+    if row is None:
+        row = rt._remember(run_id, run)
+    kind, at = labelling.reread_label(
+        run.get("cached_at") or row.get("created_at"),
+        replay_ts=run.get("replay_ts"),
+    )
+    run["served_from"] = kind
+    run["cached_at"] = at
     return run
 
 
