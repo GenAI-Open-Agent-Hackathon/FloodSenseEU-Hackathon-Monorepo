@@ -140,23 +140,27 @@ class Runtime:
             "cached_at": s["cached_at"],
         }
 
-    def _index_row(self, run_id: str) -> None:
-        s = self.snapshot(run_id)
+    def _remember(self, run_id: str, snap: dict[str, Any]) -> dict[str, Any]:
+        """Record one snapshot in the process index. Does not read the checkpointer."""
         now = now_utc()
         row = self.index.get(run_id, {"run_id": run_id, "created_at": now})
         row.update(
-            status=s["status"],
-            question=(s.get("request") or {}).get("question"),
-            event_id=s.get("event_id"),
-            customer_id=s.get("customer_id"),
-            replay_ts=s.get("replay_ts"),
+            status=snap["status"],
+            question=(snap.get("request") or {}).get("question"),
+            event_id=snap.get("event_id"),
+            customer_id=snap.get("customer_id"),
+            replay_ts=snap.get("replay_ts"),
             updated_at=now,
-            judge_overall=(s.get("judge_summary") or {}).get("overall"),
-            approval=(s.get("approval") or {}).get("status"),
-            served_from=s["served_from"],
-            cached_at=s["cached_at"],
+            judge_overall=(snap.get("judge_summary") or {}).get("overall"),
+            approval=(snap.get("approval") or {}).get("status"),
+            served_from=snap["served_from"],
+            cached_at=snap["cached_at"],
         )
         self.index[run_id] = row
+        return row
+
+    def _index_row(self, run_id: str) -> None:
+        self._remember(run_id, self.snapshot(run_id))
 
     def _answers_are_live(self) -> bool:
         """True only for the live schema read through live Zetaris."""
@@ -218,6 +222,9 @@ class Runtime:
         if saver is None or not hasattr(saver, "list"):
             return False
         try:
+            # Copy the ids out first. SqliteSaver.list holds its lock until
+            # this generator is closed, and _index_row reads the same saver.
+            pending: list[str] = []
             seen = set()
             for item in saver.list(None):
                 thread = (getattr(item, "config", None) or {}).get("configurable", {})
@@ -225,6 +232,8 @@ class Runtime:
                 if not run_id or run_id in seen or run_id in self.index:
                     continue
                 seen.add(run_id)
+                pending.append(run_id)
+            for run_id in pending:
                 try:
                     self._index_row(run_id)
                 except Exception:  # noqa: BLE001 - a partial checkpoint is not fatal

@@ -157,6 +157,54 @@ class ServiceTest(unittest.TestCase):
         self.assertIn('"node": "watchers"', text)
         self.assertIn('"status": "awaiting_approval"', text)
 
+    def test_get_run_does_not_rebuild_the_checkpoint_index(self) -> None:
+        """GET /runs/{id} must not list every checkpoint.
+
+        _stored used to call past() -> _rebuild_index(), which walks the
+        whole checkpointer. That is what wedged a read behind a long POST.
+        """
+        rid = self.c.post("/runs", json={"question": "q", "event_id": "EMSR773"}).json()["run_id"]
+        body = self._get_run_counting_index_scans(rid)
+        self.assertEqual(body["run_id"], rid)
+        self.assertEqual(body["served_from"], "cache")
+        self.assertFalse(body["label"]["live"])
+
+    def test_get_run_after_restart_snapshots_only_that_run(self) -> None:
+        """A cold index (process restart) still must not list every checkpoint."""
+        rid = self.c.post("/runs", json={"question": "q", "event_id": "EMSR773"}).json()["run_id"]
+        service.runtime().index.clear()
+        body = self._get_run_counting_index_scans(rid)
+        self.assertEqual(body["served_from"], "cache")
+        self.assertEqual(body["run_id"], rid)
+        self.assertIn(rid, service.runtime().index)
+        self.assertEqual(len(service.runtime().index), 1)
+
+    def _get_run_counting_index_scans(self, rid: str) -> dict:
+        rt = service.runtime()
+        calls = {"rebuild": 0, "list": 0}
+        real_rebuild = rt._rebuild_index
+        real_list = rt.graph.checkpointer.list
+
+        def rebuild():
+            calls["rebuild"] += 1
+            return real_rebuild()
+
+        def list_checkpoints(*args, **kwargs):
+            calls["list"] += 1
+            return real_list(*args, **kwargs)
+
+        rt._rebuild_index = rebuild
+        rt.graph.checkpointer.list = list_checkpoints
+        try:
+            response = self.c.get(f"/runs/{rid}")
+        finally:
+            rt._rebuild_index = real_rebuild
+            rt.graph.checkpointer.list = real_list
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(calls["rebuild"], 0)
+        self.assertEqual(calls["list"], 0)
+        return response.json()
+
 
 if __name__ == "__main__":
     unittest.main()

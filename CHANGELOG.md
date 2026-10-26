@@ -35,6 +35,7 @@ Live gauges and `hazard_now`, and the judge lane ids. This section is everything
 
 ### Fixed
 
+- GET /runs/{id} no longer lists every checkpoint. The shared SqliteSaver connection deadlocked when that list still held its lock and the same request read one run back. A re-read uses the in-memory index row, or snapshots that one run after a restart. Checkpointer calls take one lock, and a list is finished before the caller continues. POST /runs stays synchronous.
 - The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep`, a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, or the discontinued Super id, still omits the whole judge instead of rewriting it. One score outside the enum drops the judge even when the other scores are in it.
 - When the Judge's Nightshift reply does not parse, or parses with no grounding, the score's `model_id` is `deterministic`. A reply that does carry a grounding keeps the id the client returned. The numbers floor can still change that grounding without changing the id.
 
