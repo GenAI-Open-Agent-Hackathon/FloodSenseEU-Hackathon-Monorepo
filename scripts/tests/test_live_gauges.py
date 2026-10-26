@@ -125,6 +125,14 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertEqual(forecast["licence"], rain["licence"])
         self.assertEqual(forecast["attribution"], rain["attribution"])
         self.assertIn("hazard_now", forecast["dataset"])
+        self.assertEqual(
+            forecast["notes"],
+            "REST tables rain_live (032) and glofas_discharge_live (030). "
+            "hazard_now.horizon is past or forecast against the query clock. "
+            "past is Open-Meteo past_days plus GloFAS model output, not a station measurement. "
+            "Not a stored copy",
+        )
+        self.assertIn("observed event", by_id["ds_ems_emsr773"]["dataset"])
         self.assertIn("Quelle: WSV, PEGELONLINE", by_id["ds_pegelonline"]["attribution"])
         cleared = [row for row in rows if row["dataset_id"] != "ds_dwd_brightsky"]
         self.assertEqual(len(cleared), 8)
