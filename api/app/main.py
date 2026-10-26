@@ -8,13 +8,15 @@ host.
 ``POST /runs`` and ``GET /runs/{id}`` gain a ``contract`` object: a projection
 of the graph snapshot onto ``contracts/schemas/floodsense.schema.json``.
 The graph payload stays beside it. Approval and citation payloads are left
-alone. Fake, seed, cache, and replay answers are not relabelled live here;
-the agents service sets ``served_from``.
+alone. Fake, seed, and replay answers are not relabelled live here.
+A semantic-cache hit is labelled cache by this service: a clocked run read
+back from the agents still says replay, and that banner must not leak.
 
 The semantic cache and labelled replay sit here, in front of the proxy, each
 behind its flag (FF_SEMANTIC_CACHE, FF_CACHED_REPLAY; see app/cache.py). A
-cached or replayed answer is labelled by the agents, never presented as live.
-Rate limits are a later increment and slot in here too.
+cached or replayed answer is never presented as live. Cache and replay
+lookups use CACHE_LOOKUP_TIMEOUT_S, not the 600s run budget. Rate limits are
+a later increment and slot in here too.
 
 GET  /health                      this service
 GET  /config                      flags and lanes, from the agents
@@ -46,12 +48,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.cache import (
-    DEFAULT_CUSTOMER,
-    DEFAULT_EVENT,
-    FLAGS_MEMO_S,
     AnswerCache,
+    annotate_replay,
     approved_by_a_person,
     is_follow_up,
+    mark_cached,
+    past_row_matches,
+    same_ask,
 )
 from app.project import project_run
 
@@ -65,7 +68,8 @@ UI_ORIGINS = [
 ]
 # Full run snapshots only. /runs/{id}/approval and /citations are thinner
 # and must not grow a contract that fills missing citation URLs.
-_RUN_SNAPSHOT = re.compile(r"^/runs/[^/]+$")
+# /runs/{id}/replay is the same snapshot, labelled replay, so it projects too.
+_RUN_SNAPSHOT = re.compile(r"^/runs/[^/]+(?:/replay)?$")
 
 TIMEOUT = httpx.Timeout(
     600.0, connect=5.0
@@ -83,16 +87,26 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "floodsense-api"}
 
 
+def _lookup_timeout() -> httpx.Timeout:
+    """Budget for a cache or replay lookup. Not the 600s a live run may take."""
+    seconds = cache.settings.lookup_timeout_s
+    return httpx.Timeout(seconds, connect=min(5.0, seconds))
+
+
 async def _agents_request(
-    method: str, path: str, body: dict | None = None, params: dict | None = None
+    method: str,
+    path: str,
+    body: dict | None = None,
+    params: dict | None = None,
+    timeout: httpx.Timeout | None = None,
 ) -> httpx.Response:
     """One async client for every proxied call. SSE uses its own stream below."""
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=timeout or TIMEOUT) as client:
         return await client.request(method, f"{AGENTS_URL}{path}", json=body, params=params)
 
 
 def _attach_contract(path: str, response: Response) -> Response:
-    """Add the schema projection on POST /runs and GET /runs/{id} only."""
+    """Add the schema projection on POST /runs, GET /runs/{id} and GET /runs/{id}/replay."""
     if response.status_code >= 400:
         return response
     if path != "/runs" and _RUN_SNAPSHOT.match(path) is None:
@@ -140,10 +154,15 @@ async def _forward(
     return _attach_contract(path, response)
 
 
-async def _agents_json(method: str, path: str, params: dict | None = None) -> tuple[int, Any]:
+async def _agents_json(
+    method: str,
+    path: str,
+    params: dict | None = None,
+    timeout: httpx.Timeout | None = None,
+) -> tuple[int, Any]:
     """Call the agents and parse JSON. (503, None) when they cannot be reached."""
     try:
-        r = await _agents_request(method, path, params=params)
+        r = await _agents_request(method, path, params=params, timeout=timeout)
     except httpx.HTTPError:
         return 503, None
     try:
@@ -161,24 +180,32 @@ async def _flag_fingerprint() -> str | None:
     """The agents' flag fingerprint. None when /config cannot be read.
 
     The cache memos this. A fresh memo skips another /config call. The fetch
-    is async, so it happens here and flags() only stores the result.
+    is async and uses the short lookup timeout, so a hung agents service does
+    not hold a cache probe for the whole run budget.
     """
-    memo = cache._flags
-    if memo is not None and time.monotonic() - memo[0] < FLAGS_MEMO_S:
-        return memo[1]
-    config = await _agents_config()
+    memo = cache.cached_flags()
+    if memo is not None:
+        return memo
+    code, data = await _agents_json("GET", "/config", timeout=_lookup_timeout())
+    config = data if code == 200 and isinstance(data, dict) else None
     return cache.flags(lambda: config)
 
 
 async def _from_cache(body: dict) -> dict | None:
-    """The original run for a repeat of a finished question, or None."""
+    """The original run for a repeat of a finished question, or None.
+
+    GET /runs/{id} keeps a clocked run labelled replay. A cache hit is cache,
+    and the historical clock on that body is left as it is.
+    """
     flags = await _flag_fingerprint()
     if flags is None:
         return None
     entry = cache.lookup(body, flags)
     if entry is None:
         return None
-    code, run = await _agents_json("GET", f"/runs/{entry.run_id}")
+    code, run = await _agents_json(
+        "GET", f"/runs/{entry.run_id}", timeout=_lookup_timeout()
+    )
     if code != 200 or not isinstance(run, dict):
         cache.drop(entry.run_id)  # the agents no longer hold it
         return None
@@ -188,48 +215,76 @@ async def _from_cache(body: dict) -> dict | None:
         "age_s": age,
         "expires_in_s": max(0, int(entry.ttl_s - age)),
     }
-    return run
+    return mark_cached(run)
 
 
-def _live_failure(resp: Response) -> str | None:
-    """Why the live run failed, or None when it did not."""
+def _failed_run_id(payload: Any) -> str | None:
+    if isinstance(payload, dict) and isinstance(payload.get("run_id"), str):
+        return payload["run_id"]
+    return None
+
+
+def _live_failure(resp: Response) -> tuple[str, str | None] | None:
+    """Why the live run failed, and that run's id when the body has one."""
     if resp.status_code >= 500:
-        return f"the agents answered HTTP {resp.status_code}"
+        try:
+            payload = json.loads(resp.body)
+        except ValueError:
+            payload = None
+        return f"the agents answered HTTP {resp.status_code}", _failed_run_id(payload)
     if resp.status_code in (200, 201):
         try:
             run = json.loads(resp.body)
         except ValueError:
             return None
         if isinstance(run, dict) and run.get("status") == "failed":
-            return f"the live run failed: {str(run.get('error') or 'no detail')[:200]}"
+            detail = str(run.get("error") or "no detail")[:200]
+            return f"the live run failed: {detail}", _failed_run_id(run)
     return None
 
 
-async def _replay_for(body: dict, reason: str) -> dict | None:
-    """The newest recorded run for this event and customer that a person approved."""
-    event = body.get("event_id") or DEFAULT_EVENT
-    customer = body.get("customer_id") or DEFAULT_CUSTOMER
-    replay = None
-    code, past = await _agents_json("GET", "/runs/past", params={"limit": 200})
+async def _replay_from_agents(body: dict) -> dict | None:
+    """The newest recorded run of this question, or None when the agents cannot say.
+
+    A timed-out read stops the scan. The caller then uses the in-process recording
+    rather than waiting out the rest of the list.
+    """
+    timeout = _lookup_timeout()
+    code, past = await _agents_json("GET", "/runs/past", params={"limit": 200}, timeout=timeout)
+    if code == 503 and past is None:
+        return None
     rows = past.get("runs") if code == 200 and isinstance(past, dict) else None
     for row in rows or []:
-        if (
-            row.get("event_id") == event
-            and row.get("customer_id") == customer
-            and row.get("status") == "approved"
-            and row.get("approval") in ("approved", "edited")
-            and (row.get("thread_id") or row["run_id"]) == row["run_id"]
-        ):
-            c, run = await _agents_json("GET", f"/runs/{row['run_id']}/replay")
-            if c == 200 and isinstance(run, dict):
-                replay = run
-                break
-    if replay is None:  # the agents are down or hold no such run: the last one seen here
-        replay = cache.recording(event, customer)
+        if not past_row_matches(body, row):
+            continue
+        c, run = await _agents_json("GET", f"/runs/{row['run_id']}/replay", timeout=timeout)
+        if c == 503 and run is None:
+            return None
+        if c == 200 and isinstance(run, dict) and same_ask(body, run):
+            return run
+    return None
+
+
+async def _replay_for(
+    body: dict,
+    reason: str,
+    *,
+    agents_down: bool = False,
+    failed_run_id: str | None = None,
+) -> dict | None:
+    """A person-approved recording of this same question, or None.
+
+    A follow-up (thread_id) is not replayed. When the agents are unreachable
+    the in-process recording is used and the past list is not scanned.
+    """
+    if body.get("thread_id"):
+        return None
+    replay = None if agents_down else await _replay_from_agents(body)
+    if replay is None:
+        replay = cache.recording_for(body)
     if replay is None:
         return None
-    replay["replay"] = {"original_run_id": replay.get("run_id"), "reason": reason}
-    return replay
+    return annotate_replay(replay, reason, failed_run_id=failed_run_id)
 
 
 @app.get("/config")
@@ -256,14 +311,19 @@ async def start_run(request: Request) -> Response:
         resp = await _forward("POST", "/runs", body=body)
     except HTTPException as e:
         if settings.cached_replay and isinstance(body, dict):
-            replay = await _replay_for(body, f"the agents could not be reached ({e.detail})")
+            replay = await _replay_for(
+                body,
+                f"the agents could not be reached ({e.detail})",
+                agents_down=True,
+            )
             if replay is not None:
                 return _json_run(replay, 200)
         raise
     if settings.cached_replay and isinstance(body, dict):
-        reason = _live_failure(resp)
-        if reason:
-            replay = await _replay_for(body, reason)
+        failure = _live_failure(resp)
+        if failure:
+            reason, failed_id = failure
+            replay = await _replay_for(body, reason, failed_run_id=failed_id)
             if replay is not None:
                 return _json_run(replay, 200)
     return resp
@@ -301,7 +361,9 @@ async def post_approval(run_id: str, request: Request) -> Response:
             if flags is not None:
                 cache.remember(run, flags)
         if settings.cached_replay and approved_by_a_person(run) and not is_follow_up(run):
-            code, replay = await _agents_json("GET", f"/runs/{run_id}/replay")
+            code, replay = await _agents_json(
+                "GET", f"/runs/{run_id}/replay", timeout=_lookup_timeout()
+            )
             if code == 200 and isinstance(replay, dict):
                 cache.record(replay)
     return resp

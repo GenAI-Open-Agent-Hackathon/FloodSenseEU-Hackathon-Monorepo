@@ -48,7 +48,7 @@ class ProxyTest(unittest.TestCase):
         )
         inner = TestClient(agents_service.app)
 
-        async def fake_request(method, path, body=None, params=None):
+        async def fake_request(method, path, body=None, params=None, timeout=None):
             # The proxy awaits an async client. Route that into the in-process app.
             return inner.request(method, path, json=body, params=params)
 
@@ -74,6 +74,10 @@ class ProxyTest(unittest.TestCase):
         fetched = self.c.get(f"/runs/{rid}")
         self.assertEqual(fetched.status_code, 200)
         self.assertIn("contract", fetched.json())
+        replayed = self.c.get(f"/runs/{rid}/replay")
+        self.assertEqual(replayed.status_code, 200)
+        self.assertEqual(replayed.json()["served_from"], "replay")
+        self.assertEqual(replayed.json()["contract"]["answer"]["served_from"], "replay")
         approval = self.c.get(f"/runs/{rid}/approval")
         self.assertEqual(approval.status_code, 200)
         self.assertNotIn("contract", approval.json())
@@ -94,7 +98,7 @@ class ProxyTest(unittest.TestCase):
     def test_agents_down_is_a_503(self) -> None:
         self._patch.stop()
 
-        async def down(method, path, body=None, params=None):
+        async def down(method, path, body=None, params=None, timeout=None):
             raise httpx.ConnectError("refused")
 
         with mock.patch.object(api, "_agents_request", side_effect=down):
