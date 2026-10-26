@@ -40,7 +40,7 @@ Left out on purpose, until the owner proposes fields:
 
 - Gauge, station, region, portfolio, and exposure columns (Urvashi, Saleeta, Ayush, Zain).
 - Skeptic challenge records and the World Model board (Zain, Ayush). v0.4.0 names the loop and not the fields.
-- Retrieval traces and document chunks (v0.11.0, `FF_RAG_DOCS`).
+- Retrieval traces and document chunks (v0.14.0, `FF_RAG_DOCS`).
 - Notifications, sessions, and the mock's risk enum. The gameplan does not define those scales.
 - The mock's `served_from` pair `live` \| `cache` and its `DataProvenance` of `live` \| `sample` \| `reconstructed`. The wire value includes `replay`.
 

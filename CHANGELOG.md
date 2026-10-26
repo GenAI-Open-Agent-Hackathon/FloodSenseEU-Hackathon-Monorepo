@@ -11,16 +11,12 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [0.13.0] - 2026-10-26
 
-Demo baseline on main after `v0.12.0` (`2715debc`). The UI shell and hash pages ([#36](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/36)), the audit fixes that match warehouse point ids and the boolean footprint so a Valencia seed query can hit ([#37](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/37)), and the `local/` gitignore for laptop end-to-end scratch ([#39](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/39)). Also in this tag: the Zetaris sync `User-Agent` ([#30](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/30)) and the in-repo PR-review skill ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). RAG layer (c) is not in this tag. It will be `v0.14.0`. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`. The GitHub wiki is disabled. These notes and the GitHub Release are the record for this tag.
+Demo baseline on main after `v0.12.0` (`2715debc`). The UI shell and hash pages ([#36](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/36)), the audit fixes that match warehouse point ids and the boolean footprint so a Valencia seed query can hit ([#37](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/37)), the Zetaris sync `User-Agent` ([#30](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/30)), and the in-repo PR-review skill ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). RAG layer (c) is not in this tag. It will be `v0.14.0`. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`. The GitHub wiki is disabled. These notes and the GitHub Release are the record for this tag.
 
 ### Added
 
 - The UI shell adds a collapsible left nav and hash pages (`#/citizen/place`, `#/insurer/review`, and the other desk pages) ([#36](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/36)). An empty hash opens the insurer overview. An unknown page opens that desk's overview. A replay strip shows the date, point, and playback state, and a Replay answer chip reads the fixture answer. Page bodies still use the current citizen page and insurer desk.
 - In-repo merge bar for cloud agents at `.cursor/skills/floodsense-pr-review/SKILL.md` ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). Architect-bot findings are written in chat first and posted on GitHub only after the user approves. Edits stay in the labelled area folder, and `compose.yaml` stays architect-owned. Which model answers a lane, including deep, is the one table at the top of `docs/architecture/c4.md` (ADR 0004).
-
-### Changed
-
-- The root `.gitignore` ignores `local/` so laptop-only end-to-end scripts and JSON output stay off the repository ([#39](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/39)). Nothing under `local/` is committed.
 
 ### Fixed
 
