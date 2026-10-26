@@ -41,6 +41,9 @@ export interface RecordedRun {
   status: string | null;
   threadId: string | null;
   modelIds: string[];
+  /** The agents' effective mode (body.mode.mode): live reads hazard_now, event replays the event window. */
+  mode: "live" | "event" | null;
+  eventId: string | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -118,7 +121,14 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     status: str(run.status),
     threadId: str(run.thread_id),
     modelIds: Array.isArray(run.model_ids) ? run.model_ids.filter((m): m is string => typeof m === "string") : [],
+    mode: modeOf(run.mode),
+    eventId: str(run.event_id),
   };
+}
+
+function modeOf(value: unknown): "live" | "event" | null {
+  const m = rec(value)?.mode ?? value;
+  return m === "live" || m === "event" ? m : null;
 }
 
 /** VITE_REPLAY_RUN_ID, or null when unset. */

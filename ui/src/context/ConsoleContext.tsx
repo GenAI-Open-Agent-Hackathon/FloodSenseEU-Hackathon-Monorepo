@@ -73,7 +73,11 @@ export interface ConsoleValue {
   closeEvidence: () => void;
   /** Ask FloodSense popup. Closed at start. A route change never opens it. */
   askOpen: boolean;
-  openAsk: () => void;
+  /** Opens the popup. A string pre-fills the composer; it is never sent on its own. */
+  openAsk: (prefill?: unknown) => void;
+  /** Text waiting to be put in the composer, then cleared by the popup. */
+  askPrefill: string | null;
+  clearAskPrefill: () => void;
   closeAsk: () => void;
   approval: Approval;
   decide: (status: ApprovalStatus, note: string) => void;
@@ -156,6 +160,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [askOpen, setAskOpen] = useState(false);
+  const [askPrefill, setAskPrefill] = useState<string | null>(null);
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
   const approvalPendingRef = useRef(true);
   approvalPendingRef.current = approval.status === "pending";
@@ -315,7 +320,12 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const closeEvidence = useCallback(() => setEvidenceOpen(false), []);
 
-  const openAsk = useCallback(() => setAskOpen(true), []);
+  // onClick handlers pass the click event; only a string is a pre-fill.
+  const openAsk = useCallback((prefill?: unknown) => {
+    if (typeof prefill === "string" && prefill.trim()) setAskPrefill(prefill);
+    setAskOpen(true);
+  }, []);
+  const clearAskPrefill = useCallback(() => setAskPrefill(null), []);
 
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
@@ -372,6 +382,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       closeEvidence,
       askOpen,
       openAsk,
+      askPrefill,
+      clearAskPrefill,
       closeAsk,
       approval,
       decide,
@@ -405,6 +417,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       closeEvidence,
       askOpen,
       openAsk,
+      askPrefill,
+      clearAskPrefill,
       closeAsk,
       approval,
       decide,
