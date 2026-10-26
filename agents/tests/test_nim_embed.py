@@ -39,7 +39,7 @@ class NimEmbedTest(unittest.TestCase):
         self.assertEqual(got, [vector])
         self.assertEqual(
             path.relative_to(root).as_posix(),
-            "corpus/.embed-cache/nvidia/llama-nemotron-embed-1b-v2/2048/passage/"
+            "corpus/.embed-cache/nvidia/nemotron-3.5-embed-1b/2048/passage/"
             + hashlib.sha256(text.encode()).hexdigest()
             + ".json",
         )
@@ -51,7 +51,7 @@ class NimEmbedTest(unittest.TestCase):
             self.assertEqual(url, nim_embed.DEFAULT_URL)
             self.assertEqual(headers["Authorization"], "Bearer test-key")
             payload = json.loads(body)
-            self.assertEqual(payload["model"], "nvidia/llama-nemotron-embed-1b-v2")
+            self.assertEqual(payload["model"], "nvidia/nemotron-3.5-embed-1b")
             self.assertEqual(payload["input_type"], "query")
             self.assertEqual(payload["dimensions"], 2048)
             self.assertEqual(payload["input"], ["where was the rain"])

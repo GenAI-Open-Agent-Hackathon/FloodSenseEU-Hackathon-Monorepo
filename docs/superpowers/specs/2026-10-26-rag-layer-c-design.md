@@ -107,7 +107,7 @@ One table, `rag.chunks`. Retrieval rows are paragraphs. Document, page, and sect
 | `text` | The passage. Paragraph rows hold the paragraph. Parent rows may hold a heading |
 | `text_sha256` | SHA-256 hex of `text` as UTF-8. This is the chunk hash. It is not the citation `content_sha256` |
 | `embedding` | `vector(2048)`, null except on `level = paragraph` |
-| `embed_model` | `nvidia/llama-nemotron-embed-1b-v2` when `embedding` is set |
+| `embed_model` | `nvidia/nemotron-3.5-embed-1b` when `embedding` is set |
 
 Chunks follow the document's structure (document, then page or section, then paragraph). They are not fixed-size windows. A paragraph longer than the model's 8192-token limit is split on line boundaries into sibling paragraphs under the same parent, and `lines` records the range inside the original paragraph (`3-5`).
 
@@ -144,7 +144,7 @@ LIMIT $3;
 
 | Item | Value |
 | --- | --- |
-| Model | `nvidia/llama-nemotron-embed-1b-v2` |
+| Model | `nvidia/nemotron-3.5-embed-1b` |
 | Endpoint | `POST https://integrate.api.nvidia.com/v1/embeddings` (`NIM_EMBEDDINGS_URL` may replace that URL for a local NIM) |
 | Dimension | 2048 (`dimensions: 2048` on every request; no smaller Matryoshka size) |
 | Passage ingest | `input_type: "passage"` |
@@ -157,7 +157,7 @@ Nightshift does not serve embeddings. Runtime 1.4 has no `/v1/embeddings` we can
 
 `NVIDIA_NIM_API_KEY` lives in the gitignored `agents/.env` (and in the environment of the ingest command). It is not committed, not logged, not a fixture, and not a Nightshift Providers-tab key. The NVIDIA chat key stays in Nightshift's Providers tab.
 
-The embedding cache is `corpus/.embed-cache/nvidia/llama-nemotron-embed-1b-v2/2048/{passage|query}/{sha256}.json`, where `{sha256}` is the SHA-256 of the UTF-8 text that was embedded. A cache hit skips NIM. The cache is not the corpus and is not pgvector.
+The embedding cache is `corpus/.embed-cache/nvidia/nemotron-3.5-embed-1b/2048/{passage|query}/{sha256}.json`, where `{sha256}` is the SHA-256 of the UTF-8 text that was embedded. A cache hit skips NIM. The cache is not the corpus and is not pgvector.
 
 ### What H-MEM and the World Model are
 
