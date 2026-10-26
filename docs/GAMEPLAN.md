@@ -12,7 +12,7 @@ An agent team that watches European flood and weather data and explains why a pl
 
 The demo replays the Valencia floods of 29 Oct 2024 (Copernicus EMS activation EMSR773) on public data federated through Zetaris. Every number on screen links to the query, the dataset, and the original source.
 
-Mandatory stack: Zetaris (each person runs their own local Docker Compose), Meterless Nightshift (all LLM calls, NVIDIA Nemotron lanes), the Meterless engines in `engines/` (H-MEM and World Model), Cursor. The sidecar is in compose. `v0.9.0` wires the agents to it. With `ENGINES_URL` set, Watchers' anomalies and the hypothesis board go to the World Model. H-MEM recall and write-on-approval run behind `FF_HMEM`, which still defaults off (`NoMemory`). Short-term thread memory is in the same tag and does not use the sidecar. Lane names stay `meterless/fast` and `meterless/deep`. The model that answers a lane today is the one table at the top of [architecture/c4.md](architecture/c4.md).
+Mandatory stack: Zetaris (each person runs their own local Docker Compose), Meterless Nightshift (all LLM calls, NVIDIA Nemotron lanes), the Meterless engines in `engines/` (H-MEM and World Model), Cursor. The sidecar is in compose. `v0.9.0` wires the agents to it. With `ENGINES_URL` set, Watchers' anomalies and the hypothesis board go to the World Model. H-MEM recall and write-on-approval run behind `FF_HMEM`, which still defaults off (`NoMemory`). Short-term thread memory is in the same tag and does not use the sidecar. Lane names stay `meterless/fast` and `meterless/deep`. The model that answers a lane today is the one table at the top of [architecture/c4.md](architecture/c4.md). `v0.12.0` adds the semantic cache and labelled replay in the API. `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` are in the tree and default off. Rate limits are still a follow-up.
 
 Our stack: Python and LangGraph (agents, human-in-the-loop), FastAPI, React with TSX on Vite, GitHub, docker compose for our app, optional pgvector and Redis. pgvector is stretch (citation layer (c)), not a v1 gate. GitHub Actions runs lint, tests, and secret scans on pull requests and on pushes to `main` ([adr/0008-ci-runner-github-hosted.md](adr/0008-ci-runner-github-hosted.md)).
 
@@ -104,11 +104,11 @@ Everyone tests the release candidate on their own area and one other. Mihir does
 
 The plan was thirteen product increments, a release candidate, and the release. Each increment merges through a pull request and is demoed at 20:00. Tags are immutable. On the 0.x line they are `v0.MINOR.0` only. There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix lands on `main` and rides the next minor tag. `v1.0.0-rc.N` is the candidate series after the Monday freeze. A slipped increment merges behind its flag. The tag records what actually works. A docs change does not create a tag.
 
-`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. `v0.3.0` is the annotated tag for live gauges and `hazard_now`. `v0.9.0` is the annotated memory tag (H-MEM, World Model, thread memory, and the sqlite hang fix). All five have GitHub Releases. Laptop Zetaris e2e for `v0.3.0` (stage, `zetaris-sync`, and verify on a machine with the engine) is deferred to the morning of 26 Oct 2026. The tag records the code on main after CI.
+`v0.0.0` is the annotated skeleton tag on `eacf34c`. `v0.1.0` is the annotated data-slice tag on `7045fc5`. `v0.2.0` is the annotated live demo stack on `71390b6`: agents graph, insurer desk, engines sidecar, fast lane, and parallel Zetaris. `v0.3.0` is the annotated tag for live gauges and `hazard_now`. `v0.9.0` is the annotated memory tag (H-MEM, World Model, thread memory, and the sqlite hang fix). `v0.12.0` is the annotated tag for the semantic cache and labelled replay ([#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17)). Those two flags default off. Rate limits are still a follow-up. There is no `v0.10.0` or `v0.11.0` tag and no patch tag between `v0.9.0` and `v0.12.0`. `v0.0.0` through `v0.9.0` have GitHub Releases. Notes for each tag, including `v0.12.0`, are [CHANGELOG.md](../CHANGELOG.md) and the GitHub Release. The wiki is disabled. Laptop Zetaris e2e for `v0.3.0` (stage, `zetaris-sync`, and verify on a machine with the engine) is deferred to the morning of 26 Oct 2026. The tag records the code on main after CI.
 
 `v0.3.0` adds what was not in `v0.1.0`. [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) is the live gauge views and the FILESTORE re-registration. [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) is `floodsense.hazard_now` and its seed twin, migrations `034` and `035`. [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) is the should-fixes: migration `042` labels each rolling hour `past` or `forecast`, and migration `043` keeps the seed gauge rows to the three Ahr Rhine gauges (Bonn, Köln, Koblenz) with no invented level. [#26](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/26) is the `v0.MINOR.0` tag policy. [#27](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/27) accepts lane names on judge `model_id`. Core sources, provenance, `ingestion/feeds/`, and the `pegel_levels` table in migration `033` already shipped in `v0.1.0`. Built: Urvashi, Saleeta. `hazard_now`: Zain. Owner now: Mihir (takeover 2026-10-25).
 
-`v0.9.0` is the memory tag on main after `v0.3.0`. It includes [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) (H-MEM recall, write-on-approval, the World Model bridge, and the sidecar trust ledger those stores append to), [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) (short-term thread memory), and [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) (the sqlite checkpointer hang fix, already on main). `FF_HMEM` still defaults off. `v0.4.0`, `v0.5.0`, `v0.6.0`, `v0.7.0`, `v0.8.0`, and `v0.10.0` already shipped inside `v0.2.0` and stay there. There is no `v0.4.0`–`v0.8.0` ladder and no patch tag. `v0.11.0` is stretch. `v0.12.0` is not in this tree. The next tag on the calendar is `v1.0.0-rc.1` (Mon 26 Oct 20:00 CET). The 0.x line stays `v0.MINOR.0` only.
+`v0.9.0` is the memory tag on main after `v0.3.0`. It includes [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) (H-MEM recall, write-on-approval, the World Model bridge, and the sidecar trust ledger those stores append to), [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) (short-term thread memory), and [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) (the sqlite checkpointer hang fix, already on main). `FF_HMEM` still defaults off. `v0.4.0`, `v0.5.0`, `v0.6.0`, `v0.7.0`, `v0.8.0`, and `v0.10.0` already shipped inside `v0.2.0` and stay there. There is no `v0.4.0`–`v0.8.0` ladder and no patch tag. `v0.11.0` is stretch and is not a tag. `v0.12.0` is the semantic cache and labelled replay on main after `v0.9.0` ([#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17)). `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` are in the tree and default off. Rate limits are still a follow-up. The next tag on the calendar is `v1.0.0-rc.1` (Mon 26 Oct 20:00 CET). The 0.x line stays `v0.MINOR.0` only.
 
 `v0.2.0` includes the Nightshift check, the `engines/` sidecar, the citizen and insurer console, and from #4 the LangGraph graph, the HITL interrupt, the Judge, the API run proxy, and `evals/`. These planned rows shipped early inside that tag, so they are not tags of their own:
 
@@ -119,7 +119,7 @@ The plan was thirteen product increments, a release candidate, and the release. 
 - `v0.8.0` — `interrupt()`, the SQLite checkpointer, and the approval API.
 - `v0.10.0` — Judge scores on the approval payload.
 
-`v0.9.0` is load-bearing for the World Model whenever `ENGINES_URL` is set, and for H-MEM when `FF_HMEM` is also on. The flag still defaults off, and then the graph keeps `NoMemory`. Short-term thread memory does not use the flag. Semantic cache, rate limits, document chunks, and `demo/` are not in this tree. Citation layer (c) and pgvector are stretch.
+`v0.9.0` is load-bearing for the World Model whenever `ENGINES_URL` is set, and for H-MEM when `FF_HMEM` is also on. The flag still defaults off, and then the graph keeps `NoMemory`. Short-term thread memory does not use the flag. `v0.12.0` adds the semantic cache and labelled replay in the API, behind `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` (both default off). Rate limits, document chunks, and `demo/` are not in this tree. Citation layer (c) and pgvector are stretch.
 
 | Tag | Increment | Owners | Scope |
 | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ The plan was thirteen product increments, a release candidate, and the release. 
 | v0.9.0 (tagged) | Memory | Ayush (tests: Zain) | [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) H-MEM recall and write-on-approval, World Model bridge, trust ledger on the sidecar. [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) short-term thread memory. [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) sqlite hang fix. `FF_HMEM` defaults off. Sidecar is `engines/` |
 | v0.10.0 (inside v0.2.0) | Judge before HITL | Zain, Mihir | Per-claim grounding and citation scores in the approval payload |
 | v0.11.0 (stretch) | Layer (c) | Urvashi, Saleeta, Mihir | Stretch. Hierarchical chunks in pgvector (`FF_RAG_DOCS` stays off). Valencia 2024 and Ahr 2021 eval items are already in `evals/` inside v0.2.0 |
-| v0.12.0 (not shipped) | Cache, limits, replay | Ayush, Mihir, Zain | Semantic cache, rate limits, past runs, labelled replay. Not in this tree |
+| v0.12.0 (tagged) | Cache and labelled replay | Ayush. Rate limits: Mihir (follow-up) | [#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17) semantic cache and labelled replay in the API. `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off. Rate limits are not in this tag. Past runs are already on main |
 | v1.0.0-rc.1 | Demo freeze | All (tag: Mihir) | Mon 20:00. Only `fix/*` after this. Candidates are `rc.N`, not `v0` patch tags |
 | v1.0.0 | Release | Mihir | Security review, public repo, GitHub Release, submission |
 
@@ -151,8 +151,8 @@ Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `age
 | `FF_HITL` | on | Approval interrupt before any outbound action |
 | `FF_HMEM` | off | Long-term memory. `v0.9.0` wires recall and write-on-approval when this is on and `ENGINES_URL` is set. Default in code is off (`NoMemory`). Thread memory does not use this flag |
 | `FF_RAG_DOCS` | off | Stretch. Layer (c) document citations in pgvector. Not a v1 gate |
-| `FF_SEMANTIC_CACHE` | off (not in tree) | Similar query served from a previous good answer, labelled |
-| `FF_CACHED_REPLAY` | off, on if a live service fails | Labelled replay of a recorded run |
+| `FF_SEMANTIC_CACHE` | off | In the tree from `v0.12.0` (`api/app/cache.py`). A folded-equal question is served from a previous approved answer and labelled cache. Default off. Embedding similarity is still a follow-up |
+| `FF_CACHED_REPLAY` | off | In the tree from `v0.12.0`. When this is on, a failed live run is answered from a recorded run and labelled replay. Default off |
 | `FF_EFAS`, `FF_EXTRA_SEGMENTS` | off | Stretch |
 
 ## Repository layout
@@ -168,7 +168,7 @@ tasks.py              # up, down, zetaris-sync, engines-test, test, lint. No Mak
 ingestion/            # Mihir, including live gauges (PEGELONLINE). Saleeta secondary on prep and the demo
 zetaris/migrations/   # Mihir — numbered SQL, applied by zetaris-sync
 agents/               # Ayush, Zain — LangGraph graph, HITL, Judge, engines client, thread memory
-api/                  # Zain, Ayush — FastAPI proxies runs, SSE, and approval
+api/                  # Zain, Ayush — FastAPI proxies runs, SSE, and approval. v0.12.0 cache and labelled replay, flags default off
 ui/                   # Citizen page and insurer console. Zain owns the path
 engines/              # Ayush — H-MEM and World Model sidecar
 evals/                # Saleeta, Zain, Mihir — Valencia 2024 and Ahr 2021. Not tagged
@@ -333,7 +333,7 @@ Cached or replayed output is always labelled `cached at HH:MM`. It is never pres
 
 ## Branching and tags
 
-`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0` (live gauges and `hazard_now`), and `v0.9.0` (memory). Laptop Zetaris e2e for `v0.3.0` is deferred to the morning of 26 Oct 2026. There is no `v0.4.0`–`v0.8.0` tag and no `v0.x.y` fix tag. The next tag is `v1.0.0-rc.1` at the Monday freeze. Pairs share a branch, rebase before push, and delete the branch after merge.
+`main` is the integration branch. Short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) merge through a pull request with green checks and one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only. Tagged today: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0` (live gauges and `hazard_now`), `v0.9.0` (memory), and `v0.12.0` (semantic cache and labelled replay; `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off; rate limits still a follow-up). Laptop Zetaris e2e for `v0.3.0` is deferred to the morning of 26 Oct 2026. There is no `v0.4.0`–`v0.8.0` tag, no `v0.10.0` or `v0.11.0` tag, and no patch tag between `v0.9.0` and `v0.12.0`. There is no `v0.x.y` fix tag. The next tag is `v1.0.0-rc.1` at the Monday freeze. The wiki is disabled. Notes are the changelog and GitHub Releases. Pairs share a branch, rebase before push, and delete the branch after merge.
 
 Merge at least daily, at the 19:30 window. Mihir tags a green `main`. Tags are never moved or deleted. A fix on the 0.x line does not get its own tag. It is part of the next `v0.MINOR.0`. From `v1.0.0-rc.1` (Mon 20:00 CET) only `fix/*` pull requests land. Those candidates are `rc.2`, `rc.3`, and so on.
 
@@ -378,11 +378,11 @@ Owners in parentheses. A line that names a result is settled. The rest is still 
 
 ## Still open
 
-- `v0.3.0` is tagged (live gauges, `hazard_now`, migrations `042` and `043`, the tag policy, and judge lane ids). Laptop Zetaris e2e is deferred to the morning of 26 Oct 2026. `v0.9.0` is tagged (H-MEM, World Model, thread memory, sqlite hang fix). The next tag is `v1.0.0-rc.1`. The 0.x line stays `v0.MINOR.0` only. There is no `v0.4.0`–`v0.8.0` tag.
+- `v0.3.0` is tagged (live gauges, `hazard_now`, migrations `042` and `043`, the tag policy, and judge lane ids). Laptop Zetaris e2e is deferred to the morning of 26 Oct 2026. `v0.9.0` is tagged (H-MEM, World Model, thread memory, sqlite hang fix). `v0.12.0` is tagged (semantic cache and labelled replay, [#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17); flags default off). Rate limits are still a follow-up. The next tag is `v1.0.0-rc.1`. The 0.x line stays `v0.MINOR.0` only. There is no `v0.4.0`–`v0.8.0` tag, no `v0.10.0` or `v0.11.0` tag, and no patch tag between `v0.9.0` and `v0.12.0`. The wiki is disabled. Notes are the changelog and GitHub Releases.
 - The HITL interrupt from #4 is in `v0.2.0`.
 - H-MEM recall and write-on-approval are in `v0.9.0` behind `FF_HMEM` (default off, `NoMemory`). The World Model runs when `ENGINES_URL` is set. Short-term thread memory is on main from [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16).
 - Citation layer (c) and pgvector are stretch. `FF_RAG_DOCS` stays off.
-- Semantic cache and rate limits are not in this tree.
+- The semantic cache and labelled replay are in `v0.12.0`, behind `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` (both default off). Rate limits are not in this tree.
 - `knowledge/` and `demo/` are not folders yet.
 - `zetaris-sync` has no `reset`.
 - No pre-commit hook. `python tasks.py lint` is the local check. No enforced CODEOWNERS file.
