@@ -5,6 +5,7 @@ import {
   latestPastStamp,
   parseList,
   relativeTime,
+  sparkSeries,
   summariseAll,
   summarisePoint,
   trendOf,
@@ -117,6 +118,22 @@ describe("helpers", () => {
     expect(relativeTime(0, 10_000)).toBe("just now");
     expect(relativeTime(0, 5 * 60_000)).toBe("5 min ago");
     expect(relativeTime(0, 3 * HOUR)).toBe("3 h ago");
+    expect(relativeTime(0, 59.6 * 60_000)).toBe("1 h ago");
+    expect(relativeTime(0, 59.4 * 60_000)).toBe("59 min ago");
+  });
+
+  it("sparkline drops null discharge and splits on the last past value", () => {
+    const s = summarisePoint(
+      "VAL09",
+      rows([
+        raw("VAL09", 0, "past", 5),
+        raw("VAL09", 1, "past", null),
+        raw("VAL09", 2, "past", 7),
+        raw("VAL09", 3, "forecast", null),
+        raw("VAL09", 4, "forecast", 9),
+      ]),
+    );
+    expect(sparkSeries(s)).toEqual({ values: [5, 7, 9], split: 1 });
   });
 
   it("gauge rows need a station", () => {

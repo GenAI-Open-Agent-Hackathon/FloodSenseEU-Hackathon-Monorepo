@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchGaugeLevels, fetchHazardNow, type HazardNowResult } from "../api/now";
 import { useConsole } from "../context/ConsoleContext";
-import { latestPastStamp, relativeTime, summariseAll, type GaugeLevelRow, type PointNow, type Trend } from "../lib/now";
+import { latestPastStamp, relativeTime, sparkSeries, summariseAll, type GaugeLevelRow, type PointNow, type Trend } from "../lib/now";
 import { pointById } from "../lib/series";
 import { Sparkline } from "./Sparkline";
 
@@ -92,7 +92,7 @@ export function NowPage() {
         <div>
           <h2 className="now-title">Right now{stamp ? ` · ${localTime(stamp)}` : ""}</h2>
           {load.state === "ready" && (
-            <p className="now-meta">
+            <p className="now-meta" aria-live="polite">
               <span className="now-live-tag">Live data · Zetaris</span> Updated {relativeTime(load.fetchedAt, clock)}
               {load.data.queryId ? ` · Zetaris query ${load.data.queryId.slice(0, 8)}` : ""}
               {load.data.dropped > 0 ? ` · ${load.data.dropped} rows dropped` : ""}
@@ -106,7 +106,11 @@ export function NowPage() {
       </header>
       <p className="now-note">{MODEL_NOTE}. Dashed line and “forecast” values are model forecasts.</p>
 
-      {load.state === "loading" && <p className="now-status">Loading live data…</p>}
+      {load.state === "loading" && (
+        <p className="now-status" aria-live="polite">
+          Loading live data…
+        </p>
+      )}
       {load.state === "error" && (
         <div className="now-error" role="alert">
           <p>Could not load live data.</p>
@@ -150,9 +154,7 @@ export function NowPage() {
 
 function PointCard({ summary, name }: { summary: PointNow; name?: string }) {
   const trend = TREND_TEXT[summary.trend];
-  const series = [...summary.past, ...summary.forecast];
-  const values = series.map((row) => row.discharge_m3s ?? 0);
-  const split = summary.past.length > 0 && summary.forecast.length > 0 ? summary.past.length - 1 : undefined;
+  const { values, split } = sparkSeries(summary);
   return (
     <article className="now-card">
       <h3 className="now-card-title">
@@ -164,9 +166,10 @@ function PointCard({ summary, name }: { summary: PointNow; name?: string }) {
             <dt>Discharge</dt>
             <dd>
               {fmt(summary.latest.discharge_m3s)} m³/s{" "}
-              <span className={`now-trend now-trend-${summary.trend}`} title={trend.label} aria-label={trend.label}>
+              <span className={`now-trend now-trend-${summary.trend}`} title={trend.label} aria-hidden="true">
                 {trend.arrow}
               </span>
+              <span className="sr-only">{trend.label}</span>
             </dd>
           </div>
           <div>
