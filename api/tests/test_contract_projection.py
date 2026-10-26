@@ -200,6 +200,21 @@ class ProjectionHonestyTest(unittest.TestCase):
         self.assertEqual(ids, ["q-ok"])
         self.assertNotIn("error", json.dumps(projected["evidence"]))
 
+    def test_javascript_and_a_bare_scheme_are_not_citation_links(self) -> None:
+        body = _minimal_run()
+        good = body["claims"][0]["citations"][0]
+        body["claims"][0]["citations"] = [
+            {**good, "citation_id": "C1-b1", "source_url": "javascript:alert(1)"},
+            {**good, "citation_id": "C1-b2", "source_url": "https://example.com/data"},
+            {**good, "citation_id": "C1-b3", "source_url": "https://"},
+            {**good, "citation_id": "C1-b4", "source_url": "http://example.com/data"},
+            {**good, "citation_id": "C1-b5", "source_url": "https://[::1"},
+        ]
+        projected = project_run(body)
+        self.assertIsNotNone(projected)
+        urls = [row["source_url"] for row in projected["answer"]["citations"]]
+        self.assertEqual(urls, ["https://example.com/data", "http://example.com/data"])
+
     def test_a_citation_without_an_http_url_is_omitted(self) -> None:
         body = _minimal_run()
         body["claims"][0]["citations"] = [

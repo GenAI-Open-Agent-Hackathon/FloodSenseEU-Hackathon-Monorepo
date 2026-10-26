@@ -38,6 +38,7 @@ if _AGENTS not in sys.path:
 from floodsense_agents.events import RHINE_GAUGES  # noqa: E402
 
 # Approximate town centres for the July 2021 Ahr valley (not surveyed points).
+# Ids match agents/floodsense_agents/events.py (AHR01 Altenahr, AHR02 Ahrweiler).
 AHR = [("AHR01", "Altenahr", 50.5192, 6.9917), ("AHR02", "Bad Neuenahr-Ahrweiler", 50.5436, 7.1103),
        ("AHR03", "Schuld", 50.4896, 6.9033), ("AHR04", "Dernau", 50.5300, 7.0500)]
 

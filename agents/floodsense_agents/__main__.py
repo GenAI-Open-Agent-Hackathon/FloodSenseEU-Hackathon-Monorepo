@@ -221,8 +221,9 @@ def desk_timeline(event_id: str):
 
 @app.get("/desk/dispatch-target", include_in_schema=False)
 def desk_dispatch_target():
-    target = desk.webhook_target()
-    return _envelope({"configured": bool(target), "target": target})
+    raw = desk.webhook_target()
+    target = raw if raw and desk.is_https_url(raw) else None
+    return _envelope({"configured": target is not None, "target": target})
 
 
 def _released_run(run_id: str) -> dict:

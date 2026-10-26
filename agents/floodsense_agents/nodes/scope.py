@@ -183,6 +183,8 @@ def vocabulary(event_id: str) -> set[str]:
         words |= {m.group(0).lower() for m in _WORD.finditer(phrase)}
     for pid in ev.river_points + ev.rain_points:
         words |= {part for part in re.split(r"[-_]", pid.lower()) if part}
+    for place in ev.place_names:
+        words |= {m.group(0).lower() for m in _WORD.finditer(place)}
     return {w for w in words if w not in _GENERIC and len(w) > 2}
 
 

@@ -12,6 +12,7 @@ import re
 import time
 from decimal import Decimal, InvalidOperation
 
+from floodsense_agents.governance import IN_FOOTPRINT_SQL
 from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, normalize_utc
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
@@ -91,7 +92,8 @@ def make(deps: Deps):
         # sites. Scope to where this event actually is.
         lat0, lat1, lon0, lon1 = ev["bbox"]
         here = (
-            f"in_footprint = 1 AND lat BETWEEN {lat0} AND {lat1} AND lon BETWEEN {lon0} AND {lon1}"
+            f"{IN_FOOTPRINT_SQL} AND lat BETWEEN {lat0} AND {lat1} "
+            f"AND lon BETWEEN {lon0} AND {lon1}"
         )
         published = normalize_utc(ev["footprint_published_utc"])
         clock_raw = state.get("replay_ts")
@@ -200,10 +202,10 @@ def make(deps: Deps):
             # policies is the aggregate COUNT(*), not len(assets). rows_sample
             # is capped at 20, so the sample is not the portfolio.
             statement = f"{policies} insured policies are exposed"
-            rationale = "deterministic join on exposure_join.in_footprint = 1"
+            rationale = f"deterministic join on exposure_join.{IN_FOOTPRINT_SQL}"
         else:
             statement = "No insured site in the footprint"
-            rationale = "deterministic join on exposure_join.in_footprint = 1"
+            rationale = f"deterministic join on exposure_join.{IN_FOOTPRINT_SQL}"
         hyps.append(
             Hypothesis(
                 id="H4",

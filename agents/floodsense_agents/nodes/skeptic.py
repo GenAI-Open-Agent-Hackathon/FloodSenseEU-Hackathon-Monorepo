@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import time
 
-from floodsense_agents.governance import DEFINITIONS
+from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
 from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
@@ -87,19 +87,19 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
         return [
             (
                 "the footprint contains insured sites",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 1 HAVING "
+                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} HAVING "
                 f"COUNT(*) >= 1",
                 (),
             ),
             (
                 "the footprint does not swallow every site (it is a footprint, not a region)",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 0 HAVING "
+                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {OUTSIDE_FOOTPRINT_SQL} HAVING "
                 f"COUNT(*) >= 1",
                 (),
             ),
             (
                 "sites in the footprint carry coordinates",
-                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE in_footprint = 1 AND lat IS "
+                f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} AND lat IS "
                 f"NOT NULL AND lon IS NOT NULL HAVING COUNT(*) >= 1",
                 (),
             ),

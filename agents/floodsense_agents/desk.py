@@ -21,6 +21,7 @@ import io
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -42,6 +43,21 @@ DESK_QUESTION = "Which of our sites are at risk, and why?"
 def webhook_target() -> str | None:
     v = os.environ.get(WEBHOOK_ENV)
     return v.strip() if v and v.strip() else None
+
+
+def is_https_url(value: str) -> bool:
+    """True for an https URL with a host. Same parse as the UI's new URL().
+
+    http stays refused. javascript: and a scheme with no host are not links.
+    """
+    if not value or any(ch.isspace() for ch in value):
+        return False
+    try:
+        parts = urllib.parse.urlparse(value)
+        host = parts.hostname
+    except ValueError:
+        return False
+    return parts.scheme.lower() == "https" and bool(host)
 
 
 def _approval(run: dict) -> dict:
@@ -273,7 +289,7 @@ def dispatch(run: dict) -> dict[str, Any]:
             "reason": f"no endpoint nominated; set {WEBHOOK_ENV} to switch this on",
             "payload": dispatch_payload(run),
         }
-    if not target.startswith("https://"):
+    if not is_https_url(target):
         return {
             "sent": False,
             "reason": f"{WEBHOOK_ENV} must be an https URL",

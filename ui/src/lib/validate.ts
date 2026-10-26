@@ -80,6 +80,7 @@ export function asExposureRow(value: unknown): ExposureJoinRow | null {
   const segment = asNonEmpty(row.segment);
   if (!policyId || !siteId || lat === null || lon === null || sum === null || !segment) return null;
   if (typeof row.in_footprint !== "boolean") return null;
+  const synthetic = typeof row.synthetic === "string" && row.synthetic.length > 0 ? row.synthetic : undefined;
   return {
     policy_id: policyId,
     site_id: siteId,
@@ -88,6 +89,7 @@ export function asExposureRow(value: unknown): ExposureJoinRow | null {
     in_footprint: row.in_footprint,
     sum_insured_eur: sum,
     segment,
+    ...(synthetic ? { synthetic } : {}),
   };
 }
 

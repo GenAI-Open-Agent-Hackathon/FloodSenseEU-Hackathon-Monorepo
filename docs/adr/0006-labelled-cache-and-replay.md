@@ -24,6 +24,6 @@ Copy in the UI is a banner such as `cached at HH:MM`, for example "Cached answer
 
 ## Open questions
 
-- TTL for live data versus historical replays. The gameplan says live data has the shorter TTL and does not give numbers.
-- The similarity rule for "the same or a very similar query" (Ayush).
-- Rate-limit numbers and the global cap on concurrent Nightshift calls (Mihir, v0.12.0).
+- TTL. Closed for the API cache in v0.12.0. Live data expires after `CACHE_TTL_LIVE_S` (900 seconds). A historical replay expires after `CACHE_TTL_REPLAY_S` (86400 seconds). Both are in `api/.env.example`.
+- Similarity. Closed for v0.12.0 as folded equality: case, spacing, and punctuation folded, plus the event, customer, replay clock, language, and the agents' flags, lanes, and schema (`api/app/cache.py`). Embedding similarity is still open.
+- Rate-limit numbers and the global cap on concurrent Nightshift calls (Mihir). Still open. Not in v0.12.0.

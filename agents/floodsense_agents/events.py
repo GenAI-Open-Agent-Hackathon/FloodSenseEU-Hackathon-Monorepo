@@ -1,11 +1,48 @@
 """The two reference events, keyed by Copernicus EMS activation id.
 
 Fixes the replay window the Watchers query and the point ids involved.
+
+Point ids are the warehouse ids, not town slugs. Valencia is VAL01–VAL08
+(ingestion/prep/valencia_points.csv and the discharge views in migrations
+004 and 012). Chiva is VAL07. Paiporta, on the Barranco del Poyo, is VAL01.
+Turís is not on that list, so it is not a filter. The Ahr ids are the
+ingestion/feeds/feeds.py tuple: AHR01 Altenahr, AHR02 Ahrweiler.
+floodsense_seed hazard and discharge views hold the Valencia series only.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+
+# Order is ingestion/prep/valencia_points.csv and migration 003.
+VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
+# ingestion/feeds/feeds.py. Seed hazard views do not store these rows.
+AHR_POINT_IDS: tuple[str, ...] = ("AHR01", "AHR02", "AHR03", "AHR04")
+
+# Place names for claim text. Municipality from valencia_points.csv, and the
+# town name from feeds.py. AHR02 is Ahrweiler, the short name the scope gate uses.
+POINT_NAMES: dict[str, str] = {
+    "VAL01": "Paiporta",
+    "VAL02": "Catarroja",
+    "VAL03": "Sedaví",
+    "VAL04": "Alfafar",
+    "VAL05": "Benetússer",
+    "VAL06": "Algemesí",
+    "VAL07": "Chiva",
+    "VAL08": "Utiel",
+    "AHR01": "Altenahr",
+    "AHR02": "Ahrweiler",
+    "AHR03": "Schuld",
+    "AHR04": "Dernau",
+}
+
+
+def point_label(point_id: str) -> str:
+    """Chiva (VAL07). An unknown id stays the id, so a new point is still named."""
+    name = POINT_NAMES.get(point_id)
+    if not name:
+        return point_id
+    return f"{name} ({point_id})"
 
 # PEGELONLINE shortname and water. The Ahr joins the Rhine between Koblenz and Bonn.
 # feeds.py and the seed rows use this tuple. Do not keep a second copy of the names.
@@ -42,7 +79,11 @@ class EventSpec:
     # PEGELONLINE stations this event may cite, as (shortname, water).
     # Empty means the watchers do not query gauge_levels. A live pull is the
     # last 30 days, so it does not overlap these frozen windows.
+    # EMSR773 is empty: Valencia does not read gauge_levels. hazard_now is
+    # not on this path; Watchers read hazard_timeline.
     gauges: tuple[tuple[str, str], ...]
+    # Names a question may use. Not point ids, and not SQL filters.
+    place_names: tuple[str, ...] = ()
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -57,8 +98,8 @@ EVENTS: dict[str, EventSpec] = {
         "Valencia province",
         "Barranco del Poyo",
         "Poyo ravine catchment",
-        ("poyo-ribaroja",),
-        ("chiva", "turis"),
+        ("VAL01",),  # Paiporta, Barranco del Poyo
+        ("VAL07",),  # Chiva
         (38.90, 39.70, -1.10, -0.20),
         "2024-10-30T00:00:00Z",
         (
@@ -71,6 +112,7 @@ EVENTS: dict[str, EventSpec] = {
             ("2024-10-30T06:00:00Z", "Copernicus publishes the footprint"),
         ),
         (),
+        ("Chiva", "Paiporta"),
     ),
     "EMSR517": EventSpec(
         "EMSR517",
@@ -80,8 +122,8 @@ EVENTS: dict[str, EventSpec] = {
         "Ahr valley, Rhineland-Palatinate",
         "Ahr",
         "Ahr catchment (Eifel)",
-        ("altenahr",),
-        ("ahrweiler",),
+        ("AHR01",),  # Altenahr
+        ("AHR02",),  # Bad Neuenahr-Ahrweiler
         (50.20, 50.70, 6.60, 7.40),
         "2021-07-15T00:00:00Z",
         (
@@ -91,6 +133,7 @@ EVENTS: dict[str, EventSpec] = {
             ("2021-07-15T06:00:00Z", "Copernicus publishes the footprint"),
         ),
         RHINE_GAUGES,
+        ("Altenahr", "Ahrweiler"),
     ),
 }
 ALIASES = {"valencia_2024": "EMSR773", "ahr_2021": "EMSR517"}

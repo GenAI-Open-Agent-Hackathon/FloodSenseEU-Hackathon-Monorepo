@@ -8,10 +8,10 @@ items:
   - id: val-01
     question: Why are our Valencia sites at risk right now?
     replay_ts: "2024-10-29T18:00:00Z"
-    expect: ["chiva", "poyo"]
+    expect: ["Chiva", "Paiporta"]
   - id: val-02
     question: How much rain fell at Chiva on 29 October 2024?
-    expect: ["chiva", "mm"]
+    expect: ["Chiva", "mm"]
     forbid: ["49 mm", "900"]
   - id: val-03
     question: What was the peak discharge in the Poyo ravine?
@@ -36,7 +36,7 @@ items:
   - id: val-09
     question: What do we know as of noon on 29 October 2024?
     replay_ts: "2024-10-29T12:00:00Z"
-    expect: ["chiva"]
+    expect: ["Chiva"]
     forbid: ["2282", "1686"]
   - id: val-10
     question: What was the water level of the Rhine at Köln on 29 October 2024?

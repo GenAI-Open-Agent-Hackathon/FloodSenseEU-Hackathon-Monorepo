@@ -44,7 +44,7 @@ The insurer desk shows:
 
 Approve, edit, and reject stay in the browser. Nothing is sent.
 
-The alert control steps 28–31 Oct 2024 and adds a notice if modelled discharge crosses 80 m³/s. That threshold is a demo line. `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
+The alert control steps 28–31 Oct 2024 and adds a notice if modelled discharge crosses 80 m³/s (`SIMULATED_ALERT_M3S` in `src/config/scenario.ts`). That threshold is a demo line for the map. It is not the Watchers anomaly, which is 100 m³/s (`anomaly_discharge` in `agents/floodsense_agents/governance.py`). `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
 
 The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls.
 
@@ -59,11 +59,11 @@ On load the screen paints the fixtures, then checks the API.
    - `/views/exposure_join`
    - `/views/provenance`
 
-A 200 body is used only when every element has the view columns below (numbers as JSON numbers, `in_footprint` as a boolean). `warning_level` may be missing; a missing value is null. `discharge_m3s` on hazard rows may be null. An empty JSON array is an empty view response, not a silent return to the fixture. A 404, a network error, a failed health check, or a different shape keeps the fixture. `GET /health` on its own does not change the label. The header pill, origin banner, map caption, and citizen caption use **Fixture**, **Seed**, or **Live**. Seed means the view response is seed-stamped (`source` starts with `seed:`); sibling views from that same response are seed too. Live is only a view response that is not seed. Fixture, seed, cache, and replay chrome do not say “live” and do not use the green live colour. The replay answer banner says **cached at HH:MM UTC · replay**.
+A 200 body is used only when every element has the view columns below (numbers as JSON numbers, `in_footprint` as a boolean). `warning_level` may be missing; a missing value is null. `discharge_m3s` on hazard rows may be null. An empty JSON array is an empty view response, not a silent return to the fixture. A 404, a network error, a failed health check, or a different shape keeps the fixture. `GET /health` on its own does not change the label. The header pill, origin banner, map caption, and citizen caption use **Fixture**, **Seed**, or **Live**. Seed means the view response is seed-stamped (`source` starts with `seed:`); an adopted sibling with no stamp takes that seed label too. Live is a response whose rows each carry a source stamp that does not start with `seed:`, and none of those rows has `synthetic` equal to `yes`. An empty array stays empty and is labelled Fixture, not Live. Rows with no source stamp stay Fixture; the caption says unstamped. A seed discharge response still marks an unstamped sibling Seed. A live discharge response does not mark that sibling Live. `exposure_join` with `synthetic` equal to `yes` (migration 018) is Seed, including when discharge is Live. Fixture, seed, cache, and replay chrome do not say “live” and do not use the green live colour. The replay answer banner says **cached at HH:MM UTC · replay**.
 
 `ts_utc` with no zone is treated as UTC. Provenance `source_url` and citation `source_url` must be `http:` or `https:`. Other schemes are rejected and are not put in an `href`.
 
-Those paths are a hook for later, not an API contract. The API today implements `/health` only. CORS must allow the UI origin before a browser can read even `/health`; a blocked call stays on the fixture.
+Those paths are optional reads, not the run contract. This desk does not call `/runs`. The API serves `/health`, `/config`, `/runs`, and approval. A health check alone does not select Live. CORS must allow the UI origin before a browser can read even `/health`; a blocked call stays on the fixture.
 
 The reviewed answer is always the fixture in `ui/src/fixtures/answer.json`. It uses the shared contract (`served_from`, `cached_at`, claims, citations, evidence, judge, playbook action). `served_from` is `replay` and `cached_at` is `2026-10-24T14:32:00Z`, so the insurer banner reads **cached at 14:32**. Cache and replay are never labelled live. `query_id` values in that file are fixture ids, not Zetaris query ids, and the SQL is not executed.
 

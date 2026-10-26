@@ -12,7 +12,11 @@ export const SIM_WINDOW_START = "2024-10-28";
 export const SIM_WINDOW_END = "2024-10-31";
 export const SIM_PLAY_INTERVAL_MS = 900;
 
-/** Demo threshold for the alert simulation. Not a warning level from the hazard view. */
+/**
+ * Demo line for the map alert simulation, in m³/s.
+ * Not a warning level, and not the Watchers anomaly. That is anomaly_discharge
+ * (100) in agents/floodsense_agents/governance.py. The two numbers are separate.
+ */
 export const SIMULATED_ALERT_M3S = 80;
 
 /** Marker bands below the simulation threshold, in m³/s. */
@@ -40,7 +44,9 @@ export const MAP_BOUNDS = {
 export const API_TIMEOUT_MS_DEFAULT = 1500;
 
 /**
- * Optional reads. Not an API contract. The API on main implements GET /health only.
+ * Optional reads. Not the run contract. This desk does not call /runs.
+ * It probes GET /health, then these paths. The API also serves /config, /runs,
+ * and approval. A health check alone is not live data.
  */
 export const VIEW_PATHS = {
   discharge_daily: "/views/discharge_daily",

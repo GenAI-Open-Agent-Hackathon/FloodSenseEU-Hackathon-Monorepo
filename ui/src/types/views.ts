@@ -33,6 +33,8 @@ export interface ExposureJoinRow {
   in_footprint: boolean;
   sum_insured_eur: number;
   segment: string;
+  /** Migration 018. "yes" means the synthetic book, never a live exposure feed. */
+  synthetic?: string;
 }
 
 export interface ProvenanceRow {
@@ -57,7 +59,7 @@ export interface ValenciaPoint {
   dist_m_to_flood: number;
 }
 
-/** fixture: local JSON. seed: a view response whose sources are seed-stamped. live: a view response that is not seed. Health alone is never live. */
+/** fixture: local JSON, an empty array, or adopted rows with no source stamp. seed: a seed stamp, a seed sibling of seed discharge, or synthetic === "yes". live: every row carries a non-seed source stamp and none is synthetic. A live discharge response does not paint an unstamped sibling live. Health alone is never live. */
 export type DataOrigin = "fixture" | "seed" | "live";
 
 export interface LoadedRows<T> {
