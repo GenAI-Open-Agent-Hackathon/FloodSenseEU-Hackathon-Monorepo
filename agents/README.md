@@ -103,6 +103,18 @@ In compose, the agents service reaches the engines sidecar at `ENGINES_URL=http:
 
 The NVIDIA chat key is not a variable in `.env`. It lives only in Nightshift's Providers tab. Document embeddings use `NVIDIA_NIM_API_KEY` in a gitignored env file, and that key is not the chat key (ADR 0009). Chat calls send `Authorization: Bearer <METERLESS_RUNTIME_TOKEN>`, `meterless-app`, and `meterless-scope: user`.
 
+### Getting the NIM embeddings key
+
+Only needed for layer (c) (`FF_RAG_DOCS`, `scripts/rag_ingest.py`). Generate your own key. It is a separate key from the one in Nightshift's Providers tab, even when both come from the same NVIDIA account.
+
+1. Sign in at [build.nvidia.com](https://build.nvidia.com) with a free NVIDIA account.
+2. Open the `nvidia/llama-nemotron-embed-1b-v2` model page.
+3. Choose **Get API Key**, then **Generate**. The key starts with `nvapi-`. The free tier's trial credits cover the corpus.
+4. Put it in your gitignored `agents/.env` as `NVIDIA_NIM_API_KEY=`. Leave `NIM_EMBEDDINGS_URL` empty to use the default `https://integrate.api.nvidia.com/v1/embeddings`.
+5. Do not commit it, paste it in chat, or put it in a fixture or screenshot. CI's gitleaks rule fails on an `nvapi-` string.
+
+The ingest command on the host reads the same variable from its environment. Why NIM and why this model: [ADR 0009](../docs/adr/0009-vector-search-next-to-zetaris.md).
+
 Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Super VL answers both lanes today, so the fast lane is not by itself a large wall-time cut. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning.
 
 Independent Zetaris reads in one node run together, up to `ZETARIS_MAX_PARALLEL` (default 8). Set it to 1 to run them one after another, in call order. A query that raises is recorded as `Evidence.error`. The other queries in that batch still come back. That overlap is the guaranteed gain while both Nightshift lanes are answered by the same model.

@@ -34,6 +34,16 @@ Updated 2026-10-26. Layer (c) is tool RAG. `v0.14.0` is the ship tag and is not 
 
 Embeddings are `nvidia/nemotron-3.5-embed-1b`, dimension 2048 (it replaced `nvidia/llama-nemotron-embed-1b-v2`, which NIM retired on 2026-08-25; `pgvector/migrations/002_rag_embed_model_nemotron35.sql` moves the check), from NVIDIA NIM `POST /v1/embeddings`. Passages use `input_type: passage`. Queries use `input_type: query`. Nightshift does not serve embeddings, so this call does not go through the Nightshift client. Chat completions stay on Nightshift under [ADR 0004](0004-nightshift-only-llm-calls.md). The NIM key is `NVIDIA_NIM_API_KEY` in a gitignored env file. It is not committed and it is not the key in Nightshift's Providers tab.
 
+Why NIM and why this model. To be confirmed by Ayush (embedding client) and Urvashi (store); until then these are the working reasons, not a measured comparison:
+
+- Nightshift serves no `/v1/embeddings` (checked with `GET /v1/models`), so the embedding call needs a provider outside Nightshift. NIM keeps it on NVIDIA, the same vendor and Nemotron family as the chat lanes, and needs no extra local GPU or container.
+- It is a retrieval embedder with separate `passage` and `query` input types, which suits short analyst questions ranked against document paragraphs.
+- The corpus mixes English, Spanish (Valencia, EMSR773) and German (Ahr, EMSR517) sources, and the model is multilingual.
+- Its input limit (8192 tokens) lets one paragraph go in whole; `scripts/rag_ingest.py` only splits a paragraph above that.
+- Cost for the hackathon is within the free build.nvidia.com trial credits. A paid product would re-check price, terms and a self-hosted NIM.
+
+Not chosen: the engines' token-hash embedder (not semantic, see `agents/README.md`); a local open model (another container and model download during the build); a non-NVIDIA API (a second vendor key for no gain in the demo). Disclosure: this is the one model call that does not go through Nightshift. The deck and video say "every chat call goes through Nightshift", not "every LLM call".
+
 The stored column is `vector(2048)`. A `vector` HNSW index stops at 2000 dimensions, so the ANN index is HNSW on `embedding::halfvec(2048)` with `halfvec_cosine_ops`. The search expression uses `<=>` in this Postgres. Chunks are hierarchical (`parent_chunk_id`, `path` of document, then page or section, then paragraph). H-MEM's hash stub and the World Model stay claim and hypothesis memory. They are not the document store.
 
 Ranking still returns chunk ids and distances from Postgres. Text, licence, and locator are read through the Zetaris JDBC registration, and every layer (c) citation keeps that `query_id`. The metadata hop is required, not optional.
