@@ -200,6 +200,39 @@ class ProjectionHonestyTest(unittest.TestCase):
         self.assertEqual(ids, ["q-ok"])
         self.assertNotIn("error", json.dumps(projected["evidence"]))
 
+    def test_a_layer_c_locator_and_chunk_id_survive_projection(self) -> None:
+        body = _minimal_run()
+        body["claims"][0]["citations"].append(
+            {
+                "citation_id": "C1-c1",
+                "claim_id": "C1",
+                "layer": "c",
+                "source_url": (
+                    "https://hess.copernicus.org/articles/29/6715/2025/hess-29-6715-2025.pdf"
+                ),
+                "title": "HESS",
+                "publisher": "Copernicus Publications",
+                "accessed_at": "2024-10-29T12:00:00Z",
+                "licence": "CC-BY-4.0",
+                "attribution": "Rombeek, Hrachowitz, and Uijlenhoet (2025), CC BY 4.0",
+                "quote": "line one",
+                "content_sha256": "ab" * 32,
+                "storage": "full_text",
+                "query_id": "qid-9",
+                "chunk_id": "hess-29-6715-2025/p12/para3",
+                "locator": {"page": 12, "paragraph": 3, "lines": "1-2", "section": None},
+            }
+        )
+        projected = project_run(body)
+        self.assertIsNotNone(projected)
+        layer_c = [row for row in projected["answer"]["citations"] if row["layer"] == "c"]
+        self.assertEqual(len(layer_c), 1)
+        self.assertEqual(layer_c[0]["locator"], {"page": 12, "paragraph": 3, "lines": "1-2"})
+        self.assertEqual(layer_c[0]["chunk_id"], "hess-29-6715-2025/p12/para3")
+        self.assertEqual(layer_c[0]["query_id"], "qid-9")
+        self.assertEqual(layer_c[0]["storage"], "full_text")
+        validator_for("citation").validate(layer_c[0])
+
     def test_javascript_and_a_bare_scheme_are_not_citation_links(self) -> None:
         body = _minimal_run()
         good = body["claims"][0]["citations"][0]

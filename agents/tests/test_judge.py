@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -16,7 +17,7 @@ from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 from floodsense_agents.graph import build_graph  # noqa: E402
 from floodsense_agents.models import Citation, Claim, Evidence  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
-from floodsense_agents.nodes.judge import evaluate, run as judge_run  # noqa: E402
+from floodsense_agents.nodes.judge import evaluate, score_claim, run as judge_run  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
 from floodsense_agents.zetaris import FakeZetaris  # noqa: E402
 from tests.test_graph import start  # noqa: E402
@@ -217,6 +218,60 @@ class RepairTest(unittest.TestCase):
         )
         self.assertEqual(len(payload["judge"]), len(payload["claims"]))
         self.assertIn("C1", {c["claim_id"] for c in payload["claims"]})
+
+
+class LayerCFaithfulTest(unittest.TestCase):
+    def test_layer_c_must_be_a_substring_of_text(self) -> None:
+        text = "The gauge at Altenahr rose."
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        quote = "The gauge at Altenahr rose."
+        claim = Claim(
+            claim_id="C1",
+            text="Altenahr rose.",
+            citations=[
+                Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q1"),
+                Citation(
+                    citation_id="C1-c1",
+                    claim_id="C1",
+                    layer="c",
+                    query_id="q1",
+                    quote=quote,
+                    content_sha256=hashlib.sha256(quote.encode()).hexdigest(),
+                ),
+            ],
+        )
+        evidence = {
+            "q1": Evidence(
+                query_id="q1",
+                view="PGVECTOR_RAG.chunks",
+                sql="SELECT text FROM PGVECTOR_RAG.chunks WHERE chunk_id = 'kept'",
+                rows_sample=[{"text": text, "text_sha256": digest, "rain_mm": 1}],
+                row_count=1,
+                executed_at_utc="2026-10-26T12:00:00Z",
+            )
+        }
+        score = score_claim(claim, evidence, None)
+        self.assertTrue(score.citation_faithful)
+        bad = claim.model_copy(deep=True)
+        bad.citations[1].quote = "This sentence is not in the passage."
+        bad.citations[1].content_sha256 = hashlib.sha256(bad.citations[1].quote.encode()).hexdigest()
+        self.assertFalse(score_claim(bad, evidence, None).citation_faithful)
+        alone = Claim(
+            claim_id="C2",
+            text="Altenahr rose.",
+            citations=[bad.citations[1]],
+        )
+        self.assertFalse(score_claim(alone, evidence, None).citation_faithful)
+        wrong_hash = claim.model_copy(deep=True)
+        wrong_hash.citations[1].content_sha256 = "0" * 64
+        self.assertFalse(score_claim(wrong_hash, evidence, None).citation_faithful)
+        wrong_row = claim.model_copy(deep=True)
+        drifted = {
+            "q1": evidence["q1"].model_copy(
+                update={"rows_sample": [{"text": text, "text_sha256": "ab" * 32, "rain_mm": 1}]}
+            )
+        }
+        self.assertFalse(score_claim(wrong_row, drifted, None).citation_faithful)
 
 
 if __name__ == "__main__":
