@@ -73,7 +73,7 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 
 ### 11. EasyxLab S19
 - Paper: https://easybyte.es/lab/studies/s19/paper/
-- The snapshot is the HTML of that page on 26 Oct 2026. It is EasyxLab's CC BY text and the published aggregate tables.
+- The snapshot is the HTML of that page on 26 Oct 2026, without the Cloudflare challenge script and the Cloudflare Web Analytics beacon that the host appended after the footer. It is EasyxLab's CC BY text and the published aggregate tables.
 - The page says the Generalitat Valenciana / Institut Cartogràfic Valencià layer "Zona inundada por la DANA del 29 de octubre de 2024" (CC BY-NC-ND 4.0) is used only for counts, and that no geometry or derived geometry is published. We do not add that geometry.
 - Code linked from the page (Apache-2.0, https://github.com/easybytehub/easyxlab) is not part of the corpus.
 - Full text of the snapshot may be stored. Event `EMSR773`.

@@ -92,9 +92,9 @@ Committed documents, bytes fetched on 26 Oct 2026:
 | `emsr517-aoi15-gra` | 1 | `EMSR517` | `git` | `pdf/emsr517-aoi15-grading-map.pdf` | `53731bb424a814e0202980ed40428b1fe7b5bf49e7b9f25b8eebfca0aa47bcdb` | `https://mapping.emergency.copernicus.eu/activations/EMSR517` |
 | `hess-29-6715-2025` | 2 | `EMSR773` | `git` | `pdf/hess-29-6715-2025.pdf` | `9fc5796a8a1243099401fb97271e35d1c2213b06aa250ceb437b1b68a2ff8319` | `https://hess.copernicus.org/articles/29/6715/2025/hess-29-6715-2025.pdf` |
 | `nhess-23-1287-2023` | 2 | `EMSR517` | `git` | `pdf/nhess-23-1287-2023.pdf` | `251bf798c20a4abe313f718ed72fe48369b5779c82affe223deb58815e29787c` | `https://nhess.copernicus.org/articles/23/1287/2023/nhess-23-1287-2023.pdf` |
-| `easyxlab-s19` | 2 | `EMSR773` | `git` | `pdf/easyxlab-s19.html` | `d1a2d3a4677bf87158e99818cddb18dbdad6c843d0a08780a232ed04ac877934` | `https://easybyte.es/lab/studies/s19/paper/` |
+| `easyxlab-s19` | 2 | `EMSR773` | `git` | `pdf/easyxlab-s19.html` | `4c658dc3d9e4b6fa4200fb653b68f065721d079fe4c8b11f0710d5e771fa3e0c` | `https://easybyte.es/lab/studies/s19/paper/` |
 
-The EMSR773 PDF is `Maps/EMSR773_AOI03_DEL_PRODUCT_29000_map_v1.pdf` taken out of `EMSR773_AOI03_DEL_PRODUCT_v1.zip`. The zip and its shapefiles are not committed. The EMSR517 PDF is the public S3 grading map for Bad Neuenahr-Ahrweiler (AOI15). EasyxLab S19 is the HTML of the paper page. It does not contain the Generalitat geometry. Tier 3 has zero files. There is no `placement: fetch` row in this manifest. The command still implements fetch for a later bulletin.
+The EMSR773 PDF is `Maps/EMSR773_AOI03_DEL_PRODUCT_29000_map_v1.pdf` taken out of `EMSR773_AOI03_DEL_PRODUCT_v1.zip`. The zip and its shapefiles are not committed. The EMSR517 PDF is the public S3 grading map for Bad Neuenahr-Ahrweiler (AOI15). EasyxLab S19 is the HTML of the paper page with the Cloudflare challenge script and Web Analytics beacon removed. It does not contain the Generalitat geometry. Tier 3 has zero files. There is no `placement: fetch` row in this manifest. The command still implements fetch for a later bulletin.
 
 Attribution strings, copied from the spec:
 

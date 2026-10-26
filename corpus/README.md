@@ -10,7 +10,7 @@ Layer (c) documents for `v0.14.0`. The ship tag is not cut in the corpus pull re
 | `emsr517-aoi15-gra` | `pdf/emsr517-aoi15-grading-map.pdf` | Bad Neuenahr-Ahrweiler (AOI15) grading map |
 | `hess-29-6715-2025` | `pdf/hess-29-6715-2025.pdf` | Rombeek, Hrachowitz, and Uijlenhoet (2025), CC BY 4.0 |
 | `nhess-23-1287-2023` | `pdf/nhess-23-1287-2023.pdf` | Ludwig, Mohr, and co-authors (2023), CC BY 4.0 |
-| `easyxlab-s19` | `pdf/easyxlab-s19.html` | EasyxLab S19 paper text. The study's code is Apache-2.0 and is not in this folder. The Generalitat flood geometry is not in this file |
+| `easyxlab-s19` | `pdf/easyxlab-s19.html` | EasyxLab S19 paper text. The Cloudflare scripts after the footer are not stored. The study's code is Apache-2.0 and is not in this folder. The Generalitat flood geometry is not in this file |
 
 Tier 3 is an admission rule. The manifest has no Tier 3 file. A bulletin is added only after `docs/legal/sources.md` records the licence, the attribution, and that full text may be stored.
 
