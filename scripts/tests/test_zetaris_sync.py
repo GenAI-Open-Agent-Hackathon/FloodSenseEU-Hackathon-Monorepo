@@ -156,6 +156,7 @@ class SyncTest(unittest.TestCase):
         self.assertTrue(first["path"].endswith("/sql-editor/sqls/run"))
         self.assertEqual(first["headers"]["authorization"], f"Bearer {API_KEY}")
         self.assertEqual(first["headers"]["x-org-id"], "7")
+        self.assertEqual(first["headers"]["user-agent"], "floodsense-zetaris-sync/1.0")
         self.assertEqual(first["body"]["source"], "SqlEditor")
         ids = [r["headers"]["x-request-id"] for r in self.fake.requests]
         self.assertEqual(len(set(ids)), 3)
