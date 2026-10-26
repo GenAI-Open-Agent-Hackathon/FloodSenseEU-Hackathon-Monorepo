@@ -21,6 +21,7 @@ from floodsense_agents import labelling  # noqa: E402
 from floodsense_agents.events import spec  # noqa: E402
 from floodsense_agents.graph import PLANNED_NODES, build_graph  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
+from floodsense_agents.nodes import investigator  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
 from floodsense_agents.zetaris import FakeZetaris  # noqa: E402
 
@@ -223,6 +224,36 @@ class GraphTest(unittest.TestCase):
             len([c for c in llm.calls if c[1] == "investigator"]),
             1,
             "the revise edge does not call the model again",
+        )
+
+    def test_a_chain_the_skeptic_emptied_still_carries_a_summary(self) -> None:
+        """Every hypothesis broken used to leave summary empty, and the desk's
+        replay adapter drops a recorded run with no summary and shows its own
+        fixture without reporting it."""
+        node = investigator.make(deps())
+        out = node(
+            {
+                "hypotheses": [
+                    {
+                        "id": "H1",
+                        "link": "rain_to_discharge",
+                        "statement": "Rain drove the discharge peak",
+                        "citations": ["C1"],
+                        "status": "not_supported",
+                    }
+                ],
+                "claims": [{"claim_id": "C1", "text": "a claim", "hypothesis_id": "H1"}],
+                "revise_rounds": 1,
+                "summary": "what the first pass wrote",
+                "trace": [],
+            }
+        )
+        self.assertEqual(out["hypotheses"], [], "the Skeptic broke the only hypothesis")
+        self.assertTrue(out["summary"], "an emptied chain still owes the analyst a summary")
+        self.assertNotEqual(
+            out["summary"],
+            "what the first pass wrote",
+            "the first pass described a case the Skeptic has since broken",
         )
 
     def test_skeptic_flag_off_skips_the_node(self) -> None:
