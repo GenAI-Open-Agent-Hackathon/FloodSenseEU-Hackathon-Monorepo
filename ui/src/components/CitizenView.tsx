@@ -1,6 +1,7 @@
 import { useConsole } from "../context/ConsoleContext";
 import { BAND_ELEVATED_M3S, BAND_TYPICAL_M3S, SIMULATED_ALERT_M3S } from "../config/scenario";
 import { citationMarks, citationsById, citationsForClaim } from "../lib/citations";
+import { actionsVisibleToCitizen } from "../lib/decision";
 import { formatDay, formatHour, formatM3s, formatMm } from "../lib/format";
 import { statusLabel } from "../lib/origin";
 import { routeHref } from "../lib/route";
@@ -147,18 +148,30 @@ export function CitizenArea() {
   );
 }
 
-/** Playbook actions from the reviewed answer, in the answer's order. The answer carries no severity field yet. */
+/**
+ * Playbook actions from the reviewed answer, in the answer's order. The answer carries no severity field yet.
+ * Shown only after an insurer approved them on Approvals, so a citizen never sees an action no human reviewed.
+ */
 export function CitizenActions() {
   const desk = useConsole();
-  const actions = desk.answer.playbook_actions ?? [];
+  const status = desk.approval.status;
+  const actions = actionsVisibleToCitizen(status) ? (desk.answer.playbook_actions ?? []) : [];
 
   return (
     <div className="page-stack">
       <section className="card" aria-label="What to do">
         <p className="section-label">What to do</p>
         <h2>Follow official warnings first</h2>
-        <p>This is a replay of October 2024, not a warning. The steps below come from the reviewed answer.</p>
-        {actions.length === 0 ? (
+        <p>This is a replay of October 2024, not a warning. Steps from the reviewed answer appear here once a person has approved them.</p>
+        {status === "pending" ? (
+          <p className="status-note" role="status">
+            Pending human review. No suggested action is shown until an insurer approves it.
+          </p>
+        ) : status === "rejected" ? (
+          <p className="status-note" role="status">
+            The reviewer rejected the suggested action. Nothing to show.
+          </p>
+        ) : actions.length === 0 ? (
           <p className="note">The reviewed answer has no suggested actions.</p>
         ) : (
           <ol className="action-list">
@@ -180,8 +193,9 @@ export function CitizenActions() {
             })}
           </ol>
         )}
+        {status === "edited" && desk.approval.note && <p className="note">Reviewer's edit: {desk.approval.note}</p>}
         <p className="note">
-          Review status <strong>{desk.approval.status}</strong>. <a href={routeHref("citizen", "evidence")}>See the evidence</a>.
+          Review status <strong>{status}</strong>. <a href={routeHref("citizen", "evidence")}>See the evidence</a>.
         </p>
       </section>
     </div>
