@@ -54,7 +54,7 @@ Zetaris cannot read files on the laptop. Migration `010_seed_sources.sql` create
 file:///home/zetaris/customer-data/shared/floodsense_seed/<table>
 ```
 
-`stage_local_zetaris.py` copies `<table>.csv` to `<table>/<table>.csv` in that directory. The default container name is `zetaris-driver-1`. Pass another name when `docker ps` shows one. The script stops if a CSV is missing or Docker cannot see the container.
+`stage_local_zetaris.py` copies `<table>.csv` to `<table>/<table>.csv` in that directory. The container is `ZETARIS_CONTAINER` from `ingestion/.env` (see `.env.example`), or the first argument, otherwise the same default as `zetaris_sync.py` (`zetaris-driver-1`). The script stops if a CSV is missing or Docker cannot see the container.
 
 From a fresh clone, with Zetaris already listening on `:8888`. No `AEMET_API_KEY`. Do not pull DWD.
 
@@ -73,7 +73,7 @@ py tasks.py zetaris-sync
 .\.venv\Scripts\python.exe scripts\zetaris_sync.py verify
 ```
 
-`stage_local_zetaris.py` copies the seed CSVs and writes a header-only `live.csv` in each `floodsense_live/<table>` directory (`discharge_daily`, `rain_hourly`, `ems_activations`, `aemet_daily`, `pegel_levels`). It does not create `dwd_rain_hourly`. Those header files are placeholders so a later `CREATE` can infer columns. They are not observations. `036` points `*_staged` at those directories. `floodsense.gauge_levels` reads `pegel_levels_staged`. The other staged names have tables and no view yet. The stage script does not overwrite a csv already in the container. If `provenance.csv` was staged before `ds_open_meteo_forecast` was added, remove that staged file and stage it again. `feeds.py pull --stage` copies that source's `live.csv` over the placeholder.
+`stage_local_zetaris.py` copies the seed CSVs with `docker cp`, which overwrites a seed file already in the container, and writes a header-only `live.csv` in each `floodsense_live/<table>` directory (`discharge_daily`, `rain_hourly`, `ems_activations`, `aemet_daily`, `pegel_levels`) only when that directory has no csv yet. It does not create `dwd_rain_hourly`. Those header files are placeholders so a later `CREATE` can infer columns. They are not observations. `036` points `*_staged` at those directories and is refused when a staged directory has no CSV header. `floodsense.gauge_levels` reads `pegel_levels_staged`. The other staged names have tables and no view yet. Re-running the script replaces `provenance.csv`, so `ds_open_meteo_forecast` arrives with the next stage. Live header files are skip-if-present. `feeds.py pull --stage` copies that source's `live.csv` over the placeholder.
 
 `zetaris-sync` applies pending migrations and then verifies declared views. A failure in a later file still verifies views already in the ledger, then exits non-zero. `sync --dry-run` sends nothing and does not verify.
 

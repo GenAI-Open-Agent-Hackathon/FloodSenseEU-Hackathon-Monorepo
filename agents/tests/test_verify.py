@@ -75,14 +75,12 @@ class VerifyTest(unittest.TestCase):
         self.assertTrue(by["skeptic"]["queries"])
         watcher_views = [" ".join(q["views"]) for q in by["watchers"]["queries"]]
         self.assertTrue(any("hazard_timeline" in v for v in watcher_views))
-        self.assertTrue(any("gauge_levels" in v for v in watcher_views))
+        # EMSR773 lists no PEGELONLINE stations, so the gauge view is not queried.
+        self.assertFalse(any("gauge_levels" in v for v in watcher_views))
         for q in by["watchers"]["queries"]:
             self.assertTrue(q["resolved"])
             joined = " ".join(q["views"])
-            self.assertTrue(
-                "hazard_timeline" in joined or "gauge_levels" in joined,
-                joined,
-            )
+            self.assertIn("hazard_timeline", joined)
             self.assertTrue(q["sql"])
             self.assertEqual(q["source"], "zetaris-fake")
 

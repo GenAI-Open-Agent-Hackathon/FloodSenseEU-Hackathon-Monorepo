@@ -12,7 +12,7 @@ watchers → investigator → skeptic ─┬─ not_supported, first time → re
 
 | Node | Lane | What it does | Owner |
 | --- | --- | --- | --- |
-| `nodes/watchers.py` | SQL | Anomalies from `hazard_timeline` in the event window, cut at `replay_ts`; reads `gauge_levels` for that window; loads `provenance` | Zain, Ayush |
+| `nodes/watchers.py` | SQL | Anomalies from `hazard_timeline` in the event window, cut at `replay_ts`; reads `gauge_levels` for that window when the event lists stations; loads `provenance` | Zain, Ayush |
 | `nodes/investigator.py` | fast | Hypotheses H1–H3 (rain→catchment→river→site) backed by claims; every claim cites a `query_id` (layer a) and the provenance row (layer b). Deterministic chain from aggregate queries run together; the model refines it from the same evidence on `meterless/fast` | Zain, Ayush |
 | `nodes/skeptic.py` | SQL (+fast rationale) | ≤ `SKEPTIC_MAX_ROUNDS` counter-check queries per hypothesis (default 3; a smoke run can set 1) → `supported` / `not_supported`; one revise edge back to the Investigator, which drops what was not supported. The rationale is `meterless/fast` | Zain, Ayush |
 | `nodes/exposure.py` | SQL | `exposure_join` with `in_footprint = 1`: policies, sum insured, by segment → H4 with number claims. The sample, the segment rollup, and the total run together | Ayush, Zain |
@@ -21,6 +21,8 @@ watchers → investigator → skeptic ─┬─ not_supported, first time → re
 | `hitl.py` | — | `interrupt()`; approve / edit / reject; `approval{}`; outbound actions released only on approve / edit | Zain |
 
 Contracts (gameplan v2 §5.5) are in `models.py` field for field: Evidence, Citation, Judge score, agent state (`run_id, thread_id, event_id, customer_id, replay_ts, anomalies[], hypotheses[], exposure{}, playbook[], judge[], approval{}, trace[]`), trace events. Extras (`claims[]`, `evidence{}`, `judge_summary`, `summary`) sit next to them and the UI may ignore them. The nodes use only the contract views (`hazard_timeline`, `discharge_daily`, `exposure_join`, `gauge_levels`, `provenance`), so switching to live is `FF_LIVE_DATA=true` plus credentials. `FF_LIVE_DATA` defaults to false. Live as the default is v0.5.
+
+Watchers query `gauge_levels` only when `events.py` lists stations for that event. EMSR517 (Ahr) lists Bonn, Köln, and Koblenz, because the Ahr joins the Rhine between Koblenz and Bonn. EMSR773 (Valencia) lists none, and the gauge query is skipped. A live PEGELONLINE pull is the last 30 days, so those rows never overlap the frozen event windows (12–16 July 2021 and 28–30 October 2024). The seed rows name the Ahr stations at `window_from_utc` and leave `level_cm` empty.
 
 ## Run it
 

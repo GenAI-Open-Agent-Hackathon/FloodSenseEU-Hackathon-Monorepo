@@ -32,11 +32,14 @@ PREP = os.path.join(ING, "prep")
 OUT = os.path.join(ING, "raw", "live")
 DEST = "/home/zetaris/customer-data/shared/floodsense_live"
 UA = "FloodSenseEU-hackathon/0.1 (non-commercial)"
+_AGENTS = os.path.abspath(os.path.join(HERE, "..", "..", "agents"))
+if _AGENTS not in sys.path:
+    sys.path.insert(0, _AGENTS)
+from floodsense_agents.events import RHINE_GAUGES  # noqa: E402
 
 # Approximate town centres for the July 2021 Ahr valley (not surveyed points).
 AHR = [("AHR01", "Altenahr", 50.5192, 6.9917), ("AHR02", "Bad Neuenahr-Ahrweiler", 50.5436, 7.1103),
        ("AHR03", "Schuld", 50.4896, 6.9033), ("AHR04", "Dernau", 50.5300, 7.0500)]
-RHINE_GAUGES = ["BONN", "KÖLN", "KOBLENZ"]
 
 
 def now():
@@ -228,8 +231,9 @@ def p_dwd(since, fetched):
 
 
 def pegel_stations():
+    names = {station for station, _water in RHINE_GAUGES}
     ss = js("https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json", {"waters": "RHEIN"})
-    return [s for s in ss if s["shortname"].upper() in RHINE_GAUGES]
+    return [s for s in ss if s["shortname"].upper() in names]
 
 
 def c_pegel():

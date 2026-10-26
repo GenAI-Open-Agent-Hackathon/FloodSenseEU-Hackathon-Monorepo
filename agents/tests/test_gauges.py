@@ -12,22 +12,23 @@ os.environ.setdefault("CHECKPOINTER", "memory")
 os.environ.setdefault("ZETARIS_MODE", "fake")
 os.environ.setdefault("LLM_MODE", "fake")
 
-from floodsense_agents.events import EVENTS  # noqa: E402
+from floodsense_agents.events import EVENTS, RHINE_GAUGES  # noqa: E402
 from floodsense_agents.governance import CONTRACT_VIEWS, OWNERS  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.nodes.watchers import make as make_watchers  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
-from floodsense_agents.zetaris import FakeZetaris  # noqa: E402
+from floodsense_agents.zetaris import FakeZetaris, _gauge_seed_rows  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _state() -> dict:
+def _state(event_id: str = "EMSR517") -> dict:
+    event = EVENTS[event_id]
     return {
         "run_id": "gauges",
-        "event_id": "EMSR773",
-        "event": EVENTS["EMSR773"].as_dict(),
-        "request": {"question": "Why are our Valencia sites at risk?", "lang": "en"},
+        "event_id": event_id,
+        "event": event.as_dict(),
+        "request": {"question": event.name, "lang": "en"},
         "provenance": [],
         "evidence": {},
         "anomalies": [],
@@ -49,9 +50,27 @@ class GaugeContractTest(unittest.TestCase):
         self.assertIn('_flag("FF_LIVE_DATA", False)', settings)
         self.assertIn("FF_LIVE_DATA=false", example)
 
-    def test_watchers_read_gauge_levels_for_the_event_window(self) -> None:
+    def test_only_the_ahr_event_lists_rhine_gauges(self) -> None:
+        self.assertEqual(EVENTS["EMSR773"].gauges, ())
+        self.assertIs(EVENTS["EMSR517"].gauges, RHINE_GAUGES)
+        self.assertEqual(
+            [station for station, _water in RHINE_GAUGES],
+            ["BONN", "KÖLN", "KOBLENZ"],
+        )
+        expected = [
+            (station, water, event.window_from_utc, None, "seed:pegelonline")
+            for event in EVENTS.values()
+            for station, water in event.gauges
+        ]
+        self.assertEqual(_gauge_seed_rows(), expected)
+        self.assertEqual(len(expected), 3)
+        readme = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("last 30 days", readme)
+        self.assertIn("never overlap the frozen event windows", readme)
+
+    def test_watchers_read_gauge_levels_for_the_ahr_window(self) -> None:
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
-        out = make_watchers(deps)(_state())
+        out = make_watchers(deps)(_state("EMSR517"))
         sqls = [row["sql"] for row in out["evidence"].values()]
         self.assertEqual(len(sqls), 5)
         gauge_sql = next(sql for sql in sqls if "gauge_levels" in sql)
@@ -68,6 +87,14 @@ class GaugeContractTest(unittest.TestCase):
         self.assertNotIn("gauge", kinds)
         documented = {row["dataset"] for row in out["provenance"]}
         self.assertIn("gauge_levels", documented)
+
+    def test_valencia_skips_the_gauge_query(self) -> None:
+        deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
+        out = make_watchers(deps)(_state("EMSR773"))
+        sqls = [row["sql"] for row in out["evidence"].values()]
+        self.assertEqual(len(sqls), 4)
+        self.assertFalse(any("gauge_levels" in sql for sql in sqls))
+        self.assertIn("provenance", sqls[-1])
 
 
 if __name__ == "__main__":

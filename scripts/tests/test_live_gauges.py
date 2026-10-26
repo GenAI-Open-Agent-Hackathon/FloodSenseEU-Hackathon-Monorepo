@@ -62,30 +62,48 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertIn(f"-- columns: {columns}", seed)
         self.assertIn("-- min_rows: 0", live)
         self.assertIn("-- min_rows: 6", seed)
+        later = text("043_seed_gauge_levels_ahr.sql")
+        self.assertIn(f"-- columns: {columns}", later)
+        self.assertIn("-- view: floodsense_seed.gauge_levels", later)
+        gauge_rows = [
+            (event.event_id, station, water)
+            for event in EVENTS.values()
+            for station, water in event.gauges
+        ]
+        self.assertEqual(len(gauge_rows), 3)
+        self.assertEqual([row[0] for row in gauge_rows], ["EMSR517", "EMSR517", "EMSR517"])
+        self.assertIn("-- min_rows: 3", later)
         self.assertIn("pegel_levels_staged", sql_body("037_create_view_gauge_levels.sql"))
         self.assertIn("Quelle: WSV, PEGELONLINE", live)
-        body = sql_body("038_create_seed_view_gauge_levels.sql")
+        body = sql_body("043_seed_gauge_levels_ahr.sql")
         self.assertIn("seed:pegelonline", body)
         self.assertIn("CAST(NULL AS DOUBLE)", body)
-        for event_id in ("EMSR773", "EMSR517"):
-            self.assertIn(sql_stamp(EVENTS[event_id].window_from_utc), body)
-        for station in ("BONN", "KÖLN", "KOBLENZ"):
+        for event in EVENTS.values():
+            stamp = sql_stamp(event.window_from_utc)
+            if event.gauges:
+                self.assertIn(stamp, body)
+            else:
+                self.assertNotIn(stamp, body)
+        for _event_id, station, water in gauge_rows:
             self.assertIn(station, body)
+            self.assertIn(water, body)
 
     def test_hazard_now_labels_the_rolling_window_and_the_seed_does_not_invent_one(self) -> None:
-        live = sql_body("039_label_hazard_now_horizon.sql")
+        live = sql_body("042_label_hazard_now_past.sql")
+        live_file = text("042_label_hazard_now_past.sql")
         seed_sql = sql_body("040_label_seed_hazard_now_horizon.sql")
         seed_file = text("040_label_seed_hazard_now_horizon.sql")
         columns = (
             "point_id string, ts_utc timestamp, rain_mm double, discharge_m3s double, "
             "warning_level string, horizon string"
         )
-        self.assertIn(f"-- columns: {columns}", text("039_label_hazard_now_horizon.sql"))
+        self.assertIn(f"-- columns: {columns}", live_file)
         self.assertIn(f"-- columns: {columns}", seed_file)
-        self.assertIn("-- min_rows: 1152", text("039_label_hazard_now_horizon.sql"))
+        self.assertIn("-- min_rows: 1152", live_file)
         self.assertIn("-- min_rows: 576", seed_file)
         self.assertIn("'forecast'", live)
-        self.assertIn("'observed'", live)
+        self.assertIn("'past'", live)
+        self.assertNotIn("observed", live_file)
         self.assertIn("current_timestamp()", live)
         self.assertIn("'replay'", seed_sql)
         self.assertNotIn("current_timestamp", seed_sql)
@@ -107,6 +125,14 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         self.assertEqual(forecast["licence"], rain["licence"])
         self.assertEqual(forecast["attribution"], rain["attribution"])
         self.assertIn("hazard_now", forecast["dataset"])
+        self.assertEqual(
+            forecast["notes"],
+            "REST tables rain_live (032) and glofas_discharge_live (030). "
+            "hazard_now.horizon is past or forecast against the query clock. "
+            "past is Open-Meteo past_days plus GloFAS model output, not a station measurement. "
+            "Not a stored copy",
+        )
+        self.assertIn("observed event", by_id["ds_ems_emsr773"]["dataset"])
         self.assertIn("Quelle: WSV, PEGELONLINE", by_id["ds_pegelonline"]["attribution"])
         cleared = [row for row in rows if row["dataset_id"] != "ds_dwd_brightsky"]
         self.assertEqual(len(cleared), 8)
@@ -120,6 +146,11 @@ class LiveGaugeMigrationTest(unittest.TestCase):
         readme = (ROOT / "ingestion" / "prep" / "README.md").read_text(encoding="utf-8")
         self.assertIn("Stage before any FILESTORE registration", readme)
         self.assertIn("036", readme)
+        self.assertIn("docker cp", readme)
+        self.assertIn("skip-if-present", readme)
+        self.assertNotIn("does not overwrite", readme)
+        self.assertNotIn("labelled `observed`", sources)
+        self.assertIn("`past`", sources)
 
 
 if __name__ == "__main__":

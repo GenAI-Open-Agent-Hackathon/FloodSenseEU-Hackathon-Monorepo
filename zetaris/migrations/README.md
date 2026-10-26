@@ -32,6 +32,8 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `039_label_hazard_now_horizon.sql` | `floodsense.hazard_now` labels each hour `observed` or `forecast` | Mihir |
 | `040_label_seed_hazard_now_horizon.sql` | `floodsense_seed.hazard_now` stays on 013 and is labelled `replay` | Mihir |
 | `041_provenance_forecast_source.sql` | Both provenance views. Cleared count 8 after the forecast row | Mihir |
+| `042_label_hazard_now_past.sql` | `floodsense.hazard_now` replaces 039's label: `past` or `forecast` | Mihir |
+| `043_seed_gauge_levels_ahr.sql` | `floodsense_seed.gauge_levels` keeps the three Ahr Rhine gauges | Mihir |
 
 Rules (see [../README.md](../README.md)):
 
