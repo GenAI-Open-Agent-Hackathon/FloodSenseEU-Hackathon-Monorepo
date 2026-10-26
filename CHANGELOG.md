@@ -18,6 +18,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- API rate limits (`api/app/ratelimit.py`). `POST /runs` has a per-client token bucket (`RATE_LIMIT_RUNS_PER_MIN`, 10); approval is not limited. Live runs in flight to the agents are capped (`RATE_LIMIT_MAX_CONCURRENT_RUNS`, 2); a cache hit takes no slot and, with `FF_CACHED_REPLAY` on, a full cap serves the labelled replay. A refusal is HTTP 429 with `Retry-After`. GET routes are not limited.
 - `retrieve_docs` ranks paragraph chunks in Postgres and hydrates the passage through Zetaris when `FF_RAG_DOCS` is on. The Investigator calls it once when the request sets `doc_query`. The Judge requires a layer (c) quote to be a substring of the cited passage, and a layer (c) citation alone does not pass. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - NIM embeddings client for `nvidia/llama-nemotron-embed-1b-v2` (2048 dimensions, `input_type` `passage` or `query`). `scripts/rag_ingest.py` writes paragraph vectors into `rag.chunks` and caches them under `corpus/.embed-cache/`. A section-only paragraph uses the section index as `page` so `page` stays at least 1. No `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.
 - Empty `rag.chunks` table and halfvec HNSW index in `pgvector/migrations/001_rag_chunks.sql`. Zetaris JDBC registration is `zetaris/migrations/044_register_pgvector_rag_chunks.sql`, with the password left as `${PGVECTOR_PASSWORD}`. No embeddings are ingested. No `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut.

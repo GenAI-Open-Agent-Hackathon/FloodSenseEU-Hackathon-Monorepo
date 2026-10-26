@@ -23,6 +23,7 @@ import httpx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import main as api  # noqa: E402
+from app.ratelimit import RateLimiter, RateLimitSettings  # noqa: E402
 
 try:
     from floodsense_agents import __main__ as agents_service  # noqa: E402
@@ -55,6 +56,11 @@ class ProxyTest(unittest.TestCase):
         self._patch = mock.patch.object(api, "_agents_request", side_effect=fake_request)
         self._patch.start()
         self.addCleanup(self._patch.stop)
+        # These tests exercise the cache and proxy, not the rate limits.
+        unlimited = RateLimiter(RateLimitSettings(runs_per_min=0, max_concurrent_runs=0))
+        limits = mock.patch.object(api, "limiter", unlimited)
+        limits.start()
+        self.addCleanup(limits.stop)
         self.c = TestClient(api.app)
 
     def test_start_approve_through_the_api(self) -> None:
