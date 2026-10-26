@@ -366,13 +366,18 @@ function RecordedAnswer({ run, badge }: { run: RecordedRun; badge: string }) {
                   {citation.licence ? ` · ${citation.licence}` : ""}
                 </blockquote>
               ))}
-            {claim.citations
-              .filter((citation) => citation.layer === "c" && citation.quote && citation.attribution)
-              .map((citation) => (
-                <p key={`${citation.id}-attr`} className="note">
-                  {citation.attribution}
-                </p>
-              ))}
+            {/* One attribution line per source, not one per quote. */}
+            {[
+              ...new Set(
+                claim.citations
+                  .filter((citation) => citation.layer === "c" && citation.quote && citation.attribution)
+                  .map((citation) => citation.attribution as string),
+              ),
+            ].map((attribution) => (
+              <p key={attribution} className="note">
+                {attribution}
+              </p>
+            ))}
           </li>
         ))}
       </ul>

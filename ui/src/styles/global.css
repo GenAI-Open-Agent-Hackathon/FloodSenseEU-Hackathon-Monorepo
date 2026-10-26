@@ -268,7 +268,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .ask-body pre, .ask-body .sql { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 .ask-body blockquote, .ask-quote { margin: 0.3rem 0; padding-left: 0.6rem; border-left: 2px solid var(--line); max-width: 100%; }
-.ask-turn { display: grid; gap: 0.3rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); min-width: 0; }
+/* minmax(0, 1fr): an auto grid column grows to the longest quote and pushes text past the panel edge. */
+.ask-turn { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.3rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.ask-turn > *, .ask-claims, .ask-claims > li { min-width: 0; }
+.ask-claims { grid-template-columns: minmax(0, 1fr); }
 .ask-turn:last-child { border-bottom: 0; }
 .ask-bubble {
   justify-self: end;
