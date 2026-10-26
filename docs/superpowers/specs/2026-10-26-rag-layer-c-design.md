@@ -103,13 +103,15 @@ One table, `rag.chunks`. Retrieval rows are paragraphs. Document, page, and sect
 | `level` | `doc`, `page`, `section`, or `paragraph` |
 | `doc_id`, `tier`, `event_id` | Copied from the manifest |
 | `title`, `source_url`, `publisher`, `licence`, `attribution` | Copied from the manifest onto every row of that document, so hydration does not join a second table |
-| `page`, `paragraph`, `lines`, `section` | Locator. Paragraph rows set `page` or `section` (whichever the middle parent is), `paragraph`, and `lines`. `section` the locator field may be null when the middle parent is a page |
+| `page`, `paragraph`, `lines`, `section` | Locator copied onto a layer (c) citation. Every paragraph that can be cited sets `page` ≥ 1, `paragraph` ≥ 1, and `lines`. `section` may also be set, and it may be null. It does not replace `page` |
 | `text` | The passage. Paragraph rows hold the paragraph. Parent rows may hold a heading |
 | `text_sha256` | SHA-256 hex of `text` as UTF-8. This is the chunk hash. It is not the citation `content_sha256` |
 | `embedding` | `vector(2048)`, null except on `level = paragraph` |
 | `embed_model` | `nvidia/llama-nemotron-embed-1b-v2` when `embedding` is set |
 
 Chunks follow the document's structure (document, then page or section, then paragraph). They are not fixed-size windows. A paragraph longer than the model's 8192-token limit is split on line boundaries into sibling paragraphs under the same parent, and `lines` records the range inside the original paragraph (`3-5`).
+
+Every paragraph that can be cited as layer (c) sets `page` ≥ 1, `paragraph` ≥ 1, and `lines`. `page` is never null. When the source has no PDF pagination (section-structured text, EasyxLab S19, Tier 3 bulletins), ingest still assigns a page-like id: `1` for the whole document, or one id per section. A section-only row is not left uncitable only because it has no PDF page number. `section` stays optional and does not stand in for `page`. The path may still use `s{section}` for a section parent.
 
 ### ANN
 
@@ -178,7 +180,7 @@ Steps, in order:
 1. Embed `query` with `input_type: "query"` and `dimensions: 2048`. Read the cache first.
 2. Run the ANN statement in pgvector. Keep `chunk_id` and `distance`. This statement does not go through Zetaris.
 3. Hydrate those ids through Zetaris JDBC. The statement selects `text`, `text_sha256`, `title`, `source_url`, `publisher`, `licence`, `attribution`, `page`, `paragraph`, `lines`, and `section`. It does not select `embedding` and it does not contain `<=>`. The Zetaris response supplies `query_id`.
-4. Build one layer (c) citation per hydrated row. If hydrate fails, or returns fewer rows than the id list, drop the missing ids. Do not cite a chunk that has no `query_id`.
+4. Build one layer (c) citation per hydrated row. If hydrate fails, or returns fewer rows than the id list, drop the missing ids. Do not cite a chunk that has no `query_id`. Do not drop a paragraph only because the source has no PDF page; ingest has already set `page` ≥ 1.
 5. An empty id list returns an empty list. The Investigator adds no layer (c) citation. The SQL claims stand on their own.
 
 `distance` is cosine distance (lower is nearer). The citation record does not carry the distance. Order of the tool result is the ANN order.
@@ -194,13 +196,13 @@ Required on layer `c`, in addition to the fields every citation already requires
 | Field | Rule |
 | --- | --- |
 | `quote` | Verbatim. One or two sentences, at most 600 characters |
-| `locator.page` | Integer ≥ 1 |
+| `locator.page` | Integer ≥ 1 on every citable paragraph. Never null. A source with no PDF pagination still sets a page-like id (`1` for the whole document, or one id per section). `section` does not replace `page` |
 | `locator.paragraph` | Integer ≥ 1 |
 | `locator.lines` | Non-empty, for example `3-5` |
 | `query_id` | The Zetaris id from the hydrate |
 | `content_sha256` | `sha256(quote)` as UTF-8 |
 
-`locator.section` stays optional. `chunk_id` stays optional on the wire so a citation that names the passage without the store id still validates. The tool sets `chunk_id` from the row when it has one.
+`locator.section` stays optional. It does not stand in for `locator.page`. The page rule above is the only rule for whether a paragraph can be cited. `chunk_id` stays optional on the wire so a citation that names the passage without the store id still validates. The tool sets `chunk_id` from the row when it has one.
 
 Layers `a` and `b` do not require `quote`, `locator`, `query_id`, or `chunk_id`. A layer (a) or (b) citation that omits them stays valid. The schema rule is `if layer = c`.
 

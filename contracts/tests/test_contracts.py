@@ -272,6 +272,21 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(PydanticError):
             Citation.model_validate(no_page)
 
+        section_only = deepcopy(layer_c)
+        section_only["locator"]["section"] = "s19"
+        del section_only["locator"]["page"]
+        assert_invalid(self, "citation", section_only)
+        with self.assertRaises(PydanticError):
+            Citation.model_validate(section_only)
+
+        section_and_page = deepcopy(layer_c)
+        section_and_page["locator"]["section"] = "s19"
+        section_and_page["locator"]["page"] = 1
+        validator_for("citation").validate(section_and_page)
+        self.assertEqual(
+            Citation.model_validate(section_and_page).locator.page, 1
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

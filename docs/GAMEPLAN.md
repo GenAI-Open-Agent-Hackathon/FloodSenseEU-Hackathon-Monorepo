@@ -219,7 +219,7 @@ Citation record (v1 contract, column names are a proposal until Urvashi and Sale
 
 `citation_id`, `claim_id`, `layer` (`a` \| `b` \| `c`), `source_url`, `title`, `publisher`, `accessed_at`, `licence`, `attribution`, `locator` (section, page, paragraph, lines), `quote` (1–2 sentences), `content_sha256`, `storage` (`full_text` \| `pointer`), optional `query_id`, optional `chunk_id`.
 
-Layer (c) requires `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines`. `chunk_id` stays optional. Layers (a) and (b) do not gain those requirements.
+Layer (c) requires `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines`. Every paragraph cited as layer (c) sets `locator.page` ≥ 1, including a section-structured source, EasyxLab S19, and a Tier 3 bulletin. Those sources still get a page-like id: `1` for the whole document, or one id per section. `page` is never null, and a section-only row is not left uncitable only for a missing PDF page. `locator.section` stays optional and does not replace `page`. `chunk_id` stays optional. Layers (a) and (b) do not gain those requirements.
 
 Evidence (layer a): `query_id`, `view`, `sql`, `rows_sample` (at most 20), `row_count`, `executed_at_utc`.
 

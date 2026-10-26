@@ -11,7 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
-- Layer (c) tool-RAG design. `v0.14.0` is the ship tag and is not cut here. `v0.11.0` is the retired name and is not a tag. `v0.13.0` is the demo baseline already on main. Spec: `docs/superpowers/specs/2026-10-26-rag-layer-c-design.md`. The citation schema requires `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines` when `layer` is `c`, and adds optional `chunk_id`. Layers `a` and `b` stay valid without those fields. No ingest, tool, or runtime. `FF_RAG_DOCS` stays off. ADR 0009 records the embedding model (`nvidia/llama-nemotron-embed-1b-v2`, dimension 2048, NVIDIA NIM). Chat stays on Nightshift. Document embeddings are the ADR 0009 exception.
+- Layer (c) tool-RAG design. `v0.14.0` is the ship tag and is not cut here. `v0.11.0` is the retired name and is not a tag. `v0.13.0` is the demo baseline already on main. Spec: `docs/superpowers/specs/2026-10-26-rag-layer-c-design.md`. The citation schema requires `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines` when `layer` is `c`, and adds optional `chunk_id`. Every citable layer (c) paragraph sets `locator.page` ≥ 1. A source with no PDF pagination still uses a page-like id (`1` for the whole document, or one id per section). `page` is never null, and `section` does not replace it. Layers `a` and `b` stay valid without those fields. No ingest, tool, or runtime. `FF_RAG_DOCS` stays off. ADR 0009 records the embedding model (`nvidia/llama-nemotron-embed-1b-v2`, dimension 2048, NVIDIA NIM). Chat stays on Nightshift. Document embeddings are the ADR 0009 exception.
 
 ## [0.13.0] - 2026-10-26
 

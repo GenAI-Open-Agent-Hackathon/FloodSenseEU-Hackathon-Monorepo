@@ -57,7 +57,7 @@ python tasks.py lint
 
 ## Open questions
 
-- Layer `c` required fields are settled: `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines`. `chunk_id` stays optional. Layers `a` and `b` still leave locator and quote optional. The gameplan still marks the shared column names as a proposal until Urvashi and Saleeta see the real source columns.
+- Layer `c` required fields are settled: `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines`. `page` is never null on layer `c`. A source with no PDF pagination still sets a page-like id (`1` for the whole document, or one id per section). `section` stays optional and does not replace `page`. `chunk_id` stays optional. Layers `a` and `b` still leave locator and quote optional. The gameplan still marks the shared column names as a proposal until Urvashi and Saleeta see the real source columns.
 - Whether `edited` is the right status word for the gameplan's "edit", or whether Zain wants a separate amended body. Today the human note is `note`.
 - Empty `evidence` is allowed because not every claim is a number. A finished numeric claim should still carry evidence. The schema does not enforce that link beyond `query_id`.
 - The mock Judge used `verdict`, `groundedness`, `citationCoverage`, and `skepticResolution`, and a claim support of `contradicted`. This schema follows the gameplan table instead (`supported`, `partial`, `unsupported`).

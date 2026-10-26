@@ -13,10 +13,14 @@
     "locator": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Where inside a source the quote was found. On layers a and b every field is optional. On layer c, page, paragraph, and lines are required. Section stays optional on every layer.",
+      "description": "Where inside a source the quote was found. On layers a and b every field is optional. On layer c, page, paragraph, and lines are required, and page is never null, including when the source is section-structured. Section stays optional on every layer and does not stand in for page.",
       "properties": {
         "section": { "type": "string", "minLength": 1 },
-        "page": { "type": "integer", "minimum": 1 },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Required on layer c and never null there. A source with no PDF pagination still sets a page-like id: 1 for the whole document, or one id per section. Section does not replace page. Optional on layers a and b."
+        },
         "paragraph": { "type": "integer", "minimum": 1 },
         "lines": {
           "type": "string",

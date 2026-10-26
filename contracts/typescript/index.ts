@@ -20,6 +20,11 @@ export type ModelId =
 
 export interface Locator {
   section?: string;
+  /**
+   * Optional on layers a and b. Required on layer c and never null there.
+   * A section-structured source still sets a page-like id (1 for the whole
+   * document, or one id per section). Section does not replace page.
+   */
   page?: number;
   paragraph?: number;
   /** Line range inside the paragraph, for example 3-5. */

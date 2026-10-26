@@ -37,6 +37,8 @@ class ContractModel(BaseModel):
 
 class Locator(ContractModel):
     section: str | None = None
+    # Optional on layers a and b. On layer c the validator rejects null.
+    # A section-structured source still sets a page-like id. Section does not replace page.
     page: int | None = Field(default=None, ge=1)
     paragraph: int | None = Field(default=None, ge=1)
     lines: str | None = None
@@ -62,6 +64,7 @@ class Citation(ContractModel):
 
     @model_validator(mode="after")
     def layer_c_names_the_passage(self) -> Citation:
+        """Layer c requires page >= 1 even when section is set. Section does not replace page."""
         if self.layer != "c":
             return self
         loc = self.locator
