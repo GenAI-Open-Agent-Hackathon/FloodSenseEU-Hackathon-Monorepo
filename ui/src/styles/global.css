@@ -858,3 +858,6 @@ a.button.primary { color: #f4fffc; }
 @media (max-width: 600px) {
   .now-grid { grid-template-columns: 1fr; }
 }
+
+/* Citation chips in Ask answers wrap instead of running past the panel edge. */
+.ask-claims .cite-marks { white-space: normal; overflow-wrap: anywhere; }
