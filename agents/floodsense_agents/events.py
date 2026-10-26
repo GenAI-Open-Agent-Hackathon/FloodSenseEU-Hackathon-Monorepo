@@ -19,6 +19,31 @@ VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
 # ingestion/feeds/feeds.py. Seed hazard views do not store these rows.
 AHR_POINT_IDS: tuple[str, ...] = ("AHR01", "AHR02", "AHR03", "AHR04")
 
+# Place names for claim text. Municipality from valencia_points.csv, and the
+# town name from feeds.py. AHR02 is Ahrweiler, the short name the scope gate uses.
+POINT_NAMES: dict[str, str] = {
+    "VAL01": "Paiporta",
+    "VAL02": "Catarroja",
+    "VAL03": "Sedaví",
+    "VAL04": "Alfafar",
+    "VAL05": "Benetússer",
+    "VAL06": "Algemesí",
+    "VAL07": "Chiva",
+    "VAL08": "Utiel",
+    "AHR01": "Altenahr",
+    "AHR02": "Ahrweiler",
+    "AHR03": "Schuld",
+    "AHR04": "Dernau",
+}
+
+
+def point_label(point_id: str) -> str:
+    """Chiva (VAL07). An unknown id stays the id, so a new point is still named."""
+    name = POINT_NAMES.get(point_id)
+    if not name:
+        return point_id
+    return f"{name} ({point_id})"
+
 # PEGELONLINE shortname and water. The Ahr joins the Rhine between Koblenz and Bonn.
 # feeds.py and the seed rows use this tuple. Do not keep a second copy of the names.
 RHINE_GAUGES: tuple[tuple[str, str], ...] = (

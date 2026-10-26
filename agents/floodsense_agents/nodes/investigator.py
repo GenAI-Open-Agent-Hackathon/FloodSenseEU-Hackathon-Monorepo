@@ -17,6 +17,7 @@ import logging
 import re
 import time
 
+from floodsense_agents.events import point_label
 from floodsense_agents.governance import IN_FOOTPRINT_SQL
 from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
@@ -190,7 +191,7 @@ def _deterministic(
     for r in rain.rows_sample[:2]:
         h1.append(
             claim(
-                f"Point {r['point_id']} recorded {_fmt(r['total_mm'])} mm of rain over "
+                f"Point {point_label(r['point_id'])} recorded {_fmt(r['total_mm'])} mm of rain over "
                 f"{r['hours']} hours between {r['first_utc']} and {r['last_utc']}, "
                 f"peak hour {_fmt(r['max_hourly_mm'])} mm.",
                 "number",
@@ -202,7 +203,7 @@ def _deterministic(
     for w in warn.rows_sample[:1]:
         h1.append(
             claim(
-                f"Warning level '{w['warning_level']}' was in force for point {w['point_id']} from "
+                f"Warning level '{w['warning_level']}' was in force for point {point_label(w['point_id'])} from "
                 f"{w['first_utc']}.",
                 "fact",
                 [warn],
@@ -229,7 +230,7 @@ def _deterministic(
         base = flows[0]
         h2.append(
             claim(
-                f"Discharge at {p['point_id']} reached {_fmt(p['discharge_m3s'])} m3/s at "
+                f"Discharge at {point_label(p['point_id'])} reached {_fmt(p['discharge_m3s'])} m3/s at "
                 f"{p['ts_utc']}, from {_fmt(base['discharge_m3s'])} m3/s at {base['ts_utc']}.",
                 "number",
                 [flow],
@@ -241,7 +242,7 @@ def _deterministic(
         if gaps and gaps[0]["ts_utc"] > p["ts_utc"]:
             h2.append(
                 claim(
-                    f"The {p['point_id']} series has no discharge value from {gaps[0]['ts_utc']} "
+                    f"The {point_label(p['point_id'])} series has no discharge value from {gaps[0]['ts_utc']} "
                     f"on (gauge outage during the peak).",
                     "fact",
                     [flow],
@@ -254,7 +255,7 @@ def _deterministic(
         before = daily.rows_sample[0]
         h2.append(
             claim(
-                f"Daily discharge for {d['point_id']} ({d['source']}) was "
+                f"Daily discharge for {point_label(d['point_id'])} ({d['source']}) was "
                 f"{_fmt(d['discharge_m3s'])} m3/s on {d['date']}, up from "
                 f"{_fmt(before['discharge_m3s'])} m3/s on {before['date']}.",
                 "number",

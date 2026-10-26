@@ -56,6 +56,19 @@ describe("adoptView", () => {
     });
     expect(adopted.origin).toBe("fixture");
     expect(adopted.rows).toEqual(rows);
+    expect(adopted.detail).toContain("unstamped");
+    expect(adopted.detail).not.toMatch(/\blive\b/);
+  });
+
+  it("labels synthetic exposure as seed even when the source stamp is not seed", () => {
+    const adopted = adoptView({
+      healthOk: true,
+      parsed: [{ policy_id: "SYN-1", source: "open-meteo-flood-glofas", synthetic: "yes" }],
+      fixtureRows: [],
+      fixtureDetail,
+      missDetail: "GET /views/exposure_join",
+    });
+    expect(adopted.origin).toBe("seed");
     expect(adopted.detail).not.toMatch(/\blive\b/);
   });
 
@@ -131,7 +144,7 @@ describe("adoptView", () => {
     expect(hazard.detail).not.toMatch(/\blive\b/);
   });
 
-  it("labels an unstamped sibling live only when discharge is a stamped live response", () => {
+  it("does not promote an unstamped sibling to live when discharge is live", () => {
     const discharge = adoptView({
       healthOk: true,
       parsed: [{ source: "open-meteo-flood-glofas" }],
@@ -149,8 +162,33 @@ describe("adoptView", () => {
         missDetail: "GET /views/hazard_timeline",
       }),
     );
-    expect(hazard.origin).toBe("live");
+    expect(hazard.origin).toBe("fixture");
     expect(hazard.rows).toEqual([{ point_id: "VAL01" }]);
+    expect(hazard.detail).toContain("unstamped");
+    expect(hazard.detail).not.toMatch(/\blive\b/);
+  });
+
+  it("does not paint synthetic exposure live when discharge is live", () => {
+    const discharge = adoptView({
+      healthOk: true,
+      parsed: [{ source: "open-meteo-flood-glofas" }],
+      fixtureRows: [{ source: "seed:fixture" }],
+      fixtureDetail,
+      missDetail: "GET /views/discharge_daily",
+    });
+    const exposure = markBatchSeed(
+      discharge,
+      adoptView({
+        healthOk: true,
+        parsed: [{ policy_id: "SYN-1", synthetic: "yes" }],
+        fixtureRows: [],
+        fixtureDetail,
+        missDetail: "GET /views/exposure_join",
+      }),
+    );
+    expect(exposure.origin).toBe("seed");
+    expect(exposure.rows).toEqual([{ policy_id: "SYN-1", synthetic: "yes" }]);
+    expect(exposure.detail).not.toMatch(/\blive\b/);
   });
 
   it("does not relabel a missed sibling as live", () => {

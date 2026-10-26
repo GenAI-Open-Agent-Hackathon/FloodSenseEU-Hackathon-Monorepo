@@ -35,8 +35,12 @@ def _http_url(value: object) -> bool:
     """
     if not isinstance(value, str) or not value or any(ch.isspace() for ch in value):
         return False
-    parts = urllib.parse.urlparse(value)
-    return parts.scheme.lower() in {"http", "https"} and bool(parts.hostname)
+    try:
+        parts = urllib.parse.urlparse(value)
+        host = parts.hostname
+    except ValueError:
+        return False
+    return parts.scheme.lower() in {"http", "https"} and bool(host)
 
 # Copied from judge_claim.model_id so a graph id is kept or the judge is
 # dropped. Not a map onto these ids. The API image does not ship the schema

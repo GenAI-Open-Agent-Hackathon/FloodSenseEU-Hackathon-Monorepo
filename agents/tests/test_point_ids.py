@@ -19,7 +19,9 @@ os.environ.setdefault("LLM_MODE", "fake")
 from floodsense_agents.events import (  # noqa: E402
     AHR_POINT_IDS,
     EVENTS,
+    POINT_NAMES,
     VALENCIA_POINT_IDS,
+    point_label,
 )
 from floodsense_agents.governance import IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL  # noqa: E402
 from floodsense_agents.models import Hypothesis  # noqa: E402
@@ -68,6 +70,11 @@ class PointVocabularyTest(unittest.TestCase):
         self.assertEqual(ahr.rain_points, ("AHR02",))
         self.assertTrue(set(ahr.river_points + ahr.rain_points) <= set(AHR_POINT_IDS))
         self.assertIn("Chiva", valencia.place_names)
+        self.assertEqual(set(VALENCIA_POINT_IDS) | set(AHR_POINT_IDS), set(POINT_NAMES))
+        self.assertEqual(point_label("VAL07"), "Chiva (VAL07)")
+        self.assertEqual(point_label("VAL01"), "Paiporta (VAL01)")
+        self.assertEqual(point_label("AHR01"), "Altenahr (AHR01)")
+        self.assertEqual(point_label("AHR02"), "Ahrweiler (AHR02)")
         self.assertTrue(set(valencia.river_points + valencia.rain_points).isdisjoint(SLUGS))
         self.assertTrue(set(ahr.river_points + ahr.rain_points).isdisjoint(SLUGS))
 
@@ -133,6 +140,10 @@ class PointVocabularyTest(unittest.TestCase):
         self.assertGreater(rain["row_count"], 0)
         self.assertGreater(flow["row_count"], 0)
         self.assertTrue(all(row["point_id"] == "VAL07" for row in rain["rows_sample"]))
+        claim_text = " ".join(row["text"] for row in investigated["claims"])
+        self.assertIn("Chiva (VAL07)", claim_text)
+        self.assertIn("Paiporta (VAL01)", claim_text)
+        self.assertNotIn("Point VAL07", claim_text)
 
         exposed = make_exposure(deps)({**state, "claims": [], "hypotheses": []})
         exposure_sql = _sql_of(exposed)

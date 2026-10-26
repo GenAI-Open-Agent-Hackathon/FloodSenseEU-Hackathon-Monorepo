@@ -154,7 +154,7 @@ class DeskTest(unittest.TestCase):
         out = self.c.post(f"/runs/{run_id}/dispatch").json()
         self.assertFalse(out["sent"])
         self.assertIn("https", out["reason"])
-        for bad in ("javascript:alert(1)", "https://", "https:///no-host"):
+        for bad in ("javascript:alert(1)", "https://", "https:///no-host", "https://[::1"):
             os.environ[desk.WEBHOOK_ENV] = bad
             refused = self.c.post(f"/runs/{run_id}/dispatch").json()
             self.assertFalse(refused["sent"], bad)

@@ -4,7 +4,7 @@ customer_id: demo-insurer
 items:
   - id: ahr-01
     question: Why did the Ahr flood on 14 July 2021?
-    expect: ["AHR02", "AHR01"]
+    expect: ["Ahrweiler", "Altenahr"]
   - id: ahr-02
     question: How much rain fell over the Ahr catchment on 14 July 2021?
     expect: ["mm"]

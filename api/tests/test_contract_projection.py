@@ -208,6 +208,7 @@ class ProjectionHonestyTest(unittest.TestCase):
             {**good, "citation_id": "C1-b2", "source_url": "https://example.com/data"},
             {**good, "citation_id": "C1-b3", "source_url": "https://"},
             {**good, "citation_id": "C1-b4", "source_url": "http://example.com/data"},
+            {**good, "citation_id": "C1-b5", "source_url": "https://[::1"},
         ]
         projected = project_run(body)
         self.assertIsNotNone(projected)

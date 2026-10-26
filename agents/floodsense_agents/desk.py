@@ -52,8 +52,12 @@ def is_https_url(value: str) -> bool:
     """
     if not value or any(ch.isspace() for ch in value):
         return False
-    parts = urllib.parse.urlparse(value)
-    return parts.scheme.lower() == "https" and bool(parts.hostname)
+    try:
+        parts = urllib.parse.urlparse(value)
+        host = parts.hostname
+    except ValueError:
+        return False
+    return parts.scheme.lower() == "https" and bool(host)
 
 
 def _approval(run: dict) -> dict:
