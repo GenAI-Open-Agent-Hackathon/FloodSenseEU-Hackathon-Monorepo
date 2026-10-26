@@ -489,8 +489,36 @@ def _coerce(value, kind: str):
             return value
         if isinstance(value, (int, float)):
             return bool(value)
-        return str(value).strip().lower() in ("true", "t", "1", "yes")
+        text = str(value).strip().lower()
+        if text in ("true", "t", "1", "yes"):
+            return True
+        if text in ("false", "f", "0", "no"):
+            return False
+        return None  # unknown: the row is dropped, never guessed False
     return value
+
+
+# Fields the UI row validators (ui/src/lib/validate.ts) require. parseRows
+# rejects the whole array when one row fails, so such rows are dropped here.
+_REQUIRED: dict[str, tuple[str, ...]] = {
+    "discharge_daily": ("point_id", "date", "discharge_m3s", "source"),
+    "hazard_timeline": ("point_id", "ts_utc", "rain_mm"),
+    "hazard_now": ("point_id", "ts_utc", "rain_mm"),
+    "gauge_levels": ("station", "ts_utc"),
+    "exposure_join": ("policy_id", "site_id", "lat", "lon", "in_footprint", "sum_insured_eur", "segment"),
+    "provenance": ("dataset", "source_url", "publisher", "licence", "attribution", "fetched_at"),
+}
+
+
+def _usable(name: str, row: dict) -> bool:
+    for key in _REQUIRED[name]:
+        value = row.get(key)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return False
+    if name == "provenance":
+        url = str(row["source_url"]).strip().lower()
+        return url.startswith(("https://", "http://"))
+    return True
 
 
 @app.get("/views/{name}")
@@ -504,23 +532,31 @@ def get_view(name: str, event_id: str | None = None):
         if not _EVENT_ID.fullmatch(event_id):
             raise HTTPException(422, "event_id must be letters, digits, _ or -")
         sql += f" WHERE event_id = '{event_id}'"
-    sql += f" LIMIT {VIEW_ROW_LIMIT}"
-    ev = runtime().deps.zetaris.run_sql(sql, sample=VIEW_ROW_LIMIT)
+    # One extra row tells a full view from a capped one.
+    sql += f" LIMIT {VIEW_ROW_LIMIT + 1}"
+    ev = runtime().deps.zetaris.run_sql(sql, sample=VIEW_ROW_LIMIT + 1)
     if getattr(ev, "error", None):
-        raise HTTPException(502, f"zetaris could not read {name}: {ev.error[:200]}")
-    rows = [
+        logging.getLogger("floodsense.views").warning(
+            "view %s read failed (query %s): %s", name, ev.query_id, ev.error
+        )
+        raise HTTPException(502, f"could not read view {name}")
+    fetched = ev.rows_sample
+    truncated = len(fetched) > VIEW_ROW_LIMIT
+    coerced = [
         {k: (_coerce(v, types[k]) if k in types else v) for k, v in row.items()}
-        for row in ev.rows_sample
+        for row in fetched[:VIEW_ROW_LIMIT]
     ]
-    return JSONResponse(
-        rows,
-        headers={
-            "x-query-id": ev.query_id,
-            "x-schema": settings.schema,
-            "x-executed-at": ev.executed_at_utc,
-            "cache-control": "no-store",
-        },
-    )
+    rows = [r for r in coerced if _usable(name, r)]
+    headers = {
+        "x-query-id": ev.query_id,
+        "x-schema": settings.schema,
+        "x-executed-at": ev.executed_at_utc,
+        "x-dropped-rows": str(len(coerced) - len(rows)),
+        "cache-control": "no-store",
+    }
+    if truncated:
+        headers["x-truncated"] = "true"
+    return JSONResponse(rows, headers=headers)
 
 
 def main() -> None:

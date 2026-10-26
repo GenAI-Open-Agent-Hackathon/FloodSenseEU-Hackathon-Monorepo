@@ -47,6 +47,17 @@ class StringZetaris:
                         row_count=2, executed_at_utc="2026-10-26T00:00:00Z")
 
 
+class RowsZetaris:
+    """Returns the given rows, honouring sample like the real clients."""
+
+    def __init__(self, rows) -> None:
+        self.rows = rows
+
+    def run_sql(self, sql, params=None, sample=20):
+        return Evidence(query_id="q-2", view="x", sql=sql, rows_sample=self.rows[:sample],
+                        row_count=len(self.rows), executed_at_utc="2026-10-26T00:00:00Z")
+
+
 class ViewsTest(unittest.TestCase):
     def _client(self, zetaris) -> TestClient:
         deps = Deps(zetaris=zetaris, llm=FakeNightshift(), memory=NoMemory())
@@ -75,14 +86,49 @@ class ViewsTest(unittest.TestCase):
 
     def test_strings_become_numbers_and_booleans(self) -> None:
         z = StringZetaris()
-        rows = self._client(z).get("/views/exposure_join").json()
+        r = self._client(z).get("/views/exposure_join")
+        rows = r.json()
         self.assertEqual(rows[0]["lat"], 39.4)
         self.assertIs(rows[0]["in_footprint"], True)
-        self.assertIs(rows[1]["in_footprint"], False)
-        self.assertIsNone(rows[1]["sum_insured_eur"])
         self.assertEqual(rows[0]["segment"], "retail")
-        self.assertIn("LIMIT 5000", z.sql[0])
-        self.assertEqual(z.sample, 5000)  # Evidence keeps every row, not the 20-row sample
+        # P-2 has an empty sum_insured_eur, which the UI validator rejects.
+        self.assertEqual([x["policy_id"] for x in rows], ["P-1"])
+        self.assertEqual(r.headers["x-dropped-rows"], "1")
+        self.assertNotIn("x-truncated", r.headers)
+        self.assertIn("LIMIT 5001", z.sql[0])
+        self.assertEqual(z.sample, 5001)  # Evidence keeps every row, not the 20-row sample
+
+    def test_bad_cells_drop_the_row_not_the_view(self) -> None:
+        good = {"policy_id": "P-1", "site_id": "S-1", "lat": "1", "lon": "2",
+                "in_footprint": "false", "sum_insured_eur": "5", "segment": "retail"}
+        z = RowsZetaris([good, {**good, "policy_id": "P-2", "in_footprint": "maybe"},
+                         {**good, "policy_id": "P-3", "lat": "abc"}])
+        r = self._client(z).get("/views/exposure_join")
+        self.assertEqual([x["policy_id"] for x in r.json()], ["P-1"])
+        self.assertIs(r.json()[0]["in_footprint"], False)
+        self.assertEqual(r.headers["x-dropped-rows"], "2")
+
+    def test_provenance_needs_an_http_source_url(self) -> None:
+        row = {"dataset": "d", "source_url": "https://x.eu", "publisher": "p",
+               "licence": "l", "attribution": "a", "fetched_at": "2026-10-22"}
+        z = RowsZetaris([row, {**row, "source_url": None}, {**row, "source_url": "javascript:x"}])
+        r = self._client(z).get("/views/provenance")
+        self.assertEqual(len(r.json()), 1)
+        self.assertEqual(r.headers["x-dropped-rows"], "2")
+
+    def test_capped_view_is_marked_truncated(self) -> None:
+        rows = [{"point_id": "p", "date": "2024-10-29", "discharge_m3s": "1", "source": "s"}] * 5001
+        r = self._client(RowsZetaris(rows)).get("/views/discharge_daily")
+        self.assertEqual(len(r.json()), 5000)
+        self.assertEqual(r.headers["x-truncated"], "true")
+        r = self._client(RowsZetaris(rows[:5000])).get("/views/discharge_daily")
+        self.assertEqual(len(r.json()), 5000)
+        self.assertNotIn("x-truncated", r.headers)
+
+    def test_502_hides_the_zetaris_error(self) -> None:
+        r = self._client(FakeZetaris()).get("/views/hazard_now")
+        self.assertEqual(r.status_code, 502)
+        self.assertEqual(r.json()["detail"], "could not read view hazard_now")
 
     def test_schema_follows_ff_live_data(self) -> None:
         z = StringZetaris()
