@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { askFloodSense, DEFAULT_EVENT_ID, runBadge } from "../api/ask";
+import { askFloodSense, capTurns, DEFAULT_EVENT_ID, followUpThreadId, runBadge } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
@@ -11,6 +11,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 interface Turn {
+  id: number;
   question: string;
   run: RecordedRun | null;
   error: string | null;
@@ -62,7 +63,13 @@ export function AskFloodSense() {
   const [pending, setPending] = useState<{ question: string; started: number; provider: string } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const inflightRef = useRef<AbortController | null>(null);
+  const sendingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastTurnRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => () => inflightRef.current?.abort(), []);
   useEffect(() => {
     if (!pending) return;
@@ -71,14 +78,21 @@ export function AskFloodSense() {
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
   }, [pending]);
+  // A new answer: bring that turn's start into view.
+  useEffect(() => {
+    if (turns.length === 0) return;
+    lastTurnRef.current?.scrollIntoView?.({ block: "start" });
+  }, [turns]);
+  // Anything else (pending bubble, reopening): follow the bottom only if the reader is already there.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [turns, pending, askOpen]);
+    if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [pending, askOpen]);
 
   const send = async () => {
     const question = draft.trim();
-    if (!question || pending) return;
+    if (!question || sendingRef.current) return;
+    sendingRef.current = true;
     const controller = new AbortController();
     inflightRef.current = controller;
     const allowed = llmProviders.includes(llmProvider);
@@ -92,21 +106,26 @@ export function AskFloodSense() {
         eventId: DEFAULT_EVENT_ID,
         provider: llmProvider,
         allowedProviders: llmProviders,
-        threadId: previous ? previous.threadId ?? previous.runId : null,
+        threadId: followUpThreadId(previous),
       },
       controller.signal,
     );
     if (controller.signal.aborted) return;
+    sendingRef.current = false;
     inflightRef.current = null;
     setPending(null);
-    setTurns((prev) => [
-      ...prev,
-      result.ok ? { question, run: result.run, error: null } : { question, run: null, error: result.message },
-    ]);
+    const id = Date.now();
+    setTurns((prev) =>
+      capTurns([
+        ...prev,
+        result.ok ? { id, question, run: result.run, error: null } : { id, question, run: null, error: result.message },
+      ]),
+    );
   };
   const cancel = () => {
     inflightRef.current?.abort();
     inflightRef.current = null;
+    sendingRef.current = false;
     setPending(null);
   };
   const onComposerKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -132,8 +151,14 @@ export function AskFloodSense() {
         active === document.body ||
         active === launcherRef.current ||
         (active instanceof Node && root.contains(active));
+      if (event.key === "Escape" && event.isComposing) return;
       if (event.key === "Escape" && !evidenceOpenRef.current && inside && !event.defaultPrevented) {
         event.preventDefault();
+        // First Esc in a non-empty composer clears the draft; the next one closes.
+        if (active === textareaRef.current && draftRef.current !== "") {
+          setDraft("");
+          return;
+        }
         dismissRef.current();
         return;
       }
@@ -177,7 +202,14 @@ export function AskFloodSense() {
               <CloseIcon />
             </button>
           </header>
-          <div className="ask-body" ref={scrollRef} aria-live="polite">
+          <div
+            className="ask-body"
+            ref={scrollRef}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+            }}
+          >
             <div className="ask-turn">
               {recorded ? (
                 <RecordedAnswer run={recorded} badge={`Recorded run · not live · ${recorded.runId}`} />
@@ -236,12 +268,17 @@ export function AskFloodSense() {
               </div>
             </div>
             {turns.map((turn, i) => (
-              <div key={i} className="ask-turn">
+              <div
+                key={turn.id}
+                className="ask-turn"
+                ref={i === turns.length - 1 ? lastTurnRef : undefined}
+                aria-live={i === turns.length - 1 ? "polite" : undefined}
+              >
                 <p className="ask-bubble">{turn.question}</p>
                 {turn.run ? (
                   <RecordedAnswer run={turn.run} badge={runBadge(turn.run)} />
                 ) : (
-                  <p className="ask-error" role="alert">
+                  <p className="ask-error">
                     {turn.error}
                   </p>
                 )}
@@ -250,8 +287,10 @@ export function AskFloodSense() {
             {pending && (
               <div className="ask-turn">
                 <p className="ask-bubble">{pending.question}</p>
-                <p className="ask-working" role="status">
-                  Working… {elapsed} s · {pending.provider}. The answer arrives when the run reaches review.{" "}
+                <p className="ask-working">
+                  <span role="status">Working on your question</span>
+                  <span aria-hidden="true"> · {elapsed} s</span> · {pending.provider}. The answer arrives when the run
+                  reaches review.{" "}
                   <button type="button" className="ask-link" onClick={cancel}>
                     Cancel
                   </button>
@@ -267,6 +306,7 @@ export function AskFloodSense() {
             }}
           >
             <textarea
+              ref={textareaRef}
               aria-label="Your question"
               rows={2}
               value={draft}

@@ -308,17 +308,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .ask-composer .button[disabled] { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 760px) {
-  .ask-dock { right: 0; left: 0; bottom: 0; padding: 0 1rem 1rem; }
+  .ask-dock { right: 0; left: 0; bottom: 0; padding: 0 1rem 1rem; pointer-events: none; }
+  .ask-dock > * { pointer-events: auto; }
   .ask-dock .ask-panel {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     width: 100%;
-    max-height: 85vh;
+    max-height: 75vh;
     border-radius: 16px 16px 0 0;
     border-bottom: 0;
   }
+  /* Approvals: sit above the fixed decision bar instead of covering it. */
+  body:has(.decision-bar) .ask-dock .ask-panel { bottom: 5.5rem; max-height: calc(75vh - 5.5rem); border-radius: 16px; border-bottom: 1px solid var(--line); }
 }
 .ask-question { font-weight: 650; margin: 0.7rem 0 0.3rem; }
 .ask-claims, .ask-citations, .ask-trace { margin: 0.3rem 0 0.6rem; padding-left: 1.1rem; display: grid; gap: 0.4rem; }
