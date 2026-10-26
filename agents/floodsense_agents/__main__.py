@@ -50,6 +50,7 @@ from floodsense_agents import __version__
 from floodsense_agents import desk, labelling
 from floodsense_agents.events import spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
+from floodsense_agents.nightshift import available_providers
 from floodsense_agents.readiness import report as readiness_report
 from floodsense_agents.verify import report as verify_report
 from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime, ThreadNotFound
@@ -347,6 +348,8 @@ def config():
             "judge_repair_rounds": settings.judge_repair_rounds,
             "judge_min_score": settings.judge_min_score,
             "events": ["EMSR773", "EMSR517"],
+            # Test-only switch; one entry unless LLM_PROVIDER_SWITCH and a key are set.
+            "llm_providers": available_providers(),
         }
     )
 

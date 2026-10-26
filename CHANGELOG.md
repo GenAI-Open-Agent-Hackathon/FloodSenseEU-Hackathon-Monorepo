@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- Test-only LLM provider switch for local benchmarking. With `LLM_PROVIDER_SWITCH=true` and `ANTHROPIC_API_KEY` set, a run may carry `llm_provider: "anthropic"`; trace `model_id` reads `anthropic/<model>`. `GET /config` lists `llm_providers`; the operator console and the desk header show a select only when more than one is listed. The API semantic cache and replay matching key on the provider. Off by default; the demo and the submission run Nightshift.
+
 ### Fixed
 
 - Layer (c) embeddings use `nvidia/nemotron-3.5-embed-1b`. NVIDIA NIM retired `nvidia/llama-nemotron-embed-1b-v2` on 2026-08-25 and answers it with HTTP 410, so `rag_ingest` could not embed. The new model takes the same request at 2048 dimensions. `pgvector/migrations/002_rag_embed_model_nemotron35.sql` moves the `rag_chunks_embed_model` check. `FF_RAG_DOCS` stays off by default.
