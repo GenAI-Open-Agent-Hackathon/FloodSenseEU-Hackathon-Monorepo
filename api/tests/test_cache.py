@@ -163,10 +163,10 @@ class FakeAgents:
         self.fail_runs = False
         self.started = 0
 
-    def __call__(self, method, url, json=None, params=None, timeout=None, **_):
+    async def __call__(self, method, path, body=None, params=None):
         if self.down:
             raise httpx.ConnectError("connection refused")
-        path = url.replace(api.AGENTS_URL, "")
+        json = body
         if path == "/config":
             return httpx.Response(200, json=self.config)
         if method == "POST" and path == "/runs":
@@ -235,7 +235,7 @@ class ApiFlowTest(unittest.TestCase):
     def setUp(self) -> None:
         self.agents = FakeAgents()
         self._patches = [
-            mock.patch.object(api.httpx, "request", side_effect=self.agents),
+            mock.patch.object(api, "_agents_request", side_effect=self.agents),
             mock.patch.object(api, "cache", AnswerCache(settings())),
         ]
         for p in self._patches:
@@ -368,12 +368,39 @@ class AgentsReplayRouteTest(unittest.TestCase):
         rid = self.c.post("/runs", json={"question": "Which sites are exposed?"}).json()["run_id"]
         self.c.post(f"/runs/{rid}/approval", json={"action": "approve", "reviewer": "ayush"})
         started = next(r for r in self.c.get("/runs/past").json()["runs"] if r["run_id"] == rid)
-        body = self.c.get(f"/runs/{rid}/replay").json()
+        body = self._replay_without_listing_checkpoints(rid)
         self.assertEqual(body["served_from"], "replay")
         self.assertEqual(body["cached_at"], started["created_at"])
         self.assertFalse(body["label"]["live"])
         self.assertTrue(body["label"]["text"].startswith("Replay of a recorded run from"))
         self.assertIn(f"original run {rid}", body["label"]["text"])
+
+    def test_replay_after_a_restart_still_does_not_list_every_checkpoint(self) -> None:
+        rid = self.c.post("/runs", json={"question": "Which sites are exposed?"}).json()["run_id"]
+        started = next(r for r in self.c.get("/runs/past").json()["runs"] if r["run_id"] == rid)
+        agents_service.runtime().index.clear()
+        body = self._replay_without_listing_checkpoints(rid)
+        self.assertEqual(body["served_from"], "replay")
+        self.assertEqual(body["cached_at"], started["created_at"])
+        self.assertEqual(len(agents_service.runtime().index), 1)
+
+    def _replay_without_listing_checkpoints(self, rid: str) -> dict:
+        rt = agents_service.runtime()
+        calls = {"rebuild": 0}
+        real = rt._rebuild_index
+
+        def rebuild():
+            calls["rebuild"] += 1
+            return real()
+
+        rt._rebuild_index = rebuild
+        try:
+            response = self.c.get(f"/runs/{rid}/replay")
+        finally:
+            rt._rebuild_index = real
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(calls["rebuild"], 0)
+        return response.json()
 
     def test_an_unknown_run_is_a_404(self) -> None:
         self.assertEqual(self.c.get("/runs/nope/replay").status_code, 404)
