@@ -11,7 +11,12 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Layer (c) corpus manifest and redistributable Tier 1 and Tier 2 copies under `corpus/` (EMSR773 Horta Sud delineation map, EMSR517 Bad Neuenahr-Ahrweiler grading map, the HESS and NHESS papers, and the EasyxLab S19 paper snapshot). `python tasks.py fetch-rag-corpus` checks sha256 and downloads `placement: fetch` files into `corpus/fetched/`. It does not embed and it does not start Docker. No `rag.chunks` table and no `retrieve_docs`. `FF_RAG_DOCS` stays off. `v0.14.0` is not cut. Licences for EMSR517, the two papers, and EasyxLab S19 are in `docs/legal/sources.md`.
 - Layer (c) tool-RAG design. `v0.14.0` is the ship tag and is not cut here. `v0.11.0` is the retired name and is not a tag. `v0.13.0` is the demo baseline already on main. Spec: `docs/superpowers/specs/2026-10-26-rag-layer-c-design.md`. The citation schema requires `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines` when `layer` is `c`, and adds optional `chunk_id`. Every citable layer (c) paragraph sets `locator.page` ≥ 1. A source with no PDF pagination still uses a page-like id (`1` for the whole document, or one id per section). `page` is never null, and `section` does not replace it. Layers `a` and `b` stay valid without those fields. No ingest, tool, or runtime. `FF_RAG_DOCS` stays off. ADR 0009 records the embedding model (`nvidia/llama-nemotron-embed-1b-v2`, dimension 2048, NVIDIA NIM). Chat stays on Nightshift. Document embeddings are the ADR 0009 exception.
+
+### Fixed
+
+- The EasyxLab S19 snapshot omits the Cloudflare challenge script and Web Analytics beacon that the host appended after the footer. `.gitleaksignore` names that beacon on commit `934bd03` only. The current file has no beacon.
 
 ## [0.13.0] - 2026-10-26
 
