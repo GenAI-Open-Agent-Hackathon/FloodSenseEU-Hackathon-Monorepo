@@ -12,8 +12,11 @@ export type Grounding = "supported" | "partial" | "unsupported";
 export type ServedFrom = "live" | "cache" | "replay";
 export type ApprovalStatus = "pending" | "approved" | "edited" | "rejected";
 export type ModelId =
+  | "meterless/fast"
+  | "meterless/deep"
+  | "nvidia/nemotron-3.5-super-vl-120b-a12b"
   | "nvidia/nemotron-3.5-lightning-30b-a3b"
-  | "nvidia/nemotron-3-super-120b-a12b";
+  | "deterministic";
 
 export interface Locator {
   section?: string;

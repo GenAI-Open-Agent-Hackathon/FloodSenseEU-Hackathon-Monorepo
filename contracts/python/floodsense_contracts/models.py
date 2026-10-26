@@ -23,8 +23,11 @@ Grounding = Literal["supported", "partial", "unsupported"]
 ServedFrom = Literal["live", "cache", "replay"]
 ApprovalStatus = Literal["pending", "approved", "edited", "rejected"]
 ModelId = Literal[
+    "meterless/fast",
+    "meterless/deep",
+    "nvidia/nemotron-3.5-super-vl-120b-a12b",
     "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "nvidia/nemotron-3-super-120b-a12b",
+    "deterministic",
 ]
 
 

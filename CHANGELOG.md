@@ -18,6 +18,12 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, next `v0.3.0
 ### Changed
 
 - Tag policy. After `v0.2.0`, the next product tag may be `v0.3.0`, and tags on the 0.x line are `v0.MINOR.0` only. Patch tags (`v0.MINOR.PATCH`, `v0.x.y` fixes) are not used. `v0.3.0` adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and #24 `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0` and are not new `v0.3.0` work. Cut `v0.3.0` once `main` is green and e2e passes. The `[0.3.0]` section is written when that tag is cut. H-MEM and the World Model stay not load-bearing until #15 and #16. Citation layer (c) and pgvector are stretch.
+- Judge `model_id` in `contracts/schemas/floodsense.schema.json` accepts the routing names `meterless/fast` and `meterless/deep`, the Nightshift ids a reply may carry (`nvidia/nemotron-3.5-super-vl-120b-a12b`, and `nvidia/nemotron-3.5-lightning-30b-a3b` while Lightning stays configured), and `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is no longer accepted. Contract examples and the insurer-desk fixture use `meterless/deep`. Which model answers a routing name today stays the one table at the top of `docs/architecture/c4.md`. ADR 0004 and ADR 0007 are corrected to match and stay Proposed. The desk shows a routing name as stored. A concrete Nightshift id is labelled "answered by" that model. Super VL is not shown as one lane, and Lightning is not shown as `meterless/fast`.
+
+### Fixed
+
+- The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep`, a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, or the discontinued Super id, still omits the whole judge instead of rewriting it. One score outside the enum drops the judge even when the other scores are in it.
+- When the Judge's Nightshift reply does not parse, or parses with no grounding, the score's `model_id` is `deterministic`. A reply that does carry a grounding keeps the id the client returned. The numbers floor can still change that grounding without changing the id.
 
 ## [0.2.0] - 2026-10-25
 

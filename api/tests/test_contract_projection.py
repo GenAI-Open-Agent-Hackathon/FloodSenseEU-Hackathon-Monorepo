@@ -23,7 +23,7 @@ os.environ.setdefault("LLM_MODE", "fake")
 from jsonschema import Draft202012Validator  # noqa: E402
 from jsonschema.exceptions import ValidationError  # noqa: E402
 
-from app.project import project_run  # noqa: E402
+from app.project import _SCHEMA_MODEL_IDS, project_run  # noqa: E402
 
 SCHEMA = json.loads(
     (ROOT / "contracts" / "schemas" / "floodsense.schema.json").read_text(encoding="utf-8")
@@ -227,31 +227,70 @@ class ProjectionHonestyTest(unittest.TestCase):
         projected = project_run(_minimal_run(approval={"status": "auto"}))
         self.assertEqual(projected["approvals"], [])
 
-    def test_graph_model_ids_outside_the_enum_omit_the_judge(self) -> None:
+    def test_projection_model_ids_match_the_schema_enum(self) -> None:
+        schema_ids = SCHEMA["$defs"]["judge_claim"]["properties"]["model_id"]["enum"]
+        self.assertEqual(_SCHEMA_MODEL_IDS, frozenset(schema_ids))
+
+    def test_lane_and_recorded_model_ids_keep_the_judge(self) -> None:
+        accepted = (
+            "meterless/fast",
+            "meterless/deep",
+            "nvidia/nemotron-3.5-super-vl-120b-a12b",
+            "nvidia/nemotron-3.5-lightning-30b-a3b",
+            "deterministic",
+        )
+        for model_id in accepted:
+            body = _minimal_run()
+            body["judge"][0]["model_id"] = model_id
+            projected = project_run(body)
+            judge = projected["answer"]["judge"]
+            validator_for("judge").validate(judge)
+            validator_for("approval").validate(projected["approvals"][0])
+            self.assertEqual(judge["claims"][0]["model_id"], model_id)
+            self.assertEqual(
+                projected["approvals"][0]["judge"]["claims"][0]["model_id"],
+                model_id,
+            )
+
+    def test_one_id_outside_the_enum_drops_the_whole_judge(self) -> None:
+        body = _minimal_run()
+        body["judge"][0]["model_id"] = "meterless/deep"
+        body["judge"].append(
+            {
+                "claim_id": "C2",
+                "grounding": "partial",
+                "citation_faithful": True,
+                "numbers_match": True,
+                "score": 0.5,
+                "rationale": "partial match",
+                "model_id": "fake-fast",
+            }
+        )
+        projected = project_run(body)
+        self.assertNotIn("judge", projected["answer"])
+        self.assertNotIn("judge", projected["approvals"][0])
+        blob = json.dumps(projected)
+        self.assertNotIn("meterless/deep", blob)
+        self.assertNotIn("fake-fast", blob)
+
+    def test_ids_outside_the_enum_omit_the_judge(self) -> None:
+        schema_ids = set(SCHEMA["$defs"]["judge_claim"]["properties"]["model_id"]["enum"])
         outside = (
             "fake-deep",
             "fake-fast",
-            "deterministic",
-            "meterless/deep",
-            "meterless/fast",
-            "nvidia/nemotron-3.5-super-vl-120b-a12b",
+            "meterless/auto",
+            "nvidia/nemotron-3-super-120b-a12b",
         )
         for model_id in outside:
             body = _minimal_run()
             body["judge"][0]["model_id"] = model_id
             projected = project_run(body)
             self.assertNotIn("judge", projected["answer"], model_id)
-            self.assertNotIn("nvidia/nemotron-3-super-120b-a12b", json.dumps(projected))
-            self.assertNotIn("nvidia/nemotron-3.5-lightning-30b-a3b", json.dumps(projected))
-
-    def test_a_schema_model_id_is_kept_as_the_graph_recorded_it(self) -> None:
-        model_id = "nvidia/nemotron-3.5-lightning-30b-a3b"
-        body = _minimal_run()
-        body["judge"][0]["model_id"] = model_id
-        projected = project_run(body)
-        judge = projected["answer"]["judge"]
-        validator_for("judge").validate(judge)
-        self.assertEqual(judge["claims"][0]["model_id"], model_id)
+            self.assertNotIn("judge", projected["approvals"][0])
+            blob = json.dumps(projected)
+            self.assertNotIn(model_id, blob)
+            for invented in schema_ids:
+                self.assertNotIn(invented, blob)
 
 
 if __name__ == "__main__":

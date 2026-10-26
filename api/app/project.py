@@ -5,12 +5,12 @@ playbook ``text``, and one approval for the run. The UI binds to
 ``contracts/schemas/floodsense.schema.json``. This module is that projection
 at the API boundary. It does not write back into the graph.
 
-The schema's ``model_id`` enum is the two older NVIDIA ids. ``docs/architecture/c4.md``
-says Nemotron 3.5 Super VL answers both lanes today, and the graph also
-records ``meterless/fast``, ``meterless/deep``, ``fake-deep``, and
-``deterministic``. None of those are substituted for a schema id. When the
-graph id is outside the enum, the judge is omitted. The discontinued Super
-id is not invented. Lane choice stays in ``settings.lane``.
+``judge_claim.model_id`` accepts the routing names ``meterless/fast`` and
+``meterless/deep``, the concrete Nightshift ids a reply may carry, and
+``deterministic``. Which model answers a routing name today is the table at
+the top of ``docs/architecture/c4.md``. This module does not substitute one
+id for another. When the graph id is outside the enum, the judge is omitted.
+Lane choice stays in ``settings.lane``.
 """
 
 from __future__ import annotations
@@ -26,12 +26,16 @@ _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _HTTP = re.compile(r"^https?://\S+$")
 _LOOSE_UTC = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?$")
 
-# The schema enum, copied so a graph id can be kept or dropped. Not a map
-# onto these ids. Super VL (c4.md) is intentionally absent.
+# Copied from judge_claim.model_id so a graph id is kept or the judge is
+# dropped. Not a map onto these ids. The API image does not ship the schema
+# file, so this set is the runtime copy and must match the schema enum.
 _SCHEMA_MODEL_IDS = frozenset(
     {
+        "meterless/fast",
+        "meterless/deep",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3-super-120b-a12b",
+        "deterministic",
     }
 )
 
@@ -209,8 +213,8 @@ def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
         if score < 0 or score > 1:
             continue
         model_id = row.get("model_id")
-        # One id outside the enum drops the judge. Rewriting it to Lightning
-        # or the discontinued Super id would claim a model that did not run.
+        # One id outside the enum drops the judge. Rewriting it would claim
+        # a lane or a model that did not run.
         if not isinstance(model_id, str) or model_id not in _SCHEMA_MODEL_IDS:
             return None
         claims.append(

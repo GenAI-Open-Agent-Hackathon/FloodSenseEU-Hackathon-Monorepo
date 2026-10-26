@@ -10,7 +10,7 @@ Python ([`python/floodsense_contracts`](python/floodsense_contracts)) and TypeSc
 
 Wire format is snake_case, as in the gameplan's citation record. The mock on `spike/mock-ui` uses camelCase and different judge fields. That branch is not merged and this folder does not change it.
 
-`agents/`, `api/`, and `ui/` do not import these types yet. Wiring them in is the owning pair's increment.
+The API projects a graph run onto this schema in `api/app/project.py` (since #21). `POST /runs` and `GET /runs/{id}` carry that projection beside the graph payload. The UI re-exports the TypeScript mirror from `ui/src/types/contract.ts`. `agents/` keeps its own state and does not import this package.
 
 ## What is in scope
 
@@ -22,7 +22,9 @@ Only what v0.2.0–v0.8.0 need, plus the gameplan's Judge output and `served_fro
 | `answer` | v0.5.0 run payload and the v0.7.0 screen. `served_from` is `live`, `cache`, or `replay`. `cached_at` is a timestamp when it is not live, and null or omitted when it is live. |
 | `playbook_action` | v0.6.0. `citation_ids` has at least one id. |
 | `approval` | v0.8.0. Status is `pending`, `approved`, `edited`, or `rejected`. |
-| `judge` | Gameplan output: per-claim grounding, citation faithfulness, number match, score, rationale, pinned `model_id`, plus `overall_score`. Optional on `answer` and `approval` until v0.10.0. |
+| `judge` | Gameplan output: per-claim grounding, citation faithfulness, number match, score, rationale, `model_id`, plus `overall_score`. `model_id` is a routing name (`meterless/fast`, `meterless/deep`), a concrete Nightshift id the reply may carry, or `deterministic`. Optional on `answer` and `approval` until v0.10.0. |
+
+`model_id` prefers those routing names. Which model answers one today is the table at the top of [docs/architecture/c4.md](../docs/architecture/c4.md). This folder does not keep a second map. A recorded id outside that enum, including a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, is not rewritten: the API omits the whole judge.
 
 `rows_sample` is at most 20 objects. Column names are not fixed.
 
@@ -57,6 +59,5 @@ python tasks.py lint
 
 - Which citation fields are required for each layer, once Urvashi and Saleeta see the real source columns. The gameplan already marks those names as a proposal.
 - Whether `edited` is the right status word for the gameplan's "edit", or whether Zain wants a separate amended body. Today the human note is `note`.
-- Whether `model_id` should stay an enum of the two pinned lanes.
 - Empty `evidence` is allowed because not every claim is a number. A finished numeric claim should still carry evidence. The schema does not enforce that link beyond `query_id`.
 - The mock Judge used `verdict`, `groundedness`, `citationCoverage`, and `skepticResolution`, and a claim support of `contradicted`. This schema follows the gameplan table instead (`supported`, `partial`, `unsupported`).

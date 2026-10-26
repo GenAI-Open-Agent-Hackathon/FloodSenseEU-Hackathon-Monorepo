@@ -9,6 +9,7 @@ import sys
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from typing import get_args
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
@@ -26,6 +27,7 @@ from floodsense_contracts.models import (  # noqa: E402
     Judge,
     JudgeClaim,
     Locator,
+    ModelId,
     PlaybookAction,
 )
 
@@ -185,6 +187,14 @@ class ContractTests(unittest.TestCase):
         auto = deepcopy(judge)
         auto["claims"][0]["model_id"] = "meterless/auto"
         assert_invalid(self, "judge", auto)
+        with self.assertRaises(PydanticError):
+            Judge.model_validate(auto)
+
+        discontinued = deepcopy(judge)
+        discontinued["claims"][0]["model_id"] = "nvidia/nemotron-3-super-120b-a12b"
+        assert_invalid(self, "judge", discontinued)
+        with self.assertRaises(PydanticError):
+            Judge.model_validate(discontinued)
 
         bad_time = deepcopy(evidence)
         bad_time["executed_at_utc"] = "not-a-date"
@@ -196,14 +206,20 @@ class ContractTests(unittest.TestCase):
         bad_url["source_url"] = "not a url"
         assert_invalid(self, "citation", bad_url)
 
-    def test_pinned_lanes_are_the_gameplan_ids(self) -> None:
-        self.assertEqual(
-            DEFS["judge_claim"]["properties"]["model_id"]["enum"],
-            [
-                "nvidia/nemotron-3.5-lightning-30b-a3b",
-                "nvidia/nemotron-3-super-120b-a12b",
-            ],
-        )
+    def test_model_id_accepts_routing_names_and_recorded_ids(self) -> None:
+        enum = [
+            "meterless/fast",
+            "meterless/deep",
+            "nvidia/nemotron-3.5-super-vl-120b-a12b",
+            "nvidia/nemotron-3.5-lightning-30b-a3b",
+            "deterministic",
+        ]
+        self.assertEqual(DEFS["judge_claim"]["properties"]["model_id"]["enum"], enum)
+        self.assertEqual(list(get_args(ModelId)), enum)
+        typescript = (CONTRACTS / "typescript" / "index.ts").read_text(encoding="utf-8")
+        for model_id in enum:
+            self.assertIn(f'"{model_id}"', typescript)
+        self.assertNotIn("nvidia/nemotron-3-super-120b-a12b", typescript)
         self.assertEqual(
             DEFS["answer_fields"]["properties"]["served_from"]["enum"],
             ["live", "cache", "replay"],

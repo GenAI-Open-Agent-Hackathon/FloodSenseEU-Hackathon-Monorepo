@@ -20,16 +20,18 @@ In scope: claim, citation, evidence, answer, playbook action, approval, and the 
 
 Out of scope until an owner proposes the fields: gauges, portfolio and exposure columns, Skeptic challenge records, retrieval traces, notifications, and the mock's risk enum. Details are in [contracts/README.md](../../contracts/README.md).
 
-`agents/`, `api/`, and `ui/` do not import the package yet.
+The API projects a graph run onto this schema (`api/app/project.py`, since #21). The UI re-exports the TypeScript mirror. The agents keep their own state and do not import the package.
+
+Judge `model_id` is the routing names `meterless/fast` and `meterless/deep`, a concrete Nightshift id the reply may carry, or `deterministic`. The discontinued `nvidia/nemotron-3-super-120b-a12b` id is not listed. Which model answers a routing name today is the table at the top of [../architecture/c4.md](../architecture/c4.md), not a second map in this ADR.
 
 ## Consequences
 
 - The mock's camelCase types and its Judge rubric (`verdict`, `contradicted`, `skepticResolution`) are not the wire format.
 - Layer `c` is a legal citation layer now, and the feature stays behind `FF_RAG_DOCS`.
 - Drift shows up as a failed test instead of a failed demo.
+- A new routing name or Nightshift id is a contract change: schema, both mirrors, an example, and a note at the 14:00 check-in.
 
 ## Open questions
 
 - Required citation fields per layer, after the real source columns are known (Urvashi, Saleeta).
-- Closing `model_id` to the two pinned lanes. This ADR does that. Ayush can reopen it if a lane id changes.
 - Whether a numeric claim must include an evidence row. The schema allows an empty evidence list.

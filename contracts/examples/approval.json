@@ -14,7 +14,7 @@
         "numbers_match": true,
         "score": 1,
         "rationale": "Example fixture. Not a Judge result from a model.",
-        "model_id": "nvidia/nemotron-3-super-120b-a12b"
+        "model_id": "meterless/deep"
       }
     ]
   }
