@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- `zetaris_sync` sends `User-Agent: floodsense-zetaris-sync/1.0` on each Zetaris REST call ([#30](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/30)). A proxy in front of a hosted engine answers the default `Python-urllib/3.x` agent with HTTP 403 (Cloudflare error 1010), so the sync could not reach that engine. The same call with this agent is accepted, and the name is what the engine access log records.
+
 ## [0.12.0] - 2026-10-26
 
 Semantic cache and labelled replay ([#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17)). `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off. Rate limits are still a follow-up. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`. The GitHub wiki is disabled. These notes and the GitHub Release are the record for this tag.
