@@ -5,19 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. After `v0.3.0`, the next tag is `v0.9.0` once #15 and #16 are load-bearing, or `v1.0.0-rc.N` from the Monday freeze. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. `v0.4.0` through `v0.8.0` are not tags; those increments shipped inside `v0.2.0`. After `v0.9.0`, the next tag is `v1.0.0-rc.N` from the Monday freeze. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-26
+
+Memory: H-MEM recall and write-on-approval, the World Model bridge, and short-term thread memory. This section is everything on main after v0.3.0: [#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15) (H-MEM, World Model, trust ledger on the sidecar), [#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32) (sqlite checkpointer hang fix), and [#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16) (short-term thread memory). `FF_HMEM` still defaults off. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`.
+
 ### Added
 
-- Short-term thread memory. `POST /runs` takes an optional `thread_id` from an earlier run, and the new run carries that conversation's last three turns (question, status, approval and summary) as context for the Investigator, never as evidence. The `memory` trace step counts them, and the approval payload shows them as `thread`. An unknown thread is a 404. `GET /runs/past?thread_id=` lists one conversation, also through the API. The run list rebuilt after a restart keeps each run's start time from its trace, so `cached_at` labels stay right.
-- The agents use the `engines/` sidecar when `ENGINES_URL` is set (`agents/floodsense_agents/engines.py`). The Watchers' anomalies go to the World Model as observations, and the hypotheses go to its board after the Investigator and again after the Skeptic, with `at` set to the replay clock so a replay appends nothing new. Behind `FF_HMEM`, the Investigator first recalls past approved findings on the same flood event from H-MEM as prompt context (never as evidence; the reviewer sees them as `memories`), and a new Learn node after the human decision stores an approved or edited run's claims with their Zetaris query ids. Every engines call adds a trace event (`world_model`, `memory`, `learn`). A failed call is a trace note and never fails the run. With `ENGINES_URL` unset the graph runs as before. Recall is scoped to the event because the engines' reference embedder is a token hash and cannot rank across events; `HMEM_RECALL_THRESHOLD` (0) can rise once real embeddings are in. New settings: `ENGINES_URL`, `ENGINES_TIMEOUT_S` (5), `HMEM_RECALL_TOP_N` (3) and `HMEM_RECALL_THRESHOLD` (0). `GET /ready` names the memory and World Model in use.
+- Short-term thread memory ([#16](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/16)). `POST /runs` takes an optional `thread_id` from an earlier run, and the new run carries that conversation's last three turns (question, status, approval and summary) as context for the Investigator, never as evidence. The `memory` trace step counts them, and the approval payload shows them as `thread`. An unknown thread is a 404. `GET /runs/past?thread_id=` lists one conversation, also through the API. The run list rebuilt after a restart keeps each run's start time from its trace, so `cached_at` labels stay right.
+- The agents use the `engines/` sidecar when `ENGINES_URL` is set ([#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15), `agents/floodsense_agents/engines.py`). The Watchers' anomalies go to the World Model as observations, and the hypotheses go to its board after the Investigator and again after the Skeptic, with `at` set to the replay clock so a replay appends nothing new. Behind `FF_HMEM`, the Investigator first recalls past approved findings on the same flood event from H-MEM as prompt context (never as evidence; the reviewer sees them as `memories`), and a new Learn node after the human decision stores an approved or edited run's claims with their Zetaris query ids. Each store is a trust-ledger entry on the sidecar (`GET /hmem/ledger`, and the `trace` returned with recall). Every engines call adds a trace event (`world_model`, `memory`, `learn`). A failed call is a trace note and never fails the run. With `ENGINES_URL` unset the graph runs as before, on `NoMemory`. Recall is scoped to the event because the engines' reference embedder is a token hash and cannot rank across events; `HMEM_RECALL_THRESHOLD` (0) can rise once real embeddings are in. New settings: `ENGINES_URL`, `ENGINES_TIMEOUT_S` (5), `HMEM_RECALL_TOP_N` (3) and `HMEM_RECALL_THRESHOLD` (0). `GET /ready` names the memory and World Model in use.
 
 ### Changed
 
-- `memory.store` runs in the Learn node instead of `Runtime.resume`, so the write is on the trace and happens once. It still runs only with `FF_HMEM` on.
-- The Playbook drops a model-written action that cites no claim of the run, and the trace says how many were dropped. If none is left, the standard actions stay.
+- `memory.store` runs in the Learn node instead of `Runtime.resume`, so the write is on the trace and happens once ([#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15)). It still runs only with `FF_HMEM` on.
+- The Playbook drops a model-written action that cites no claim of the run, and the trace says how many were dropped ([#15](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/15)). If none is left, the standard actions stay.
+
+### Fixed
+
+- GET /runs/{id} no longer lists every checkpoint ([#32](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/32)). The shared SqliteSaver connection deadlocked when that list still held its lock and the same request read one run back. A re-read uses the in-memory index row, or snapshots that one run after a restart. Checkpointer calls take one lock, and a list is finished before the caller continues. POST /runs stays synchronous.
 
 ## [0.3.0] - 2026-10-26
 
@@ -36,7 +44,6 @@ Live gauges and `hazard_now`, and the judge lane ids. This section is everything
 
 ### Fixed
 
-- GET /runs/{id} no longer lists every checkpoint. The shared SqliteSaver connection deadlocked when that list still held its lock and the same request read one run back. A re-read uses the in-memory index row, or snapshots that one run after a restart. Checkpointer calls take one lock, and a list is finished before the caller continues. POST /runs stays synchronous.
 - The API projection keeps the judge when every score's `model_id` is one of those ids, including a lane name. An id outside the enum, such as `fake-deep`, a `MODEL_FAST` or `MODEL_DEEP` value the schema does not list, or the discontinued Super id, still omits the whole judge instead of rewriting it. One score outside the enum drops the judge even when the other scores are in it.
 - When the Judge's Nightshift reply does not parse, or parses with no grounding, the score's `model_id` is `deterministic`. A reply that does carry a grounding keeps the id the client returned. The numbers floor can still change that grounding without changing the id.
 
@@ -111,7 +118,8 @@ Skeleton and guardrails on `eacf34c`. The product described in the gameplan (liv
 - The API, UI, pgvector, and Redis ports bind to `127.0.0.1`. Redis has no password. The pgvector example password is a local placeholder.
 - Examples contain placeholders, not tokens. The NVIDIA provider key is not an application variable.
 
-[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.3.0...v0.9.0
 [0.3.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.0.0...v0.1.0
