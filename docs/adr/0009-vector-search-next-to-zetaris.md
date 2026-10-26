@@ -36,7 +36,7 @@ Embeddings are `nvidia/nemotron-3.5-embed-1b`, dimension 2048 (it replaced `nvid
 
 Why NIM and why this model. To be confirmed by Ayush (embedding client) and Urvashi (store); until then these are the working reasons, not a measured comparison:
 
-- Nightshift serves no `/v1/embeddings` (checked with `GET /v1/models`), so the embedding call needs a provider outside Nightshift. NIM keeps it on NVIDIA, the same vendor and Nemotron family as the chat lanes, and needs no extra local GPU or container.
+- Nightshift does not answer embeddings today. On 26 Oct its `GET /v1/models` lists `meterless/embed` (endpoints `chat`, `embeddings`; availability `cloud`) and `nvidia/nemotron-3-embed-1b`, but `POST /v1/embeddings` returns 404 `not_found` for those ids and for `nvidia/llama-nemotron-embed-1b-v2`. So the embedding call needs a provider outside Nightshift. If a later Nightshift serves that route, moving the call onto it is a change to `nim_embed.py` and this ADR, and a re-embed if the model or dimension changes. NIM keeps it on NVIDIA, the same vendor and Nemotron family as the chat lanes, and needs no extra local GPU or container.
 - It is a retrieval embedder with separate `passage` and `query` input types, which suits short analyst questions ranked against document paragraphs.
 - The corpus mixes English, Spanish (Valencia, EMSR773) and German (Ahr, EMSR517) sources, and the model is multilingual.
 - Its input limit (8192 tokens) lets one paragraph go in whole; `scripts/rag_ingest.py` only splits a paragraph above that.
