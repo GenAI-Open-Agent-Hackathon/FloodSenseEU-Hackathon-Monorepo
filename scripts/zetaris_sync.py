@@ -43,6 +43,7 @@ DEFAULT_MIGRATIONS = ROOT / "zetaris" / "migrations"
 DEFAULT_LEDGER = ROOT / ".zetaris-sync" / "ledger.json"
 DEFAULT_ENV_FILE = ROOT / "ingestion" / ".env"
 DEFAULT_REST_URL = "http://127.0.0.1:8888/api/v1.0"
+USER_AGENT = "floodsense-zetaris-sync/1.0"
 
 STATEMENT_MARKER = "-- statement"
 FILE_NAME = re.compile(r"^(\d{3})_[a-z0-9][a-z0-9_]*\.sql$")
@@ -236,6 +237,10 @@ class Client:
                 "X-Org-ID": self.org_id,
                 "X-Request-ID": str(uuid.uuid4()),
                 "Content-Type": "application/json",
+                # Naming the client is ordinary manners, and a proxy in front
+                # of a Zetaris refuses the default "Python-urllib/3.x": ours
+                # answers 403 (Cloudflare error 1010) to it and 200 to this.
+                "User-Agent": USER_AGENT,
             },
         )
         try:
