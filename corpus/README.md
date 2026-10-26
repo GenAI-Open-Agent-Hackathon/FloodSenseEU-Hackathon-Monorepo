@@ -1,6 +1,6 @@
 # Corpus
 
-Layer (c) documents for `v0.14.0`. The ship tag is not cut in the corpus pull request. `FF_RAG_DOCS` stays off. This folder does not embed and it does not create `rag.chunks`.
+Layer (c) documents, shipped in `v0.14.0`. `FF_RAG_DOCS` stays off. This folder does not embed and it does not create `rag.chunks`. `scripts/rag_ingest.py` does that.
 
 `corpus/manifest.yaml` is the list. Each file below it is a redistributable copy:
 
