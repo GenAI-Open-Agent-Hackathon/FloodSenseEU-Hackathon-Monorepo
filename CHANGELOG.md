@@ -5,20 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. `v0.4.0` through `v0.8.0` are not tags; those increments shipped inside `v0.2.0`. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is stretch and is not a tag. There is no patch ladder between `v0.9.0` and `v0.12.0`. After `v0.12.0`, the next tag is `v1.0.0-rc.N` from the Monday freeze. Tags are annotated and are not moved or deleted. The GitHub wiki is disabled. Notes for a tag are this file and the GitHub Release. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. `v0.4.0` through `v0.8.0` are not tags; those increments shipped inside `v0.2.0`. `v0.10.0` shipped inside `v0.2.0`. Planned layer (c) was formerly called `v0.11` stretch and is not a tag. The cache shipped as `v0.12.0`. This demo baseline is `v0.13.0`. RAG layer (c) will be `v0.14.0`. There is no patch ladder between `v0.9.0` and `v0.13.0`. The Monday freeze remains `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The GitHub wiki is disabled. Notes for a tag are this file and the GitHub Release. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
+
+## [0.13.0] - 2026-10-26
+
+Demo baseline on main after `v0.12.0` (`2715debc`). The UI shell and hash pages ([#36](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/36)), the audit fixes that match warehouse point ids and the boolean footprint so a Valencia seed query can hit ([#37](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/37)), and the `local/` gitignore for laptop end-to-end scratch ([#39](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/39)). Also in this tag: the Zetaris sync `User-Agent` ([#30](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/30)) and the in-repo PR-review skill ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). RAG layer (c) is not in this tag. It will be `v0.14.0`. Lane names stay `meterless/fast` and `meterless/deep`. Which model answers a lane today stays the one table at the top of `docs/architecture/c4.md`. The GitHub wiki is disabled. These notes and the GitHub Release are the record for this tag.
 
 ### Added
 
 - The UI shell adds a collapsible left nav and hash pages (`#/citizen/place`, `#/insurer/review`, and the other desk pages) ([#36](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/36)). An empty hash opens the insurer overview. An unknown page opens that desk's overview. A replay strip shows the date, point, and playback state, and a Replay answer chip reads the fixture answer. Page bodies still use the current citizen page and insurer desk.
 - In-repo merge bar for cloud agents at `.cursor/skills/floodsense-pr-review/SKILL.md` ([#35](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/35)). Architect-bot findings are written in chat first and posted on GitHub only after the user approves. Edits stay in the labelled area folder, and `compose.yaml` stays architect-owned. Which model answers a lane, including deep, is the one table at the top of `docs/architecture/c4.md` (ADR 0004).
 
+### Changed
+
+- The root `.gitignore` ignores `local/` so laptop-only end-to-end scripts and JSON output stay off the repository ([#39](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/39)). Nothing under `local/` is committed.
+
 ### Fixed
 
 - Agents, FakeZetaris, and the eval expectations use the warehouse point ids (`VAL01` Paiporta, `VAL07` Chiva, `AHR01` Altenahr, `AHR02` Ahrweiler). Town slugs are not filters, so a query against `floodsense_seed` can match the Valencia seed views. `exposure_join.in_footprint` is compared as boolean `TRUE` / `FALSE`, matching migrations 014, 016, and 018. Turís is not on the Valencia point list. The Ahr hazard series is still only in FakeZetaris; the seed hazard views are Valencia-only.
 - A live discharge response does not label an unstamped sibling live. `exposure_join` with `synthetic` equal to `yes` is seed, including when that column sits next to a non-seed source stamp. Adopted rows with no stamp stay fixture, and the caption says unstamped. Investigator claims name the place with the warehouse id, as in `Chiva (VAL07)`. A broken IPv6 URL raises `ValueError` from the parser and is not a citation or webhook link.
-- The desk does not label an empty view array or unstamped rows as live. The reported API and agents versions are `0.12.0`, the current tagged line. Fake Copernicus attribution matches the EMSR773 citation line. Citation and webhook URL checks parse `http`/`https` the way the React desk does, and the webhook stays https-only.
+- The desk does not label an empty view array or unstamped rows as live. The reported API and agents versions stay `0.12.0`, the tagged line at that audit. Fake Copernicus attribution matches the EMSR773 citation line. Citation and webhook URL checks parse `http`/`https` the way the React desk does, and the webhook stays https-only.
 - The C4 diagram no longer says the React desk reads `/runs`, or that the agents package has no engines client. `FF_LIVE_DATA` is documented as off, matching the code default. ADR 0006 records the cache TTLs and the folded-equality match. Valencia has no gauge list and does not query `hazard_now`. The map alert (80 m³/s) and the watcher discharge anomaly (100 m³/s) stay separate.
 - `zetaris_sync` sends `User-Agent: floodsense-zetaris-sync/1.0` on each Zetaris REST call ([#30](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/30)). A proxy in front of a hosted engine answers the default `Python-urllib/3.x` agent with HTTP 403 (Cloudflare error 1010), so the sync could not reach that engine. The same call with this agent is accepted, and the name is what the engine access log records.
 
@@ -139,7 +147,8 @@ Skeleton and guardrails on `eacf34c`. The product described in the gameplan (liv
 - The API, UI, pgvector, and Redis ports bind to `127.0.0.1`. Redis has no password. The pgvector example password is a local placeholder.
 - Examples contain placeholders, not tokens. The NVIDIA provider key is not an application variable.
 
-[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.9.0...v0.12.0
 [0.9.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.3.0...v0.9.0
 [0.3.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.2.0...v0.3.0
