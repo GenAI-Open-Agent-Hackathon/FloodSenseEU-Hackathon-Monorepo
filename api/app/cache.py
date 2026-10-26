@@ -61,6 +61,36 @@ _UTC_LOOSE = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?
 _UTC_CANON = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
+# Copy of agents/floodsense_agents/live.py LIVE_PATTERNS. A request with no
+# mode keys on the mode the agents will resolve, so a live answer is never
+# served for an event question or the other way round. Change both together.
+_LIVE_PATTERNS: tuple[str, ...] = (
+    r"\bnow\b",
+    r"\bright now\b",
+    r"\bcurrently\b",
+    r"\bcurrent\b",
+    r"\btoday\b",
+    r"\btonight\b",
+    r"\btomorrow\b",
+    r"\bthis week\b",
+    r"\bforecast\w*\b",
+    r"\bnext \d+ ?(?:h|hours?|days?)\b",
+    r"\bnext (?:few )?(?:hours?|days?)\b",
+    r"\bcoming (?:hours?|days?)\b",
+    r"\bahora\b",
+    r"\bhoy\b",
+    r"\bma(?:ñ|n)ana\b",
+    r"\bpron(?:ó|o)stico\b",
+    r"\bpr(?:ó|o)xim[ao]s \d+ ?(?:h|horas?)\b",
+    r"\bjetzt\b",
+    r"\bheute\b",
+    r"\bmorgen\b",
+    r"\bvorhersage\b",
+    r"\bn(?:ä|a)chsten \d+ ?(?:h|stunden)\b",
+)
+_LIVE_RE = re.compile("|".join(_LIVE_PATTERNS), re.IGNORECASE | re.UNICODE)
+
+
 def _flag(name: str, default: bool) -> bool:
     v = os.environ.get(name)
     return default if v in (None, "") else v.strip().lower() in ("1", "true", "yes", "on")
@@ -128,8 +158,27 @@ def fingerprint(config: dict[str, Any]) -> str:
     return ";".join(parts)
 
 
+def mode_of(source: dict[str, Any]) -> str:
+    """event or live, as the agents resolve it (agents/floodsense_agents/live.py).
+
+    A run body carries the resolved mode; a request carries at most the
+    explicit one, and otherwise the question decides.
+    """
+    resolved = source.get("mode")
+    if isinstance(resolved, dict) and resolved.get("mode") in ("event", "live"):
+        return resolved["mode"]
+    request = _request_of(source)
+    if clock_from(source):
+        return "event"
+    explicit = resolved if resolved in ("event", "live") else request.get("mode")
+    if explicit in ("event", "live"):
+        return explicit
+    return "live" if _LIVE_RE.search(question_text(source)) else "event"
+
+
 def key_of(request: dict[str, Any], flags: str) -> tuple:
     return (
+        mode_of(request),
         fold(str(request.get("question") or "")),
         request.get("event_id") or DEFAULT_EVENT,
         request.get("customer_id") or DEFAULT_CUSTOMER,
@@ -247,6 +296,7 @@ def _event_of(source: dict[str, Any]) -> str:
 def ask_of(source: dict[str, Any]) -> tuple:
     """Question, event, customer, clock, language, doc_query and LLM provider, as replay compares them."""
     return (
+        mode_of(source),
         fold(question_text(source)),
         _event_of(source),
         _customer_of(source),
@@ -286,6 +336,9 @@ def past_row_matches(request: dict[str, Any], row: dict[str, Any]) -> bool:
     if fold(str(row.get("question") or "")) != fold(str(request.get("question") or "")):
         return False
     if normalize_utc(row.get("replay_ts")) != normalize_utc(request.get("replay_ts")):
+        return False
+    row_mode = row.get("mode")
+    if row_mode in ("event", "live") and row_mode != mode_of(request):
         return False
     row_lang = row.get("lang")
     if row_lang not in (None, "") and str(row_lang) != (request.get("lang") or DEFAULT_LANG):
@@ -359,8 +412,11 @@ class AnswerCache:
     # ---------------------------------------------------------------- cache
 
     def ttl_for(self, request: dict[str, Any], flags: str) -> float:
+        # A live-mode answer reads a rolling window, so it ages like live data
+        # whatever the schema flag says.
         live_data = "FF_LIVE_DATA=True" in flags.split(";") and not request.get("replay_ts")
-        return self.settings.ttl_live_s if live_data else self.settings.ttl_replay_s
+        live = live_data or mode_of(request) == "live"
+        return self.settings.ttl_live_s if live else self.settings.ttl_replay_s
 
     def remember(self, run: dict[str, Any], flags: str) -> bool:
         """Cache a finished run. False when it does not qualify."""
