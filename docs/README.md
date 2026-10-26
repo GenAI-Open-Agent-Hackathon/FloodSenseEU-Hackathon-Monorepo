@@ -6,7 +6,7 @@ Owner: Mihir (architecture, ADRs, security review). The Architect is one role am
 - [RELEASING.md](RELEASING.md) — changelog lines on each pull request, the 20:00 tag, and the GitHub Release.
 - [OWNERSHIP.md](OWNERSHIP.md) — who reviews which paths. This is not an enforced CODEOWNERS file.
 - [architecture/c4.md](architecture/c4.md) — system context, containers, and the agent graph.
-- [superpowers/specs/2026-10-26-rag-layer-c-design.md](superpowers/specs/2026-10-26-rag-layer-c-design.md) — layer (c) tool RAG. `v0.14.0` is the ship tag and is not cut here. Design only. `FF_RAG_DOCS` stays off.
+- [superpowers/specs/2026-10-26-rag-layer-c-design.md](superpowers/specs/2026-10-26-rag-layer-c-design.md) — layer (c) tool RAG, shipped in `v0.14.0`. `FF_RAG_DOCS` stays off.
 - [reviews/0001-skeleton-review.md](reviews/0001-skeleton-review.md) — review of the `v0.0.0` skeleton.
 
 ADRs. `0001` is accepted. `0002` onward are proposed. The team accepts or changes them at stand-up.
