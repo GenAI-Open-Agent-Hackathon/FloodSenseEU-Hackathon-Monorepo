@@ -33,5 +33,5 @@ Judge `model_id` is the routing names `meterless/fast` and `meterless/deep`, a c
 
 ## Open questions
 
-- Required citation fields per layer, after the real source columns are known (Urvashi, Saleeta).
+- Layer `c` required fields are settled in the schema: `quote`, `query_id`, and `locator.page`, `locator.paragraph`, and `locator.lines`. `chunk_id` is optional. Layers `a` and `b` still leave locator and quote optional until the real source columns are checked (Urvashi, Saleeta).
 - Whether a numeric claim must include an evidence row. The schema allows an empty evidence list.

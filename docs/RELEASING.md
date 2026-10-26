@@ -6,7 +6,7 @@ The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 | Tag | When |
 | --- | --- |
-| `v0.MINOR.0` | One product increment. Tagged: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0`. There is no `v0.4.0`–`v0.8.0` tag. `v0.10.0` shipped inside `v0.2.0`. Planned layer (c) was formerly called `v0.11` stretch and is not a tag. The cache shipped as `v0.12.0`. This demo baseline is `v0.13.0`. RAG layer (c) will be `v0.14.0`. There is no patch ladder between `v0.9.0` and `v0.13.0`. The Monday freeze tag remains `v1.0.0-rc.1`. |
+| `v0.MINOR.0` | One product increment. Tagged: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0`. There is no `v0.4.0`–`v0.8.0` tag. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. `v0.13.0` is the demo baseline. `v0.14.0` is the layer (c) ship tag and is not cut in the design pull request. There is no patch ladder between `v0.9.0` and `v0.13.0`. The Monday freeze tag remains `v1.0.0-rc.1`. |
 | `v1.0.0-rc.N` | A release candidate. `v1.0.0-rc.1` is the Monday demo freeze. Later candidates are `rc.2`, `rc.3`, and so on. |
 
 Tags on the 0.x line are `v0.MINOR.0` only. There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on that line lands on `main` and is included in the next minor tag. Tags are annotated. They are not moved, deleted, or recreated. A mistake is not retagged in place. The next tag is the next `v0.MINOR.0`, or the next `v1.0.0-rc.N` after the freeze. Mihir creates the tag once `main` is green.

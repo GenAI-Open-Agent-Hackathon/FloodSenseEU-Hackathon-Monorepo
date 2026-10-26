@@ -34,3 +34,8 @@ checkpoints/
 
 # laptop-only e2e scripts and JSON out
 local/
+
+# RAG. The manifest and redistributable PDFs under corpus/ stay tracked.
+# The pgvector data volume is floodsense-app_pgdata (compose), not a git path.
+corpus/.embed-cache/
+corpus/fetched/

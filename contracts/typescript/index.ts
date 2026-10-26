@@ -37,13 +37,16 @@ export interface Citation {
   accessed_at: string;
   licence: string;
   attribution: string;
-  /** SHA-256 hex of the stored text, or of the quote when storage is pointer. */
+  /** When quote is present, SHA-256 hex of that quote as UTF-8 (what the Judge compares). A layer c chunk row keeps a separate hash of the full passage; that hash is not this field. */
   content_sha256: string;
   storage: Storage;
   locator?: Locator;
-  /** One or two sentences. */
+  /** One or two sentences. Required when layer is c. */
   quote?: string;
+  /** Zetaris query id. Required when layer is c. */
   query_id?: string;
+  /** pgvector chunk id. Optional on layer c. Layers a and b omit it. */
+  chunk_id?: string;
 }
 
 export interface Evidence {

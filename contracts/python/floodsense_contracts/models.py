@@ -52,11 +52,32 @@ class Citation(ContractModel):
     accessed_at: str = Field(pattern=DATE_TIME)
     licence: str
     attribution: str
+    # When quote is present, SHA-256 hex of that quote as UTF-8 (what the Judge compares).
     content_sha256: str = Field(pattern=SHA256)
     storage: Storage
     locator: Locator | None = None
     quote: str | None = None
     query_id: str | None = None
+    chunk_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def layer_c_names_the_passage(self) -> Citation:
+        if self.layer != "c":
+            return self
+        loc = self.locator
+        if (
+            not self.quote
+            or not self.query_id
+            or loc is None
+            or loc.page is None
+            or loc.paragraph is None
+            or not loc.lines
+        ):
+            raise ValueError(
+                "layer c requires quote, query_id, and locator.page, "
+                "locator.paragraph, and locator.lines"
+            )
+        return self
 
 
 class Evidence(ContractModel):
