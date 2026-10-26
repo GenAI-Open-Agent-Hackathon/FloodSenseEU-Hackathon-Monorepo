@@ -54,14 +54,20 @@ export function AskFloodSense() {
     const onKey = (event: KeyboardEvent) => {
       const root = panelRef.current;
       if (!root) return;
-      // The Evidence drawer is modal and handles its own Escape.
-      if (event.key === "Escape" && !evidenceOpenRef.current) {
+      // The Evidence drawer is modal and handles its own Escape. Another open menu
+      // (chip, bell, account) keeps its own Escape, so only dismiss from inside the panel.
+      const active = document.activeElement;
+      const inside =
+        active === null ||
+        active === document.body ||
+        active === launcherRef.current ||
+        (active instanceof Node && root.contains(active));
+      if (event.key === "Escape" && !evidenceOpenRef.current && inside && !event.defaultPrevented) {
         event.preventDefault();
         dismissRef.current();
         return;
       }
       if (event.key !== "Tab") return;
-      const active = document.activeElement;
       if (!(active instanceof Node) || !root.contains(active)) return;
       const nodes = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
       if (nodes.length === 0) return;
