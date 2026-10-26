@@ -1,4 +1,5 @@
 import { ConsoleProvider } from "./context/ConsoleContext";
+import { EvidenceDrawer } from "./components/EvidenceDrawer";
 import { Header } from "./components/Header";
 import { PageOutlet } from "./components/PageOutlet";
 import { ReplayAnswerChip } from "./components/ReplayAnswerChip";
@@ -27,6 +28,7 @@ function Shell() {
         </main>
       </div>
       <ReplayAnswerChip />
+      <EvidenceDrawer />
     </div>
   );
 }
