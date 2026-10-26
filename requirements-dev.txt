@@ -1,2 +1,3 @@
 # Tools for `python tasks.py lint`. Not installed into the API or agent images.
 ruff==0.17.1
+pypdf>=5.1,<6
