@@ -8,32 +8,44 @@ const FOCUSABLE =
 
 /**
  * Gmail-style dock, bottom right. Non-modal: it never covers or pushes the page, and it never opens on a route change.
- * The answer is the fixture already on the desk. This does not call a model.
+ * The answer is the fixture already on the desk. There is no question box, because nothing here calls a model.
  */
 export function AskFloodSense() {
   const desk = useConsole();
-  const { answer, askOpen, closeAsk } = desk;
+  const { answer, askOpen, closeAsk, evidenceOpen } = desk;
   const panelId = useId();
   const titleId = useId();
-  const draftId = useId();
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
+  // A ref, so the drawer opening does not re-run the effect and pull focus around.
+  const evidenceOpenRef = useRef(evidenceOpen);
+  evidenceOpenRef.current = evidenceOpen;
+  // Non-modal: hand focus back to the launcher only if it was still in the panel when it closed.
+  const restoreFocusRef = useRef(false);
+  const dismiss = () => {
+    restoreFocusRef.current = Boolean(panelRef.current?.contains(document.activeElement));
+    closeAsk();
+  };
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
   const serving = servingLabel(answer);
   const when = serving.kind === "cached" ? `${serving.text} UTC` : serving.text;
+  const badge = serving.kind === "live" ? "Live" : servingQualifier(serving) === "cache" ? "Cached" : "Replay";
   const hasLayerC = answer.citations.some((citation) => citation.layer === "c");
 
   useEffect(() => {
     if (!askOpen) return;
     closeRef.current?.focus();
     const launcher = launcherRef.current;
+    restoreFocusRef.current = false;
     const onKey = (event: KeyboardEvent) => {
       const root = panelRef.current;
       if (!root) return;
       // The Evidence drawer is modal and handles its own Escape.
-      if (event.key === "Escape" && !document.querySelector(".drawer")) {
+      if (event.key === "Escape" && !evidenceOpenRef.current) {
         event.preventDefault();
-        closeAsk();
+        dismissRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -54,7 +66,7 @@ export function AskFloodSense() {
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      launcher?.focus();
+      if (restoreFocusRef.current) launcher?.focus();
     };
   }, [askOpen, closeAsk]);
 
@@ -63,26 +75,21 @@ export function AskFloodSense() {
       {askOpen && (
         <section className="ask-panel" id={panelId} role="dialog" aria-modal="false" aria-labelledby={titleId} ref={panelRef}>
           <header className="ask-head">
-            <h2 id={titleId}>Ask FloodSense</h2>
-            <button ref={closeRef} type="button" className="icon-button" aria-label="Close Ask FloodSense" onClick={closeAsk}>
+            <div>
+              <h2 id={titleId}>Ask FloodSense</h2>
+              <p className={`ask-badge ask-badge-${serving.kind}`}>
+                {badge} · {when}
+              </p>
+            </div>
+            <button ref={closeRef} type="button" className="icon-button" aria-label="Close Ask FloodSense" onClick={dismiss}>
               <CloseIcon />
             </button>
           </header>
           <div className="ask-body">
             <p className="note">
-              {when} · {servingQualifier(serving)}. This panel shows the reviewed answer. It does not call a model.
+              Reviewed answer, {servingQualifier(serving)}, run {serving.runId}. Not live. This panel does not take questions
+              or call a model.
             </p>
-            <label className="field" htmlFor={draftId}>
-              Your question
-            </label>
-            <textarea
-              id={draftId}
-              className="ask-draft"
-              rows={2}
-              value={desk.askDraft}
-              onChange={(event) => desk.setAskDraft(event.target.value)}
-              placeholder="Draft a question. Live questions are not wired on this build."
-            />
             <p className="ask-question">{answer.question}</p>
             <ul className="ask-claims">
               {answer.claims.map((claim) => (
@@ -111,16 +118,17 @@ export function AskFloodSense() {
                   </li>
                 ))}
               </ol>
-              <p className="note">
-                Fixture SQL, packed with the answer. {hasLayerC ? "" : "This answer has no layer (c) document citations."}
-              </p>
+              <p className="note">Fixture SQL, packed with the answer.</p>
+              {!hasLayerC && <p className="note">This answer has no layer (c) document citations.</p>}
             </details>
             <div className="button-row">
               <button
                 type="button"
                 className="button"
                 onClick={() => {
-                  closeAsk();
+                  // Move focus out first, so the drawer records the launcher as its opener.
+                  launcherRef.current?.focus();
+                  dismiss();
                   desk.openEvidence("discharge");
                 }}
               >
@@ -136,7 +144,7 @@ export function AskFloodSense() {
         className="ask-launcher"
         aria-expanded={askOpen}
         aria-controls={askOpen ? panelId : undefined}
-        onClick={() => (askOpen ? closeAsk() : desk.openAsk())}
+        onClick={() => (askOpen ? dismiss() : desk.openAsk())}
       >
         Ask FloodSense
       </button>

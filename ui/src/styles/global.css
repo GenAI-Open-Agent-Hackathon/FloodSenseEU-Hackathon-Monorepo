@@ -203,6 +203,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .replay-bar strong { color: var(--ink); font-weight: 650; }
 .replay-state[data-playing="true"] { color: var(--accent-strong); font-weight: 650; }
 
+/* The dock box spans the launcher's column. Only the panel and the launcher take clicks, so the page under it stays usable. */
 .ask-dock {
   position: fixed;
   right: 1.1rem;
@@ -250,16 +251,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .ask-head h2 { font-size: 1.05rem; }
+.ask-badge { display: inline-block; margin: 0.2rem 0 0; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 650; }
+.ask-badge-cached, .ask-badge-unlabelled { background: var(--warn-soft); color: var(--warn); }
+.ask-badge-live { background: var(--ok-soft); color: var(--ok); }
 .ask-body { overflow: auto; padding: 0.4rem 1rem 1rem; font-size: 0.92rem; }
-.ask-draft {
-  width: 100%;
-  margin-top: 0.25rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  padding: 0.45rem 0.6rem;
-  resize: vertical;
-}
 .ask-question { font-weight: 650; margin: 0.7rem 0 0.3rem; }
 .ask-claims, .ask-citations, .ask-trace { margin: 0.3rem 0 0.6rem; padding-left: 1.1rem; display: grid; gap: 0.4rem; }
 .ask-citations { list-style: none; padding-left: 0; color: var(--muted); font-size: 0.82rem; }

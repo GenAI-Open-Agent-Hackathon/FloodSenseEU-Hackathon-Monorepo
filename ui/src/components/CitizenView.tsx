@@ -65,12 +65,8 @@ export function CitizenOverview() {
           <a className="button" href={routeHref("citizen", "area")}>
             See my area
           </a>
-          <button
-            type="button"
-            className="button ghost"
-            onClick={() => desk.openAsk(`What is the flood risk around ${point ? point.name : desk.pointId}?`)}
-          >
-            Ask about this area
+          <button type="button" className="button ghost" onClick={desk.openAsk}>
+            See the reviewed answer
           </button>
         </div>
       </section>

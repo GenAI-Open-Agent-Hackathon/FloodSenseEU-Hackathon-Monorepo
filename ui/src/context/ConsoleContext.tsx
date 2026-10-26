@@ -65,9 +65,7 @@ export interface ConsoleValue {
   closeEvidence: () => void;
   /** Ask FloodSense popup. Closed at start. A route change never opens it. */
   askOpen: boolean;
-  askDraft: string;
-  setAskDraft: (draft: string) => void;
-  openAsk: (draft?: string) => void;
+  openAsk: () => void;
   closeAsk: () => void;
   approval: Approval;
   decide: (status: ApprovalStatus, note: string) => void;
@@ -146,7 +144,6 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [askOpen, setAskOpen] = useState(false);
-  const [askDraft, setAskDraft] = useState("");
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
   const approvalPendingRef = useRef(true);
   approvalPendingRef.current = approval.status === "pending";
@@ -287,10 +284,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const closeEvidence = useCallback(() => setEvidenceOpen(false), []);
 
-  const openAsk = useCallback((draft?: string) => {
-    if (draft !== undefined) setAskDraft(draft);
-    setAskOpen(true);
-  }, []);
+  const openAsk = useCallback(() => setAskOpen(true), []);
 
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
@@ -346,8 +340,6 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       openEvidence,
       closeEvidence,
       askOpen,
-      askDraft,
-      setAskDraft,
       openAsk,
       closeAsk,
       approval,
@@ -378,8 +370,6 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       openEvidence,
       closeEvidence,
       askOpen,
-      askDraft,
-      setAskDraft,
       openAsk,
       closeAsk,
       approval,
