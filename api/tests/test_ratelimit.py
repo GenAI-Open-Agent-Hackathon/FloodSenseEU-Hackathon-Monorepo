@@ -28,6 +28,14 @@ class TokenBucketTest(unittest.TestCase):
         now[0] = 30.0
         self.assertIsNone(b.take("a"))
 
+    def test_fractional_rate_still_allows_one(self) -> None:
+        now = [0.0]
+        b = TokenBuckets(0.5, clock=lambda: now[0])
+        self.assertIsNone(b.take("a"))
+        self.assertEqual(b.take("a"), 120)
+        now[0] = 120.0
+        self.assertIsNone(b.take("a"))
+
     def test_zero_is_off(self) -> None:
         b = TokenBuckets(0)
         for _ in range(50):
@@ -61,10 +69,13 @@ class RouteLimitTest(unittest.TestCase):
         r = self.c.post("/runs", json={"question": "q"})
         self.assertEqual(r.status_code, 429)
         self.assertEqual(r.headers["Retry-After"], "20")
-        # approval shares the client's bucket
-        self.assertEqual(
-            self.c.post("/runs/r1/approval", json={"action": "approve"}).status_code, 429
-        )
+        self.assertIsNone(r.json()["served_from"])
+        self.assertIsNone(r.json()["cached_at"])
+        # approval is never throttled by the run bucket
+        for _ in range(5):
+            self.assertEqual(
+                self.c.post("/runs/r1/approval", json={"action": "approve"}).status_code, 200
+            )
         self.assertEqual(self.limiter.slots.in_flight, 0)
 
     def test_get_routes_unlimited(self) -> None:
@@ -94,6 +105,24 @@ class RouteLimitTest(unittest.TestCase):
         ):
             r = self.c.post("/runs", json={"question": "q"})
         self.assertEqual(r.status_code, 200)
+        self.limiter.slots.release()
+
+    def test_full_cap_serves_labelled_replay(self) -> None:
+        self.assertTrue(self.limiter.slots.try_acquire())  # full
+
+        async def replay(body, reason, **kw):
+            self.assertIn("in flight", reason)
+            return {"run_id": "r0", "status": "approved", "served_from": "replay"}
+
+        settings = api.cache.settings
+        with (
+            mock.patch.object(settings, "cached_replay", True),
+            mock.patch.object(api, "_replay_for", side_effect=replay),
+        ):
+            r = self.c.post("/runs", json={"question": "q"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["served_from"], "replay")
+        self.assertEqual(self.limiter.slots.in_flight, 1)
         self.limiter.slots.release()
 
     def test_slot_released_when_agents_down(self) -> None:

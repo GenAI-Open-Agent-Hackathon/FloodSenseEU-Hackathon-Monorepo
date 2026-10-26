@@ -2,8 +2,8 @@
 
 Two guards, both in this process, no new dependency:
 
-- A token bucket per client IP on ``POST /runs`` and ``POST /runs/{id}/approval``
-  (RATE_LIMIT_RUNS_PER_MIN, burst of the same size). Empty -> 429 + Retry-After.
+- A token bucket per client IP on ``POST /runs`` (RATE_LIMIT_RUNS_PER_MIN, burst
+  of the same size, at least 1). Approval is not limited: it starts no new run. Empty -> 429 + Retry-After.
 - A cap on live ``POST /runs`` calls in flight to the agents
   (RATE_LIMIT_MAX_CONCURRENT_RUNS). Full -> 429 + Retry-After. A cache hit does
   not take a slot. GET routes are never limited.
@@ -34,12 +34,12 @@ class RateLimitSettings:
         default_factory=lambda: int(_num("RATE_LIMIT_MAX_CONCURRENT_RUNS", 2))
     )
     concurrency_retry_after_s: int = field(
-        default_factory=lambda: int(_num("RATE_LIMIT_CONCURRENCY_RETRY_AFTER_S", 30))
+        default_factory=lambda: max(1, int(_num("RATE_LIMIT_CONCURRENCY_RETRY_AFTER_S", 30)))
     )
 
 
 class TokenBuckets:
-    """One bucket per key. Capacity and refill are both ``per_min`` per minute."""
+    """One bucket per key. Refill ``per_min`` per minute, capacity ``max(1, per_min)``."""
 
     def __init__(self, per_min: float, clock=time.monotonic, max_keys: int = 4096) -> None:
         self.per_min = per_min
@@ -53,8 +53,9 @@ class TokenBuckets:
             return None
         now = self.clock()
         rate = self.per_min / 60.0
-        tokens, last = self._buckets.get(key, (self.per_min, now))
-        tokens = min(self.per_min, tokens + (now - last) * rate)
+        cap = max(1.0, self.per_min)
+        tokens, last = self._buckets.get(key, (cap, now))
+        tokens = min(cap, tokens + (now - last) * rate)
         if tokens >= 1:
             if key not in self._buckets and len(self._buckets) >= self.max_keys:
                 self._buckets.pop(next(iter(self._buckets)))

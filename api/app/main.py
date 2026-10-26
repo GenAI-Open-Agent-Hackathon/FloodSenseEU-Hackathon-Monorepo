@@ -16,8 +16,7 @@ The semantic cache and labelled replay sit here, in front of the proxy, each
 behind its flag (FF_SEMANTIC_CACHE, FF_CACHED_REPLAY; see app/cache.py). A
 cached or replayed answer is never presented as live. Cache and replay
 lookups use CACHE_LOOKUP_TIMEOUT_S, not the 600s run budget. Rate limits
-(app/ratelimit.py) guard POST /runs and POST /runs/{id}/approval with a
-per-client token bucket and cap live runs in flight; both answer 429 with
+(app/ratelimit.py) guard POST /runs with a per-client token bucket and cap live runs in flight; both answer 429 with
 Retry-After. GET routes are not limited.
 
 GET  /health                      this service
@@ -207,9 +206,7 @@ async def _from_cache(body: dict) -> dict | None:
     entry = cache.lookup(body, flags)
     if entry is None:
         return None
-    code, run = await _agents_json(
-        "GET", f"/runs/{entry.run_id}", timeout=_lookup_timeout()
-    )
+    code, run = await _agents_json("GET", f"/runs/{entry.run_id}", timeout=_lookup_timeout())
     if code != 200 or not isinstance(run, dict):
         cache.drop(entry.run_id)  # the agents no longer hold it
         return None
@@ -304,7 +301,9 @@ async def config() -> Response:
 
 def _too_many(detail: str, retry_after: int) -> JSONResponse:
     return JSONResponse(
-        {"detail": detail}, status_code=429, headers={"Retry-After": str(retry_after)}
+        {"detail": detail, "served_from": None, "cached_at": None},
+        status_code=429,
+        headers={"Retry-After": str(retry_after)},
     )
 
 
@@ -332,6 +331,10 @@ async def start_run(request: Request) -> Response:
         if hit is not None:
             return _json_run(hit, 200)
     if not limiter.slots.try_acquire():
+        if settings.cached_replay and isinstance(body, dict):
+            replay = await _replay_for(body, "too many live runs in flight")
+            if replay is not None:
+                return _json_run(replay, 200)
         return _too_many(
             "rate limit: too many runs in flight, try again shortly",
             limiter.settings.concurrency_retry_after_s,
@@ -380,9 +383,6 @@ async def get_approval(run_id: str) -> Response:
 
 @app.post("/runs/{run_id}/approval")
 async def post_approval(run_id: str, request: Request) -> Response:
-    refused = _bucket_refusal(request)
-    if refused is not None:
-        return refused
     resp = await _forward("POST", f"/runs/{run_id}/approval", body=await request.json())
     settings = cache.settings
     if resp.status_code == 200 and (settings.semantic_cache or settings.cached_replay):
