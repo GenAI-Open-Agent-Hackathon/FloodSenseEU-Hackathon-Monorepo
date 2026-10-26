@@ -34,6 +34,7 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `041_provenance_forecast_source.sql` | Both provenance views. Cleared count 8 after the forecast row | Mihir |
 | `042_label_hazard_now_past.sql` | `floodsense.hazard_now` replaces 039's label: `past` or `forecast` | Mihir |
 | `043_seed_gauge_levels_ahr.sql` | `floodsense_seed.gauge_levels` keeps the three Ahr Rhine gauges | Mihir |
+| `044_register_pgvector_rag_chunks.sql` | JDBC datasource `PGVECTOR_RAG` and table `chunks`. Password stays `${PGVECTOR_PASSWORD}`. No view | Urvashi |
 
 Rules (see [../README.md](../README.md)):
 

@@ -116,7 +116,7 @@ Titles:
 
 Publishers: `Copernicus Emergency Management Service`, `Copernicus Publications`, `EasyxLab`.
 
-- [ ] **Step 1: Write the failing parser and fetch tests**
+- [x] **Step 1: Write the failing parser and fetch tests**
 
 Create `scripts/tests/test_rag_corpus.py`. It inserts `scripts/` on `sys.path` and imports `rag_corpus`. Cover at least:
 
@@ -133,13 +133,13 @@ Create `scripts/tests/test_rag_corpus.py`. It inserts `scripts/` on `sys.path` a
 - `.gitignore` contains `corpus/.embed-cache/` and `corpus/fetched/`
 - `fetch_rag_corpus` on the repo root, with an `opener` that raises `AssertionError`, returns 0, and the manifest `doc_id` order is `emsr773-aoi03-del`, `emsr517-aoi15-gra`, `hess-29-6715-2025`, `nhess-23-1287-2023`, `easyxlab-s19`
 
-- [ ] **Step 2: Run the tests and see them fail**
+- [x] **Step 2: Run the tests and see them fail**
 
 Run: `python3 -m unittest discover -s scripts/tests -p test_rag_corpus.py -v`
 
 Expected: `ModuleNotFoundError: No module named 'rag_corpus'`
 
-- [ ] **Step 3: Implement the manifest parser and the fetch command**
+- [x] **Step 3: Implement the manifest parser and the fetch command**
 
 `scripts/rag_corpus.py` is stdlib only. `parse_manifest` accepts a YAML subset: comments and blank lines are ignored, each document starts with `- doc_id:`, later keys are indented two spaces, values are `null`, an integer, a double-quoted string, or a bare string. Required keys are `doc_id`, `title`, `publisher`, `url`, `licence`, `attribution`, `sha256`, `tier`, `event_id`, `path`, `placement`.
 
@@ -151,7 +151,7 @@ Reject a licence matching `BY-NC`, `BY-ND`, `NonCommercial`, or `NoDerivatives`.
 
 `docs/legal/sources.md` gains rows 8 (EMSR517), 9 (HESS), 10 (NHESS), and 11 (EasyxLab S19), each stating that full text may be stored, plus a note under EMSR773 naming the Horta Sud PDF and stating that the product zip is not stored.
 
-- [ ] **Step 4: Run the tests and see them pass**
+- [x] **Step 4: Run the tests and see them pass**
 
 Run: `python3 -m unittest discover -s scripts/tests -p test_rag_corpus.py -v`
 
@@ -161,7 +161,7 @@ Run: `python3 -m unittest tests.test_tasks.TaskTest.test_fetch_rag_corpus_report
 
 Expected: `OK`, stderr contains `corpus/manifest.yaml`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add corpus scripts/rag_corpus.py scripts/tests/test_rag_corpus.py tasks.py tests/test_tasks.py docs/legal/sources.md docs/OWNERSHIP.md CHANGELOG.md docs/superpowers/plans/2026-10-26-rag-layer-c-v014-implementation.md
@@ -187,7 +187,7 @@ Do not commit `.env`, `corpus/fetched/`, or `corpus/.embed-cache/`.
 - Consumes: nothing from Task 1 at runtime. The table is empty.
 - Produces: Postgres table `rag.chunks` and Zetaris datasource `PGVECTOR_RAG` whose registered table is queried as `PGVECTOR_RAG.chunks`. Columns used by Tasks 3 and 4: `chunk_id text` primary key, `parent_chunk_id text` null on the document row, `path text`, `level text` in `doc|page|section|paragraph`, `doc_id text`, `tier smallint`, `event_id text` null allowed, `title text`, `source_url text`, `publisher text`, `licence text`, `attribution text`, `page integer` null on a document row, `paragraph integer`, `lines text`, `section text`, `text text`, `text_sha256 text`, `embedding vector(2048)` null except on `level = paragraph`, `embed_model text` null unless `embedding` is set, and then it equals `nvidia/llama-nemotron-embed-1b-v2`.
 
-- [ ] **Step 1: Write the failing SQL contract test**
+- [x] **Step 1: Write the failing SQL contract test**
 
 ```python
 def test_postgres_index_matches_the_spec(self) -> None:
@@ -219,13 +219,13 @@ def test_zetaris_registration_keeps_the_password_placeholder(self) -> None:
     self.assertNotIn("nvapi-", sql)
 ```
 
-- [ ] **Step 2: Run the test and see it fail**
+- [x] **Step 2: Run the test and see it fail**
 
 Run: `python3 -m unittest scripts.tests.test_rag_schema -v`
 
 Expected: `FileNotFoundError` on `pgvector/migrations/001_rag_chunks.sql`
 
-- [ ] **Step 3: Write the Postgres migration**
+- [x] **Step 3: Write the Postgres migration**
 
 `pgvector/migrations/001_rag_chunks.sql`:
 
@@ -261,12 +261,17 @@ CREATE TABLE rag.chunks (
     OR (
       embedding IS NOT NULL
       AND level = 'paragraph'
+      AND embed_model IS NOT NULL
       AND embed_model = 'nvidia/llama-nemotron-embed-1b-v2'
     )
   ),
   CONSTRAINT rag_chunks_paragraph_locator CHECK (
     level <> 'paragraph'
-    OR (page >= 1 AND paragraph >= 1 AND lines IS NOT NULL AND lines <> '')
+    OR (
+      page IS NOT NULL AND page >= 1
+      AND paragraph IS NOT NULL AND paragraph >= 1
+      AND lines IS NOT NULL AND lines <> ''
+    )
   )
 );
 
@@ -296,13 +301,13 @@ CREATE INDEX rag_chunks_embed_hnsw
 
 No `INSERT`. The table stays empty in this pull request.
 
-- [ ] **Step 4: Write the Zetaris registration**
+- [x] **Step 4: Write the Zetaris registration**
 
 `zetaris/migrations/044_register_pgvector_rag_chunks.sql` has two statements split by a line that is exactly `-- statement`. It has no `-- view:` header, because verify would look for a SCHEMASTORE view and this file does not create one. Lightning SQL from the Zetaris guide: `jdbcdriver`, `jdbcurl`, `username`, `password`, `schema`.
 
 ```sql
 -- JDBC registration of rag.chunks. Password stays a placeholder.
--- Agents must not send <=> or <-> to Zetaris. Ranking stays in Postgres.
+-- Agents must not send the cosine or L2 distance operators to Zetaris. Ranking stays in Postgres.
 CREATE DATASOURCE PGVECTOR_RAG DESCRIBE BY "pgvector rag chunks" OPTIONS (
   jdbcdriver "org.postgresql.Driver",
   jdbcurl "jdbc:postgresql://host.docker.internal:15432/floodsense",
@@ -323,7 +328,7 @@ PGVECTOR_PASSWORD=
 
 The value is filled only in gitignored `ingestion/.env`. Do not copy `local-dev-only` into the SQL file.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `python3 -m unittest scripts.tests.test_rag_schema -v`
 
@@ -333,7 +338,7 @@ Run: `python3 scripts/zetaris_sync.py sync --dry-run`
 
 Expected: exit 0. The new file is parsed. Nothing is sent.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add pgvector/migrations/001_rag_chunks.sql zetaris/migrations/044_register_pgvector_rag_chunks.sql scripts/tests/test_rag_schema.py ingestion/.env.example pgvector/README.md CHANGELOG.md
