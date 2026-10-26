@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MINOR.PATCH`. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, next `v0.3.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. A release candidate is `v1.0.0-rc.N`. Tags are annotated and are not moved or deleted. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
@@ -14,6 +14,10 @@ Increment tags are `v0.MINOR.0`. A fix on an increment already tagged is `v0.MIN
 - v0.3.0 data slice. Migration `036` re-registers the live FILESTORE tables from `033` under new names (`*_staged`) after the CSVs are staged. `033` was applied before those directories held a file, so those names answer `COUNT(*)` and fail a named column, and `DROP` was refused. Cold start stages first, then registers. `zetaris_sync` refuses `036` when a staged directory has no CSV header. `floodsense.gauge_levels` and `floodsense_seed.gauge_levels` are the PEGELONLINE contract views (Bonn, Köln, Koblenz). The seed twin names those gauges for the Ahr only and does not invent a level. Attribution remains `Quelle: WSV, PEGELONLINE`.
 - `hazard_now` labels each rolling-window hour `past` or `forecast` (`039`). `past` is Open-Meteo `past_days` and GloFAS model output, not a station measurement. The seed twin (`040`) still serves the frozen 28–30 Oct 2024 rows of `013` and labels every row `replay`, so a machine without live data does not invent a present. Provenance gains `ds_open_meteo_forecast` for that rain and discharge. Cleared provenance count is 8. `docker cp` overwrites the staged seed CSV; only live header files are skip-if-present.
 - Watchers read `gauge_levels` through the Zetaris contract only when the event lists stations. EMSR517 lists the Rhine gauges. EMSR773 lists none. A live PEGELONLINE pull is the last 30 days and never overlaps the frozen event windows. `FF_LIVE_DATA` stays false. Live views as the default wait for v0.5.
+
+### Changed
+
+- Tag policy. After `v0.2.0`, the next product tag may be `v0.3.0`, and tags on the 0.x line are `v0.MINOR.0` only. Patch tags (`v0.MINOR.PATCH`, `v0.x.y` fixes) are not used. `v0.3.0` adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) (merged) and #24 `hazard_now` (migrations `034` and `035`, already on main). Core sources, provenance, `ingestion/feeds/`, and migration `033` `pegel_levels` shipped in `v0.1.0` and are not new `v0.3.0` work. Cut `v0.3.0` once `main` is green and e2e passes. The `[0.3.0]` section is written when that tag is cut. H-MEM and the World Model stay not load-bearing until #15 and #16. Citation layer (c) and pgvector are stretch.
 
 ## [0.2.0] - 2026-10-25
 
