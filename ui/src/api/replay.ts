@@ -7,6 +7,7 @@ export interface ReplayCitation {
   title: string;
   publisher: string | null;
   licence: string | null;
+  attribution: string | null;
   quote: string | null;
   page: number | null;
   queryId: string | null;
@@ -32,6 +33,8 @@ export interface RecordedRun {
   claims: ReplayClaim[];
   judgeOverall: number | null;
   judgePasses: boolean | null;
+  hallucinationRate: number | null;
+  flaggedClaimIds: string[];
   trace: ReplayStep[];
 }
 
@@ -50,6 +53,7 @@ function asCitation(value: unknown): ReplayCitation | null {
     title,
     publisher: str(c.publisher),
     licence: str(c.licence),
+    attribution: str(c.attribution),
     quote: str(c.quote),
     page: num(rec(c.locator)?.page),
     queryId: str(c.query_id),
@@ -86,11 +90,15 @@ export function adoptReplay(body: unknown, runId: string): RecordedRun | null {
   const id = str(run.run_id) ?? runId;
   return {
     runId: id,
-    label: str(rec(run.label)?.text) ?? `Replay of recorded run ${id} · not live`,
+    label: str(rec(run.label)?.text) ?? `Replay of recorded run ${id} Â· not live`,
     summary,
     claims,
     judgeOverall: num(judge?.overall),
     judgePasses: typeof judge?.passes === "boolean" ? judge.passes : null,
+    hallucinationRate: num(judge?.hallucination_rate),
+    flaggedClaimIds: Array.isArray(judge?.flagged_claim_ids)
+      ? judge.flagged_claim_ids.filter((id): id is string => typeof id === "string")
+      : [],
     trace,
   };
 }
@@ -101,11 +109,15 @@ export function replayRunId(): string | null {
 }
 
 /** Fetch the recorded run. Any failure returns null, and the caller keeps the fixture answer. */
-export async function fetchRecordedRun(runId: string, base = apiBaseUrl()): Promise<RecordedRun | null> {
+export async function fetchRecordedRun(
+  runId: string,
+  base = apiBaseUrl(),
+  signal?: AbortSignal,
+): Promise<RecordedRun | null> {
   try {
     const response = await fetch(`${base}/runs/${encodeURIComponent(runId)}/replay`, {
       credentials: "omit",
-      signal: AbortSignal.timeout(Math.max(apiTimeoutMs(), 5000)),
+      signal: AbortSignal.any([AbortSignal.timeout(Math.max(apiTimeoutMs(), 5000)), ...(signal ? [signal] : [])]),
     });
     if (!response.ok) return null;
     return adoptReplay(await response.json(), runId);

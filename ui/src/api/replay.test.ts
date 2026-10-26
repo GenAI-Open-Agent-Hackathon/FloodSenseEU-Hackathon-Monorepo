@@ -18,13 +18,14 @@ const body = {
           title: "Flood report",
           publisher: "JRC",
           licence: "CC BY 4.0",
+          attribution: "(c) European Union, JRC",
           quote: "The Poyo overflowed.",
           locator: { page: 12 },
         },
       ],
     },
   ],
-  judge_summary: { overall: 0.9, passes: false },
+  judge_summary: { overall: 0.9, passes: false, hallucination_rate: 0.1667, flagged_claim_ids: ["C2", 7] },
   trace: [{ seq: 1, node: "scope", summary: "in scope" }],
 };
 
@@ -37,6 +38,9 @@ describe("adoptReplay", () => {
     expect(run?.claims[0].citations[1]).toMatchObject({ layer: "c", quote: "The Poyo overflowed.", page: 12 });
     expect(run?.judgeOverall).toBe(0.9);
     expect(run?.trace).toHaveLength(1);
+    expect(run?.claims[0].citations[1].attribution).toBe("(c) European Union, JRC");
+    expect(run?.flaggedClaimIds).toEqual(["C2"]);
+    expect(run?.hallucinationRate).toBe(0.1667);
   });
 
   it("refuses a body not served as a replay", () => {

@@ -39,13 +39,11 @@ export function AskFloodSense() {
   useEffect(() => {
     const runId = replayRunId();
     if (!runId) return;
-    let cancelled = false;
-    void fetchRecordedRun(runId).then((run) => {
-      if (!cancelled) setRecorded(run);
+    const controller = new AbortController();
+    void fetchRecordedRun(runId, undefined, controller.signal).then((run) => {
+      if (!controller.signal.aborted) setRecorded(run);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -189,6 +187,7 @@ function RecordedAnswer({ run }: { run: RecordedRun }) {
         {run.claims.map((claim) => (
           <li key={claim.id}>
             {claim.text}{" "}
+            {run.flaggedClaimIds.includes(claim.id) && <strong className="note">[Flagged by Judge] </strong>}
             {claim.citations.map((citation) => (
               <span key={citation.id} className="cite-marks" title={citation.quote ?? citation.title}>
                 [{citation.layer}: {citation.title}
@@ -203,6 +202,13 @@ function RecordedAnswer({ run }: { run: RecordedRun }) {
                   {citation.licence ? ` · ${citation.licence}` : ""}
                 </blockquote>
               ))}
+            {claim.citations
+              .filter((citation) => citation.layer === "c" && citation.quote && citation.attribution)
+              .map((citation) => (
+                <p key={`${citation.id}-attr`} className="note">
+                  {citation.attribution}
+                </p>
+              ))}
           </li>
         ))}
       </ul>
@@ -210,13 +216,14 @@ function RecordedAnswer({ run }: { run: RecordedRun }) {
         <p className="note">
           Judge score {run.judgeOverall.toFixed(2)}
           {run.judgePasses === null ? "" : run.judgePasses ? " · passes" : " · does not pass"}
+          {run.hallucinationRate === null ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)} %`}
         </p>
       )}
       <details className="disclosure">
         <summary>How I got this</summary>
         <ol className="ask-trace">
-          {run.trace.map((step) => (
-            <li key={step.seq}>
+          {run.trace.map((step, i) => (
+            <li key={`${step.seq}-${i}`}>
               <p className="menu-title">{step.node}</p>
               <p className="note">{step.summary}</p>
             </li>
