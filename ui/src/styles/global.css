@@ -635,8 +635,84 @@ tr.is-selected { background: var(--accent-soft); }
 .colophon p { margin: 0; }
 .boot-error { padding: 2rem; }
 
+/* Page bodies. One calm task per hash. */
+.page-stack { display: grid; gap: 0.8rem; align-content: start; }
+.page-stack .button-row, .approval-detail .button-row { justify-content: flex-start; flex-wrap: wrap; }
+.disclosure > summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 0.2rem 0; }
+.disclosure[open] > summary { margin-bottom: 0.4rem; }
+details.card.disclosure > summary { color: var(--ink); }
+.cite-marks { font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.why-list, .action-list, .claim-summary { margin: 0.5rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.55rem; }
+.claim-summary { list-style: none; padding-left: 0; font-size: 0.92rem; }
+.status-note { margin: 0.6rem 0; padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--warn-soft); color: var(--warn); }
+a.button { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
+a.button.primary { color: #f4fffc; }
+:root[data-theme="dark"] a.button.primary { color: #10211e; }
+
+.risk-badge {
+  display: inline-block;
+  margin: 0.3rem 0 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--bg-sunken);
+}
+.risk-badge[data-band="peak"] { background: var(--danger-soft); color: var(--danger); }
+.risk-badge[data-band="elevated"] { background: var(--warn-soft); color: var(--warn); }
+.risk-badge[data-band="typical"], .risk-badge[data-band="low"] { background: var(--ok-soft); color: var(--ok); }
+
+.approvals { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 0.8rem; align-items: start; }
+.queue ul { list-style: none; margin: 0.4rem 0 0; padding: 0; }
+.queue-item {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.queue-item.is-selected { background: var(--accent-soft); border-color: transparent; }
+.queue-title { font-weight: 650; }
+.badge-status-pending { background: var(--warn-soft); color: var(--warn); }
+.badge-status-approved, .badge-status-edited { background: var(--ok-soft); color: var(--ok); }
+.badge-status-rejected { background: var(--danger-soft); color: var(--danger); }
+.decision-bar {
+  position: sticky;
+  top: calc(var(--header) + 0.5rem);
+  z-index: 5;
+  margin: 0.6rem 0 0.8rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+.decision-bar .button-row { align-items: center; }
+.decision-bar .status-line { margin: 0 0 0 auto; }
+.decision-bar .note { margin-bottom: 0; }
+
+.bars { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.bars li { display: grid; grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) auto; gap: 0.6rem; align-items: center; }
+.bar-label { font-weight: 600; }
+.bar-track { height: 10px; border-radius: 999px; background: var(--bg-sunken); overflow: hidden; }
+.bar-track span { display: block; height: 100%; background: var(--accent); }
+.bar-value { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.steps { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.5rem; }
+.steps li { display: grid; gap: 0.15rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 10px; font-size: 0.85rem; color: var(--muted); }
+.steps li strong { color: var(--ink); }
+.steps li[data-over="true"] { border-color: var(--band-peak); }
+.steps li[aria-current="step"] { background: var(--accent-soft); }
+.alert-list { max-height: none; }
+.replay-stop { padding: 0.15rem 0.7rem; font-size: 0.8rem; }
+
 @media (max-width: 980px) {
-  .insurer-top, .citizen-grid, .kpis { grid-template-columns: 1fr; }
+  .insurer-top, .citizen-grid, .kpis, .approvals { grid-template-columns: 1fr; }
+  .bars li { grid-template-columns: 1fr; gap: 0.2rem; }
+  /* The header wraps here, so pin the decision to the bottom edge instead of under the header. */
+  .decision-bar { top: auto; bottom: 0.5rem; }
+  .approvals .queue { order: 2; }
   .product-sub { display: none; }
   .header-inner { flex-wrap: wrap; padding: 0.5rem 0; }
   .header-tools { margin-left: 0; }
