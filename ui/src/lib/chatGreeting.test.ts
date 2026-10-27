@@ -57,8 +57,6 @@ describe("switch-button wiring", () => {
     const body = buildRunRequest({
       question: "What is the water level near Ahr Valley?",
       eventId: target ?? undefined,
-      provider: "nim" as never,
-      allowedProviders: [],
     });
     expect(body.event_id).toBe("EMSR517");
     expect(body.question).toBe("What is the water level near Ahr Valley?");

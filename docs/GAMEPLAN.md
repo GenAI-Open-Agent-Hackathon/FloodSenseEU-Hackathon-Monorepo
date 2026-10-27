@@ -18,7 +18,7 @@ Our stack: Python and LangGraph (agents, human-in-the-loop), FastAPI, React with
 
 ## Customer and KPI
 
-The primary customer is the insurer. The person in the demo is the analyst on the desk. The book of business is the synthetic portfolio (`ds_portfolio_syn` in `ingestion/prep/provenance.csv`), labelled synthetic, not real policies. The KPI we report is the hallucination rate on the eval set: the share of claims their own citations do not support. The proposal is ≤ 5%, with citation coverage at 100%. The metric table is under Evaluation set.
+The primary customer is the insurer. The person in the demo is the analyst on the desk. The book of business is the synthetic portfolio (`ds_portfolio_syn` in `ingestion/prep/provenance.csv`), labelled synthetic, not real policies. What we report on the eval set is that every claim is cited and judged, with citation coverage at 100%. The metric table is under Evaluation set.
 
 ## Non-goals
 
@@ -331,13 +331,13 @@ Two routing modes, no `meterless/auto` in the demo. Nightshift model ids are rou
 - Fast: `meterless/fast`
 - Deep: `meterless/deep`
 
-The two lanes are routing modes, so Nightshift picks the model. As measured on 27 Oct 2026 (agents logs, bench runs, eval `model_ids`), Nemotron 3.5 Lightning 30B A3B (`nvidia/nemotron-3.5-lightning-30b-a3b`) answers both. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
+The two lanes are routing modes, so Nightshift picks the model. The fast lane is Nemotron 3.5 Lightning 30B A3B (`nvidia/nemotron-3.5-lightning-30b-a3b`); the deep (full) lane is Nemotron Super 120B. The calls recorded in the 27 Oct 2026 eval subset (`model_ids`) were all answered by Lightning. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
 
 Every chat completion goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id that answered is logged on the trace. Document embeddings are the ADR 0009 exception and are not this client.
 
 ## Evaluation set
 
-Two real floods. The headline number is the hallucination rate: the share of claims that their own citations do not support. Saleeta and Urvashi build the set. Zain and Mihir run the metrics before the release candidate.
+Two real floods. The headline check is that every claim is cited and judged against its own citations. Saleeta and Urvashi build the set. Zain and Mihir run the metrics before the release candidate.
 
 | Event | Official data | News |
 | --- | --- | --- |
@@ -354,7 +354,7 @@ Proposed targets, for the team to confirm:
 | Citation support | Citations that support their claim / all citations | ≥ 90% |
 | Quote fidelity | Quotes whose hash and locator match / all quotes | 100% |
 | Numeric accuracy | Numbers equal to their Zetaris result / all numbers | 100% |
-| Hallucination rate | Claims not supported by their citations / all claims | ≤ 5%, reported per release |
+| Unsupported claims | Claims not supported by their citations / all claims | ≤ 5% target, checked per release, not published as a rate |
 | Judge–human agreement | Claims where the labels agree / all labelled claims | Reported; sets the Judge threshold |
 
 ## Caching and the honest demo

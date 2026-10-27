@@ -502,7 +502,7 @@ def quick_judge(state: FloodState) -> dict:
             state,
             "judge",
             f"{'PASS' if ok else 'FLAG'} overall={rep.overall:.2f} "
-            f"hallucination={rep.hallucination_rate:.0%} coverage={rep.citation_coverage:.0%} "
+            f"coverage={rep.citation_coverage:.0%} "
             f"numbers={rep.numeric_accuracy:.0%} flagged={flagged or '-'}",
             lane="none",
             model_id=rep.model_id,

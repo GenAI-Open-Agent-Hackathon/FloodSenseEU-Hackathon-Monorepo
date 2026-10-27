@@ -63,7 +63,6 @@ from floodsense_agents import __version__
 from floodsense_agents import desk, front_door, labelling, router, tower
 from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
-from floodsense_agents.nightshift import available_providers
 from floodsense_agents.readiness import report as readiness_report
 from floodsense_agents.verify import report as verify_report
 from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime, ThreadNotFound
@@ -398,8 +397,6 @@ def config():
             # Control tower: the rule-based watch loop and the auto-assess switch with its caps.
             # Not under flags: the switch moves at runtime and flags are in the API cache key.
             "watch": _watch_config(),
-            # Test-only switch; one entry unless LLM_PROVIDER_SWITCH and a key are set.
-            "llm_providers": available_providers(),
         }
     )
 

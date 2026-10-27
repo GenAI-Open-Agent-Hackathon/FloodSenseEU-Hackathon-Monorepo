@@ -23,7 +23,6 @@ function run(lane: "forecast" | "full", status: string, trace: ReplayStep[]): Re
     claims: [],
     judgeOverall: 1,
     judgePasses: true,
-    hallucinationRate: 0,
     flaggedClaimIds: [],
     trace,
     servedFrom: "live",

@@ -16,7 +16,6 @@ import { servingLabel, servingQualifier } from "../lib/format";
 import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
 import { shownEventId } from "../lib/events";
 import { contextForMode, modeName } from "../lib/mode";
-import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
 import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
 import { turnBadge } from "../lib/turnBadge";
@@ -50,7 +49,7 @@ interface Turn {
  */
 export function AskFloodSense() {
   const desk = useConsole();
-  const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page, deskRoute } =
+  const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, page, deskRoute } =
     desk;
   const greeting = greetingFor(deskRoute, desk.mode, shownEventId(desk.mode, desk.eventId));
   const exampleId = useId();
@@ -90,7 +89,7 @@ export function AskFloodSense() {
   // Conversation typed in this popup. Newest at the bottom; it survives closing the popup.
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState<{ question: string; started: number; provider: string; live: LiveRunState | null } | null>(
+  const [pending, setPending] = useState<{ question: string; started: number; live: LiveRunState | null } | null>(
     null,
   );
   const [elapsed, setElapsed] = useState(0);
@@ -159,18 +158,15 @@ export function AskFloodSense() {
     sendingRef.current = true;
     const controller = new AbortController();
     inflightRef.current = controller;
-    const allowed = llmProviders.includes(llmProvider);
     // Follow-ups continue the thread of the newest answered run.
     const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
     if (typed === undefined) setDraft("");
-    setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider", live: null });
+    setPending({ question, started: Date.now(), live: null });
     // The global mode decides the event: Live sends none, Past sends the chosen event and its replay date.
     const mergedContext = contextForMode(mergeContext(screenContext(), askContext), desk.mode);
     const result = await startLiveRun(
       {
         question,
-        provider: llmProvider,
-        allowedProviders: llmProviders,
         threadId: followUpThreadId(previous),
         mode: modeForPage(page),
         context: mergedContext,
@@ -475,7 +471,7 @@ export function AskFloodSense() {
                     · <span className="sr-only">elapsed </span>
                     {formatElapsed(elapsed)}
                   </span>{" "}
-                  · {pending.provider}. A full run can take several minutes.{" "}
+                  . A full run can take several minutes.{" "}
                   <button type="button" className="ask-link" onClick={cancel} aria-label="Stop watching this run">
                     Cancel
                   </button>
@@ -596,7 +592,6 @@ function RecordedAnswer({
         <p className="note" title="Score from our independent checker agent">
           Checked: {run.judgeOverall.toFixed(2)}
           {run.judgePasses === null ? "" : run.judgePasses ? " · passes" : " · does not pass"}
-          {run.hallucinationRate === null ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)} %`}
         </p>
       )}
       {/* agents-visual: the pipeline folds to one line once the answer is here. */}

@@ -99,7 +99,7 @@ Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...
 <!-- TEAM-EDITABLE-BLOCK START (Cursor wording) -->
 Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests (`.cursor/skills/floodsense-pr-review/SKILL.md`).
 
-The repository's coding, review and documentation work also used Claude Code (Anthropic) with independent review agents. Every change went through a branch, an independent review and a pull request (see the pull requests in this repository).
+The repository's coding, review and documentation work also used coding agents with independent review agents. Every change went through a branch, an independent review and a pull request (see the pull requests in this repository).
 <!-- TEAM-EDITABLE-BLOCK END -->
 
 ## Licence

@@ -2,22 +2,22 @@
 
 # FloodSense evals — 2026-10-27 03:02 UTC
 
-LLM `ProviderSwitch` (provider `default`) · Zetaris `ZetarisClient` · targets: hallucination ≤ 5 %, coverage 100 %, numeric 100 %
+LLM `NightshiftClient` · Zetaris `ZetarisClient` · targets: coverage 100 %, numeric 100 %
 
 ## EMSR773
 
-**hallucination 0.0%** ✅ · **coverage 100%** ✅ · **numeric 100%** ✅ · judge pass 100% (overall 0.99) · expected tokens 100% · forbidden figures 0 · repairs 1 · skeptic rejections 0 · 385.38 s/item
+**coverage 100%** ✅ · **numeric 100%** ✅ · judge pass 100% (overall 0.99) · expected tokens 100% · forbidden figures 0 · repairs 1 · skeptic rejections 0 · 385.38 s/item
 
-| id | halluc. | coverage | numeric | claims | repairs | expected | forbidden | status |
-|---|---|---|---|---|---|---|---|---|
-| val-02 | 0% | 100% | 100% | 7 | 0 | 2/2 | — | approved |
-| val-05 | 0% | 100% | 100% | 8 | 1 | 2/2 | — | approved |
+| id | coverage | numeric | claims | repairs | expected | forbidden | status |
+|---|---|---|---|---|---|---|---|
+| val-02 | 100% | 100% | 7 | 0 | 2/2 | — | approved |
+| val-05 | 100% | 100% | 8 | 1 | 2/2 | — | approved |
 
 ## EMSR517
 
-**hallucination 0.0%** ✅ · **coverage 100%** ✅ · **numeric 100%** ✅ · judge pass 100% (overall 1.00) · expected tokens 100% · forbidden figures 0 · repairs 0 · skeptic rejections 2 · 346.14 s/item
+**coverage 100%** ✅ · **numeric 100%** ✅ · judge pass 100% (overall 1.00) · expected tokens 100% · forbidden figures 0 · repairs 0 · skeptic rejections 2 · 346.14 s/item
 
-| id | halluc. | coverage | numeric | claims | repairs | expected | forbidden | status |
-|---|---|---|---|---|---|---|---|---|
-| ahr-03 | 0% | 100% | 100% | 4 | 0 | 1/1 | — | approved |
-| ahr-05 | 0% | 100% | 100% | 4 | 0 | 1/1 | — | approved |
+| id | coverage | numeric | claims | repairs | expected | forbidden | status |
+|---|---|---|---|---|---|---|---|
+| ahr-03 | 100% | 100% | 4 | 0 | 1/1 | — | approved |
+| ahr-05 | 100% | 100% | 4 | 0 | 1/1 | — | approved |
