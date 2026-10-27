@@ -53,6 +53,19 @@ describe("engines HTTP", () => {
     assert.equal(fb.status, 200);
   });
 
+  it("lists the newest memories without recalling", async () => {
+    await call("POST", "/hmem/store", { ...run, run_id: "run-list" });
+    const before = await call("GET", "/health");
+    const { status, json } = await call("GET", "/hmem/memories?limit=1");
+    assert.equal(status, 200);
+    assert.ok(json.total >= 1);
+    assert.equal(json.memories.length, 1);
+    assert.ok(typeof json.memories[0].provenance.label === "string");
+    const after = await call("GET", "/health");
+    assert.deepEqual(after.json.hmem, before.json.hmem);
+    assert.equal((await call("GET", "/hmem/memories?limit=abc")).status, 400);
+  });
+
   it("hypotheses, anomalies, board and timeline", async () => {
     const res = await call("POST", "/wm/hypotheses", {
       run_id: "run-1",

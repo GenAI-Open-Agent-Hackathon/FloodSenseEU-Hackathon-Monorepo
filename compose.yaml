@@ -24,6 +24,8 @@ services:
     # overwrites api/.env. The cache URL belongs in api/.env.
     environment:
       AGENTS_URL: http://agents:8100
+      # Read-only: GET /system lists H-MEM and the World Model; demo-seed stores through it.
+      ENGINES_URL: http://engines:8300
     ports:
       - "127.0.0.1:${FLOODSENSE_API_PORT:-18000}:8000"
     extra_hosts:

@@ -87,8 +87,55 @@ class ParseManifestTest(unittest.TestCase):
                     )
                 ]
             )
+            + '  country: "EU"\n'
         )
         self.assertIsNone(parsed[0]["event_id"])
+
+    def test_country_scopes_event_agnostic_documents(self) -> None:
+        text = _yaml([_entry(tier=3, event_id=None)])
+        # without a country a null-event document is left out of the scope file
+        self.assertIn('"generic": {}', rag_corpus.scope_json(rag_corpus.parse_manifest(text)))
+        scoped = rag_corpus.parse_manifest(text + '  country: "ES"\n')
+        self.assertIn('"hess-29-6715-2025": "ES"', rag_corpus.scope_json(scoped))
+        with self.assertRaises(rag_corpus.CorpusError):
+            rag_corpus.parse_manifest(text + '  country: "Spain"\n')
+
+    def test_scope_file_matches_the_manifest(self) -> None:
+        """agents/floodsense_agents/rag_scope.json is regenerated with --write-scope."""
+        manifest = rag_corpus.parse_manifest(
+            (ROOT / "corpus" / "manifest.yaml").read_text(encoding="utf-8")
+        )
+        committed = (ROOT / rag_corpus.SCOPE_FILE).read_text(encoding="utf-8")
+        self.assertEqual(committed, rag_corpus.scope_json(manifest))
+        self.assertIn('"boe-a-2004-18910": "ES"', committed)
+
+    def test_optional_audience_language_year(self) -> None:
+        text = _yaml([_entry()]) + '  audience: "insurer"\n  language: "en"\n  year: 2025\n'
+        parsed = rag_corpus.parse_manifest(text)
+        self.assertEqual(parsed[0]["audience"], "insurer")
+        self.assertEqual(parsed[0]["language"], "en")
+        self.assertEqual(parsed[0]["year"], 2025)
+        self.assertNotIn("audience", rag_corpus.parse_manifest(_yaml([_entry()]))[0])
+
+    def test_rejects_bad_optional_metadata(self) -> None:
+        for extra in ('  audience: "broker"\n', '  language: "eng"\n', '  year: "2025"\n'):
+            with self.assertRaises(rag_corpus.CorpusError):
+                rag_corpus.parse_manifest(_yaml([_entry()]) + extra)
+
+    def test_committed_manifest_has_insurer_documents(self) -> None:
+        manifest = rag_corpus.parse_manifest(
+            (ROOT / "corpus" / "manifest.yaml").read_text(encoding="utf-8")
+        )
+        insurer = {str(e["doc_id"]) for e in manifest if e.get("audience") == "insurer"}
+        self.assertTrue(
+            {
+                "eea-briefing-economic-losses-2025",
+                "eea-briefing-economic-losses-2022",
+                "eiopa-19-485",
+            }
+            <= insurer
+        )
+        self.assertTrue(all("audience" in e for e in manifest))
 
     def test_rejects_noncommercial_licence(self) -> None:
         with self.assertRaises(rag_corpus.CorpusError) as caught:
@@ -252,6 +299,10 @@ class CommittedCorpusTest(unittest.TestCase):
                 "nhess-23-525-2023",
                 "nhess-23-973-2023",
                 "boe-a-2004-18910",
+                "eea-briefing-economic-losses-2025",
+                "eea-briefing-economic-losses-2022",
+                "eiopa-19-485",
+                "eu-floods-directive-2007-60-ec",
             ],
         )
         self.assertTrue(all(row["placement"] == "git" for row in manifest))

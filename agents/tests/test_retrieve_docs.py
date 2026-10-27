@@ -120,6 +120,183 @@ class RetrieveDocsTest(unittest.TestCase):
         )
         self.assertEqual([c["chunk_id"] for c in result.citations], ["kept"])
 
+    def test_event_sql_stays_event_scoped(self) -> None:
+        for statement in (retrieve_mod._HALFVEC_SQL, retrieve_mod._EXACT_SQL):
+            self.assertIn("($2::text IS NULL OR event_id = $2)", statement)
+            self.assertNotIn("event_id IS NULL", statement)
+        for statement in (retrieve_mod._GENERIC_HALFVEC_SQL, retrieve_mod._GENERIC_EXACT_SQL):
+            self.assertIn("event_id IS NULL", statement)
+            self.assertIn("doc_id = ANY($2)", statement)
+
+    def test_committed_scope_file_loads(self) -> None:
+        scope = retrieve_mod.load_scope()
+        self.assertEqual(scope.get("boe-a-2004-18910"), "ES")
+        self.assertEqual(scope.get("eiopa-19-485"), "EU")
+
+
+class GenericRankingTest(unittest.TestCase):
+    """A fake vector table: the event top k is never displaced, generic passages are
+    appended (at most 2), and a Spain-only document never reaches an EMSR517 run."""
+
+    # chunk_id, event_id, doc_id, vector. The query vector is (1, 0).
+    CHUNKS = (
+        ("ev773-a", "EMSR773", "hess", (0.60, 0.80)),
+        ("ev773-b", "EMSR773", "hess", (0.50, 0.87)),
+        ("ev773-c", "EMSR773", "s19", (0.30, 0.95)),
+        ("ev517-a", "EMSR517", "nhess", (0.55, 0.83)),
+        ("ev517-b", "EMSR517", "nhess", (0.40, 0.92)),
+        ("eu-1", None, "eea", (0.99, 0.10)),
+        ("eu-2", None, "eiopa", (0.98, 0.20)),
+        ("eu-3", None, "eea", (0.97, 0.24)),
+        ("es-1", None, "boe", (1.00, 0.00)),
+        ("de-1", None, "de-only", (0.995, 0.05)),
+    )
+    SCOPE = {"eea": "EU", "eiopa": "EU", "boe": "ES", "de-only": "DE"}
+
+    @staticmethod
+    def _distance(vector: list[float], other: tuple[float, float]) -> float:
+        dot = sum(a * b for a, b in zip(vector, other, strict=True))
+        norm = (sum(a * a for a in vector) * sum(b * b for b in other)) ** 0.5
+        return 1.0 - dot / norm
+
+    def _search(self, vector, event_id, k):
+        rows = [c for c in self.CHUNKS if event_id is None or c[1] == event_id]
+        ranked = sorted(rows, key=lambda c: self._distance(vector, c[3]))
+        return [(c[0], self._distance(vector, c[3])) for c in ranked[:k]]
+
+    def _generic(self, vector, doc_ids, k):
+        rows = [c for c in self.CHUNKS if c[1] is None and c[2] in doc_ids]
+        ranked = sorted(rows, key=lambda c: self._distance(vector, c[3]))
+        return [(c[0], self._distance(vector, c[3])) for c in ranked[:k]]
+
+    @staticmethod
+    def _hydrate(ids):
+        return "q-1", [_hit_row(chunk_id, f"text of {chunk_id}", 1) for chunk_id in ids]
+
+    def _run(self, query: str, event_id: str, k: int = 2, role: str | None = None):
+        filters = {"event_id": event_id, **({"role": role} if role else {})}
+        result = retrieve_docs(
+            query,
+            k,
+            filters,
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        self.assertIsNone(result.error)
+        return [c["chunk_id"] for c in result.citations]
+
+    def test_event_passages_lead_and_generic_is_capped(self) -> None:
+        ids = self._run("What share of flood losses was insured?", "EMSR773", k=2)
+        # Generic chunks are closer to the query, yet the event top 2 comes first.
+        self.assertEqual(ids[:2], ["ev773-a", "ev773-b"])
+        self.assertEqual(len(ids), 2 + retrieve_mod.GENERIC_MAX)
+        self.assertEqual(ids[2:], ["es-1", "eu-1"])
+
+    def test_spanish_document_never_reaches_the_ahr_run(self) -> None:
+        ids = self._run("insurance protection gap", "EMSR517", k=2)
+        self.assertEqual(ids[:2], ["ev517-a", "ev517-b"])
+        self.assertNotIn("es-1", ids)
+        self.assertEqual(ids[2:], ["de-1", "eu-1"])
+
+    def test_german_document_never_reaches_the_valencia_run(self) -> None:
+        ids = self._run("insured losses", "EMSR773", k=3)
+        self.assertNotIn("de-1", ids)
+        self.assertEqual(ids[:3], ["ev773-a", "ev773-b", "ev773-c"])
+
+    def test_no_generic_without_insurer_words_or_role(self) -> None:
+        self.assertEqual(
+            self._run("How much rain fell in Chiva?", "EMSR773"), ["ev773-a", "ev773-b"]
+        )
+        ids = self._run("How much rain fell in Chiva?", "EMSR773", role="insurer")
+        self.assertEqual(ids, ["ev773-a", "ev773-b", "es-1", "eu-1"])
+
+    def test_bare_loss_or_claims_does_not_pull_generic(self) -> None:
+        for query in ("What losses did Paiporta see?", "Which claims came in?", "loss of power"):
+            self.assertFalse(retrieve_mod.wants_generic(query, {"event_id": "EMSR773"}), query)
+        for query in (
+            "economic losses 1980-2023",
+            "insured loss share",
+            "claims paid by the Consorcio",
+            "Versicherungsdichte",
+            "seguro de inundación",
+            "protection gap",
+            "policy wording",
+        ):
+            self.assertTrue(retrieve_mod.wants_generic(query, None), query)
+
+    def test_generic_citations_are_flagged(self) -> None:
+        result = retrieve_docs(
+            "insured losses",
+            2,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        flags = {c["chunk_id"]: c.get("generic", False) for c in result.citations}
+        self.assertEqual(flags, {"ev773-a": False, "ev773-b": False, "es-1": True, "eu-1": True})
+
+    def test_generic_citation_sits_only_on_its_own_passage_claim(self) -> None:
+        result = retrieve_docs(
+            "insured losses",
+            2,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        for request in ({}, {"doc_claim_id": "C1"}):
+            base = [Claim(claim_id="C1", text="Chiva rain", kind="fact")]
+            claims, _evidence = _attach_documents(base, result.citations, request, "q")
+            by_chunk = {c["chunk_id"]: c for c in result.citations}
+            generic_claims = 0
+            for claim in claims:
+                for cit in claim.citations:
+                    raw = by_chunk[cit.chunk_id]
+                    if raw.get("generic"):
+                        generic_claims += 1
+                        # one generic passage, and the claim text is that passage
+                        self.assertEqual(len(claim.citations), 1)
+                        self.assertTrue(claim.claim_id.startswith("C-doc-g"))
+                        excerpt = claim.text.split(': "', 1)[1].rstrip('"')
+                        self.assertIn(excerpt.rstrip("."), " ".join(raw["quote"].split()))
+                    else:
+                        self.assertFalse(claim.claim_id.startswith("C-doc-g"))
+            self.assertEqual(generic_claims, 2, request)
+
+    def test_missing_scope_file_logs_a_warning(self) -> None:
+        saved = (retrieve_mod._SCOPE_FILE, retrieve_mod._SCOPE_CACHE)
+        try:
+            retrieve_mod._SCOPE_FILE = Path(__file__).with_name("no-such-scope.json")
+            retrieve_mod._SCOPE_CACHE = None
+            with self.assertLogs("floodsense.retrieve_docs", level="WARNING"):
+                self.assertEqual(retrieve_mod.load_scope(), {})
+        finally:
+            retrieve_mod._SCOPE_FILE, retrieve_mod._SCOPE_CACHE = saved
+
+    def test_generic_failure_keeps_event_passages(self) -> None:
+        def broken(_vector, _ids, _k):
+            raise RuntimeError("generic search failed")
+
+        result = retrieve_docs(
+            "insured losses",
+            2,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=broken,
+            scope=self.SCOPE,
+        )
+        self.assertEqual([c["chunk_id"] for c in result.citations], ["ev773-a", "ev773-b"])
+
     def test_search_binds_each_reused_placeholder(self) -> None:
         """Halfvec and the exact fallback reuse $1 and $2. Each use must be bound."""
 

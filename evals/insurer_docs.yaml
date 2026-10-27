@@ -1,0 +1,32 @@
+# Layer (c) insurer and authority documents (event-agnostic, Tier 3). A separate block with its own
+# aggregate, so it does not move the Valencia numbers. Runs inside the EMSR773 event (EU-wide documents
+# are allowed there). Each item passes doc_query so the Investigator calls retrieve_docs; expect_source is
+# the corpus URL a cited claim should carry (reported as source_cited). The facts are quoted from the
+# stored copies under corpus/pdf/. They need FF_RAG_DOCS on and the four new documents ingested.
+event_id: EMSR773
+customer_id: demo-insurer
+# insurer role: retrieve_docs appends up to 2 generic passages after the event top k
+context:
+  role: insurer
+items:
+  - id: ins-01
+    question: For our Valencia book, what share of weather- and climate-related losses in EEA member countries was insured between 1980 and 2020?
+    doc_query: share of economic losses from weather- and climate-related events that were insured 1980-2020
+    expect_source: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-and-fatalities-from-weather-and-climate-related-events-in-europe"
+    # EEA (2022) key message: between only one quarter and one third of these losses were insured.
+    reference: "EUR 450-520 billion (2020 euros) in EEA-32, 1980-2020; between one quarter and one third insured"
+    expect: ["one quarter", "one third"]
+  - id: ins-02
+    question: For our Valencia book, how large is the insurance protection gap for weather- and climate-related losses across EEA-38 countries since 1980?
+    doc_query: insurance protection gap uninsured share of losses EEA-38 1980-2023
+    expect_source: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-from-climate-extremes"
+    # EEA (2025) key messages: losses exceeded EUR 790 billion 1980-2023; most countries reported over 50% uninsured.
+    reference: "Over EUR 790 billion of losses in EEA-38, 1980-2023; most countries over 50% uninsured, often over 90%"
+    expect: ["790"]
+  - id: ins-03
+    question: For Valencia, what must Member States prepare under the EU Floods Directive for areas with significant flood risk?
+    doc_query: Floods Directive flood hazard maps flood risk maps flood risk management plans
+    expect_source: "https://eur-lex.europa.eu/eli/dir/2007/60/oj"
+    # Directive 2007/60/EC, Art. 6 (flood hazard maps and flood risk maps) and Art. 7 (flood risk management plans).
+    reference: "Flood hazard maps and flood risk maps (Art. 6) and flood risk management plans (Art. 7)"
+    expect: ["flood hazard maps", "flood risk management plans"]
