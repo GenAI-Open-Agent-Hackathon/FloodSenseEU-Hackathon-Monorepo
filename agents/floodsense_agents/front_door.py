@@ -51,8 +51,11 @@ _FLOOD = re.compile(
 _GREETING = re.compile(
     r"^(hi+|hello+|hey+|hiya|yo|howdy|good\s+(morning|afternoon|evening|day)|"
     r"greetings|hallo|guten\s+(morgen|tag|abend)|servus|moin|hola|buenos\s+d[ií]as|"
-    r"buenas(\s+tardes|\s+noches)?|bonjour|ciao|salut)\b[\s!.,?]*"
-    r"(there|all|everyone|floodsense|team)?[\s!.,?]*$",
+    r"buenas(\s+tardes|\s+noches)?|bonjour|ciao|salut)\b[\s!.,?¿¡]*"
+    r"(there|all|everyone|floodsense|team)?[\s!.,?¿¡]*"
+    r"((how\s+are\s+you|how\s+are\s+things|how'?s\s+it\s+going|how\s+is\s+it\s+going|"
+    r"what'?s\s+up|wie\s+geht'?s|qu[eé]\s+tal|c[oó]mo\s+est[aá]s|[cç]a\s+va)"
+    r"(\s+(today|doing))?[\s!.,?¿¡]*(floodsense|there)?[\s!.,?¿¡]*)?$",
     re.I,
 )
 _THANKS = re.compile(
@@ -123,7 +126,8 @@ def rules(question: str) -> tuple[str, bool]:
     q = " ".join((question or "").split())
     if not q:
         return "help", True
-    if _FLOOD.search(q):
+    # The product's own name ("FloodSense") is not a flood word.
+    if _FLOOD.search(re.sub(r"flood\s*sense", " ", q, flags=re.I)):
         return "flood_question", True
     if _GREETING.match(q):
         return "greeting", True
