@@ -168,6 +168,9 @@ describe("seededMemoryNote", () => {
     expect(seededMemoryNote({ seeded: true, text: "In 2021 about 241 people died along the Ahr." })).toBe(DEATH_TOLL_NOTE);
     expect(seededMemoryNote({ seeded: true, text: "62 people were killed" })).toBe(DEATH_TOLL_NOTE);
     expect(seededMemoryNote({ seeded: true, text: "Deaths were reported" })).toBe(DEATH_TOLL_NOTE);
+    for (const w of ["lives lost", "fatalities", "fatality", "victims", "casualties", "casualty", "dead", "killing"]) {
+      expect(seededMemoryNote({ seeded: true, text: `Reports of ${w} in the flood` })).toBe(DEATH_TOLL_NOTE);
+    }
     expect(seededMemoryNote({ seeded: true, text: "Altenahr 249.61 m3/s" })).toBeNull();
     expect(seededMemoryNote({ seeded: false, text: "62 people died" })).toBeNull();
     expect(DEATH_TOLL_NOTE).toBe("[source text, verify before quoting]");

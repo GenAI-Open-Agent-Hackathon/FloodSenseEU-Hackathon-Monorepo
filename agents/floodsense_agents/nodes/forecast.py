@@ -42,7 +42,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
 from floodsense_agents import plain as plain_mod
-from floodsense_agents.engines import memory_origin, short
+from floodsense_agents.engines import fold, memory_origin, short
 from floodsense_agents.events import EVENTS, POINT_NAMES
 from floodsense_agents.governance import DEFINITIONS
 from floodsense_agents.live import GAUGE_STALE_H, gauge_latest_sql, gauge_threshold, hours_between
@@ -342,13 +342,13 @@ def route_after_forecast_data(state: FloodState) -> str:
 
 def _memory_rows(memories: list[dict], p: ForecastPoint) -> list[dict]:
     """Recalled memories that name this place, its river or its gauge. Seeded ones labelled."""
-    words = {label(p).lower(), p[3].lower(), p[4].lower(), p[2].lower()}
+    words = {fold(w) for w in (label(p), p[3], p[4], p[2])}
     rows = []
     for m in memories or []:
         if not isinstance(m, dict):
             continue
         text = str(m.get("content") or "")
-        low = text.lower()
+        low = fold(text)
         if not any(w and re.search(rf"(?<!\w){re.escape(w)}(?!\w)", low) for w in words):
             continue
         seeded, reviewer = memory_origin(m)
@@ -799,6 +799,8 @@ def make_forecast_answer(deps: Deps):
                 m = mev.rows_sample[0]
                 tag = "demo seed, " if m.get("seeded") else ""
                 who = f"approved by {m['reviewer']}" if m.get("reviewer") else "approved"
+                if not m.get("seeded") and m.get("run_id"):
+                    who += f", run {m['run_id']}"
                 excerpt = " ".join(str(m.get("content") or "").split())[:200]
                 add(
                     f'Approved memory (H-MEM, {tag}{who}) for {label(p)}: "{excerpt}" '

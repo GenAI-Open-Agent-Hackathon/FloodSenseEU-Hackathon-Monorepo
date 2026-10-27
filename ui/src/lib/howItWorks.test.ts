@@ -58,11 +58,17 @@ describe("boxStatuses", () => {
 
 describe("zetarisHealth", () => {
   const now = Date.parse("2026-10-27T12:00:00Z");
-  const ok = { hits: 5, misses: 1, staleServes: 0, lastError: null };
-  const bad = (detail: string, at = "2026-10-27T11:55:00Z") => ({ hits: 0, misses: 2, staleServes: 2, lastError: { at, detail } });
+  const ok = { hits: 5, misses: 1, staleServes: 0, lastError: null, lastOkAt: null };
+  const bad = (detail: string, at = "2026-10-27T11:55:00Z") => ({ hits: 0, misses: 2, staleServes: 2, lastError: { at, detail }, lastOkAt: null as string | null });
   it("is running when reads work and none fail", () => {
     expect(zetarisHealth({ gauge_levels: ok }, null, now).state).toBe("ok");
     expect(zetarisHealth({ gauge_levels: { ...ok, lastError: { at: "2026-10-27T11:00:00Z", detail: "429" } } }, null, now).state).toBe("ok");
+  });
+  it("is running when the view recovered after its last error, and a bad timestamp counts as old", () => {
+    const recovered = { ...bad("timeout"), lastOkAt: "2026-10-27T11:58:00Z" };
+    expect(zetarisHealth({ eu_watch: recovered, gauge_levels: ok }, null, now).state).toBe("ok");
+    expect(zetarisHealth({ eu_watch: { ...recovered, lastOkAt: "2026-10-27T11:50:00Z" }, gauge_levels: ok }, null, now).state).toBe("partial");
+    expect(zetarisHealth({ eu_watch: bad("timeout", "not a date"), gauge_levels: ok }, null, now).state).toBe("ok");
   });
   it("is amber when some views fail, and never red for a rate limit", () => {
     const r = zetarisHealth({ gauge_levels: ok, hazard_now: bad("upstream 429 Too Many Requests") }, "rows", now);

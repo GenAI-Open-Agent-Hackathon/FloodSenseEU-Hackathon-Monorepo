@@ -111,7 +111,7 @@ class Served:
 
 
 def _blank() -> dict[str, Any]:
-    return {"hits": 0, "misses": 0, "stale_serves": 0, "last_upstream_error": None}
+    return {"hits": 0, "misses": 0, "stale_serves": 0, "last_upstream_error": None, "last_ok_at": None}
 
 
 class ViewsCache:
@@ -158,6 +158,10 @@ class ViewsCache:
     def store(self, name: str, query: str, copy: Copy) -> None:
         slot = self.slot(name, query)
         with self._lock:
+            # store() runs only on a successful upstream read
+            self._stats.setdefault(name, _blank())["last_ok_at"] = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(self._clock())
+            )
             if len(self._mem) >= MEMORY_MAX and slot not in self._mem:
                 oldest = min(self._mem, key=lambda k: self._mem[k].stored_at)
                 del self._mem[oldest]

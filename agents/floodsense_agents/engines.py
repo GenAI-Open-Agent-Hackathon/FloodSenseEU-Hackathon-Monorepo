@@ -25,6 +25,7 @@ engines are down.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any, Protocol
 
 import httpx
@@ -120,7 +121,13 @@ class EnginesClient:
         event_id = request.get("event_id")
         if event_id:
             tag = f"event:{event_id}"
-            memories = [m for m in memories if tag in (m.get("tags") or [])]
+            # shortcut: an approved run once stored event None; keep those, the caller's place match decides
+            memories = [
+                m
+                for m in memories
+                if tag in (m.get("tags") or [])
+                or not any(str(t).startswith("event:") for t in m.get("tags") or [])
+            ]
         return memories[: self.recall_top_n]
 
     def store(
@@ -192,6 +199,11 @@ def memory_origin(memory: dict[str, Any]) -> tuple[bool, str | None]:
         or f"entity:{SEED_REVIEWER}" in tags
     )
     return seeded, reviewer
+
+
+def fold(text: str) -> str:
+    """Lower-case, accent-free text: "Orléans" matches "Orleans"."""
+    return "".join(c for c in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(c))
 
 
 def short(err: Exception) -> str:

@@ -79,7 +79,7 @@ export const DEATH_TOLL_NOTE = "[source text, verify before quoting]";
 
 /** Pure: the note shown beside a seeded memory whose text states a death toll ("died", "deaths", "killed"); null otherwise. */
 export function seededMemoryNote(m: { text: string; seeded?: boolean }): string | null {
-  return m.seeded && /\b(died|deaths?|killed)\b/i.test(m.text) ? DEATH_TOLL_NOTE : null;
+  return m.seeded && /\b(died|deaths?|dead|killed|killing|lives|fatalit\w*|victims?|casualt\w*)\b/i.test(m.text) ? DEATH_TOLL_NOTE : null;
 }
 
 export const NO_MEMORIES = "No approved memories matched — this run starts fresh.";
