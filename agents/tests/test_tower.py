@@ -85,12 +85,13 @@ class Stub:
             "exposure_join": [exposure] if exposure else [{"sites": 0, "policies": 0, "insured_eur": None}],
         }  # fmt: skip
         self.fail = set(fail)
+        self.fail_msg = "boom"
         self.queries: list[tuple[str, str]] = []
 
     def run_sql(self, sql, params=None, sample=20):
         view = next(v for v in self.rows if v in sql)
         self.queries.append((view, sql))
-        err = "boom" if view in self.fail else None
+        err = self.fail_msg if view in self.fail else None
         rows = [] if err else self.rows[view]
         return Evidence(
             query_id=f"q-{len(self.queries)}", view=view, sql=sql, rows_sample=rows[:sample],
@@ -146,8 +147,8 @@ class StatusTest(unittest.TestCase):
             ("gauge", "near"): ("Close to mean high water", "watch"),
             ("model", "over"): ("Elevated (model)", "elevated"),
             ("model", "near"): ("Watch (model)", "watch"),
-            ("valencia", "over"): ("Above 80 m³/s demo line", "elevated"),
-            ("valencia", "near"): ("Above 20 m³/s demo line", "neutral"),
+            ("valencia", "over"): ("Far above its recent normal (model)", "elevated"),
+            ("valencia", "near"): ("Above its recent normal (model)", "neutral"),
             ("gauge", "ok"): ("Normal", "normal"),
             ("model", "unknown"): ("No reading", "unknown"),
         }
@@ -174,12 +175,13 @@ class StatusTest(unittest.TestCase):
             self.assertEqual(tower.model_sources(ev)[0]["status"], c["status"], c)
         for c in CASES["valencia"]:
             rows = []
-            if c["now"] is not None:
+            past = c["past"]
+            for i, q in enumerate(past):
                 rows.append(
                     {
                         "point_id": "VAL01",
-                        "ts_utc": iso(0),
-                        "discharge_m3s": c["now"],
+                        "ts_utc": iso(i - len(past) + 1),
+                        "discharge_m3s": q,
                         "horizon": "past",
                     }
                 )
@@ -202,9 +204,12 @@ class StatusTest(unittest.TestCase):
             hazards=hazard("VAL01", 4.0, 180.0) + hazard("VAL02", 25.0, 4.0) + hazard("VAL03")[:6]
         ).run_sql("hazard_now", None, 6000)
         by = {s["ref"]: s for s in tower.valencia_sources(ev)}
-        self.assertEqual(by["VAL01"]["status"], "over")  # forecast 180 >= 80
-        self.assertEqual(by["VAL02"]["status"], "near")  # now 25 >= 20
+        # hazard() holds the past flat at "now", so a point's own median is its now (floored at 5)
+        self.assertEqual(by["VAL01"]["status"], "over")  # forecast 180 >= 4 x 5
+        self.assertEqual(by["VAL02"]["status"], "ok")  # 25 against its own normal of 25
         self.assertEqual(by["VAL03"]["status"], "ok")
+        self.assertNotIn("demo line", tower.detected_text(by["VAL01"], None))
+        self.assertEqual(by["VAL01"]["row"]["warning_m3s"], 20.0)
 
 
 class DiffTest(unittest.TestCase):
@@ -270,11 +275,61 @@ class DiffTest(unittest.TestCase):
         self.assertIn("eu_watch", out["errors"])
         new = t.store.since(mark, 50)
         self.assertEqual([e["kind"] for e in new], ["info"])  # one note, no false "recovered"
-        self.assertIn("Could not read eu_watch", new[0]["text"])
+        self.assertEqual(
+            new[0]["text"],
+            "The river model feed could not be read this scan; sources keep their last status.",
+        )
+        self.assertEqual(new[0]["detail"], "boom")
         stub.fail = set()
         mark = t.store.latest_id()
         self.assertEqual(t.cycle()["new"], 0)  # the Loire is not "new" again after the outage
-        self.assertEqual([e["text"] for e in t.store.since(mark, 50)], ["eu_watch answers again."])
+        self.assertEqual(
+            [e["text"] for e in t.store.since(mark, 50)],
+            ["The river model feed can be read again."],
+        )
+
+    def test_a_rate_limit_is_said_plainly_and_the_raw_error_stays_in_detail(self):
+        raw = (
+            'Zetaris HTTP 400: {"msg":"REST API call failed: Server returned HTTP response code: '
+            '429 for URL: https://flood-api.open-meteo.com/v1/flood?x=1"}'
+        )
+        stub = full_stub()
+        stub.fail_msg = raw
+        stub.fail = {"eu_watch", "hazard_now"}
+        t = make(stub, self.tmp.name)
+        t.cycle()
+        notes = [e for e in t.store.all() if e["kind"] == "info" and e.get("detail")]
+        self.assertTrue(notes)
+        for e in notes:
+            self.assertEqual(
+                e["text"],
+                "Open-Meteo is rate-limiting the model feed right now, so these sources keep "
+                "their last status.",
+            )
+            for bad in ("http", "{", "429", "open-meteo.com", "Zetaris"):
+                self.assertNotIn(bad, e["text"])
+            self.assertIn("429", e["detail"])
+        self.assertIn("could not be read", tower.friendly_error("gauge_levels", "boom"))
+        self.assertNotIn("Open-Meteo", tower.friendly_error("gauge_levels", "HTTP 429"))
+
+    def test_repeated_identical_failures_share_a_key_and_count(self):
+        stub = full_stub()
+        t = make(stub, self.tmp.name)
+        t.cycle()
+        stub.fail = {"eu_watch"}
+        for _ in range(3):
+            t.cycle()
+        rows = [e for e in t.store.all() if e["data"].get("dedupe_key")]
+        self.assertEqual([e["data"]["repeats"] for e in rows], [1, 2, 3])
+        self.assertEqual(len({e["data"]["dedupe_key"] for e in rows}), 1)
+        self.assertRegex(rows[-1]["data"]["since"], r"^\d\d:\d\d$")
+        stub.fail = set()
+        t.cycle()
+        stub.fail = {"eu_watch"}
+        t.cycle()  # a new outage after a recovery is a new row with its own count
+        last = [e for e in t.store.all() if e["data"].get("dedupe_key")][-1]
+        self.assertEqual(last["data"]["repeats"], 1)
+        self.assertNotEqual(last["data"]["dedupe_key"], rows[0]["data"]["dedupe_key"])
 
     def test_a_stale_gauge_is_never_an_event(self):
         t = make(full_stub(gauges=[gauge(stale=True)], eus=[], hazards=[]), self.tmp.name)
@@ -373,7 +428,7 @@ class EventTest(unittest.TestCase):
 
     def test_story_is_per_source_and_nearby_points_share_one_exposure_read(self):
         stub = full_stub(
-            hazards=hazard("VAL01") + hazard("VAL02", 25.0, 4.0),
+            hazards=hazard("VAL01") + hazard("VAL02", 4.0, 12.0),
             eus=[],
             gauges=[],
             weathers=[weather("VAL01"), weather("VAL02")],
@@ -384,7 +439,7 @@ class EventTest(unittest.TestCase):
         self.assertEqual(
             story,
             [
-                ("detected", "Paiporta"),  # worst first: above the 80 m³/s demo line
+                ("detected", "Paiporta"),  # worst first: far above its recent normal
                 ("checked", "Paiporta"),
                 ("exposure", "Paiporta"),
                 ("detected", "Catarroja"),

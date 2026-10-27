@@ -9,6 +9,7 @@ import {
   askQuestionFor,
   canOpenApprovals,
   capsText,
+  collapseRepeats,
   elapsedText,
   eventNumber,
   eventTime,
@@ -19,6 +20,7 @@ import {
   loopState,
   mergeEvents,
   placeOptions,
+  repeatNote,
   tiles,
   unreachableText,
   type WatchEvent,
@@ -89,6 +91,20 @@ describe("feed helpers", () => {
     const many = Array.from({ length: 12 }, (_, i) => ev(i + 1));
     expect(mergeEvents([], many, 5).map((e) => eventNumber(e.id))).toEqual([8, 9, 10, 11, 12]);
     expect(mergeEvents([ev(3)], [ev(1)]).map((e) => eventNumber(e.id))).toEqual([1, 3]);
+  });
+  it("collapses identical consecutive failures into the newest row with a count", () => {
+    const down = (n: number, repeats: number) =>
+      ev(n, { kind: "info", text: "The river model feed could not be read this scan; sources keep their last status.", data: { dedupe_key: "down:eu_watch:w1", repeats, since: "14:05" } });
+    const shown = collapseRepeats([ev(1), down(2, 1), ev(3), down(4, 2), down(5, 3)]);
+    expect(shown.map((e) => eventNumber(e.id))).toEqual([1, 3, 5]);
+    expect(repeatNote(shown[2])).toBe("×3 since 14:05");
+    expect(repeatNote(down(9, 1))).toBeNull();
+    expect(repeatNote(ev(9))).toBeNull();
+  });
+  it("keeps a technical detail apart from the plain text", () => {
+    const e = asWatchEvent({ ...example, detail: "Zetaris HTTP 400: 429", kind: "info" });
+    expect(e?.detail).toBe("Zetaris HTTP 400: 429");
+    expect(asWatchEvent(example)?.detail).toBeNull();
   });
   it("filters by agent and place, newest first", () => {
     const events = [

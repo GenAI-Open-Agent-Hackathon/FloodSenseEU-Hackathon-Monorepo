@@ -9,8 +9,8 @@
     { "kind": "model", "status": "near", "word": "Watch (model)", "tone": "watch", "rank": 3 },
     { "kind": "model", "status": "ok", "word": "Normal", "tone": "normal", "rank": 8 },
     { "kind": "model", "status": "unknown", "word": "No reading", "tone": "unknown", "rank": 9 },
-    { "kind": "valencia", "status": "over", "word": "Above 80 m³/s demo line", "tone": "elevated", "rank": 4 },
-    { "kind": "valencia", "status": "near", "word": "Above 20 m³/s demo line", "tone": "neutral", "rank": 5 },
+    { "kind": "valencia", "status": "over", "word": "Far above its recent normal (model)", "tone": "elevated", "rank": 4 },
+    { "kind": "valencia", "status": "near", "word": "Above its recent normal (model)", "tone": "neutral", "rank": 5 },
     { "kind": "valencia", "status": "ok", "word": "Normal", "tone": "normal", "rank": 8 },
     { "kind": "valencia", "status": "unknown", "word": "No reading", "tone": "unknown", "rank": 9 }
   ],
@@ -31,12 +31,15 @@
     { "band": "", "status": "unknown" },
     { "band": "severe", "status": "unknown" }
   ],
+  "valencia_rule": "Each point is measured against its own past rows (ui/src/lib/euWatch.ts valenciaCuts): watch at 2x and over at 4x the median of the past discharge, the median floored at 5 m3/s. The value tested is the higher of the latest past row and the forecast maximum. The latest past row is the last entry of past.",
   "valencia": [
-    { "name": "forecast above the 80 line", "now": 4.0, "forecast_max": 180.0, "status": "over" },
-    { "name": "now above the 20 line", "now": 25.0, "forecast_max": 4.0, "status": "near" },
-    { "name": "both low", "now": 4.0, "forecast_max": 5.0, "status": "ok" },
-    { "name": "exactly on the 20 line", "now": 20.0, "forecast_max": null, "status": "near" },
-    { "name": "exactly on the 80 line", "now": null, "forecast_max": 80.0, "status": "over" },
-    { "name": "no reading", "now": null, "forecast_max": null, "status": "unknown" }
+    { "name": "forecast far above its own normal", "past": [10, 10, 10], "forecast_max": 45.0, "status": "over" },
+    { "name": "now above twice its normal", "past": [10, 10, 25], "forecast_max": 12.0, "status": "near" },
+    { "name": "a steady high point is not raised", "past": [30, 30, 30], "forecast_max": 35.0, "status": "ok" },
+    { "name": "near-dry point: median floored at 5, cuts 10 and 20", "past": [0.1, 0.2, 0.1], "forecast_max": 9.9, "status": "ok" },
+    { "name": "near-dry point exactly on the watch cut", "past": [0.1, 0.2, 0.1], "forecast_max": 10.0, "status": "near" },
+    { "name": "exactly on the over cut", "past": [10, 10, 10], "forecast_max": 40.0, "status": "over" },
+    { "name": "no past rows: floor of 5, so 12 is near", "past": [], "forecast_max": 12.0, "status": "near" },
+    { "name": "no reading", "past": [], "forecast_max": null, "status": "unknown" }
   ]
 }

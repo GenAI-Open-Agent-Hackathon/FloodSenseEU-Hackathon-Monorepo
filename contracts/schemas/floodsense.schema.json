@@ -426,7 +426,7 @@
         "country": { "type": "string", "description": "ISO 3166-1 alpha-2, or empty." },
         "status": {
           "type": "string",
-          "description": "The source's plain status word at that moment (Normal, Above mean high water, Close to mean high water, Elevated (model), Watch (model), Above 80 m³/s demo line, Above 20 m³/s demo line, No reading), or empty."
+          "description": "The source's plain status word at that moment (Normal, Above mean high water, Close to mean high water, Elevated (model), Watch (model), Far above its recent normal (model), Above its recent normal (model), No reading), or empty."
         },
         "tone": {
           "enum": ["normal", "watch", "elevated", "neutral", "unknown"],
@@ -435,6 +435,10 @@
         "text": { "type": "string", "minLength": 1 },
         "run_id": { "type": ["string", "null"] },
         "source": { "$ref": "#/$defs/watch_source" },
+        "detail": {
+          "type": ["string", "null"],
+          "description": "Optional technical detail (for example the raw upstream error of a failed read), kept out of the plain text. The UI shows it only in a collapsed Technical detail."
+        },
         "data": {
           "type": "object",
           "description": "The numbers behind the sentence, read from the same rows (for example sites, insured_eur, rain_48h_mm, screening). Free keys."
