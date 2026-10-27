@@ -189,14 +189,44 @@ def spec(event_id: str) -> EventSpec:
     return EVENTS[key]
 
 
-def route_event(question: str, event_id: str | None) -> tuple[str, str]:
+def _context_event(context: dict | None) -> tuple[str, str] | None:
+    """The event the user's selection points at: event_id, then point, station, place."""
+    ctx = context or {}
+    if ctx.get("event_id"):
+        try:
+            return spec(str(ctx["event_id"])).event_id, f"context event_id {ctx['event_id']}"
+        except KeyError:
+            pass
+    pid = ctx.get("point_id")
+    if pid in POINT_NAMES:
+        ev = GERMAN_EVENT if str(pid).startswith("AHR") else DEFAULT_EVENT
+        return ev, f"context point {pid}"
+    if ctx.get("station"):
+        # PEGELONLINE stations are German, whatever list gauge_levels grows to.
+        return GERMAN_EVENT, f"context station {ctx['station']}"
+    place = str(ctx.get("place") or "")
+    if place and names_germany(place):
+        return GERMAN_EVENT, f"context place {place}"
+    if place and _VALENCIA_RE.search(place):
+        return DEFAULT_EVENT, f"context place {place}"
+    return None
+
+
+def route_event(
+    question: str, event_id: str | None, context: dict | None = None
+) -> tuple[str, str]:
     """(event_id, reason). A German question on the default event goes to EMSR517.
 
     RunRequest.event_id defaults to EMSR773 and the UI always sends one, so the
     default cannot mean "the caller chose Valencia". Any other event_id stands.
+    On the default, the user's selection (context) wins, then the question.
     A question that also names Valencia stays where it is (the gate decides).
     """
     chosen = spec(event_id or DEFAULT_EVENT).event_id
+    if chosen == DEFAULT_EVENT:
+        picked = _context_event(context)
+        if picked:
+            return picked
     word = names_germany(question)
     if chosen == DEFAULT_EVENT and word and not _VALENCIA_RE.search(question or ""):
         return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"

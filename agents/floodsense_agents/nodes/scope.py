@@ -244,6 +244,9 @@ def make():
         # and the run body read the same answer.
         mode = resolve_mode(request)
         note = f"; mode {mode['mode']}: {mode['reason']}"
+        ctx = {k: v for k, v in (request.get("context") or {}).items() if v}
+        if ctx:
+            note += "; context " + ", ".join(f"{k}={v}" for k, v in sorted(ctx.items()))
         if verdict["in_scope"]:
             return {
                 "scope": verdict,

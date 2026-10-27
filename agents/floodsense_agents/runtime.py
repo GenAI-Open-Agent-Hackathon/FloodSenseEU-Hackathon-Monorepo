@@ -220,7 +220,9 @@ class Runtime:
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
         # A Rhine / Köln / Ahr question on the default event runs on EMSR517.
-        routed, _why = route_event(req.question, req.event_id)
+        routed, _why = route_event(
+            req.question, req.event_id, req.context.model_dump() if req.context else None
+        )
         ev = spec(routed)
         thread_id = req.thread_id or run_id
         turns = self.thread(req.thread_id) if req.thread_id else []

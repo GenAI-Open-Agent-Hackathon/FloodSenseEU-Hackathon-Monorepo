@@ -147,5 +147,58 @@ class RhineNow(unittest.TestCase):
         self.assertEqual(out["judge_summary"]["flagged_claim_ids"], [])
 
 
+class Context(unittest.TestCase):
+    def test_validation_is_strict(self) -> None:
+        from pydantic import ValidationError
+
+        ok = RunRequest(question="q", context={"page": "now", "role": "citizen", "station": "KÖLN"})
+        self.assertEqual(ok.context.station, "KÖLN")
+        for bad in (
+            {"evil": "x"},
+            {"role": "admin"},
+            {"point_id": "VAL01'; DROP"},
+            {"station": "KÖLN' OR 1=1"},
+            {"place": "x" * 65},
+            {"replay_date": "yesterday"},
+        ):
+            with self.assertRaises(ValidationError, msg=bad):
+                RunRequest(question="q", context=bad)
+
+    def test_selection_wins_over_the_default_event(self) -> None:
+        self.assertEqual(route_event("What now?", "EMSR773", {"station": "BONN"})[0], "EMSR517")
+        self.assertEqual(route_event("What now?", "EMSR773", {"point_id": "AHR01"})[0], "EMSR517")
+        self.assertEqual(route_event("What now?", "EMSR773", {"place": "Köln"})[0], "EMSR517")
+        self.assertEqual(route_event("Rhine?", "EMSR773", {"event_id": "EMSR773"})[0], "EMSR773")
+        # An unknown point is not trusted.
+        self.assertEqual(route_event("What now?", "EMSR773", {"point_id": "XYZ99"})[0], "EMSR773")
+
+    def test_station_focus_role_and_trace(self) -> None:
+        out = run(
+            "What is the level right now?",
+            z=gauged(),
+            context={"page": "now", "role": "citizen", "station": "Bonn"},
+        )
+        self.assertEqual(out["event_id"], "EMSR517")
+        gate = next(t for t in out["trace"] if t["node"] == "scope")
+        self.assertIn("station=Bonn", gate["summary"])
+        self.assertIn("role=citizen", gate["summary"])
+        watch_sql = [e["sql"] for e in out["evidence"].values() if "gauge_levels" in e["sql"]]
+        self.assertTrue(any("station = 'BONN'" in sql for sql in watch_sql))
+        gauge_h = next(h for h in out["hypotheses"] if "Rhine gauges" in h["statement"])
+        self.assertTrue(gauge_h["statement"].startswith("Rhine gauges now (PEGELONLINE): BONN"))
+        self.assertTrue(out["summary"].startswith("In plain words:"))
+        self.assertIn("What to do", out["summary"])
+
+    def test_point_focus_and_insurer_exposure_first(self) -> None:
+        out = run(
+            "Why were our sites flooded?",
+            event_id="EMSR773",
+            context={"role": "insurer", "point_id": "VAL01"},
+        )
+        self.assertTrue(out["summary"].startswith("Exposure:"), out["summary"])
+        rain_sql = next(e["sql"] for e in out["evidence"].values() if "rain_mm >=" in e["sql"])
+        self.assertIn("point_id = 'VAL01'", rain_sql)
+
+
 if __name__ == "__main__":
     unittest.main()

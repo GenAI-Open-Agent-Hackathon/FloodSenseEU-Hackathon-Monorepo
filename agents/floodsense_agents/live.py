@@ -122,8 +122,48 @@ def live_points(event: dict) -> tuple[str, ...]:
     return VALENCIA_POINT_IDS
 
 
-def points_sql(event: dict) -> str:
-    return ", ".join(f"'{p}'" for p in live_points(event))
+def focus(state: dict) -> dict:
+    """The user's selection, mapped to known values only. Never an identifier.
+
+    point_id: kept only when it is one of the event's warehouse points.
+    station: uppercased and quote-escaped, for use as a string literal.
+    role: citizen | insurer | None.
+    """
+    ctx = (state.get("request") or {}).get("context") or {}
+    pid = ctx.get("point_id")
+    station = ctx.get("station")
+    station = str(station).upper().replace("'", "''") if station else None
+    return {
+        "point_id": pid if pid in live_points(state.get("event") or {}) else None,
+        "station": station,
+        "role": ctx.get("role") if ctx.get("role") in ("citizen", "insurer") else None,
+        "page": ctx.get("page"),
+        "place": ctx.get("place"),
+    }
+
+
+def points_sql(event: dict, point_id: str | None = None) -> str:
+    """The event's points, or the one selected point when it is one of them."""
+    pts = live_points(event)
+    if point_id in pts:
+        pts = (point_id,)
+    return ", ".join(f"'{p}'" for p in pts)
+
+
+CITIZEN_ADVICE = (
+    "What to do: follow the official warnings (Germany: Hochwassermeldedienst of your Land, "
+    "DWD, NINA app; Spain: AEMET, ES-Alert, Protección Civil); keep away from riverbanks, "
+    "underpasses and cellars; call 112 in an emergency."
+)
+
+
+def phrase_for_role(summary: str, role: str | None, exposure_line: str | None = None) -> str:
+    """Citizen: plain wording and what to do. Insurer: exposure first."""
+    if role == "citizen":
+        return f"In plain words: {summary} {CITIZEN_ADVICE}"
+    if role == "insurer" and exposure_line:
+        return f"Exposure: {exposure_line}. {summary}"
+    return summary
 
 
 # Germany in live mode: PEGELONLINE water levels in {schema}.gauge_levels.

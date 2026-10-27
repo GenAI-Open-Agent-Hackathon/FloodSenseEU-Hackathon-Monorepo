@@ -13,7 +13,7 @@ import time
 from decimal import Decimal, InvalidOperation
 
 from floodsense_agents.governance import IN_FOOTPRINT_SQL
-from floodsense_agents.live import is_live
+from floodsense_agents.live import focus, is_live, phrase_for_role
 from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, normalize_utc
 from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
@@ -233,7 +233,14 @@ def make(deps: Deps):
                 rationale=rationale,
             )
         )
+        # Phrase the answer for who is asking (context.role). Exposure first for an insurer.
+        role = focus(state)["role"]
+        summary = state.get("summary") or ""
+        if role and not summary.startswith(("In plain words:", "Exposure:")):
+            cited = f" [{', '.join(new_ids)}]" if new_ids else ""
+            summary = phrase_for_role(summary, role, statement + cited)
         return {
+            "summary": summary,
             "exposure": exp.model_dump(),
             "claims": [c.model_dump() for c in claims],
             "hypotheses": [h.model_dump() for h in hyps],

@@ -29,6 +29,7 @@ from floodsense_agents.live import (
     gauge_threshold,
     has_gauges,
     hours_between,
+    focus,
     is_live,
     points_sql,
     relative,
@@ -354,7 +355,7 @@ def _live_deterministic(
     station reading, and the text says so.
     """
     s, ev, prov = settings.schema, state["event"], state.get("provenance", [])
-    pts = points_sql(ev)
+    pts = points_sql(ev, focus(state)["point_id"])
     rain_at = DEFINITIONS["anomaly_rain"]
     flow_at = DEFINITIONS["anomaly_discharge"]
     now = now_utc()
@@ -675,6 +676,22 @@ def _rhine_live(
             )
         )
     stations = [r for r in gauges.rows_sample if r.get("level_cm") is not None]
+    # The selected station (context) first. One the view does not hold is said plainly.
+    picked = focus(state)["station"]
+    if picked:
+        picked = picked.replace("''", "'")
+        stations.sort(key=lambda r: str(r.get("station")).upper() != picked)
+        if stations and not any(str(r.get("station")).upper() == picked for r in stations):
+            ids.append(
+                claim(
+                    f"The selected station {picked} has no live reading in {s}.gauge_levels; "
+                    f"{readings.rows_sample[0].get('stations', 0) if readings.rows_sample else 0} "
+                    f"other stations do.",
+                    "fact",
+                    [readings],
+                    [readings.rows_sample[0].get("stations", 0)] if readings.rows_sample else [],
+                )
+            )
     over: list[str] = []
     stale_any = False
     for r in stations[:8]:
