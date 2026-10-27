@@ -1,7 +1,8 @@
 import ahr from "../fixtures/ahr_2021.json";
 import type { DischargeDailyRow, ValenciaPoint } from "../types/views";
 import type { DisasterEvent } from "./disasterReplay";
-import type { PageId } from "./route";
+import type { AskContext } from "./askContext";
+import type { DeskRoute, PageId } from "./route";
 
 export type EventId = DisasterEvent["eventId"];
 
@@ -82,4 +83,26 @@ export function activeEventSelection(
   }
   const point = valencia.points.find((p) => p.point_id === valencia.pointId);
   return { event_id: eventId, replay_date: valencia.date, point_id: valencia.pointId, place: point?.name };
+}
+
+/** Whether a page shows the selected event, so its Ask `context` may name it. Insurer only; the citizen side routes by question. */
+export function pageShowsEvent(route: DeskRoute, eventId: EventId): boolean {
+  if (route.role !== "insurer") return false;
+  if (route.page === "replay" || route.page === "sites") return true;
+  // Portfolio shows an event only when it has an insured book (EMSR773).
+  return route.page === "portfolio" && eventId === "EMSR773";
+}
+
+/** Pure: the Ask `context` for the page. Event fields only where the page shows that event. */
+export function screenContextFor(
+  route: DeskRoute,
+  eventId: EventId,
+  valencia: { date: string; pointId: string; points: readonly { point_id: string; name: string }[] },
+  ahrSel: { date: string; pointId: string },
+): AskContext {
+  if (pageShowsEvent(route, eventId)) {
+    return { role: route.role, page: route.page, ...activeEventSelection(eventId, valencia, ahrSel) };
+  }
+  const point = valencia.points.find((p) => p.point_id === valencia.pointId);
+  return { role: route.role, page: route.page, point_id: valencia.pointId, place: point?.name };
 }

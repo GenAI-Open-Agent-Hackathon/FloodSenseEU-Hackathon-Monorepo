@@ -33,7 +33,7 @@ import {
 import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { AskContext } from "../lib/askContext";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
-import { activeEventSelection, AHR_DEFAULT_DATE, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
+import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
 import type {
@@ -350,12 +350,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
   const screenContext = useCallback((): AskContext => {
-    const active = activeEventSelection(eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
-    if (deskRoute.page === "now") {
-      const point = bundle.points.find((p) => p.point_id === pointId);
-      return { role: deskRoute.role, page: deskRoute.page, point_id: pointId, place: point?.name };
-    }
-    return { role: deskRoute.role, page: deskRoute.page, ...active };
+    return screenContextFor(deskRoute, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
   }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId]);
 
   const decide = useCallback((status: ApprovalStatus, note: string) => {

@@ -3,6 +3,7 @@ import valencia from "../fixtures/valencia_points.json";
 import type { ValenciaPoint } from "../types/views";
 import {
   activeEventSelection,
+  screenContextFor,
   ahrDischarge,
   ahrMapPoints,
   boundsOf,
@@ -84,5 +85,45 @@ describe("event map points", () => {
     const [p] = ahrMapPoints();
     expect(pointPopupText(p, 249.61, "14 Jul")).toBe("AHR01 · Altenahr · 249.6 m³/s on 14 Jul");
     expect(pointPopupText(p, null, "14 Jul")).toContain("no discharge row");
+  });
+});
+
+describe("screenContextFor", () => {
+  const val = { date: "2024-10-29", pointId: "VAL01", points: [{ point_id: "VAL01", name: "Paiporta centre" }] };
+  const ahrSel = { date: "2021-07-14", pointId: "AHR04" };
+  const plain = (role: string, page: string) => ({ role, page, point_id: "VAL01", place: "Paiporta centre" });
+
+  it.each(["now", "approvals", "alerts", "review"] as const)("insurer %s carries no event fields", (page) => {
+    for (const ev of ["EMSR517", "EMSR773"] as const) {
+      expect(screenContextFor({ role: "insurer", page }, ev, val, ahrSel)).toEqual(plain("insurer", page));
+    }
+  });
+
+  it.each(["now", "replay", "overview", "area", "actions", "evidence"] as const)("citizen %s carries no event fields", (page) => {
+    expect(screenContextFor({ role: "citizen", page }, "EMSR517", val, ahrSel)).toEqual(plain("citizen", page));
+  });
+
+  it.each(["replay", "sites"] as const)("insurer %s carries the active event", (page) => {
+    expect(screenContextFor({ role: "insurer", page }, "EMSR517", val, ahrSel)).toEqual({
+      role: "insurer",
+      page,
+      event_id: "EMSR517",
+      replay_date: "2021-07-14",
+      point_id: "AHR04",
+      place: "Dernau",
+    });
+    expect(screenContextFor({ role: "insurer", page }, "EMSR773", val, ahrSel).event_id).toBe("EMSR773");
+  });
+
+  it("portfolio carries the event only when it has a book", () => {
+    expect(screenContextFor({ role: "insurer", page: "portfolio" }, "EMSR517", val, ahrSel)).toEqual(plain("insurer", "portfolio"));
+    expect(screenContextFor({ role: "insurer", page: "portfolio" }, "EMSR773", val, ahrSel)).toEqual({
+      role: "insurer",
+      page: "portfolio",
+      event_id: "EMSR773",
+      replay_date: "2024-10-29",
+      point_id: "VAL01",
+      place: "Paiporta centre",
+    });
   });
 });
