@@ -1,5 +1,6 @@
 import { ConsoleProvider } from "./context/ConsoleContext";
 import { AskFloodSense } from "./components/AskFloodSense";
+import { Colophon } from "./components/Banners";
 import { EvidenceDrawer } from "./components/EvidenceDrawer";
 import { Header } from "./components/Header";
 import { PageOutlet } from "./components/PageOutlet";
@@ -29,6 +30,7 @@ function Shell() {
         <main id="content">
           <PageOutlet />
         </main>
+        <Colophon />
       </div>
       <AskFloodSense />
       <EvidenceDrawer />

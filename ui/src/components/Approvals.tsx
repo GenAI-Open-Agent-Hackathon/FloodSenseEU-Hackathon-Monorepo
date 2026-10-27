@@ -40,7 +40,10 @@ export function Approvals() {
             <p>
               {action.detail} {cited.length > 0 && <span className="cite-marks">{citationMarks(cited)}</span>}
             </p>
-            <p className="note">action_id {action.action_id}</p>
+            <details className="disclosure">
+              <summary>Technical detail</summary>
+              <p className="note">action_id {action.action_id}</p>
+            </details>
           </>
         )}
         <dl className="kpis">
