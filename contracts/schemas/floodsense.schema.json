@@ -355,7 +355,8 @@
       "description": "Forecast lane only. A FloodSense screening status and a template lead; never an official warning.",
       "required": ["status", "disclaimer"],
       "properties": {
-        "status": { "enum": ["Normal", "Watch", "Warning"] },
+        "status": { "enum": ["Normal", "Watch", "Elevated"] },
+        "status_label": { "type": "string", "description": "Status plus what drives it, for example Elevated (river model) or Watch (rain)." },
         "status_reason": { "type": "string" },
         "places": { "type": "array", "items": { "type": "string" } },
         "horizon_h": { "type": "integer", "minimum": 1 },

@@ -23,7 +23,7 @@ history         the past pattern for a place in Valencia (EMSR773) or the Rhine 
                 run in parallel; a slow or failed one becomes a trace note.
 forecast_answer deterministic claims, one per evidence item, each citing only its own
                 query, passage or memory, and a template lead (the status line). No model call.
-                Status Normal / Watch / Warning uses fixed FloodSense cuts (25 / 50 mm in 48 h,
+                Status Normal / Watch / Elevated uses fixed FloodSense cuts (25 / 50 mm in 48 h,
                 20 / 30 mm in an hour), never an official threshold and never the past pattern,
                 which is a comparison claim only.
 forecast_judge  judge.evaluate with no model (quick.quick_judge): a pass ends the run
@@ -100,8 +100,8 @@ RAIN_WATCH_MM = RAIN_WARN_MM / 2  # 25 mm in 48 h
 HOUR_WARN_MM = float(DEFINITIONS["anomaly_rain"].value)  # 30 mm in one hour
 HOUR_WATCH_MM = float(DEFINITIONS["extreme_rain"].value)  # 20 mm in one hour
 DISCHARGE_LINE = float(DEFINITIONS["anomaly_discharge"].value)  # 100 m3/s (Valencia points)
-NORMAL, WATCH, WARNING = "Normal", "Watch", "Warning"
-_RANK = {NORMAL: 0, WATCH: 1, WARNING: 2}
+NORMAL, WATCH, ELEVATED = "Normal", "Watch", "Elevated"
+_RANK = {NORMAL: 0, WATCH: 1, ELEVATED: 2}
 # Who to follow, by country of the place.
 OFFICIAL: dict[str, str] = {
     "DE": "DWD warnings and the Hochwassermeldedienst of your Land (NINA app)",
@@ -536,7 +536,7 @@ def river_claim(p: ForecastPoint, row: dict) -> tuple[Built, str] | None:
             return None
         text, nums, _lead, _sev = built
         band = str(row.get("band") or "unknown")
-        st = WARNING if band == "above" else WATCH if band == "near" else NORMAL
+        st = ELEVATED if band == "above" else WATCH if band == "near" else NORMAL
         return (text, nums), st
     fmax = quick._num(row.get("forecast_max_discharge_m3s"))
     past = quick._num(row.get("past_max_discharge_m3s"))
@@ -550,7 +550,7 @@ def river_claim(p: ForecastPoint, row: dict) -> tuple[Built, str] | None:
     st = NORMAL
     if fmax is not None:
         crosses = fmax >= DISCHARGE_LINE
-        st = WARNING if crosses else NORMAL
+        st = ELEVATED if crosses else NORMAL
         text += (
             f"{' and' if past is not None else ''} peaks at {quick._fmt(fmax)} m3/s in the forecast "
             f"window, {'above' if crosses else 'under'} FloodSense's {DISCHARGE_LINE:g} m3/s anomaly line"
@@ -578,7 +578,7 @@ def level_claim(p: ForecastPoint, row: dict) -> tuple[Built, str] | None:
         mhw = th[1]
         nums.append(mhw)
         if level >= mhw:
-            st, where = WARNING, "above"
+            st, where = ELEVATED, "above"
         elif level >= 0.8 * mhw:
             st, where = WATCH, "near"
         else:
@@ -628,13 +628,13 @@ def _rain_status(r48: float, hour: float | None) -> str:
     enters the status.
     """
     if r48 >= RAIN_WARN_MM or (hour is not None and hour >= HOUR_WARN_MM):
-        return WARNING
+        return ELEVATED
     if r48 >= RAIN_WATCH_MM or (hour is not None and hour >= HOUR_WATCH_MM):
         return WATCH
     return NORMAL
 
 
-_PLAIN_STATUS = {NORMAL: plain_mod.NORMAL, WATCH: plain_mod.WATCH, WARNING: plain_mod.ELEVATED}
+_PLAIN_STATUS = {NORMAL: plain_mod.NORMAL, WATCH: plain_mod.WATCH, ELEVATED: plain_mod.ELEVATED}
 
 
 def _plain_check(p: ForecastPoint, asked_h: str) -> plain_mod.Check:
@@ -675,7 +675,7 @@ def _level_signal(check: plain_mod.Check, row: dict, st: str) -> None:
         plain_mod.Signal(
             "level",
             _PLAIN_STATUS[st] if th else plain_mod.UNKNOWN,
-            above_mhw=st == WARNING and th is not None,
+            above_mhw=st == ELEVATED and th is not None,
             trend=word,
         )
     )
@@ -691,7 +691,7 @@ def make_forecast_answer(deps: Deps):
         claims: list[Claim] = []
         data_claims: list[Claim] = []
         extra: list[Evidence] = []
-        statuses: list[tuple[str, str, str]] = []  # (status, place, reason)
+        statuses: list[tuple[str, str, str, str]] = []  # (status, place, reason, driver)
         gaps: list[str] = []
         # plain.py: what each asked place computed, the history to frame, the memories cited
         asked_h = plain_mod.horizon_of((state.get("request") or {}).get("question"))
@@ -736,7 +736,7 @@ def make_forecast_answer(deps: Deps):
                 if got:
                     (text, nums), st = got
                     add(text, nums, [rev])
-                    statuses.append((st, label(p), "river forecast"))
+                    statuses.append((st, label(p), "river forecast", "river model"))
                     check.signals.append(
                         plain_mod.Signal("river", _PLAIN_STATUS[st], valencia=p[1] == "valencia")
                     )
@@ -751,7 +751,7 @@ def make_forecast_answer(deps: Deps):
                 if got:
                     (text, nums), st = got
                     add(text, nums, [lev])
-                    statuses.append((st, label(p), "current level"))
+                    statuses.append((st, label(p), "current level", "gauge level"))
                     _level_signal(check, row, st)
             ev_id = pattern_event(p)
             pat = (
@@ -788,7 +788,7 @@ def make_forecast_answer(deps: Deps):
                     )
             if rain48 is not None:
                 st = _rain_status(rain48, hour)
-                statuses.append((st, label(p), "rain forecast"))
+                statuses.append((st, label(p), "rain forecast", "rain"))
                 check.signals.append(plain_mod.Signal("rain", _PLAIN_STATUS[st]))
             for mem in hist.get("memories") or []:
                 if mem["point_id"] != p[0]:
@@ -846,10 +846,14 @@ def make_forecast_answer(deps: Deps):
                     started=t,
                 ),
             }
-        worst = max((s for s, _, _ in statuses), key=lambda s: _RANK[s], default=NORMAL)
+        worst = max((s[0] for s in statuses), key=lambda s: _RANK[s], default=NORMAL)
         why = "; ".join(
-            f"{place}: {reason}" for s, place, reason in statuses if s == worst and worst != NORMAL
+            f"{place}: {reason}" for s, place, reason, _ in statuses if s == worst and worst != NORMAL
         )
+        drivers = list(
+            dict.fromkeys(d for s, _, _, d in statuses if s == worst and worst != NORMAL)
+        )
+        status_label = f"{worst} ({', '.join(drivers)})" if drivers else worst
         places = list(
             dict.fromkeys(
                 label(FORECAST_BY_ID[x["id"]])
@@ -870,7 +874,7 @@ def make_forecast_answer(deps: Deps):
         )
         disclaimer = f"This is a model-based screening, not an official warning; follow {follow}."
         status_line = (
-            f"Status: {worst} for {', '.join(places)} over the next {HORIZON_H} hours "
+            f"Status: {status_label} for {', '.join(places)} over the next {HORIZON_H} hours "
             f"(FloodSense screening{': ' + why if why else ''}; not an official warning)."
         )
         lead = status_line
@@ -903,13 +907,14 @@ def make_forecast_answer(deps: Deps):
             "summary": " ".join(parts),
             "forecast": {
                 "status": worst,
+                "status_label": status_label,
                 "status_reason": why or "no screening cut reached",
                 "places": places,
                 "horizon_h": HORIZON_H,
                 "lead": lead,
                 "screening": (
                     f"FloodSense's own cuts, not official: Watch from {RAIN_WATCH_MM:g} mm in "
-                    f"{HORIZON_H} h or {HOUR_WATCH_MM:g} mm in an hour, Warning from "
+                    f"{HORIZON_H} h or {HOUR_WATCH_MM:g} mm in an hour, Elevated from "
                     f"{RAIN_WARN_MM:g} mm or {HOUR_WARN_MM:g} mm"
                 ),
                 "gaps": gaps,

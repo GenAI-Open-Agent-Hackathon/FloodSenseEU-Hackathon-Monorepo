@@ -384,7 +384,7 @@ class EventTest(unittest.TestCase):
         self.assertEqual(o["agent"], "Forecast")
         self.assertEqual(o["data"]["rain_48h_mm"], 60.0)
         self.assertEqual(o["data"]["forecast_max_m3s"], 840)
-        self.assertEqual(o["data"]["screening"], "Warning")  # the lane's own cut: 50 mm in 48 h
+        self.assertEqual(o["data"]["screening"], "Elevated")  # the lane's own cut: 50 mm in 48 h
         self.assertIn("rain forecast 60 mm over the next 48 h (wettest hour 31 mm)", o["text"])
         self.assertIn("FloodSense screening: elevated", o["text"])
         self.assertEqual(checked["Piacenza"]["data"]["screening"], "Watch")  # band near

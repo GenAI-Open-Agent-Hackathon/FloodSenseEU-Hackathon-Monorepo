@@ -312,9 +312,9 @@ class ForecastLaneTest(unittest.TestCase):
         self.assertIn("forecast maximum 2600 m3/s", " ".join(c["text"] for c in snap["claims"]))
         self.assertIn("HungaroMet", snap["forecast"]["disclaimer"])
 
-    def test_chiva_rain_is_a_warning(self) -> None:
+    def test_chiva_rain_is_elevated(self) -> None:
         snap = self._run("Will Chiva flood in the next 48 hours?", llm=None)
-        self.assertEqual(snap["forecast"]["status"], "Warning")
+        self.assertEqual(snap["forecast"]["status"], "Elevated")
         self.assertIn("Past pattern: before the October 2024 Valencia DANA flood", snap["summary"])
         self.assertIn("AEMET", snap["forecast"]["disclaimer"])
 
@@ -352,8 +352,8 @@ class NoModelAndStatusTest(unittest.TestCase):
         self.assertEqual(forecast._rain_status(24.9, 19.9), "Normal")
         self.assertEqual(forecast._rain_status(25.0, None), "Watch")
         self.assertEqual(forecast._rain_status(10.0, 20.0), "Watch")
-        self.assertEqual(forecast._rain_status(50.0, None), "Warning")
-        self.assertEqual(forecast._rain_status(1.0, 30.0), "Warning")
+        self.assertEqual(forecast._rain_status(50.0, None), "Elevated")
+        self.assertEqual(forecast._rain_status(1.0, 30.0), "Elevated")
         import inspect
 
         self.assertEqual(list(inspect.signature(forecast._rain_status).parameters), ["r48", "hour"])
