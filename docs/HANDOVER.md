@@ -70,7 +70,7 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 ### Verified on the live stack
 - The approve-and-remember loop: approving run `f6cc4adbc438` took the H-MEM count from 212 to 214, and the next Orléans forecast recalled the new memory (`mem-213`).
 - Last end-to-end run on Nightshift: 0% hallucination and 100% coverage on every scenario. Quick lane about 1 s, forecast lane 1 to 4 s (no model calls), full lane 5 to 6 minutes on Nemotron.
-- All 18 UI routes have no horizontal scroll at 375 px.
+- 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 
 ### Known bugs and weak spots
 - Insurer Approvals queue had 29 old test runs (curated in #90). Insurer "Now" page is dense.

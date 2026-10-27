@@ -79,7 +79,7 @@ Documents: 25 documents and 1,859 passages in pgvector, including four insurer a
 - 27 Oct 2026 subset on Nightshift (4 items): hallucination 0%, citation coverage 100%, numeric match 100%, Judge pass 100%. Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
 - 27 Oct 2026 full set (21 items) on a test provider (Anthropic Sonnet, test switch only): hallucination 5.6% (Valencia) and 9.1% (Ahr). Almost all of the Ahr loss is one item, ahr-09, which produced no claims. Report: [evals/2026-10-27-anthropic.md](evals/2026-10-27-anthropic.md).
 - Memory is switched off in evals, so seeded or approved memories can never lift a score.
-- UI: all 18 UI routes were checked at 375 px with no horizontal scroll.
+- UI: 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 
 ## Honest limits
 
