@@ -50,11 +50,11 @@ export function CalmAnswer({ run, plain }: { run: RecordedRun; plain: PlainAnswe
       </p>
       <h3 className="calm-headline">{plain.headline}</h3>
       <p className="calm-line">{plain.oneLine}</p>
+      {isNonEnglish(run.question) && <p className="note calm-lang">{ENGLISH_NOTE}</p>}
       <p className="note calm-disclaimer">{plain.disclaimer}</p>
       {order === "plain-first" && (
         <details className="disclosure calm-why">
           <summary>Why</summary>
-          {isNonEnglish(run.question) && <p className="note">{ENGLISH_NOTE}</p>}
           {claimList}
         </details>
       )}

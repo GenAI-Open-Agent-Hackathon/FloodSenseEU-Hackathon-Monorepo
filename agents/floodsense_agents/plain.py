@@ -317,7 +317,10 @@ def build_plain(
     week_ok = asked == D7 and any(c.covers_week for c in checks)
     horizon = D7 if week_ok else H48
     sigs = [(c, s) for c in checks for s in c.signals]
-    forward = any(s.role in ("rain", "river") for _, s in sigs)
+    # Forward-looking per place: a place checked only by a present gauge reading is never "expected" calm.
+    reading_only = [c for c in checks if c.signals and all(s.role == "level" for s in c.signals)]
+    forecasted = [c for c in checks if c not in reading_only]
+
 
     top = max((s for _, s in sigs), key=lambda s: _RANK[s.status], default=None)
     status = top.status if top and top.status in (WATCH, ELEVATED) else NORMAL
@@ -353,11 +356,17 @@ def build_plain(
             key=lambda c: max(_RANK[s.status] for s in c.signals),
         )
         headline = f"Keep an eye on {worst_check.name}: {_reason(worst_check)}."
-    elif status == NORMAL and forward:
+    elif status == NORMAL and not reading_only:
         headline = f"Nothing alarming expected at {place}."
     elif status == NORMAL:
-        # Only a present gauge reading was checked: no forecast signal, so no forward-looking claim.
-        headline = f"{place} {'is' if len(set(names)) == 1 else 'are'} at a normal level right now."
+        # A place with only a present gauge reading gets no forward-looking claim.
+        rn = join_names([c.name for c in reading_only])
+        verb = "is" if len(set(c.name for c in reading_only)) == 1 else "are"
+        headline = f"{rn} {verb} at a normal level right now"
+        if forecasted:
+            headline += f" (today's reading). Nothing alarming expected at {join_names([c.name for c in forecasted])}."
+        else:
+            headline += "."
     else:
         headline = f"We can't fully check {place} right now."
 
@@ -369,8 +378,13 @@ def build_plain(
     if status in (WATCH, ELEVATED) and any(s.valencia or s.role == "river" for _, s in sigs):
         if all(c.kind == "model" for c, s in sigs if s.status in (WATCH, ELEVATED)):
             sentences.append("This is a model estimate, not a measurement.")
-    if status == NORMAL and not forward:
-        sentences.append("This is today's reading, not a forecast.")
+    if status == NORMAL and reading_only:
+        if forecasted:
+            sentences.append(
+                f"For {join_names([c.name for c in reading_only])} this is today's reading, not a forecast."
+            )
+        else:
+            sentences.append("This is today's reading, not a forecast.")
     one_line = " ".join([*sentences, *gaps]) or f"We could not read any data for {place} just now."
 
     countries = [c.country for c in checks]

@@ -234,6 +234,16 @@ class RulesTest(unittest.TestCase):
             build_plain([c], asked="48h", claims=CLAIMS)["headline"], "Nothing alarming expected at Köln."
         )
 
+    def test_mixed_pair_does_not_reassure_for_the_gauge_only_place(self) -> None:
+        out = build_plain([_gauge(plain.NORMAL), _river_check()], asked="48h", claims=CLAIMS)
+        self.assertEqual(
+            out["headline"],
+            "Köln is at a normal level right now (today's reading). Nothing alarming expected at Budapest.",
+        )
+        self.assertNotIn("Nothing alarming expected at Köln", out["headline"])
+        self.assertIn("For Köln this is today's reading, not a forecast.", out["one_line"])
+        self.assertEqual(out["status"], "normal")
+
     def test_rain_never_says_this_week(self) -> None:
         c = Check("Köln", "Rhine", "DE", "gauge", needs=("rain",), covers_week=True)
         c.signals.append(Signal("rain", plain.NORMAL))
