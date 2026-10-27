@@ -134,17 +134,57 @@ class DeclineTest(unittest.TestCase):
         self.assertEqual(quick.route_after_escalate({"scope": {"in_scope": True}}), "watchers")
 
 
-class LeadTest(unittest.TestCase):
-    def test_lead_may_not_add_numbers_or_places(self) -> None:
-        from floodsense_agents.models import Claim
+class TemplateTest(unittest.TestCase):
+    def test_gauge_band_trend_time_and_stale(self) -> None:
+        row = {
+            "station": "KÖLN",
+            "water": "RHEIN",
+            "level_cm": 640.0,
+            "mhw_cm": 620.0,
+            "ts_utc": "2020-01-01T12:45:00Z",
+            "prev_cm": 600.0,
+            "prev_utc": "2020-01-01T09:45:00Z",
+        }
+        text, nums, lead, sev = quick.gauge_claim(row)
+        self.assertIn("measured at 12:45 UTC", text)
+        self.assertIn("stale", text)
+        self.assertEqual(nums, [640.0, 620.0, 600.0])
+        self.assertEqual(lead, "KÖLN: above mean high water and rising (gauge, 12:45 UTC, stale)")
+        near = quick.gauge_claim({**row, "level_cm": 550.0, "prev_cm": None})[0]
+        self.assertIn("FloodSense's own cut, not an official threshold", near)
 
-        claims = [
-            Claim(claim_id="Q1", text="KÖLN (RHEIN) gauge: latest level 412 cm (PEGELONLINE).")
-        ]
-        self.assertTrue(quick.lead_ok("Köln is at 412 cm right now.", claims))
-        self.assertTrue(quick.lead_ok("Here is the latest reading for KÖLN.", claims))
-        self.assertFalse(quick.lead_ok("KÖLN is at 500 cm.", claims))
-        self.assertFalse(quick.lead_ok("Bonn and KÖLN are both fine.", claims))
+    def test_summary_lead_is_worst_band_first(self) -> None:
+        state = {
+            "live_findings": {
+                "quick_places": [
+                    {"kind": "gauge", "id": "BONN", "query_id": "b"},
+                    {"kind": "gauge", "id": "KÖLN", "query_id": "k"},
+                ]
+            },
+            "evidence": {
+                q: {
+                    "query_id": q,
+                    "view": "floodsense.gauge_levels",
+                    "sql": "",
+                    "executed_at_utc": now_utc(),
+                    "row_count": 1,
+                    "rows_sample": [
+                        {
+                            "station": st,
+                            "water": "RHEIN",
+                            "level_cm": lv,
+                            "mhw_cm": 600.0,
+                            "ts_utc": now_utc(),
+                        }
+                    ],
+                }
+                for q, st, lv in (("b", "BONN", 300.0), ("k", "KÖLN", 650.0))
+            },
+        }
+        claims, lead = quick.build_claims(state)
+        self.assertEqual(len(claims), 2)
+        self.assertTrue(lead.startswith("KÖLN: above mean high water"), lead)
+        self.assertIn("BONN: below mean high water", lead)
 
 
 @mock.patch.object(settings, "live_data", True)
@@ -154,9 +194,7 @@ class QuickLaneTest(unittest.TestCase):
         return Runtime(deps=deps).start(RunRequest(question=question))
 
     def test_quick_answer_is_deterministic_and_passes_the_judge(self) -> None:
-        llm = FakeNightshift(
-            {"quick_lead": lambda s, u: '{"lead": "Here is the latest reading for KÖLN."}'}
-        )
+        llm = FakeNightshift()
         snap = self._run(llm=llm)
         self.assertEqual(
             (snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"]
@@ -172,17 +210,10 @@ class QuickLaneTest(unittest.TestCase):
         claim = snap["claims"][0]
         self.assertIn("412 cm", claim["text"])
         self.assertEqual(claim["numbers"], [412.0])
-        self.assertEqual(snap["summary"], "Here is the latest reading for KÖLN.")
-        self.assertEqual([c[:2] for c in llm.calls], [("fast", "quick_lead")])
+        self.assertTrue(snap["summary"].startswith("KÖLN: latest level (gauge, "), snap["summary"])
+        self.assertEqual(llm.calls, [])  # the quick lane makes no model call
         sql = snap["evidence"][claim["citations"][0]["query_id"]]["sql"]
         self.assertIn("g.station IN ('KÖLN')", sql)
-
-    def test_a_lead_naming_another_place_is_dropped(self) -> None:
-        llm = FakeNightshift({"quick_lead": lambda s, u: '{"lead": "Bonn is at 900 cm."}'})
-        snap = self._run(llm=llm)
-        self.assertEqual(snap["status"], "answered")
-        self.assertNotIn("Bonn", snap["summary"])
-        self.assertIn("412", snap["summary"])
 
     def test_one_places_figure_never_appears_for_another(self) -> None:
         z = _zetaris(
@@ -220,7 +251,8 @@ class QuickLaneTest(unittest.TestCase):
         z = _zetaris(gauges=(("KÖLN", "RHEIN", 412.0), ("BONN", "RHEIN", 380.0)))
 
         def crossed(row):
-            return f"{row['station']} level 380 cm.", [380.0]  # BONN's figure on every gauge
+            # BONN's figure on every gauge
+            return f"{row['station']} level 380 cm.", [380.0], str(row["station"]), 0
 
         with mock.patch.dict(quick._TEMPLATES, {"gauge": crossed}):
             snap = self._run("How high is the Rhine at Köln and Bonn now?", z=z)

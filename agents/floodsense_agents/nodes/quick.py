@@ -1,4 +1,4 @@
-"""The quick lane: a live reading answered in one short agent path.
+"""The quick lane: a live reading answered in one short agent path, with no model call.
 
     scope ─┬─ in scope, lane=quick → live_watch → quick_answer → quick_judge ─┬─ pass → END (answered)
            │                                                                  └─ flag / no data → escalate → watchers
@@ -18,10 +18,10 @@ question, else every point of the event. At most MAX_PLACES are read.
 
 quick_answer builds every claim deterministically, one per place, from that
 place's row with a fixed template, and cites only that place's query. The
-numbers a claim states (claim.numbers) are cells of that row. One fast-lane
-call may write a one-sentence lead. The lead is not a claim: it is the run's
-summary, and it is dropped unless every number in it appears in a claim and
-every place word in it is named by a claim.
+numbers a claim states (claim.numbers) are cells of that row. The summary is
+a template too: one lead line per place, worst band first ("KÖLN: above mean
+high water and rising (gauge, 12:45 UTC)"), then the claim texts. No model
+writes any of it.
 
 quick_judge runs judge.evaluate with no model: per claim, a citation exists,
 its query returned rows, and every number in claim.numbers is a cell of the
@@ -34,46 +34,32 @@ and the trace says why ("escalated: ...").
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeout
 
 from floodsense_agents.events import POINT_NAMES, point_label
+from floodsense_agents.governance import DEFINITIONS
 from floodsense_agents.live import (
+    GAUGE_STALE_H,
     LIVE_ROWS,
     gauge_latest_sql,
     gauge_threshold,
+    hours_between,
     live_points,
 )
 from floodsense_agents.models import Claim, Evidence
-from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes import judge as judge_node
-from floodsense_agents.nodes.investigator import cite, numbers_in
+from floodsense_agents.nodes.investigator import cite
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
-from floodsense_agents.watch import EU_POINTS, place_words, sql_list, watch_target
-from floodsense_agents.zetaris import run_sql_parallel
+from floodsense_agents.watch import EU_POINTS, sql_list, watch_target
+from floodsense_agents.zetaris import now_utc, run_sql_parallel
 
 log = logging.getLogger("floodsense.quick")
 
 QUICK, FULL = "quick", "full"
 MAX_PLACES = 6
-_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="quick-lane")
 _EU = {p[0]: p for p in EU_POINTS}
-
-SYSTEM = """TASK: quick_lead
-Write ONE plain-language sentence that leads into the facts below for a member of the public.
-Use only places and numbers that appear in the facts; add no new number, place or advice.
-Answer with JSON only: {"lead": "..."}"""
-
-
-def _timeout_s() -> float:
-    try:
-        return float(os.environ.get("QUICK_LANE_TIMEOUT_S") or 15)
-    except ValueError:
-        return 15.0
 
 
 def route_after_scope(state: FloodState) -> str:
@@ -211,29 +197,65 @@ def _fmt(v: float) -> str:
     return f"{v:g}" if abs(v) >= 100 or v == int(v) else f"{v:.1f}"
 
 
-def gauge_claim(row: dict) -> tuple[str, list[float]] | None:
+def _hhmm(ts) -> str | None:
+    m = re.search(r"T?(\d{2}:\d{2})", str(ts or "")[10:])
+    return m.group(1) if m else None
+
+
+# How bad a band is, for the summary lead: the worst place comes first.
+_SEVERITY = {"above": 3, "near": 2, "rising": 1, "unknown": 0, "below": 0}
+
+# Template output: claim text, the numbers it states (cells of its row),
+# the place's one-line lead, and that lead's severity.
+Built = tuple[str, list[float], str, int]
+
+
+def gauge_claim(row: dict) -> Built | None:
     level = _num(row.get("level_cm"))
     if level is None:
         return None
     station, water = row.get("station"), row.get("water")
-    text = f"{station} ({water}) gauge: latest level {_fmt(level)} cm"
+    at = _hhmm(row.get("ts_utc"))
+    age = hours_between(now_utc(), str(row.get("ts_utc") or ""))
+    stale = age is not None and age > GAUGE_STALE_H
+    text = f"{station} ({water}) gauge: level {_fmt(level)} cm"
+    if at:
+        text += f" measured at {at} UTC"
+    if stale:
+        text += f" (stale: older than {GAUGE_STALE_H} h)"
     nums = [level]
+    band = None
     th = gauge_threshold(row)
     if th:
         mhw = th[1]
-        band = "above" if level >= mhw else "near" if level >= 0.8 * mhw else "below"
-        text += f", {band} the station's mean high water (MHW) of {_fmt(mhw)} cm"
         nums.append(mhw)
+        if level >= mhw:
+            band = "above"
+            text += f", above the station's mean high water (MHW) of {_fmt(mhw)} cm"
+        elif level >= 0.8 * mhw:
+            band = "near"
+            text += (
+                f", near the station's mean high water (MHW) of {_fmt(mhw)} cm (near = at least "
+                f"80% of MHW: FloodSense's own cut, not an official threshold)"
+            )
+        else:
+            band = "below"
+            text += f", below the station's mean high water (MHW) of {_fmt(mhw)} cm"
+    trend = None
     prev = _num(row.get("prev_cm"))
     # One reading only: the baseline is the reading itself, so there is no trend.
     if prev is not None and row.get("prev_utc") != row.get("ts_utc"):
         trend = "rising" if level > prev else "falling" if level < prev else "steady"
         text += f"; {trend} from {_fmt(prev)} cm about three hours earlier"
         nums.append(prev)
-    return text + " (PEGELONLINE).", nums
+    parts = [p for p in (f"{band} mean high water" if band else None, trend) if p]
+    lead = f"{station}: {' and '.join(parts) or 'latest level'}"
+    lead += f" (gauge{', ' + at + ' UTC' if at else ''}{', stale' if stale else ''})"
+    severity = _SEVERITY.get(band or "", 0) + (1 if trend == "rising" else 0)
+    return text + " (PEGELONLINE).", nums, lead, severity
 
 
-def eu_claim(row: dict) -> tuple[str, list[float]] | None:
+def eu_claim(row: dict) -> Built | None:
     q, fmax, med = (
         _num(row.get(k)) for k in ("discharge_m3s", "forecast_max_m3s", "past30_median_m3s")
     )
@@ -250,15 +272,18 @@ def eu_claim(row: dict) -> tuple[str, list[float]] | None:
     if med is not None:
         text += f" against a past-month median of {_fmt(med)} m3/s"
         nums.append(med)
-    band = row.get("band") or "unknown"
-    return text + f"; band {band} (GloFAS model cell value, not an official warning).", nums
+    band = str(row.get("band") or "unknown")
+    text += f"; band {band} (GloFAS model cell value, not an official warning)."
+    lead = f"{row.get('name')}: model band {band} (GloFAS model, not an official warning)"
+    return text, nums, lead, _SEVERITY.get(band, 0)
 
 
-def point_claim(row: dict) -> tuple[str, list[float]] | None:
+def point_claim(row: dict) -> Built | None:
     fmax, rain = _num(row.get("forecast_max_discharge_m3s")), _num(row.get("forecast_max_rain_mm"))
     if fmax is None and rain is None:
         return None
-    text = f"{point_label(str(row.get('point_id')))}: in the live forecast window"
+    name = point_label(str(row.get("point_id")))
+    text = f"{name}: in the live forecast window"
     nums: list[float] = []
     if fmax is not None:
         text += f" discharge peaks at {_fmt(fmax)} m3/s"
@@ -266,16 +291,22 @@ def point_claim(row: dict) -> tuple[str, list[float]] | None:
     if rain is not None:
         text += f"{',' if fmax is not None else ''} hourly rain peaks at {_fmt(rain)} mm"
         nums.append(rain)
-    return text + " (GloFAS / Open-Meteo, hazard_now).", nums
+    crosses = fmax is not None and fmax >= DEFINITIONS["anomaly_discharge"].value
+    lead = f"{name}: forecast discharge {'crosses' if crosses else 'stays under'} the anomaly line (hazard_now)"
+    return text + " (GloFAS / Open-Meteo, hazard_now).", nums, lead, 3 if crosses else 0
 
 
 _TEMPLATES = {"gauge": gauge_claim, "eu": eu_claim, "point": point_claim}
 
 
-def build_claims(state: FloodState) -> list[Claim]:
-    """One claim per place, from that place's row, citing only that place's query."""
+def build_claims(state: FloodState) -> tuple[list[Claim], str]:
+    """One claim per place, from that place's row, citing only that place's query.
+
+    Also the summary lead: each place's line, worst band first. Deterministic.
+    """
     prov = state.get("provenance") or []
     claims: list[Claim] = []
+    leads: list[tuple[int, int, str]] = []
     for place in (state.get("live_findings") or {}).get("quick_places") or []:
         raw = (state.get("evidence") or {}).get(place["query_id"])
         if not raw:
@@ -285,7 +316,7 @@ def build_claims(state: FloodState) -> list[Claim]:
         built = _TEMPLATES[place["kind"]](row) if row else None
         if not built:
             continue
-        text, nums = built
+        text, nums, lead, severity = built
         cid = f"Q{len(claims) + 1}"
         claims.append(
             Claim(
@@ -296,81 +327,35 @@ def build_claims(state: FloodState) -> list[Claim]:
                 citations=cite(cid, ev, prov, 1),
             )
         )
-    return claims
+        leads.append((-severity, len(leads), lead))
+    lead = "; ".join(line for _, _, line in sorted(leads))
+    return claims, lead
 
 
-_PLACE_WORDS = None
-
-
-def _place_words() -> set[str]:
-    global _PLACE_WORDS
-    if _PLACE_WORDS is None:
-        from floodsense_agents.router import PLACES
-
-        words = {w.lower() for w in place_words()} | set(PLACES)
-        words |= {n.lower() for n in POINT_NAMES.values()}
-        _PLACE_WORDS = words
-    return _PLACE_WORDS
-
-
-def lead_ok(lead: str, claims: list[Claim]) -> bool:
-    """No number and no place word the claims do not carry."""
-    body = " ".join(c.text for c in claims)
-    have = numbers_in(body)
-    for n in numbers_in(lead):
-        if not any(abs(n - h) < 1e-9 for h in have):
-            return False
-    low = body.lower()
-    for w in re.findall(r"[^\W\d_][\w'.-]*", lead):
-        if w.lower() in _place_words() and w.lower() not in low:
-            return False
-    return bool(lead.strip()) and len(lead) <= 300 and lead.count(".") <= 2
-
-
-def make_answer(deps: Deps):
-    def quick_answer(state: FloodState) -> dict:
-        t = time.time()
-        claims = build_claims(state)
-        if not claims:
-            return {
-                "escalate": "the live rows hold no reading to state",
-                "trace": trace(
-                    state, "quick_answer", "no reading in the live rows", lane="none", started=t
-                ),
-            }
-        facts = "\n".join(f"- {c.text}" for c in claims)
-        question = str((state.get("request") or {}).get("question") or "")
-        lead, model_id, note = "", None, "lead dropped"
-        fut = _POOL.submit(
-            deps.llm.complete, "fast", SYSTEM, f"QUESTION: {question}\nFACTS:\n{facts}"
-        )
-        try:
-            text, model_id = fut.result(timeout=_timeout_s())
-            cand = str(parse_json(text).get("lead") or "").strip()
-            if lead_ok(cand, claims):
-                lead, note = cand, "lead kept"
-            elif cand:
-                note = "lead dropped: names a number or place the claims do not"
-        except FutureTimeout:
-            note = "lead dropped: fast lane over time"
-        except Exception as e:  # noqa: BLE001 - the claims stand without a lead
-            note = f"lead dropped: fast lane failed ({type(e).__name__})"
-        summary = lead or " ".join(c.text for c in claims)
+def quick_answer(state: FloodState) -> dict:
+    """Template claims and a template lead. No model call."""
+    t = time.time()
+    claims, lead = build_claims(state)
+    if not claims:
         return {
-            "claims": [c.model_dump() for c in claims],
-            "summary": summary,
+            "escalate": "the live rows hold no reading to state",
             "trace": trace(
-                state,
-                "quick_answer",
-                f"{len(claims)} template claims, one per place; {note}",
-                lane="fast" if model_id else "none",
-                model_id=model_id,
-                started=t,
-                evidence_ids=[q for c in claims for q in (x.query_id for x in c.citations) if q],
+                state, "quick_answer", "no reading in the live rows", lane="none", started=t
             ),
         }
-
-    return quick_answer
+    return {
+        "claims": [c.model_dump() for c in claims],
+        "summary": f"{lead}. " + " ".join(c.text for c in claims),
+        "trace": trace(
+            state,
+            "quick_answer",
+            f"{len(claims)} template claims, one per place; lead: {lead}",
+            lane="none",
+            model_id="deterministic",
+            started=t,
+            evidence_ids=[q for c in claims for q in (x.query_id for x in c.citations) if q],
+        ),
+    }
 
 
 def route_after_answer(state: FloodState) -> str:

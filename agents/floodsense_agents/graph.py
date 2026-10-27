@@ -106,7 +106,7 @@ def build_graph(
     # answered, or escalates into the full lane at watchers. lane=full (and
     # every run without a lane) routes exactly as before.
     g.add_node("live_watch", quick.make_live_watch(deps))
-    g.add_node("quick_answer", quick.make_answer(deps))
+    g.add_node("quick_answer", quick.quick_answer)
     g.add_node("quick_judge", quick.quick_judge)
     g.add_node("escalate", quick.escalate)
     g.add_conditional_edges(
