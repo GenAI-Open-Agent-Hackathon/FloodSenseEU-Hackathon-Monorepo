@@ -72,7 +72,7 @@ rejected with 422. The API cache keeps each provider's answers apart.
 
 Measured on Nightshift: both lanes answer with Nemotron 3.5 Lightning 30B A3B at about 60 to 70 completion tokens/s, and most completion tokens are hidden reasoning even with `enable_thinking=false`, so latency follows token count. Long generations get a **502 from the gateway at about 45 s**.
 
-- Retry policy (`nightshift.py`): a timeout (`LLM_TIMEOUT_S`, 180) or an error that arrives after `LLM_SLOW_FAIL_S` (20 s) is final, and the node falls back to its deterministic path. Other errors (fast 5xx, connection, a 200 with no `choices`) get `LLM_MAX_ATTEMPTS` (2) tries in total.
+- Retry policy (`nightshift.py`): a reply with `finish_reason: length` is an error and is not retried, so a truncated reply never reaches a parser or the Judge. A 429 waits `Retry-After` seconds (at most 10). A timeout (`LLM_TIMEOUT_S`, 180) or an error that arrives after `LLM_SLOW_FAIL_S` (20 s) is final, and the node falls back to its deterministic path. Other errors (fast 5xx, connection, a 200 with no `choices`) get `LLM_MAX_ATTEMPTS` (2) tries in total.
 - `LLM_MAX_TOKENS_FAST` / `LLM_MAX_TOKENS_DEEP` (6000 / 8000) are runaway caps, not length budgets; `0` sends no `max_tokens`.
 - Skeptic rationale calls and Judge per-claim grounding calls run on up to `LLM_MAX_PARALLEL` (6) threads. Results are applied in input order, so scores, hypotheses and the trace are the same as a serial run. `1` runs them serially.
 - The repair round runs only when the Judge flags claims **and** the run does not pass. `JUDGE_REPAIR_WHEN_PASSING=true` repairs flagged claims on a passing run too.
@@ -86,6 +86,8 @@ docker exec -w /tmp -e PYTHONPATH=/tmp/bench floodsense-app-agents-1 python /tmp
 ```
 
 `PYTHONPATH=/app` measures the image's code instead. It prints per-node trace latency and per-call lane, seconds, prompt size and answering model (`--json` for one object). It reads the container env and prints no secret.
+
+`AnthropicClient` (the test-only provider switch) keeps its own `max_tokens` (16000) and its own retry policy (3 attempts). None of the `LLM_*` settings above apply to it, so bench numbers for the two providers are not like-for-like.
 
 ## Human-in-the-loop
 

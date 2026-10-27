@@ -147,6 +147,10 @@ class NightshiftClient:
                     usage.get("completion_tokens"),
                     choice.get("finish_reason"),
                 )
+                if choice.get("finish_reason") == "length":
+                    # Truncated at max_tokens: never hand a cut reply to the
+                    # parsers or the Judge. Not retried (same prompt, same cut).
+                    raise RuntimeError("Nightshift reply cut off at max_tokens")
                 return text, js.get("model", model)
             except httpx.TimeoutException as e:
                 log.warning(
@@ -170,8 +174,22 @@ class NightshiftClient:
                     break
                 log.warning("nightshift attempt %d failed: %s", attempt, str(e)[:160])
                 if attempt < attempts:
-                    self._sleep(1.5 * attempt)
+                    self._sleep(_retry_delay(e, attempt))
         raise RuntimeError(f"Nightshift unavailable: {last}")
+
+
+RETRY_AFTER_CAP_S = 10.0
+
+
+def _retry_delay(e: Exception, attempt: int) -> float:
+    """Backoff before the next attempt; a 429's Retry-After (seconds), capped at 10 s."""
+    if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429:
+        raw = e.response.headers.get("retry-after", "")
+        try:
+            return min(max(float(raw), 0.0), RETRY_AFTER_CAP_S)
+        except ValueError:
+            pass  # an HTTP date or junk: fall back to the backoff
+    return 1.5 * attempt
 
 
 class FakeNightshift:

@@ -99,6 +99,36 @@ class RetryPolicy(unittest.TestCase):
         self.assertEqual(len(post.calls), 2)
         self.assertEqual(sleeps, [1.5])  # no sleep after the last attempt
 
+    def test_truncated_reply_is_an_error_not_retried(self) -> None:
+        cut = httpx.Response(
+            200,
+            json={
+                "model": "nvidia/x",
+                "choices": [
+                    {"message": {"content": '{"grounding": "sup'}, "finish_reason": "length"}
+                ],
+            },
+            request=httpx.Request("POST", URL),
+        )
+        c, post, sleeps = client([cut, ok_response()])
+        with Knobs(llm_max_attempts=3):
+            with self.assertRaisesRegex(RuntimeError, "cut off"):
+                c.complete("deep", "TASK: judge", "u")
+        self.assertEqual(len(post.calls), 1)
+        self.assertEqual(sleeps, [])
+
+    def test_429_honours_retry_after_capped(self) -> None:
+        def r429(after: str) -> httpx.Response:
+            return httpx.Response(
+                429, headers={"retry-after": after}, request=httpx.Request("POST", URL)
+            )
+
+        c, post, sleeps = client([r429("3"), r429("120"), r429("soon"), ok_response()])
+        with Knobs(llm_max_attempts=4, llm_slow_fail_s=60.0):
+            c.complete("fast", "TASK: x", "u")
+        self.assertEqual(len(post.calls), 4)
+        self.assertEqual(sleeps, [3.0, 10.0, 4.5])
+
     def test_slow_gateway_error_is_not_retried(self) -> None:
         err = httpx.Response(502, text="bad gateway", request=httpx.Request("POST", URL))
         c, post, sleeps = client([err, ok_response()])
