@@ -292,7 +292,11 @@ def point_claim(row: dict) -> Built | None:
         text += f"{',' if fmax is not None else ''} hourly rain peaks at {_fmt(rain)} mm"
         nums.append(rain)
     crosses = fmax is not None and fmax >= DEFINITIONS["anomaly_discharge"].value
-    lead = f"{name}: forecast discharge {'crosses' if crosses else 'stays under'} the anomaly line (hazard_now)"
+    if fmax is None:
+        # Rain only: no discharge forecast, so say so rather than claim it stays under the line.
+        lead = f"{name}: no discharge forecast in the live window (hazard_now)"
+    else:
+        lead = f"{name}: forecast discharge {'crosses' if crosses else 'stays under'} the anomaly line (hazard_now)"
     return text + " (GloFAS / Open-Meteo, hazard_now).", nums, lead, 3 if crosses else 0
 
 

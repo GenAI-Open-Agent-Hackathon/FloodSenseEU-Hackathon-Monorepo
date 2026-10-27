@@ -277,17 +277,6 @@ BACKOFF_MAX_RETRIES = 3
 BACKOFF_MAX_WAIT_S = 20.0  # total extra wait per call
 RETRY_AFTER_CAP_S = 10.0
 
-_last_call: ContextVar[dict | None] = ContextVar("nightshift_last_call", default=None)
-
-
-def last_call_info() -> dict | None:
-    """Retry metadata of the last Nightshift call in this context (thread).
-
-    ``{"retries": 2, "reasons": ["rate_limited", ...], "waited_s": 6.1,
-    "note": "retried 2x after rate limit"}``; ``note`` is "" with no retry.
-    """
-    return _last_call.get()
-
 
 def _note(reasons: list[str]) -> str:
     if not reasons:
@@ -379,6 +368,9 @@ class NightshiftClient:
         Retry-After), at most BACKOFF_MAX_WAIT_S of extra wait per call, and
         never past the call deadline (``llm_timeout_s`` from the first try, or
         the caller's ``call_deadline``). A provider_deadline 502 is not retried.
+
+        ``LLM_TIMEOUT_S`` is the total budget of one call: the gate wait, every
+        attempt and every backoff sleep come out of it.
         """
         attempts = max(1, settings.llm_max_attempts)
         last: Exception | None = None
@@ -389,12 +381,6 @@ class NightshiftClient:
             deadline = min(deadline, ctx_dl)
         reasons: list[str] = []
         waited = 0.0
-        info: dict = {"retries": 0, "reasons": reasons, "waited_s": 0.0, "note": ""}
-        _last_call.set(info)
-
-        def done() -> None:
-            info.update(retries=len(reasons), waited_s=round(waited, 2), note=_note(reasons))
-
         while True:
             t0 = time.time()
             try:
@@ -428,18 +414,17 @@ class NightshiftClient:
                     # Truncated at max_tokens: never hand a cut reply to the
                     # parsers or the Judge. Not retried (same prompt, same cut).
                     raise RuntimeError("Nightshift reply cut off at max_tokens")
-                done()
                 return text, js.get("model", model)
             except GateTimeout:
-                done()
                 log.warning("nightshift lane=%s: no slot before the deadline", lane)
                 raise
             except httpx.TimeoutException as e:
-                done()
                 log.warning(
                     "nightshift lane=%s timed out after %.0fs; not retried", lane, time.time() - t0
                 )
-                raise RuntimeError(f"Nightshift timeout after {settings.llm_timeout_s:.0f}s") from e
+                raise RuntimeError(
+                    f"Nightshift timeout: total budget of {settings.llm_timeout_s:.0f}s used"
+                ) from e
             except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
                 last = e
                 took = time.time() - t0
@@ -489,7 +474,6 @@ class NightshiftClient:
                 if attempt >= attempts:
                     break
                 self._sleep(1.5 * attempt)
-        done()
         raise RuntimeError(f"Nightshift unavailable: {last}")
 
 

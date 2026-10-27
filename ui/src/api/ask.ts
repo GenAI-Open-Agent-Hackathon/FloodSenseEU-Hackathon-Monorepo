@@ -2,6 +2,7 @@ import { apiBaseUrl } from "./config";
 import { adoptRunBody, type RecordedRun } from "./replay";
 import type { LlmProvider } from "../lib/llmProvider";
 import { withAskContext, type AskContext } from "../lib/askContext";
+import { modelChip } from "../lib/modelChip";
 
 export const DEFAULT_EVENT_ID = "EMSR773";
 
@@ -144,7 +145,10 @@ export function mapRunResponse(status: number, body: unknown, retryAfter: string
 export function runBadge(run: RecordedRun): string {
   if (run.servedFrom === "live") {
     const model = run.modelIds[run.modelIds.length - 1];
-    return model ? `Live · ${model}` : "Live";
+    if (!model) return "Live";
+    // The lane of the last step that used this model: "Live · Nemotron 3.5 Lightning 30B · Nightshift deep lane".
+    const step = [...run.trace].reverse().find((s) => (s.modelId ?? "").includes(model) && s.lane);
+    return `Live · ${modelChip(model, step?.lane ?? null)}`;
   }
   if (run.servedFrom === "cache") return run.label || "Cached answer · not live";
   return run.label || `Replay · recorded run ${run.runId} · not live`;

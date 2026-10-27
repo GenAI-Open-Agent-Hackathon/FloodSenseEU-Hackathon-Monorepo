@@ -1,5 +1,5 @@
 import type { RecordedRun, ReplayStep } from "../api/replay";
-import { laneLabel } from "./lanes";
+import { laneLabel, providerOf } from "./lanes";
 
 /** Canonical node order of the agent graph. world_model steps are folded into badges, not nodes. */
 export const PIPELINE_ORDER = [
@@ -49,6 +49,8 @@ export interface PipelineNode {
   latencyMs: number | null;
   lane: string | null;
   modelId: string | null;
+  /** Provider the trace states for this node's model step, when it does. */
+  provider: string | null;
   summary: string;
   /** How many times the node ran (a revise or repair loop runs it again). */
   runs: number;
@@ -111,14 +113,12 @@ function llmIds(modelId: string | null | undefined): string[] {
     .filter((m) => m && m !== "deterministic");
 }
 
-/**
- * Badge for an LLM id. "Nightshift" only when the trace step or the run states provider nightshift;
- * an nvidia id without that signal is "NVIDIA Nemotron" (it can also come through OpenRouter or NIM).
- */
+/** Badge for an LLM id, by the shared provider rule (`providerOf`): Nemotron ids are Nightshift, anthropic/ ids the test switch. */
 export function modelBadge(modelId: string, provider?: string | null): PipelineBadge {
   const label = laneLabel(modelId);
-  if ((provider ?? "").toLowerCase() === "nightshift") return { kind: "nightshift", text: `Nightshift · ${label}` };
-  if (modelId.startsWith("nvidia/")) return { kind: "model", text: `NVIDIA Nemotron · ${label}` };
+  const p = providerOf(modelId, provider);
+  if (p === "Nightshift") return { kind: "nightshift", text: `Nightshift · ${label}` };
+  if (p) return { kind: "model", text: `${p} · ${label}` };
   return { kind: "model", text: modelId };
 }
 
@@ -208,6 +208,7 @@ export function buildPipeline(run: RecordedRun): PipelineModel {
       latencyMs: latencies.length ? latencies.reduce((a, c) => a + c, 0) : null,
       lane: main?.lane ?? null,
       modelId: main?.modelId ?? null,
+      provider: main?.provider ?? null,
       summary,
       runs: steps.length,
       badges,

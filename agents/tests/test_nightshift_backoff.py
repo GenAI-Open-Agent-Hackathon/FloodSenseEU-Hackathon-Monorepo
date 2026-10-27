@@ -21,7 +21,6 @@ from floodsense_agents.nightshift import (  # noqa: E402
     NightshiftClient,
     call_deadline,
     classify_error,
-    last_call_info,
 )
 from floodsense_agents.settings import settings  # noqa: E402
 
@@ -115,20 +114,18 @@ class Backoff(unittest.TestCase):
     def test_429_body_retries_then_succeeds(self) -> None:
         c, post, clock = make([r502(BODY_429), r502(BODY_429), ok()])
         with Knobs(llm_max_attempts=1, llm_timeout_s=180.0):
-            text, model = c.complete("fast", "TASK: x", "u")
+            with self.assertLogs("floodsense.nightshift", "INFO") as logs:
+                text, model = c.complete("fast", "TASK: x", "u")
         self.assertEqual(model, "nvidia/x")
         self.assertEqual(len(post.calls), 3)
         self.assertEqual(clock.sleeps, [2.0, 4.0])
-        info = last_call_info()
-        self.assertEqual(info["retries"], 2)
-        self.assertEqual(info["note"], "retried 2× after rate limit")
+        self.assertIn("retried 2\u00d7 after rate limit", logs.output[-1])
 
     def test_empty_response_retries(self) -> None:
         c, post, clock = make([r502(BODY_EMPTY), ok()])
         with Knobs(llm_max_attempts=1):
             c.complete("fast", "TASK: x", "u")
         self.assertEqual(len(post.calls), 2)
-        self.assertEqual(last_call_info()["reasons"], ["empty_response"])
 
     def test_stream_empty_response_retries(self) -> None:
         c, post, clock = make([ValueError("stream provider_error: " + BODY_EMPTY), ok()])

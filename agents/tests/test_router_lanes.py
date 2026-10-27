@@ -301,5 +301,22 @@ class QuickLaneTest(unittest.TestCase):
         self.assertIsNone(quick._own_row("eu", "EU08", ev))
 
 
+class PointClaimLeadTest(unittest.TestCase):
+    def test_rain_only_point_says_no_discharge_forecast(self):
+        _text, nums, lead, severity = quick.point_claim(
+            {"point_id": "VAL01", "forecast_max_discharge_m3s": None, "forecast_max_rain_mm": 4.2}
+        )
+        self.assertIn("no discharge forecast", lead)
+        self.assertNotIn("stays under", lead)
+        self.assertEqual(nums, [4.2])
+        self.assertEqual(severity, 0)
+
+    def test_discharge_point_keeps_the_anomaly_line(self):
+        _text, _nums, lead, _sev = quick.point_claim(
+            {"point_id": "VAL01", "forecast_max_discharge_m3s": 12.0, "forecast_max_rain_mm": None}
+        )
+        self.assertIn("stays under the anomaly line", lead)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,14 +14,15 @@ export const EVENT_META: Record<EventId, { short: string; region: string }> = {
   EMSR773: { short: "Valencia 2024", region: "Spain · Valencia" },
 };
 
-/**
- * Header subtitle: "Live" on the Now page, else the event the page actually shows
- * (`shownEventId`, the same rule as the replay strip), so header and strip never disagree.
- */
-export function headerSubtitle(route: DeskRoute, eventId: EventId): string {
-  if (route.page === "now") return "Live · Valencia model + Europe live watch";
-  return shownEventId(route, eventId) === "EMSR517" ? "Ahr 2021 replay · EMSR517" : "Valencia replay · EMSR773";
+/** Header subtitle: a short product tagline, the same on every page. Page context lives in the context strip. */
+export const PRODUCT_TAGLINE = "Explainable flood risk for Europe";
+
+export function headerSubtitle(): string {
+  return PRODUCT_TAGLINE;
 }
+
+/** The Now page's own subtitle (#78 live-watch wording), shown in the context strip on Now. */
+export const NOW_SUBTITLE = "Live · Valencia model + Europe live watch";
 
 /** One map point with real coordinates from the seed rows. */
 export interface MapPoint {
@@ -115,22 +116,45 @@ export function screenContextFor(
   return { role: route.role, page: route.page, point_id: valencia.pointId, place: point?.name };
 }
 
+/** Pages that show a replayed past event. Replay and Sites follow the selected event; citizen Overview and My area show Valencia 2024. */
+export function pageShowsReplay(route: DeskRoute): boolean {
+  if (route.page === "replay") return true;
+  if (route.role === "insurer") return route.page === "sites";
+  return route.page === "overview" || route.page === "area";
+}
+
+const EVENT_NAME: Record<EventId, string> = { EMSR517: "Ahr", EMSR773: "Valencia" };
+
+export type ContextStrip =
+  | { kind: "live"; text: string }
+  | { kind: "replay"; text: string; eventId: EventId; date: string }
+  | { kind: "none"; text: "" };
+
+function plainDay(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 /**
- * Pure: what the replay strip shows. On a page that shows the selected event it follows that event
- * (Ahr date and point on Ahr). The Simulate playback steps only the Valencia discharge date, so on an
- * Ahr page the strip does not claim Playing/Paused for Ahr; while the Valencia simulation runs it says so
- * and keeps Stop. Pages that show no event keep the Valencia date, point and playback state.
+ * Pure: the context strip under the header. "Live data" on Now; a plain "Viewing: ... (replay of a past event)"
+ * on pages that show a replayed event; nothing elsewhere. Replay and Sites follow the selected event (Replay on
+ * both desks); citizen Overview and My area always show Valencia 2024.
  */
 export function replayBarView(
   route: DeskRoute,
   eventId: EventId,
-  valencia: { date: string; pointId: string; points: readonly { point_id: string; name: string }[] },
-  ahrSel: { date: string; pointId: string },
-  playing: boolean,
-): { date: string; place: string; playback: "valencia" | "valencia-elsewhere" | "none" } {
-  const sel = activeEventSelection(shownEventId(route, eventId), valencia, ahrSel);
-  const place = sel.place ? `${sel.point_id} ${sel.place}` : sel.point_id;
-  const followsAhr = shownEventId(route, eventId) === "EMSR517";
-  const playback = !followsAhr ? "valencia" : playing ? "valencia-elsewhere" : "none";
-  return { date: sel.replay_date, place, playback };
+  valencia: { date: string },
+  ahrSel: { date: string },
+): ContextStrip {
+  if (route.page === "now") return { kind: "live", text: NOW_SUBTITLE };
+  if (!pageShowsReplay(route)) return { kind: "none", text: "" };
+  const shown: EventId = route.page === "replay" || route.page === "sites" ? eventId : "EMSR773";
+  const date = shown === "EMSR517" ? ahrSel.date : valencia.date;
+  return {
+    kind: "replay",
+    eventId: shown,
+    date,
+    text: `Viewing: ${EVENT_NAME[shown]} flood · ${plainDay(date)} (replay of a past event)`,
+  };
 }
