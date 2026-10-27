@@ -8,6 +8,7 @@ import { NowPage } from "./NowPage";
 import { Portfolio } from "./Portfolio";
 import { HowItWorks } from "./HowItWorks";
 import { ReviewColumn } from "./ReviewColumn";
+import { LatestRunTechTrace } from "./TechTrace";
 import { SystemPanel } from "./SystemPanel";
 import { useConsole } from "../context/ConsoleContext";
 import type { InsurerPage } from "../lib/route";
@@ -48,6 +49,7 @@ export function InsurerView({ page }: { page: InsurerPage }) {
         <div className="page-stack">
           {/* agents-visual */}
           <CausalChainHeader />
+          <LatestRunTechTrace />
           <ReviewColumn />
         </div>
       );

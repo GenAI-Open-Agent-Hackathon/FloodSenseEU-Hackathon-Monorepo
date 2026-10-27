@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AgentPipeline, LiveAgentPipeline } from "./AgentPipeline";
+import { TechTrace } from "./TechTrace";
 import { RetrievalPanel } from "./RetrievalPanel";
 import { mergeContext } from "../lib/askContext";
 import { capTurns, followUpThreadId, modeForPage, modeLabel } from "../api/ask";
@@ -593,6 +594,7 @@ function RecordedAnswer({
       )}
       {/* agents-visual: the pipeline folds to one line once the answer is here. */}
       <AgentPipeline run={run} />
+      <TechTrace run={run} />
       {run.claims.some((c) => c.citations.some((ci) => ci.layer === "c")) && (
         <details className="disclosure">
           <summary>Document retrieval</summary>
