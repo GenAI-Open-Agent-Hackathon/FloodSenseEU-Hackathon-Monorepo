@@ -1115,3 +1115,15 @@ a.button.primary { color: #f4fffc; }
 /* Now: one labelled section per region. */
 .now-region { display: grid; gap: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 0.8rem; min-width: 0; }
 .now-region-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem; }
+
+/* Ask greeting: suggested questions wrap at 375 px, never scroll sideways. */
+.ask-greeting .ask-question { font-weight: 500; }
+.ask-suggestions { list-style: none; margin: 0.5rem 0 0.6rem; padding: 0; display: grid; gap: 0.4rem; }
+.ask-suggestion {
+  width: 100%; text-align: left; font: inherit; cursor: pointer; overflow-wrap: anywhere;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; padding: 0.45rem 0.6rem;
+}
+.ask-suggestion:hover:not(:disabled) { border-color: var(--accent-strong); }
+.ask-suggestion:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.ask-suggestion:disabled { opacity: 0.6; cursor: default; }
+.safety-links { margin: 0.4rem 0 0; padding-left: 1.1rem; overflow-wrap: anywhere; }

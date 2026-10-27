@@ -63,7 +63,8 @@ class ScopeRuleTest(unittest.TestCase):
         self.assertFalse(verdict["in_scope"])
         self.assertEqual(verdict["elsewhere"], "EMSR517")
         self.assertIn("EMSR517", verdict["reason"])
-        self.assertIn("Open that case", verdict["reason"])
+        self.assertIn("Ahr valley flood (July 2021)", verdict["reason"])
+        self.assertIn("Switch to the Ahr case", verdict["reason"])
 
     def test_the_rhine_on_a_valencia_run_names_the_ahr_case(self) -> None:
         verdict = scope.check("What is the risk on the Rhine at Koeln?", "EMSR773")

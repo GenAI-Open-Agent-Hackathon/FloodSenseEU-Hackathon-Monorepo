@@ -68,6 +68,8 @@ export interface RecordedRun {
   memoryCount?: number;
   /** Run-level LLM provider from the body or its request, when stated. */
   provider?: string | null;
+  /** A declined run's scope.elsewhere: the event that does hold the question, when the gate named one. */
+  elsewhere?: string | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -162,6 +164,7 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     modelIds: Array.isArray(run.model_ids) ? run.model_ids.filter((m): m is string => typeof m === "string") : [],
     mode: modeOf(run.mode),
     eventId: str(run.event_id),
+    elsewhere: str(rec(run.scope)?.elsewhere),
     reviseRounds: num(run.revise_rounds) ?? 0,
     repairRounds: num(run.repair_rounds) ?? 0,
     judgeClaims: Array.isArray(run.judge)

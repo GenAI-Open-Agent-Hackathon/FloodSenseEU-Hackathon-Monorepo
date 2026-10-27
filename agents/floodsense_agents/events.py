@@ -247,22 +247,52 @@ def _context_event(context: dict | None) -> tuple[str, str] | None:
     return None
 
 
+def question_event(question: str) -> tuple[str, str] | None:
+    """(event_id, word) when the question names places of exactly one event, else None.
+
+    Reads German place words (names_germany), Valencia towns (_VALENCIA_RE) and
+    the scope gate's per-event vocabulary, so "near Ahr Valley" is the Ahr case.
+    A question naming both events, or neither, returns None.
+    """
+    from floodsense_agents.nodes.scope import _tokens, vocabulary
+
+    text = question or ""
+    hits: dict[str, str] = {}
+    word = names_germany(text)
+    if word:
+        hits[GERMAN_EVENT] = word
+    m = _VALENCIA_RE.search(text)
+    if m:
+        hits.setdefault(DEFAULT_EVENT, m.group(0))
+    asked = _tokens(text)
+    for ev in EVENTS:
+        shared = asked & vocabulary(ev)
+        if shared and ev not in hits:
+            hits[ev] = sorted(shared)[0]
+    if len(hits) != 1:
+        return None
+    ((ev, w),) = hits.items()
+    return ev, w
+
+
 def route_event(
     question: str, event_id: str | None, context: dict | None = None
 ) -> tuple[str, str]:
     """(event_id, reason). An explicit event_id always stands; only None is routed.
 
-    Unset: the user's selection (context) wins, then a German question (Rhine,
-    Köln, Ahr, AHR01 ...) goes to EMSR517, else EMSR773. A question that also
-    names a Valencia town stays on EMSR773 (the scope gate decides).
+    Unset: a question that names places of exactly one event (Rhine, Köln, Ahr,
+    Paiporta, ...) goes to that event, even over the user's selection. A question
+    naming no place (or both events) follows the selection (context), else
+    EMSR773.
     """
     if event_id:
         chosen = spec(event_id).event_id
         return chosen, f"event_id {chosen} requested"
+    named = question_event(question)
+    if named:
+        ev, word = named
+        return ev, f"question names '{word}', so the run uses {ev}"
     picked = _context_event(context)
     if picked:
         return picked
-    word = names_germany(question)
-    if word and not _VALENCIA_RE.search(question or ""):
-        return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"
     return DEFAULT_EVENT, f"no event_id; default {DEFAULT_EVENT}"

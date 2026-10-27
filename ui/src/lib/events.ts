@@ -2,7 +2,7 @@ import ahr from "../fixtures/ahr_2021.json";
 import type { DischargeDailyRow, ValenciaPoint } from "../types/views";
 import type { DisasterEvent } from "./disasterReplay";
 import type { AskContext } from "./askContext";
-import type { DeskRoute, PageId } from "./route";
+import type { DeskRoute } from "./route";
 
 export type EventId = DisasterEvent["eventId"];
 
@@ -14,10 +14,13 @@ export const EVENT_META: Record<EventId, { short: string; region: string }> = {
   EMSR773: { short: "Valencia 2024", region: "Spain · Valencia" },
 };
 
-/** Header subtitle: "Live" on the Now page, else the selected replay event. */
-export function headerSubtitle(page: PageId, eventId: EventId): string {
-  if (page === "now") return "Live · Valencia model + Rhine gauges";
-  return eventId === "EMSR517" ? "Ahr 2021 replay · EMSR517" : "Valencia replay · EMSR773";
+/**
+ * Header subtitle: "Live" on the Now page, else the event the page actually shows
+ * (`shownEventId`, the same rule as the replay strip), so header and strip never disagree.
+ */
+export function headerSubtitle(route: DeskRoute, eventId: EventId): string {
+  if (route.page === "now") return "Live · Valencia model + Rhine gauges";
+  return shownEventId(route, eventId) === "EMSR517" ? "Ahr 2021 replay · EMSR517" : "Valencia replay · EMSR773";
 }
 
 /** One map point with real coordinates from the seed rows. */
@@ -93,6 +96,11 @@ export function pageShowsEvent(route: DeskRoute, eventId: EventId): boolean {
   return route.page === "portfolio" && eventId === "EMSR773";
 }
 
+/** The event a page shows: the selected one where `pageShowsEvent`, else Valencia (EMSR773). */
+export function shownEventId(route: DeskRoute, eventId: EventId): EventId {
+  return pageShowsEvent(route, eventId) ? eventId : "EMSR773";
+}
+
 /** Pure: the Ask `context` for the page. Event fields only where the page shows that event. */
 export function screenContextFor(
   route: DeskRoute,
@@ -120,11 +128,9 @@ export function replayBarView(
   ahrSel: { date: string; pointId: string },
   playing: boolean,
 ): { date: string; place: string; playback: "valencia" | "valencia-elsewhere" | "none" } {
-  const sel = pageShowsEvent(route, eventId)
-    ? activeEventSelection(eventId, valencia, ahrSel)
-    : activeEventSelection("EMSR773", valencia, ahrSel);
+  const sel = activeEventSelection(shownEventId(route, eventId), valencia, ahrSel);
   const place = sel.place ? `${sel.point_id} ${sel.place}` : sel.point_id;
-  const followsAhr = pageShowsEvent(route, eventId) && eventId === "EMSR517";
+  const followsAhr = shownEventId(route, eventId) === "EMSR517";
   const playback = !followsAhr ? "valencia" : playing ? "valencia-elsewhere" : "none";
   return { date: sel.replay_date, place, playback };
 }

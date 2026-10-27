@@ -10,6 +10,7 @@ import { actionsVisibleToCitizen } from "../lib/decision";
 import { formatDay, formatHour, formatM3s, formatMm, servingLabel } from "../lib/format";
 import { statusLabel } from "../lib/origin";
 import { routeHref } from "../lib/route";
+import { CITIZEN_ADVICE, CITIZEN_ADVICE_SOURCE, GATE_LINE, SAFETY_HEADLINE } from "../lib/safety";
 import {
   dischargeBand,
   glofasDischargeNote,
@@ -101,15 +102,36 @@ function CiteChips({ items }: { items: NumberedCitation[] }) {
   );
 }
 
-/** Reviewed playbook actions, in the answer's order, shown only once a person approved them. */
+/** General, sourced guidance first (no gate), then the gated, agent-written step, and a way into the chat. */
 function ActionCards() {
+  const desk = useConsole();
+  return (
+    <>
+      <div className="safety-guidance">
+        <p>
+          <strong>{SAFETY_HEADLINE}.</strong> {CITIZEN_ADVICE}
+        </p>
+        <p className="note">{CITIZEN_ADVICE_SOURCE}. FloodSense is not an official warning.</p>
+      </div>
+      <ReviewedSteps />
+      <div className="button-row">
+        <button type="button" className="button" onClick={() => desk.openAsk()}>
+          Ask FloodSense
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Reviewed playbook actions, in the answer's order, shown only once a person approved them. */
+function ReviewedSteps() {
   const desk = useConsole();
   const status = desk.approval.status;
   const actions = actionsVisibleToCitizen(status) ? (desk.answer.playbook_actions ?? []) : [];
   if (status === "pending")
     return (
       <p className="status-note" role="status">
-        Pending human review. No suggested step is shown until an insurer approves it. Follow official warnings meanwhile.
+        {GATE_LINE}
       </p>
     );
   if (status === "rejected")
