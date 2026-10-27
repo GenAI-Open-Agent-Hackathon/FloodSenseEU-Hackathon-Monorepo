@@ -38,19 +38,19 @@ Querying with the Zetaris CLI needs the login flags: `lightning-sql.sh --email a
 
 ### EU watch points: cell choice
 
-Each point is a 0.05° GloFAS cell near the city. The check: the cell's 2013-2022 daily mean from the Open-Meteo Flood API (queried 27 Oct 2026, 3x3 cells around the city) against the long-term mean flow at the city as stated in the Wikipedia river articles (infobox or gauging-station figures; quoted from those articles, not re-measured by us, so treat them as approximate). The city-centre cell is often a side cell carrying about 1 m³/s, which is why cells move off the centre.
+Each point is a 0.05° GloFAS cell near the city. Check: the cell's 2013-2022 daily mean from the Open-Meteo Flood API (queried 27 Oct 2026, 3x3 cells around the city) against a published long-term mean flow, where one was found. English Wikipedia pages were fetched on 27 Oct 2026; each reference states where the figure comes from. Where no figure for the city's station was found, the row says "no published reference checked". The cell was then chosen as the main-channel cell with the largest long-term mean, and no reference was estimated.
 
-| Point | River / city | Cell (lat, lon) | GloFAS 2013-2022 mean | Reference long-term mean | Choice |
-| --- | --- | --- | --- | --- | --- |
-| EU01 | Seine / Paris | 48.925, 2.275 | 313 m³/s | ~310 m³/s (Paris) | kept |
-| EU02 | Rhône / Lyon | 45.775, 4.825 | 591 m³/s | ~600 m³/s (Rhône at Lyon, above the Saône) | moved from 45.725, 4.775 (1222 m³/s, below the Saône confluence) |
-| EU03 | Loire / Orléans | 47.875, 1.875 | 297 m³/s | ~350 m³/s (Orléans) | kept |
-| EU04 | Po / Piacenza | 45.075, 9.625 | 886 m³/s | ~970 m³/s (Piacenza) | moved from 45.125, 9.725 (side cell) |
-| EU05 | Ebro / Zaragoza | 41.625, -0.825 | 266 m³/s | ~230 m³/s (Zaragoza) | kept |
-| EU06 | Vistula / Warsaw | 52.275, 20.975 | 481 m³/s | ~570 m³/s (Warsaw) | kept |
-| EU07 | Danube / Vienna | 48.175, 16.475 | 1898 m³/s | ~1,920 m³/s (Vienna) | moved from 48.175, 16.425 |
-| EU08 | Danube / Budapest | 47.475, 19.025 | 2482 m³/s | ~2,350 m³/s (Budapest) | kept |
-| EU09 | Tisza / Szeged | 46.275, 20.125 | 660 m³/s | ~810 m³/s (Szeged) | kept |
-| EU10 | Meuse / Liège | 50.675, 5.625 | 229 m³/s | ~250 m³/s (Liège) | moved from 50.675, 5.575 |
-| EU11 | Vltava / Prague | 50.125, 14.375 | 139 m³/s | ~150 m³/s (Prague) | kept. Today's ~17-27 m³/s is autumn low flow, not an off-channel cell |
-| — | Guadalquivir / Seville | best cell 37.325, -6.075 | 17 m³/s | ~160 m³/s (Seville / Alcalá del Río) | dropped: no cell near the city carries the main channel |
+| Point | River / city | Cell (lat, lon) | GloFAS 2013-2022 mean | Reference mean | Reference location | Reference period | Source | Choice |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| EU01 | Seine / Paris | 48.925, 2.275 | 313 m³/s | no published reference checked | – | – | en.wikipedia.org/wiki/Seine gives only Le Havre (560 m³/s) | kept (largest mean of the 3x3 cells) |
+| EU02 | Rhône / Lyon | 45.775, 4.825 | 591 m³/s | 600 m³/s | Rhône at Lyon, above the Saône confluence | not stated | en.wikipedia.org/wiki/Rhône (text: "600 m3/s … at this point") | moved from 45.725, 4.775 (1222 m³/s, below the Saône confluence) |
+| EU03 | Loire / Orléans | 47.875, 1.875 | 297 m³/s | roughly 350 m³/s | Orléans | not stated | en.wikipedia.org/wiki/Loire (text) | kept |
+| EU04 | Po / Piacenza | 45.075, 9.625 | 886 m³/s | 854 m³/s | Isola Serafini dam, 40 km downstream of Piacenza (not a Piacenza station) | not stated | en.wikipedia.org/wiki/Po_(river) (text) | moved from 45.125, 9.725 (side cell) |
+| EU05 | Ebro / Zaragoza | 41.625, -0.825 | 266 m³/s | no published reference checked | – | – | en.wikipedia.org/wiki/Ebro gives only flood peaks at Zaragoza and 426 m³/s at the mouth | kept (largest mean of the 3x3 cells) |
+| EU06 | Vistula / Warsaw | 52.275, 20.975 | 481 m³/s | no published reference checked | – | – | en.wikipedia.org/wiki/Vistula gives only the mouth (Mikoszewo, 1,080 m³/s) | kept (largest mean of the 3x3 cells) |
+| EU07 | Danube / Vienna | 48.175, 16.475 | 1898 m³/s | 1,920 m³/s | Vienna | 1931–2020 | en.wikipedia.org/wiki/Danube (infobox) | moved from 48.175, 16.425 |
+| EU08 | Danube / Budapest | 47.475, 19.025 | 2482 m³/s | 2,350 m³/s | Budapest | 1931–2020 | en.wikipedia.org/wiki/Danube (infobox) | kept |
+| EU09 | Tisza / Szeged | 46.275, 20.125 | 660 m³/s | 890.5 m³/s | Szeged | 1971–2000 | en.wikipedia.org/wiki/Tisza (text, Szeged gauge, fetched) | kept (largest mean of the 3x3 cells; the model reads about a quarter low) |
+| EU10 | Meuse / Liège | 50.675, 5.625 | 229 m³/s | no published reference checked | – | – | en.wikipedia.org/wiki/Meuse gives only a whole-river average (350 m³/s, no location) | moved from 50.675, 5.575 (largest mean of the 3x3 cells) |
+| EU11 | Vltava / Prague | 50.125, 14.375 | 139 m³/s | 149.9 m³/s | near the mouth (Mělník), not Prague | not stated | en.wikipedia.org/wiki/Vltava (infobox) | kept. Today's ~17-27 m³/s is autumn low flow, not an off-channel cell |
+| – | Guadalquivir / Seville | best cell 37.325, -6.075 | 17 m³/s | no published reference checked | – | – | – | dropped: no cell near the city carries a main-channel flow |
