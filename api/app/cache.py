@@ -57,6 +57,9 @@ log = logging.getLogger("floodsense.api.cache")
 
 CACHE_PREFIX = "floodsense:cache:v1:"
 REPLAY_PREFIX = "floodsense:replay:v1:"
+# Layer (c) corpus and retrieval version. Bump it when corpus/manifest.yaml or the
+# retrieve_docs ranking changes, so answers cached before an ingest stop being served.
+CORPUS_VERSION = "rag-2026-10-27"
 REDIS_RETRY_S = 30.0
 REDIS_SOCKET_TIMEOUT_S = 0.5
 
@@ -235,6 +238,7 @@ def key_of(request: dict[str, Any], flags: str) -> tuple:
         _provider_of(request),
         _context_of(request),
         flags,
+        CORPUS_VERSION,
     )
 
 
