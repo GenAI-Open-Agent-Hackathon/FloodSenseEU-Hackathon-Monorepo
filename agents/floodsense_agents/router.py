@@ -31,7 +31,7 @@ from floodsense_agents.settings import settings
 from floodsense_agents.watch import STATIONS, place_words, watch_target
 from floodsense_agents.events import EVENTS, POINT_NAMES, RHINE_GAUGES
 from floodsense_agents.live import classify as live_classify
-from floodsense_agents.nightshift import LLM, parse_json
+from floodsense_agents.nightshift import LLM, parse_json, submit_with_deadline
 
 log = logging.getLogger("floodsense.router")
 
@@ -141,7 +141,7 @@ def _kind(word: str) -> str:
 
 
 def _ask_model(llm: LLM, question: str, timeout: float) -> tuple[str, str] | None:
-    fut = _POOL.submit(llm.complete, "fast", SYSTEM, question[:500])
+    fut = submit_with_deadline(_POOL, timeout, llm.complete, "fast", SYSTEM, question[:500])
     try:
         text, model_id = fut.result(timeout=timeout)
         lane = str(parse_json(text).get("lane", "")).strip().lower()

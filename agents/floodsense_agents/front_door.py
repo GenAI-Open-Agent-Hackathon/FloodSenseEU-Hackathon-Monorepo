@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
-from floodsense_agents.nightshift import LLM, parse_json
+from floodsense_agents.nightshift import LLM, parse_json, submit_with_deadline
 
 log = logging.getLogger("floodsense.front_door")
 
@@ -141,7 +141,7 @@ _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="front-door")
 
 def _ask_model(llm: LLM, question: str, timeout: float) -> tuple[str, str] | None:
     """(intent, model_id) from one fast-lane call, or None on any failure."""
-    fut = _POOL.submit(llm.complete, "fast", SYSTEM, question[:500])
+    fut = submit_with_deadline(_POOL, timeout, llm.complete, "fast", SYSTEM, question[:500])
     try:
         text, model_id = fut.result(timeout=timeout)
         intent = str(parse_json(text).get("intent", "")).strip().lower()
