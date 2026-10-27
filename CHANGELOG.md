@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-27
+
+**Highlights.** A cleanup of 1.0.0 before submission. No new features. The test-only alternative LLM provider switch is gone, answers no longer show a hallucination percentage, and the docs describe the Nightshift lanes without naming a model per lane.
+
 ### Removed
 
 - The test-only alternative LLM provider switch, end to end: the agents' provider client and router, `LLM_PROVIDER_SWITCH` and its keys in `agents/.env.example`, the `llm_provider` field of `POST /runs`, `llm_providers` in `GET /config` and `GET /system`, the provider part of the API cache and replay keys, the operator console and desk header select, `evals/run_evals.py --provider`, and the tests and the eval report that only existed for it. Every model call goes to Nightshift.
@@ -305,7 +309,8 @@ Skeleton and guardrails on `eacf34c`. The product described in the gameplan (liv
 - The API, UI, pgvector, and Redis ports bind to `127.0.0.1`. Redis has no password. The pgvector example password is a local placeholder.
 - Examples contain placeholders, not tokens. The NVIDIA provider key is not an application variable.
 
-[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.14.0...v1.0.0
 [0.14.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/compare/v0.12.0...v0.13.0
