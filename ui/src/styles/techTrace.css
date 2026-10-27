@@ -6,6 +6,9 @@
 .tt-tile { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .tt-tile[data-tile="zetaris"] { border-color: var(--zetaris-border); background: var(--zetaris-bg); }
 .tt-tile-idle { background: var(--surface-2); }
+.tt-plain { cursor: default; }
+.tt-plain::after { content: none; }
+@media (min-width: 761px) { .tt-tiles-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .tt-embedded { margin: 0.5rem 0 0; }
 .tt-latest, .tt-note { margin: 0.75rem 0; }
 .tt-tile-open { grid-column: 1 / -1; }

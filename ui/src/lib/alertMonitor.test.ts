@@ -127,12 +127,12 @@ describe("Valencia demo points in the monitor", () => {
     const input = { gauges: [gauge("BONN", "ok")], points: [model("EU07", "ok")], valencia: [val("VAL01", "over"), val("VAL02", "ok")] };
     const { rows } = elevatedSources(input);
     expect(rows).toHaveLength(1);
-    expect(rows[0].status.word).toBe("Above 80 m³/s demo line");
-    expect(rows[0].basis).toMatch(/FloodSense demo line, not official/);
+    expect(rows[0].status.word).toBe("Far above its recent normal (model)");
+    expect(rows[0].basis).toMatch(/own past three days, not official/);
     expect(assessContext(rows[0])).toMatchObject({ point_id: "VAL01", place: "Paiporta centre" });
     expect(assessQuestion(rows[0])).not.toMatch(/on the  /);
     const view = monitorView({ ...input, state: "rows", checkedAt: NOW });
-    expect(view.text).toBe("1 Above 80 m³/s demo line of 2 live sources + 2 Valencia demo points · checked 11:42 UTC");
+    expect(view.text).toBe("1 Far above its recent normal (model) of 2 live sources + 2 Valencia demo points · checked 11:42 UTC");
     const calm = monitorView({ gauges: [gauge("BONN", "ok")], points: [], valencia: [val("VAL02", "ok")], state: "rows", checkedAt: NOW });
     expect(calm.text).toBe("All 1 live sources + 1 Valencia demo points are below watch level · checked 11:42 UTC");
   });

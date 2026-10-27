@@ -1,14 +1,13 @@
 import { Alerts } from "./Alerts";
 import { Approvals } from "./Approvals";
-import { CausalChainHeader } from "./CausalChainHeader";
+import { ReviewPage } from "./CausalChainHeader";
 import { DisasterReplay } from "./DisasterReplay";
 import { Drilldown } from "./Drilldown";
 import { MapPanel } from "./MapPanel";
 import { NowPage } from "./NowPage";
 import { Portfolio } from "./Portfolio";
+import { ControlTower } from "./ControlTower";
 import { HowItWorks } from "./HowItWorks";
-import { ReviewColumn } from "./ReviewColumn";
-import { LatestRunTechTrace } from "./TechTrace";
 import { SystemPanel } from "./SystemPanel";
 import { useConsole } from "../context/ConsoleContext";
 import type { InsurerPage } from "../lib/route";
@@ -30,7 +29,7 @@ export function InsurerView({ page }: { page: InsurerPage }) {
     case "portfolio":
       return <Portfolio />;
     case "sites":
-      return desk.sitesView === "live" ? (
+      return desk.mode === "live" ? (
         <div className="page-stack">
           <MapPanel exposureDefault />
         </div>
@@ -45,14 +44,9 @@ export function InsurerView({ page }: { page: InsurerPage }) {
     case "system":
       return <SystemPanel />;
     case "review":
-      return (
-        <div className="page-stack">
-          {/* agents-visual */}
-          <CausalChainHeader />
-          <LatestRunTechTrace />
-          <ReviewColumn />
-        </div>
-      );
+      return <ReviewPage />;
+    case "tower":
+      return <ControlTower />;
     case "how":
       return <HowItWorks />;
   }

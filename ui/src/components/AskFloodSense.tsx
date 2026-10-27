@@ -8,11 +8,14 @@ import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole, useConsoleMaybe } from "../context/ConsoleContext";
 import { citationsForClaim, numberedCitations } from "../lib/citations";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
+import { CalmAnswer } from "./CalmAnswer";
+import { calmApplies } from "../lib/calmAnswer";
 import { answerEventId, sourceFromCitation, sourceFromRun } from "../lib/sources";
 import { buildPipeline } from "../lib/pipeline";
 import { servingLabel, servingQualifier } from "../lib/format";
 import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
 import { shownEventId } from "../lib/events";
+import { contextForMode, modeName } from "../lib/mode";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
 import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
@@ -49,7 +52,7 @@ export function AskFloodSense() {
   const desk = useConsole();
   const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page, deskRoute } =
     desk;
-  const greeting = greetingFor(deskRoute, shownEventId(deskRoute, desk.eventId));
+  const greeting = greetingFor(deskRoute, desk.mode, shownEventId(desk.mode, desk.eventId));
   const exampleId = useId();
   const [showExample, setShowExample] = useState(false);
   // agents-visual: screen context (and a replay moment, when the popup was opened from Replay).
@@ -161,6 +164,8 @@ export function AskFloodSense() {
     const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
     if (typed === undefined) setDraft("");
     setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider", live: null });
+    // The global mode decides the event: Live sends none, Past sends the chosen event and its replay date.
+    const mergedContext = contextForMode(mergeContext(screenContext(), askContext), desk.mode);
     const result = await startLiveRun(
       {
         question,
@@ -168,8 +173,8 @@ export function AskFloodSense() {
         allowedProviders: llmProviders,
         threadId: followUpThreadId(previous),
         mode: modeForPage(page),
-        context: mergeContext(screenContext(), askContext),
-        ...(eventOverride ? { eventId: eventOverride } : askContext?.event_id ? { eventId: askContext.event_id } : {}),
+        context: mergedContext,
+        ...(eventOverride ? { eventId: eventOverride } : mergedContext?.event_id ? { eventId: mergedContext.event_id } : {}),
       },
       controller.signal,
     );
@@ -324,6 +329,7 @@ export function AskFloodSense() {
           >
             <div className="ask-turn ask-greeting">
               <p className="ask-question">{greeting.text}</p>
+              <p className="note ask-mode">Asking about: {modeName(desk.modeState)}{desk.demo ? " · DEMO DATA on screen" : ""}</p>
               <ul className="ask-suggestions" aria-label="Suggested questions">
                 {greeting.suggestions.map((q) => (
                   <li key={q}>
@@ -546,17 +552,18 @@ function RecordedAnswer({
 }) {
   const switchLabel = run.elsewhere ? switchEventLabel(run.elsewhere) : null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
+  const calm = calmApplies(run);
   return (
     <>
       <p className={`ask-badge ask-badge-${kind}`}>{badge}</p>
-      {modeLabel(run) && <p className="note ask-mode">{modeLabel(run)}</p>}
+      {modeLabel(run) && !calm && <p className="note ask-mode">{modeLabel(run)}</p>}
       {run.servedFrom !== "live" && run.label !== badge && <p className="note">{run.label}</p>}
       {run.status === "awaiting_approval" && (
         <p className="note ask-approval">
           Pending your approval on the <a href={routeHref("insurer", "approvals")}>Approvals page</a> · run {run.runId}
         </p>
       )}
-      <p className="ask-question">{run.summary}</p>
+      {calm && run.plain ? <CalmAnswer run={run} plain={run.plain} /> : <p className="ask-question">{run.summary}</p>}
       {onSwitch && run.elsewhere && switchLabel && (
         <div className="button-row">
           <button type="button" className="button" onClick={() => onSwitch(run.elsewhere as string)}>
@@ -564,8 +571,8 @@ function RecordedAnswer({
           </button>
         </div>
       )}
-      {run.claims.some((c) => c.citations.length > 0) && <SourceLegend />}
-      <ul className="ask-claims">
+      {!calm && run.claims.some((c) => c.citations.length > 0) && <SourceLegend />}
+      {!calm && <ul className="ask-claims">
         {(() => {
           // One number per distinct source across the answer, in first-seen order.
           const numbers = new Map<string, number>();
@@ -583,8 +590,8 @@ function RecordedAnswer({
             </li>
           ));
         })()}
-      </ul>
-      {(run.memoryUsed || buildPipeline(run).board) && <MemoriesPanel memories={run.memoryUsed ?? []} run={run} />}
+      </ul>}
+      {(run.memoryUsed?.length || (!calm && (run.memoryUsed || buildPipeline(run).board))) && <MemoriesPanel memories={run.memoryUsed ?? []} run={run} />}
       {run.judgeOverall !== null && (
         <p className="note" title="Score from our independent checker agent">
           Checked: {run.judgeOverall.toFixed(2)}
@@ -594,7 +601,7 @@ function RecordedAnswer({
       )}
       {/* agents-visual: the pipeline folds to one line once the answer is here. */}
       <AgentPipeline run={run} />
-      <TechTrace run={run} />
+      {!calm && <TechTrace run={run} />}
       {run.claims.some((c) => c.citations.some((ci) => ci.layer === "c")) && (
         <details className="disclosure">
           <summary>Document retrieval</summary>

@@ -51,6 +51,7 @@ export function ReviewColumn() {
         </div>
       </div>
       <ServingLine inline />
+      
       <p className="note">
         Skeptic notes and Judge scores are fixtures for this screen. They are not a Nightshift call, and they do not
         choose a model lane. The human still decides. Nothing here is sent.
@@ -86,9 +87,7 @@ export function ReviewColumn() {
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === "chain" && (
           <ol className="chain">
-            {desk.discharge.origin === "live" && (
-              <li className="note">The chain quotes the recorded fixture answer. Discharge rows on the map are live.</li>
-            )}
+
             {desk.discharge.origin === "seed" && (
               <li className="note">The chain quotes the seed extract on this desk.</li>
             )}

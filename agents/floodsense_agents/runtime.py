@@ -15,6 +15,7 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from langgraph.types import Command
@@ -66,6 +67,7 @@ STATE_KEYS = (
     "lane",
     "router_reason",
     "forecast",
+    "plain",
 )
 
 
@@ -111,6 +113,17 @@ class Runtime:
         # Background runs of this process: run_id -> {"started": [...], "done": bool}.
         self.live: dict[str, dict[str, Any]] = {}
         self._live_lock = threading.Lock()
+        # Observers of the run lifecycle: fn(kind, run_id) with kind "paused" (a run left the
+        # graph call: awaiting approval, answered or failed) or "resumed" (a decision landed).
+        # The control tower listens; an observer never changes or blocks a run.
+        self.observers: list[Callable[[str, str], None]] = []
+
+    def _notify(self, kind: str, run_id: str) -> None:
+        for fn in list(self.observers):
+            try:
+                fn(kind, run_id)
+            except Exception as e:  # noqa: BLE001 - an observer must not break a run
+                log.warning("run observer failed: %s", str(e)[:120])
 
     @staticmethod
     def cfg(run_id: str) -> dict:
@@ -324,6 +337,7 @@ class Runtime:
                 self._index_row(run_id)
             except Exception as e3:  # noqa: BLE001 - listing is best effort
                 log.warning("run %s: could not index: %s", run_id, str(e3)[:120])
+            self._notify("paused", run_id)
 
     def _track(self, run_id: str) -> None:
         """Register a run in self.live, dropping the oldest finished ones past LIVE_MAX."""
@@ -392,6 +406,7 @@ class Runtime:
         # runs in the graph's Learn node (nodes/memory.py), behind FF_HMEM, so
         # the write shows on the trace and a resumed graph stores exactly once.
         self._index_row(run_id)
+        self._notify("resumed", run_id)
         return out
 
     def _rebuild_index(self) -> bool:

@@ -330,6 +330,18 @@ export function judgeLine(run: Pick<RecordedRun, "judgeOverall" | "hallucination
   return `Checked ${run.judgeOverall.toFixed(2)}${halluc}`;
 }
 
+/** Pure: the Control tower tile's dot and line from GET /watch/status; unknown when the status could not be read. */
+export function watchTile(status: { loop: { enabled: boolean; alive: boolean; interval_s: number }; counts: { sources: number; awaiting_approval: number } } | null): {
+  state: "ok" | "off" | "down" | "unknown";
+  line: string;
+} {
+  if (!status) return { state: "unknown", line: "Watch loop status unavailable" };
+  const { loop, counts } = status;
+  if (!loop.enabled) return { state: "off", line: "Watch loop switched off" };
+  if (!loop.alive) return { state: "down", line: "Watch loop not running" };
+  return { state: "ok", line: `Watch loop every ${loop.interval_s} s · ${counts.sources} sources · ${counts.awaiting_approval} awaiting approval` };
+}
+
 /** Pure: which past-run row the insurer Review page describes. Live: the newest finished run. Past: the newest one for the chosen event. */
 export function pickRunRow<T extends { runId: string; status: string; eventId: string | null }>(
   rows: readonly T[],

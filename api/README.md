@@ -42,7 +42,13 @@ A `POST /runs` body that is not valid UTF-8 or not valid JSON is `400 {"detail":
 
 Chat front door: after the bucket and before the cache or a slot, `POST /runs` asks the agents' `POST /front-door` (short lookup timeout). Small talk (greeting, help, thanks, off-topic) comes back as `200 {"kind": "reply", ...}` with no `run_id`, on sync and `?wait=false` alike. A reply takes a bucket token but no concurrency slot, and is never cached or replayed as a run. Anything else, or a front door that is unreachable or slow, goes on to the run as before; the API then forwards `POST /runs?front_door=false` so the agents do not classify twice.
 
+The quick and forecast lanes also carry `plain` (the calm answer: headline, one_line, horizon, context, next_step, disclaimer, details; `agents/floodsense_agents/plain.py`, no model call). The snapshot has it, and the schema projection (`contract.answer.plain`) passes it through unchanged for those two lanes only.
+
 Router lanes: a reply carries `lane: "reply"`; a run snapshot carries `lane` (`quick` or `full`) and `router_reason`, and the schema projection (`contract.answer`) copies both. Repeated identical small talk spends one bucket token each (a burst ends in 429). A quick-lane answer ends `status: "answered"` with no approval; when its Judge passed and `FF_SEMANTIC_CACHE` is on, the API caches it with `CACHE_TTL_LIVE_S` (sync: on the response; `?wait=false`: when the slot holder sees the run leave `running`). A repeat is `200` with `served_from: "cache"`, `cached_at` = the time it was stored, `label.text` "Cached answer · not live · original run …" and `cache.expires_in_s`. Full-lane runs are still cached only after a person approves them.
+
+## Control tower (`/watch/*`)
+
+Passed through to the agents' watch loop (`agents/README.md` "Control tower"): `GET /watch/events?since=&limit=`, `GET /watch/status`, `GET /watch/stream` (SSE proxied as-is; `Last-Event-ID` is forwarded), `POST /watch/cycle` ("Scan now") and `POST /watch/auto-assess {enabled}`. `POST /watch/cycle` is `202` (the scan runs on the agents). `POST /watch/auto-assess` needs the header `x-watch-admin-token` when `WATCH_ADMIN_TOKEN` is set on the API (it is passed on to the agents); set it on any machine that is not a dev box. The two POSTs share a small bucket of their own, `WATCH_CYCLES_PER_MIN` (6) per client, so a scan or a switch never spends a run token; empty is `429` with `Retry-After`. The GETs are not limited. An unreachable agents service is `503`.
 
 ## System status (`GET /system`)
 
@@ -56,6 +62,7 @@ Router lanes: a reply carries `lane: "reply"`; a run snapshot carries `lane` (`q
 | `memory` | `count`, the newest 5 (`id`, `run_id`, `event_id`, `approved_at`, `text` cut to 160 chars, `label`, `seeded`) | engines `GET /hmem/memories` (read-only: no H-MEM query, so polling changes no access counts) |
 | `world_model` | the newest run's board: `run_id`, `hypotheses`, `by_status`, the first 8 links | engines `GET /wm/board` |
 | `models` | `lanes`, `llm_providers`, `flags`, `latest_model_ids` | agents `GET /config` and the newest run |
+| `watch` | `ok`, `loop_enabled`, `interval_s`, `last_cycle_at`, `sources`, `elevated`, `events`, `awaiting_approval`, `auto_assess` (`enabled`, caps, used), `model_calls` | agents `GET /watch/status` |
 | `rag` | `enabled` (`FF_RAG_DOCS`); `documents` and `passages` are null: no cheap count query is exposed yet | agents `GET /config` |
 
 Counters (`counters_since_utc`) are in process (`app/metrics.py`) and reset when the API restarts. A memory is `seeded` when its provenance says `approved by demo-seed` or its run id starts with `demo-seed-`.

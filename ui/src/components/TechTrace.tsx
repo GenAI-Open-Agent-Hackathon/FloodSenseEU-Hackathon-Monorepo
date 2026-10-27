@@ -1,10 +1,11 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { fetchPastRuns } from "../api/pastRuns";
 import { fetchRunSnapshot } from "../api/liveRun";
+import { fetchWatchStatus } from "../api/watch";
 import type { RecordedRun } from "../api/replay";
 import { DOT_TEXT, type BoxId, type DotState } from "../lib/howItWorks";
 import { getAwaitingRunId } from "../lib/lastRun";
-import { buildTechTrace, GLOSSARY, pickRunRow, type Tile, type TileId } from "../lib/techTrace";
+import { buildTechTrace, GLOSSARY, pickRunRow, watchTile, type Tile, type TileId } from "../lib/techTrace";
 import "../styles/techTrace.css";
 
 function TileDetails({ tile }: { tile: Tile }) {
@@ -128,11 +129,19 @@ const OVERVIEW: { id: TileId; box: BoxId; name: string; line: string }[] = [
 
 /** The same four tiles for the How it works page, each with the live status of its component and a glossary button. */
 export function TechTraceOverview({ status }: { status: Record<BoxId, DotState> | null }) {
+  const [watch, setWatch] = useState<ReturnType<typeof watchTile>>(() => watchTile(null));
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchWatchStatus(controller.signal).then((r) => {
+      if (!controller.signal.aborted) setWatch(watchTile(r.ok ? r.value : null));
+    });
+    return () => controller.abort();
+  }, []);
   const uid = useId();
   const [open, toggle] = useOpenSet();
   return (
     <section className="tt" aria-label="Sponsor technology in every answer">
-      <ul className="tt-tiles">
+      <ul className="tt-tiles tt-tiles-5">
         {OVERVIEW.map((t) => {
           const state: DotState = status ? status[t.box] : "unknown";
           const expanded = open.has(t.id);
@@ -151,6 +160,15 @@ export function TechTraceOverview({ status }: { status: Record<BoxId, DotState> 
             </li>
           );
         })}
+        <li className="tt-tile" data-tile="watch">
+          <div className="tt-btn tt-plain">
+            <span className="tt-name">
+              <span className={`hiw-dot hiw-dot-${watch.state}`} aria-hidden="true" /> Control tower
+            </span>
+            <span className="tt-head">{watch.line}</span>
+            <span className="tt-status">{DOT_TEXT[watch.state]}</span>
+          </div>
+        </li>
       </ul>
     </section>
   );

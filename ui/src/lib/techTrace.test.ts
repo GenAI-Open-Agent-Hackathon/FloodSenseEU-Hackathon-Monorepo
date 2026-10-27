@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adoptRunBody, type RecordedRun } from "../api/replay";
-import { buildTechTrace, modelDisplay, NO_MEMORY_MATCH, pickRunRow, RECALL_FAILED, RECALL_NOT_ACTIVE, RECORDED_NOTE, routerLine, zetarisUse } from "./techTrace";
+import { buildTechTrace, modelDisplay, NO_MEMORY_MATCH, pickRunRow, RECALL_FAILED, RECALL_NOT_ACTIVE, RECORDED_NOTE, routerLine, watchTile, zetarisUse } from "./techTrace";
 
 const step = (seq: number, node: string, lane: string, model_id: string | null, latency_ms: number, summary: string) => ({
   seq,
@@ -241,6 +241,16 @@ describe("techTrace: router-LLM quick run and non-Nemotron models", () => {
     expect(n.used).toBe(false);
     expect(n.headline).toBe("Test provider · claude-sonnet-5-5");
     expect(n.details.some((d) => d.value.includes("not to Nightshift"))).toBe(true);
+  });
+});
+
+describe("techTrace: watchTile", () => {
+  it("maps the loop to a dot and a line, unknown without a status", () => {
+    const s = (enabled: boolean, alive: boolean) => ({ loop: { enabled, alive, interval_s: 300 }, counts: { sources: 45, awaiting_approval: 2 } });
+    expect(watchTile(s(true, true))).toEqual({ state: "ok", line: "Watch loop every 300 s · 45 sources · 2 awaiting approval" });
+    expect(watchTile(s(false, false)).state).toBe("off");
+    expect(watchTile(s(true, false)).state).toBe("down");
+    expect(watchTile(null).state).toBe("unknown");
   });
 });
 

@@ -144,6 +144,11 @@ export async function startAssessment(input: {
   if (result.kind === "run") {
     const r = result.run;
     if (r.status === "awaiting_approval") setAwaitingRunId(r.runId);
+    // A finished cache hit or replay is still this press's run: track it, so it reaches the queue of the desk that asked.
+    write([
+      { runId: r.runId, key: input.key, question: input.question, startedAt: new Date().toISOString(), eventId: input.eventId ?? null, status: r.status ?? "answered" },
+      ...read().filter((x) => x.runId !== r.runId),
+    ]);
     const label = r.servedFrom === "live" ? "a live run" : r.servedFrom === "cache" ? "the cache (not live)" : "a recorded replay (not live)";
     return { kind: "answered", message: `Answered at once from ${label}, run ${r.runId}${r.status === "awaiting_approval" ? " · waiting in Approvals" : ""}.` };
   }
