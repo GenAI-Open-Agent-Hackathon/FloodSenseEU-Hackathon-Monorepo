@@ -25,7 +25,10 @@ const UNKNOWN: StatusView = { word: "No reading", tone: "unknown", rank: 9 };
 export function statusView(kind: WatchSource["kind"], status: GaugeStatus): StatusView {
   if (status === "unknown") return UNKNOWN;
   if (status === "ok") return { word: "Normal", tone: "normal", rank: 8 };
-  if (kind === "gauge") return status === "over" ? { word: "Warning", tone: "warning", rank: 0 } : { word: "Watch", tone: "watch", rank: 2 };
+  if (kind === "gauge")
+    return status === "over"
+      ? { word: "Above mean high water", tone: "elevated", rank: 0 }
+      : { word: "Close to mean high water", tone: "watch", rank: 2 };
   if (kind === "model")
     return status === "over" ? { word: "Elevated (model)", tone: "elevated", rank: 1 } : { word: "Watch (model)", tone: "watch", rank: 3 };
   return status === "over"

@@ -68,10 +68,12 @@ const places = buildPlaces(
 );
 
 describe("plain status mapping", () => {
-  it("keeps red Warning for gauges at or above MHW only", () => {
+  it("says Above / Close to mean high water for gauges, never red", () => {
     expect(statusView("gauge", "ok")).toMatchObject({ word: "Normal", tone: "normal" });
-    expect(statusView("gauge", "near")).toMatchObject({ word: "Watch", tone: "watch" });
-    expect(statusView("gauge", "over")).toMatchObject({ word: "Warning", tone: "warning" });
+    expect(statusView("gauge", "near")).toMatchObject({ word: "Close to mean high water", tone: "watch", rank: 2 });
+    expect(statusView("gauge", "over")).toMatchObject({ word: "Above mean high water", tone: "elevated", rank: 0 });
+    for (const kind of ["gauge", "model", "valencia"] as const)
+      for (const st of ["ok", "near", "over", "unknown"] as const) expect(statusView(kind, st).tone).not.toBe("warning");
     expect(statusView("gauge", "unknown")).toMatchObject({ word: "No reading", tone: "unknown" });
   });
   it("never says Warning or uses red for a model band", () => {
