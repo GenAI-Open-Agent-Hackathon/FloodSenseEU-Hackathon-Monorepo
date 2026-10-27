@@ -2,6 +2,7 @@ import { useConsoleMaybe } from "../context/ConsoleContext";
 import type { RecordedRun } from "../api/replay";
 import { calmChip, calmOrder, detailClaims, ENGLISH_NOTE, horizonWord, isNonEnglish, officialLinks, type PlainAnswer } from "../lib/calmAnswer";
 import { SafeLink } from "./SafeLink";
+import { TechTrace } from "./TechTrace";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
 import "../styles/calm.css";
 
@@ -56,6 +57,7 @@ export function CalmAnswer({ run, plain }: { run: RecordedRun; plain: PlainAnswe
         <details className="disclosure calm-why">
           <summary>Why</summary>
           {claimList}
+          <TechTrace run={run} embedded />
         </details>
       )}
       {plain.context && (
@@ -86,6 +88,7 @@ export function CalmAnswer({ run, plain }: { run: RecordedRun; plain: PlainAnswe
     <>
       <p className="ask-question">{run.summary}</p>
       {claimList}
+      <TechTrace run={run} embedded />
       {head}
     </>
   );
