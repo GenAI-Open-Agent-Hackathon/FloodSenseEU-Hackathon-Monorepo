@@ -12,6 +12,10 @@ export interface ReplayCitation {
   quote: string | null;
   page: number | null;
   queryId: string | null;
+  /** Source URL of the passage or feed, when the citation carries one. */
+  sourceUrl?: string | null;
+  paragraph?: number | null;
+  chunkId?: string | null;
 }
 
 export interface ReplayClaim {
@@ -95,6 +99,9 @@ function asCitation(value: unknown): ReplayCitation | null {
     quote: str(c.quote),
     page: num(rec(c.locator)?.page),
     queryId: str(c.query_id),
+    sourceUrl: str(c.source_url),
+    paragraph: num(rec(c.locator)?.paragraph),
+    chunkId: str(c.chunk_id),
   };
 }
 

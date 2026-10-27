@@ -11,6 +11,9 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- UI: "How it works" page on both desks (`HowItWorks.tsx`): router and lanes, agents, Zetaris data (Open-Meteo GloFAS, PEGELONLINE, Copernicus EMS, seed data), Nightshift with NVIDIA Nemotron fast and deep lanes, Meterless H-MEM + World Model, RAG (pgvector + NIM nemotron-embed), Redis cache and rate limits, human approval. Live status dots from `GET /config` and `GET /system`; a missing `/system` (404) shows "unknown".
+- UI: grounded sources per claim. Number badges on citizen Overview and in the Ask chat open the source inline with a real link: Zetaris view, query id and upstream feed; document title, publisher, page and paragraph, quote and URL; H-MEM approved run or demo seed; World Model board. Legend line under "Why?".
+
 - RAG corpus: four insurer and authority documents, all stored under licences that allow it (docs/legal/sources.md rows 15-18): EEA briefings on economic losses and the insurance protection gap (2025 and 2022, CC BY 4.0), EIOPA Staff Discussion Paper EIOPA-19/485 on the natural catastrophe protection gap (EIOPA legal notice), and the EU Floods Directive 2007/60/EC (Commission reuse policy). Tier 3, `event_id: null`. Not yet embedded: run `python scripts/rag_ingest.py` against pgvector.
 - Corpus manifest: optional `audience` (insurer, citizen, authority), `language` and `year` per document, checked by `fetch-rag-corpus`. Every entry now has them.
 - Evals: `evals/insurer_docs.yaml` (`ins-01` to `ins-03`, `--set insurer_docs`) needs the new documents and has its own aggregate. `run_evals.py` passes an item's `doc_query` and reports `source_cited` against its `expect_source` per item, per block and in the markdown report. Existing items are unchanged.
@@ -53,10 +56,14 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Changed
 
+- UI clarity pass: no global Preview badge; header subtitle is "Explainable flood risk for Europe"; the context strip shows only on pages with a replayed event ("Viewing: Valencia flood · 29 Oct 2024 (replay of a past event)"), "Live data" on Now, nothing elsewhere (Stop stays while the simulation plays).
+- UI: citizen risk card leads with plain status, then the figure, then "Checked: 0.89" (Judge, with a tooltip); no cache chip. "What should I do?" puts official guidance, 112 and links first, and the approval gate is a neutral note.
+- UI: Ask chat pipeline and insurer causal chain are a compact stepper (one line per agent, model chip from the trace lane, collapsed details, loop and World Model chips). The Ask pipeline folds to a one-line summary when the answer arrives. The router node is drawn first when present.
 - `retrieve_docs`: inside an event run the event top k is unchanged. For an insurer role or an insurance-type question (insur*, versicher*, seguro*, protection gap, economic loss(es), claims paid, policy/policies) it appends at most 2 event-agnostic passages, only from EU-wide documents or the event's country (no ES documents in EMSR517 runs, no DE documents in EMSR773 runs). `rag.chunks` has no country or audience column; the allowed doc_ids come from `rag_scope.json` (a warning is logged when it is missing). Each generic passage gets its own claim `C-doc-g<n>` built from that passage; it never sits on a claim from an event passage.
 
 ### Fixed
 
+- UI: `friendlyError` only says "Here is the latest recorded answer" when one is shown, and strips bare and quoted service hostnames and IPv6 addresses with a port from technical detail.
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."
 - UI Ask: a declined answer that names the other event shows "Ask about Ahr 2021 instead" (or Valencia 2024), which re-sends the question with that event.
 - UI Ask opens with a greeting and three suggested questions fitted to role and page. The recorded run moved behind "See an example answer", labelled "Recorded run · not live".

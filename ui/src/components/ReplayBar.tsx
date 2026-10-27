@@ -1,39 +1,30 @@
 import { ServingLine } from "./Banners";
 import { useConsole } from "../context/ConsoleContext";
 import { replayBarView } from "../lib/events";
-import { formatDay } from "../lib/format";
 
 /**
- * Shared date, point, and playback state. Simulate starts on Alerts; Stop is here on every page.
- * The date and point follow the event the page shows (`replayBarView`); Simulate steps the Valencia
- * date only, so on an Ahr page the strip names it as the Valencia simulation instead of Playing/Paused.
- * On Approvals and Review the answer serving line rides in the same strip, so there is one banner.
+ * Context strip under the header. "Live data" on Now, a plain "Viewing: ... (replay of a past event)"
+ * on pages that show a replayed event, nothing elsewhere. While the simulation plays, Stop stays
+ * reachable on every page. On Approvals and Review the answer serving line rides in the same strip.
  */
 export function ReplayBar() {
-  const { date, pointId, playing, points, stopSimulation, route, page, deskRoute, eventId, ahrDate, ahrPointId } =
-    useConsole();
+  const { date, playing, stopSimulation, route, page, deskRoute, eventId, ahrDate } = useConsole();
   const showServing = route === "insurer" && (page === "approvals" || page === "review");
-  const view = replayBarView(deskRoute, eventId, { date, pointId, points }, { date: ahrDate, pointId: ahrPointId }, playing);
+  const view = replayBarView(deskRoute, eventId, { date }, { date: ahrDate });
+  if (view.kind === "none" && !playing && !showServing) return null;
 
   return (
-    <div className="replay-bar">
-      <span className="section-label">Replay</span>
-      <strong>{formatDay(view.date)}</strong>
-      <span>{view.place}</span>
-      {view.playback === "valencia" && (
-        <span className="replay-state" data-playing={playing ? "true" : "false"}>
-          {playing ? "Playing" : "Paused"}
-        </span>
-      )}
-      {view.playback === "valencia-elsewhere" && (
-        <span className="replay-state" data-playing="true">
-          Valencia simulation playing
-        </span>
-      )}
+    <div className="replay-bar" data-kind={view.kind}>
+      {view.kind !== "none" && <span className="context-text">{view.text}</span>}
       {playing && (
-        <button type="button" className="button replay-stop" onClick={stopSimulation}>
-          Stop
-        </button>
+        <>
+          <span className="replay-state" data-playing="true">
+            Simulation playing
+          </span>
+          <button type="button" className="button replay-stop" onClick={stopSimulation}>
+            Stop
+          </button>
+        </>
       )}
       {showServing && <ServingLine inline />}
     </div>

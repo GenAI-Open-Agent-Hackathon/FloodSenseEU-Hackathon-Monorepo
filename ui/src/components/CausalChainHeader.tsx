@@ -54,10 +54,12 @@ export function CausalChainHeader() {
   const isSample = run.runId === SAMPLE_RUN_ID && source.kind !== "configured";
   return (
     <section className="card agp-card" aria-label="Causal chain">
-      <p className="section-label">Causal chain</p>
-      <p className={`ask-badge ask-badge-${kind}`}>
-        {run.servedFrom === "live" ? runBadge(run) : `Recorded run ${run.runId} · not live`}
-      </p>
+      <div className="stp-card-head">
+        <p className="section-label">Causal chain</p>
+        <span className={`stp-run-label stp-run-${kind}`}>
+          {run.servedFrom === "live" ? runBadge(run) : `Recorded run · not live · ${run.runId}`}
+        </span>
+      </div>
       {note && (
         <p className={`note agp-source-note${source.kind === "failed" ? " is-failed" : ""}`} role="note">
           {note}
@@ -69,7 +71,7 @@ export function CausalChainHeader() {
           the same instant. It is shown as recorded, not corrected.
         </p>
       )}
-      <AgentPipeline run={run} title="How the agents reached this answer" />
+      <AgentPipeline run={run} collapsed={false} title="How the agents reached this answer" />
       <details className="disclosure">
         <summary>Document retrieval and Judge verdicts</summary>
         <RetrievalPanel run={run} />

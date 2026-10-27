@@ -12,12 +12,24 @@ export interface FriendlyError {
   technical: string;
 }
 
-/** Remove URLs and host:port pairs (http://agents:8100, agents:8100, 10.0.0.5:8000, localhost:18000). */
+/** Compose service names. Stripped as bare words, quoted, or as host:port. */
+const SERVICE_HOSTS = ["agents", "api", "engines", "pgvector", "redis"];
+const SERVICE_RE = SERVICE_HOSTS.join("|");
+/** A quoted token that is a hostname: a service name, localhost, or a dotted name such as agents.internal or 10.0.0.5. */
+const QUOTED_HOST = new RegExp(`^(?:${SERVICE_RE}|localhost|[a-z0-9-]+(?:\\.[a-z0-9-]+)+)$`, "i");
+
+/**
+ * Remove URLs, host:port pairs (http://agents:8100, agents:8100, 10.0.0.5:8000, localhost:18000),
+ * IPv6 with a port ([::1]:6379), quoted hostnames ('redis', "agents") and bare service names.
+ */
 export function stripInternal(text: string): string {
   return text
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>),;]+/gi, "[internal address]")
+    .replace(/\[[0-9a-f:.%a-z]*:[0-9a-f:.%a-z]*\]:\d{1,5}\b/gi, "[internal address]")
     .replace(/\b(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\d{1,3}(?:\.\d{1,3}){3}):\d{2,5}\b/gi, "[internal address]")
-    .replace(/(?:\s*\bat\s+\[internal address\])+/g, "")
+    .replace(/(["'`])([a-z0-9.-]+)\1/gi, (quoted, _q: string, host: string) => (QUOTED_HOST.test(host) ? "[internal service]" : quoted))
+    .replace(new RegExp(`\\b(?:${SERVICE_RE}|localhost)\\b`, "g"), "[internal service]")
+    .replace(/(?:\s*\bat\s+\[internal (?:address|service)\])+/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -34,17 +46,25 @@ export function classifyError(status: number | null, raw: string): ErrorKind {
   return "other";
 }
 
-export function friendlyError(status: number | null, raw: string, role: "citizen" | "insurer" | string = "insurer"): FriendlyError {
+/**
+ * `hasRecorded`: a recorded answer is actually shown under the message. Only then does the text say
+ * "Here is the latest recorded answer"; otherwise it never promises one.
+ */
+export function friendlyError(
+  status: number | null,
+  raw: string,
+  role: "citizen" | "insurer" | string = "insurer",
+  hasRecorded = false,
+): FriendlyError {
   const kind = classifyError(status, raw);
   const citizen = role === "citizen";
+  const here = hasRecorded ? " Here is the latest recorded answer while you wait." : " Please try again in a moment.";
   const technical = stripInternal(raw);
   switch (kind) {
     case "unavailable":
       return {
         kind,
-        text: citizen
-          ? "Our agents are restarting or busy right now. Here is the latest recorded answer while you wait. For official warnings, follow your local authorities."
-          : "Our agents are restarting or busy right now. Here is the latest recorded answer while you wait.",
+        text: `Our agents are restarting or busy right now.${here}${citizen ? " For official warnings, follow your local authorities." : ""}`,
         retry: true,
         offerRecorded: true,
         technical,

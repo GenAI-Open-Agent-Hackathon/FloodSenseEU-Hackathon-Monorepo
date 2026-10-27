@@ -1,0 +1,163 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { fetchConfig, fetchSystem, type Probe } from "../api/system";
+import { boxStatuses, DOT_TEXT, feedsMode, type BoxId, type DotState } from "../lib/howItWorks";
+
+const AGENTS = ["Scope", "Watchers", "Memory", "Investigator", "Skeptic", "Exposure", "Playbook", "Judge"];
+
+function Dot({ state }: { state: DotState }) {
+  return (
+    <span className={`hiw-dot hiw-dot-${state}`} title={DOT_TEXT[state]}>
+      <span className="sr-only">Status: {DOT_TEXT[state]}</span>
+    </span>
+  );
+}
+
+function Box({
+  id,
+  title,
+  line,
+  status,
+  children,
+}: {
+  id: BoxId;
+  title: string;
+  line: string;
+  status: Record<BoxId, DotState> | null;
+  children?: ReactNode;
+}) {
+  return (
+    <section className={`hiw-box hiw-box-${id}`} aria-label={title}>
+      <p className="hiw-box-title">
+        <Dot state={status ? status[id] : "unknown"} /> {title}
+      </p>
+      <p className="hiw-box-line">{line}</p>
+      {children}
+    </section>
+  );
+}
+
+function Arrow({ label }: { label?: string }) {
+  return (
+    <p className="hiw-arrow" aria-hidden="true">
+      ↓{label ? <span> {label}</span> : null}
+    </p>
+  );
+}
+
+/** One page diagram of the system, with a live status dot per box from GET /config and GET /system. */
+export function HowItWorks() {
+  const [probes, setProbes] = useState<{ config: Probe; system: Probe } | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.all([fetchConfig(controller.signal), fetchSystem(controller.signal)]).then(([config, system]) => {
+      if (!controller.signal.aborted) setProbes({ config, system });
+    });
+    return () => controller.abort();
+  }, []);
+  const status = probes ? boxStatuses(probes.config, probes.system) : null;
+  const mode = probes ? feedsMode(probes.config) : null;
+
+  return (
+    <div className="view hiw">
+      <div className="view__intro">
+        <div>
+          <h2 className="view__title">How it works</h2>
+          <p className="muted">
+            A question goes through a router, a team of agents that read real data through Zetaris, an independent
+            checker, and a person before anything is sent. Dots show what is running right now.
+          </p>
+        </div>
+      </div>
+      <p className="hiw-legend note" aria-label="Status legend">
+        <Dot state="ok" /> running <Dot state="off" /> switched off <Dot state="down" /> not reachable <Dot state="unknown" />{" "}
+        unknown
+        {probes?.system.kind === "missing" && " · component health (GET /system) is not on this build"}
+      </p>
+
+      <div className="hiw-flow">
+        <p className="hiw-start">Your question</p>
+        <Arrow />
+        <Box id="router" title="Router" line="Reads the question and picks the cheapest path that can answer it." status={status}>
+          <ul className="hiw-lanes" aria-label="Router lanes">
+            <li>
+              <strong>reply</strong> greetings and help, answered at once
+            </li>
+            <li>
+              <strong>quick</strong> one data lookup, short answer
+            </li>
+            <li>
+              <strong>full</strong> the whole agent team below
+            </li>
+          </ul>
+        </Box>
+        <Arrow label="full" />
+        <Box id="agents" title="Agent team" line="Each agent does one job and hands a cited result to the next." status={status}>
+          <ol className="hiw-agents" aria-label="Agents in order">
+            {AGENTS.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ol>
+        </Box>
+
+        <div className="hiw-grid">
+          <Box
+            id="zetaris"
+            title="Data via Zetaris"
+            line={`Every number comes from a SQL query with an id you can open.${mode ? ` Now: ${mode}.` : ""}`}
+            status={status}
+          >
+            <ul className="hiw-tags">
+              <li>Open-Meteo GloFAS</li>
+              <li>PEGELONLINE</li>
+              <li>Copernicus EMS</li>
+              <li>Seed data</li>
+            </ul>
+          </Box>
+          <Box
+            id="nightshift"
+            title="Nightshift · NVIDIA Nemotron"
+            line="The language model the agents think with: a fast lane for quick steps, a deep lane for checking."
+            status={status}
+          >
+            <ul className="hiw-tags">
+              <li>fast lane</li>
+              <li>deep lane</li>
+            </ul>
+          </Box>
+          <Box
+            id="memory"
+            title="Meterless H-MEM + World Model"
+            line="Remembers only findings a person approved, and tracks which hypotheses still hold."
+            status={status}
+          />
+          <Box
+            id="rag"
+            title="Document search (RAG)"
+            line="Finds the page and paragraph in reports and maps that back a sentence."
+            status={status}
+          >
+            <ul className="hiw-tags">
+              <li>pgvector</li>
+              <li>NIM nemotron-embed</li>
+            </ul>
+          </Box>
+          <Box
+            id="redis"
+            title="Redis cache + rate limits"
+            line="Repeats a recent answer instantly and keeps the service fair when it is busy."
+            status={status}
+          />
+          <Box id="feeds" title="Live feeds" line="Open-Meteo and PEGELONLINE polled on a schedule when live data is on." status={status} />
+        </div>
+
+        <Arrow />
+        <Box
+          id="human"
+          title="Human approval"
+          line="A person approves, edits or rejects the advice. Nothing is sent before that."
+          status={status}
+        />
+      </div>
+    </div>
+  );
+}

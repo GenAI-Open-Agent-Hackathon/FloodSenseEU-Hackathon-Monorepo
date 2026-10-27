@@ -15,14 +15,9 @@ import {
 import { ahrFixture } from "./replaySource";
 
 describe("headerSubtitle", () => {
-  it("is Live on the Now page whatever the event", () => {
-    expect(headerSubtitle({ role: "citizen", page: "now" }, "EMSR517")).toMatch(/^Live/);
-    expect(headerSubtitle({ role: "insurer", page: "now" }, "EMSR773")).toMatch(/^Live/);
-  });
-  it("names the event the page shows", () => {
-    expect(headerSubtitle({ role: "insurer", page: "sites" }, "EMSR517")).toBe("Ahr 2021 replay · EMSR517");
-    expect(headerSubtitle({ role: "insurer", page: "replay" }, "EMSR773")).toBe("Valencia replay · EMSR773");
-    expect(headerSubtitle({ role: "citizen", page: "overview" }, "EMSR517")).toBe("Valencia replay · EMSR773");
+  it("is the product tagline, not an event id", () => {
+    expect(headerSubtitle()).toBe("Explainable flood risk for Europe");
+    expect(headerSubtitle()).not.toMatch(/EMSR|replay/i);
   });
   it("defaults to Ahr, as Replay always opened", () => {
     expect(DEFAULT_EVENT_ID).toBe("EMSR517");
