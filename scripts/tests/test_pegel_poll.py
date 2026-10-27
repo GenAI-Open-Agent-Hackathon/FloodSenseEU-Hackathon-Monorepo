@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import sys
 import tempfile
 import unittest
@@ -205,6 +206,76 @@ class PegelPollTest(unittest.TestCase):
         names = [c.strip().split()[0] for c in header.split(":", 1)[1].split(",")]
         self.assertEqual(names, pegel_poll.COLUMNS + ["is_stale"])
         self.assertIn("INTERVAL 30 MINUTES", sql)
+
+
+class ServiceLoopTest(unittest.TestCase):
+    def test_backoff_doubles_and_caps(self) -> None:
+        got = [pegel_poll.backoff_s(n) for n in (1, 2, 3, 4, 5, 6, 9)]
+        self.assertEqual(got, [30, 60, 120, 240, 300, 300, 300])
+
+    def test_cycle_reports_stage_failure_and_does_not_mark(self) -> None:
+        marked = []
+
+        def bad_stage(path, container):
+            raise RuntimeError("No such container")
+
+        ok, msg = pegel_poll.cycle(
+            "zetaris-driver-1",
+            poll_fn=lambda: ("x.csv", 26, []),
+            stage_fn=bad_stage,
+            mark=lambda: marked.append(1),
+        )
+        self.assertFalse(ok)
+        self.assertIn("26 fresh", msg)
+        self.assertIn("staging", msg)
+        self.assertEqual(marked, [])
+
+    def test_cycle_success_marks_and_summarises(self) -> None:
+        marked = []
+        ok, msg = pegel_poll.cycle(
+            "c",
+            poll_fn=lambda: ("x.csv", 26, []),
+            stage_fn=lambda p, c: None,
+            mark=lambda: marked.append(1),
+        )
+        self.assertTrue(ok)
+        self.assertEqual(marked, [1])
+        self.assertIn("polled 26 stations, 26 fresh", msg)
+
+    def test_cycle_all_stations_failed(self) -> None:
+        ok, msg = pegel_poll.cycle(
+            "c", poll_fn=lambda: ("x.csv", 0, ["a: boom"]), stage_fn=lambda p, c: 1 / 0
+        )
+        self.assertFalse(ok)
+        self.assertIn("0 fresh", msg)
+
+    def test_serve_retries_with_backoff_then_waits_the_interval(self) -> None:
+        results = iter([(False, "down"), (False, "down"), (True, "ok"), (False, "down")])
+        waits = []
+        pegel_poll.serve(
+            600,
+            "c",
+            cycle_fn=lambda c: next(results),
+            sleep=waits.append,
+            max_cycles=4,
+        )
+        self.assertEqual(waits, [30, 60, 600, 30])
+
+    def test_cycle_never_raises_on_poll_crash(self) -> None:
+        ok, msg = pegel_poll.cycle("c", poll_fn=lambda: 1 / 0)
+        self.assertFalse(ok)
+        self.assertIn("poll crashed", msg)
+
+    def test_health_fresh_stale_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = str(Path(d) / ".last_staged")
+            self.assertFalse(pegel_poll.health(600, path)[0])
+            pegel_poll.mark_staged(path)
+
+
+            mt = os.path.getmtime(path)
+            self.assertTrue(pegel_poll.health(600, path, now=lambda: mt + 1199)[0])
+            self.assertFalse(pegel_poll.health(600, path, now=lambda: mt + 1201)[0])
 
 
 if __name__ == "__main__":
