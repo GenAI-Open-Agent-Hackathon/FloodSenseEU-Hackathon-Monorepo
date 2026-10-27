@@ -21,6 +21,7 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 ### 1. Open-Meteo
 - Terms page: https://open-meteo.com/en/terms. Licence page: https://open-meteo.com/en/licence.
 - Upstream GloFAS and Copernicus licences are linked from the licence page and were not read. Open: read them before we cite GloFAS values as such.
+- `floodsense_seed.discharge_daily` and `floodsense_seed.hazard_timeline` also hold a frozen Ahr extract for EMSR517 (AHR01-AHR04; archive API ERA5 rain 13-16 Jul 2021, Flood API GloFAS discharge 10-20 Jul 2021), made by `ingestion/prep/ahr_hazard.py`. Same licence and attribution; covered by provenance rows `ds_open_meteo_rain` and `ds_open_meteo_flood`. Reanalysis, not gauge or station observations.
 - The terms do not address storing or caching. Open: ask info@open-meteo.com if we keep copies beyond the demo.
 - `floodsense.hazard_now` reads the forecast API (past hours and forecast hours in one rolling window) and the rolling GloFAS table. Each hour is labelled `past` or `forecast`. `past` is Open-Meteo `past_days` plus GloFAS model output, not a station measurement. The same attribution string applies. Provenance row `ds_open_meteo_forecast`. The seed twin is the frozen 28–30 Oct 2024 extract, labelled `replay`, not a present.
 

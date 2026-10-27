@@ -1,0 +1,154 @@
+"""Fetch real Ahr valley rain and discharge for the EMSR517 replay (13-16 July 2021).
+
+Sources (both CC BY 4.0, "Weather data by Open-Meteo.com"):
+  - hourly precipitation: Open-Meteo Historical Weather API (archive-api.open-meteo.com, ERA5 reanalysis)
+  - daily river discharge: Open-Meteo Flood API (flood-api.open-meteo.com, GloFAS reanalysis)
+
+Points are the AHR01-AHR04 ids of ingestion/feeds/feeds.py and agents/floodsense_agents/events.py.
+Modelled reanalysis values, not station observations.
+
+Writes:
+  ingestion/prep/ahr_discharge_daily.csv   point_id,date,discharge_m3s,source         (10-20 Jul 2021)
+  ingestion/prep/ahr_hazard_timeline.csv   point_id,ts_utc,rain_mm,discharge_m3s      (13-16 Jul 2021, hourly UTC)
+
+With --migrations, also renders zetaris/migrations/045 and 046 from those CSVs: the frozen
+Valencia rows of 012/013 UNION ALL the Ahr rows. The values are never hand-typed.
+
+    python ingestion/prep/ahr_hazard.py               # fetch + CSVs
+    python ingestion/prep/ahr_hazard.py --migrations  # also render 045/046 (from the CSVs)
+    python ingestion/prep/ahr_hazard.py --offline --migrations  # re-render from committed CSVs
+"""
+import argparse
+import csv
+import json
+import os
+import re
+import sys
+import urllib.parse
+import urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+MIGRATIONS = os.path.abspath(os.path.join(HERE, "..", "..", "zetaris", "migrations"))
+
+AHR = [("AHR01", "Altenahr", 50.5192, 6.9917), ("AHR02", "Bad Neuenahr-Ahrweiler", 50.5436, 7.1103),
+       ("AHR03", "Schuld", 50.4896, 6.9033), ("AHR04", "Dernau", 50.5300, 7.0500)]
+DAILY = ("2021-07-10", "2021-07-20")
+HOURLY = ("2021-07-13", "2021-07-16")
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+FLOOD_URL = "https://flood-api.open-meteo.com/v1/flood"
+SOURCE = "seed:open-meteo-flood-glofas"
+DISCHARGE_CSV = os.path.join(HERE, "ahr_discharge_daily.csv")
+HAZARD_CSV = os.path.join(HERE, "ahr_hazard_timeline.csv")
+
+
+def get_json(url, params):
+    with urllib.request.urlopen(url + "?" + urllib.parse.urlencode(params), timeout=60) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def fetch_discharge(fetch=get_json):
+    rows = []
+    for pid, _name, lat, lon in AHR:
+        d = fetch(FLOOD_URL, {"latitude": lat, "longitude": lon, "daily": "river_discharge",
+                              "start_date": DAILY[0], "end_date": DAILY[1]})
+        for day, q in zip(d["daily"]["time"], d["daily"]["river_discharge"]):
+            if q is not None:
+                rows.append({"point_id": pid, "date": day, "discharge_m3s": round(float(q), 2), "source": SOURCE})
+    return rows
+
+
+def fetch_hazard(discharge, fetch=get_json):
+    q = {(r["point_id"], r["date"]): r["discharge_m3s"] for r in discharge}
+    rows = []
+    for pid, _name, lat, lon in AHR:
+        d = fetch(ARCHIVE_URL, {"latitude": lat, "longitude": lon, "hourly": "precipitation",
+                                "start_date": HOURLY[0], "end_date": HOURLY[1], "timezone": "GMT"})
+        for stamp, mm in zip(d["hourly"]["time"], d["hourly"]["precipitation"]):
+            if mm is None:
+                continue
+            rows.append({"point_id": pid, "ts_utc": stamp.replace("T", " ") + ":00",
+                         "rain_mm": round(float(mm), 1), "discharge_m3s": q.get((pid, stamp[:10]))})
+    return rows
+
+
+def write_csv(path, rows, fields):
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerows(rows)
+
+
+def read_csv(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def _num(v):
+    return "CAST(NULL AS DOUBLE)" if v in (None, "") else f"{float(v)}D"
+
+
+def _valencia_values(name):
+    """The VALUES lines of an applied seed migration (012 or 013), unchanged."""
+    path = next(os.path.join(MIGRATIONS, f) for f in sorted(os.listdir(MIGRATIONS)) if f.startswith(name))
+    text = open(path, encoding="utf-8").read()
+    m = re.search(r"FROM VALUES\n(.*?)\nAS t\(", text, re.S)
+    return [ln.rstrip(",") for ln in m.group(1).splitlines()]
+
+
+def render_discharge_migration(ahr_rows):
+    val = _valencia_values("012_")
+    ahr = [f"  ('{r['point_id']}', '{r['date']}', {_num(r['discharge_m3s'])}, '{r['source']}')" for r in ahr_rows]
+    n = len(val) + len(ahr)
+    return (
+        "-- view: floodsense_seed.discharge_daily\n"
+        "-- columns: point_id string, date date, discharge_m3s double, source string\n"
+        f"-- min_rows: {n}\n"
+        "-- Replaces 012. Same columns. Valencia rows are 012's, unchanged (VAL01-VAL08, 20 Oct-5 Nov 2024).\n"
+        f"-- Adds {len(ahr)} Ahr rows for the EMSR517 replay: AHR01-AHR04, {DAILY[0]} to {DAILY[1]}, from the\n"
+        "-- Open-Meteo Flood API (GloFAS reanalysis). Modelled, not observed. Data: Open-Meteo, CC BY 4.0.\n"
+        "-- Generated by ingestion/prep/ahr_hazard.py from ahr_discharge_daily.csv. Do not hand-edit.\n"
+        "CREATE OR REPLACE SCHEMASTORE VIEW discharge_daily WITH CONTAINER floodsense_seed AS\n"
+        "SELECT\n  point_id,\n  CAST(date AS DATE) AS date,\n  CAST(discharge_m3s AS DOUBLE) AS discharge_m3s,\n  source\n"
+        "FROM VALUES\n" + ",\n".join(val + ahr) + "\nAS t(point_id, date, discharge_m3s, source)\n"
+    )
+
+
+def render_hazard_migration(ahr_rows):
+    val = _valencia_values("013_")
+    ahr = [f"  ('{r['point_id']}', '{r['ts_utc']}', {_num(r['rain_mm'])}, {_num(r['discharge_m3s'])})" for r in ahr_rows]
+    n = len(val) + len(ahr)
+    return (
+        "-- view: floodsense_seed.hazard_timeline\n"
+        "-- columns: point_id string, ts_utc timestamp, rain_mm double, discharge_m3s double, warning_level string\n"
+        f"-- min_rows: {n}\n"
+        "-- Replaces 013. Same columns. Valencia rows are 013's, unchanged (28-30 Oct 2024, 576 rows).\n"
+        f"-- Adds {len(ahr)} Ahr rows for the EMSR517 replay: AHR01-AHR04, hourly UTC {HOURLY[0]} to {HOURLY[1]}.\n"
+        "-- rain_mm: Open-Meteo Historical Weather API (ERA5 reanalysis); discharge_m3s: that day's GloFAS\n"
+        "-- value from 045, repeated per hour as in 007. Modelled, not observed. warning_level is NULL.\n"
+        "-- Data: Open-Meteo, CC BY 4.0. Generated by ingestion/prep/ahr_hazard.py. Do not hand-edit.\n"
+        "CREATE OR REPLACE SCHEMASTORE VIEW hazard_timeline WITH CONTAINER floodsense_seed AS\n"
+        "SELECT\n  point_id,\n  CAST(ts_utc AS TIMESTAMP) AS ts_utc,\n  CAST(rain_mm AS DOUBLE) AS rain_mm,\n"
+        "  CAST(discharge_m3s AS DOUBLE) AS discharge_m3s,\n  CAST(NULL AS STRING) AS warning_level\n"
+        "FROM VALUES\n" + ",\n".join(val + ahr) + "\nAS t(point_id, ts_utc, rain_mm, discharge_m3s)\n"
+    )
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--migrations", action="store_true", help="render migrations 045/046 from the CSVs")
+    ap.add_argument("--offline", action="store_true", help="skip the fetch, use the committed CSVs")
+    a = ap.parse_args(argv)
+    if not a.offline:
+        dis = fetch_discharge()
+        write_csv(DISCHARGE_CSV, dis, ["point_id", "date", "discharge_m3s", "source"])
+        write_csv(HAZARD_CSV, fetch_hazard(dis), ["point_id", "ts_utc", "rain_mm", "discharge_m3s"])
+    if a.migrations:
+        for fname, render, src in (("045_seed_discharge_daily_ahr.sql", render_discharge_migration, DISCHARGE_CSV),
+                                   ("046_seed_hazard_timeline_ahr.sql", render_hazard_migration, HAZARD_CSV)):
+            with open(os.path.join(MIGRATIONS, fname), "w", encoding="utf-8", newline="\n") as f:
+                f.write(render(read_csv(src)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

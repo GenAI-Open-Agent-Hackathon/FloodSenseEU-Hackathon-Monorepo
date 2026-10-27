@@ -1,5 +1,7 @@
 # Ingestion
 
+Ahr 2021 (EMSR517 replay): `python ingestion/prep/ahr_hazard.py --migrations` fetches real Open-Meteo rain (ERA5) and GloFAS discharge for AHR01-AHR04 and renders seed migrations 045/046. See `prep/README.md`.
+
 Purpose: fetch and stage the datasets the agent will cite — Copernicus EMS footprints, OpenStreetMap site extracts, the synthetic insurer portfolio, and seed rows — plus the data README and licence notes that go with them.
 
 Owner: Mihir (primary, takeover 2026-10-25). Saleeta is secondary on prep, seed data, lineage, and the demo.

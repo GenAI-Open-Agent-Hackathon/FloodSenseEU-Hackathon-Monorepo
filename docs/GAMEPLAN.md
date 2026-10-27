@@ -247,6 +247,8 @@ Working decision for this build:
 
 Migration `033` `pegel_levels` and `ingestion/feeds/` shipped in `v0.1.0` (PEGELONLINE, WSV; Rhine at Bonn, Köln, and Koblenz). Mihir owns that path (takeover 2026-10-25). `v0.3.0` adds [#28](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/28) gauge views, [#24](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/24) `hazard_now`, and [#29](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/29) migrations `042` and `043`. Laptop Zetaris e2e for that tag is deferred to the morning of 26 Oct 2026. The state portals in the list above stay a terms check. DWD via Bright Sky stays Hold (`docs/legal/sources.md`).
 
+The Ahr replay (EMSR517, 13-16 Jul 2021) has real Open-Meteo rows in the seed views since migrations `045`/`046`: hourly ERA5 rain and daily GloFAS discharge at AHR01-AHR04, from `ingestion/prep/ahr_hazard.py`. Reanalysis smooths the storm: 14 Jul totals are 45-60 mm at Altenahr, Ahrweiler and Dernau and 108 mm at Schuld, and the GloFAS peak is 213-285 m3/s on 14 Jul, well under the ~1000 m3/s reconstructed at Altenahr. The live views stay Valencia only.
+
 Attribution strings we show, aligned with `ingestion/prep/provenance.csv` and `docs/legal/sources.md`:
 
 - Copernicus EMSR773: `Copernicus Emergency Management Service (© 2024 European Union), EMSR773`. That is the CEMS Citation Guidelines line (activation year 2024). The older `Generated using Copernicus Emergency Management Service information [year]` wording is not the string we store.
