@@ -247,15 +247,29 @@ def _context_event(context: dict | None) -> tuple[str, str] | None:
     return None
 
 
+def _place_re(event_id: str) -> re.Pattern[str]:
+    ev = EVENTS[event_id]
+    names = {*ev.place_names, *(n for p, n in POINT_NAMES.items() if p in ev.point_ids)}
+    names |= set(ev.point_ids)
+    alts = sorted(names, key=len, reverse=True)
+    return re.compile(
+        r"(?<!\w)(?:" + "|".join(re.escape(n) for n in alts) + r")(?!\w)",
+        re.IGNORECASE | re.UNICODE,
+    )
+
+
+_PLACE_RES: dict[str, re.Pattern[str]] = {e: _place_re(e) for e in EVENTS}
+
+
 def question_event(question: str) -> tuple[str, str] | None:
     """(event_id, word) when the question names places of exactly one event, else None.
 
-    Reads German place words (names_germany), Valencia towns (_VALENCIA_RE) and
-    the scope gate's per-event vocabulary, so "near Ahr Valley" is the Ahr case.
+    Strong place signals only: German place words and AHR ids (names_germany),
+    Valencia towns and VAL ids (_VALENCIA_RE), and each event's real place names
+    (EventSpec.place_names, POINT_NAMES), all as full words. Generic words from
+    the scope vocabulary (valley, ravine, province, bad, ...) never reroute.
     A question naming both events, or neither, returns None.
     """
-    from floodsense_agents.nodes.scope import _tokens, vocabulary
-
     text = question or ""
     hits: dict[str, str] = {}
     word = names_germany(text)
@@ -264,11 +278,10 @@ def question_event(question: str) -> tuple[str, str] | None:
     m = _VALENCIA_RE.search(text)
     if m:
         hits.setdefault(DEFAULT_EVENT, m.group(0))
-    asked = _tokens(text)
-    for ev in EVENTS:
-        shared = asked & vocabulary(ev)
-        if shared and ev not in hits:
-            hits[ev] = sorted(shared)[0]
+    for ev_id, rx in _PLACE_RES.items():
+        found = rx.search(text)
+        if found:
+            hits.setdefault(ev_id, found.group(0))
     if len(hits) != 1:
         return None
     ((ev, w),) = hits.items()

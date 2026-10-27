@@ -33,12 +33,21 @@ export const WARNING_LINKS: Record<WarningCountry, { title: string; links: reado
 
 export const EMERGENCY_LINE = "In an emergency call 112.";
 
-// JS \b is ASCII-only, so accented names match by their ASCII stem.
-const GERMAN =
-  /\b(?:AHR\d{2}|ahr|altenahr|ahrweiler|schuld|dernau|rhine|rhein|koeln|cologne|bonn|koblenz|mosel|germany|deutschland)\b|k(?:ö|oe)ln/i;
-const SPANISH = /\b(?:VAL\d{2}|valencia|paiporta|catarroja|alfafar|chiva|utiel|spain)\b|\b(?:sedav|benet|algemes|espa[nñ]a)/i;
+// Full words only. JS \b is ASCII-only, so boundaries are Unicode-aware lookarounds (u flag).
+const words = (list: string[]) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${list.join("|")})(?![\\p{L}\\p{N}])`, "iu");
+const GERMAN = words([
+  "AHR\\d{2}", "ahr", "altenahr", "ahrweiler", "schuld", "dernau", "rhine", "rhein", "köln", "koeln",
+  "cologne", "bonn", "koblenz", "mosel", "germany", "deutschland",
+]);
+const SPANISH = words([
+  "VAL\\d{2}", "valencia", "paiporta", "catarroja", "sedaví", "alfafar", "benetússer", "algemesí", "chiva",
+  "utiel", "spain", "españa",
+]);
 
-/** Pure: which countries' warning services fit the shown place. Unclear (or both) gives both, Spain first only when Spanish. */
+/**
+ * Pure: which countries' warning services fit the shown place. Spanish only gives ["es"], German only
+ * gives ["de"]; unclear or both gives ["de", "es"], shown as two groups.
+ */
 export function warningCountriesFor(...shown: (string | null | undefined)[]): WarningCountry[] {
   const text = shown.filter(Boolean).join(" ");
   const de = GERMAN.test(text);

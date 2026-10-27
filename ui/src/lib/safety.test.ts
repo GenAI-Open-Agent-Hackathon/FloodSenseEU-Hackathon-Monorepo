@@ -41,6 +41,11 @@ describe("warningCountriesFor", () => {
     expect(warningCountriesFor("KÖLN")).toEqual(["de"]);
     expect(warningCountriesFor(null, "Bonn")).toEqual(["de"]);
   });
+  it("matches full words only", () => {
+    expect(warningCountriesFor("Benetússer")).toEqual(["es"]);
+    expect(warningCountriesFor("Sedavíx")).toEqual(["de", "es"]);
+    expect(warningCountriesFor("Chivalry")).toEqual(["de", "es"]);
+  });
   it("gives both, grouped, when unclear", () => {
     expect(warningCountriesFor("XYZ99")).toEqual(["de", "es"]);
     expect(warningCountriesFor(undefined)).toEqual(["de", "es"]);

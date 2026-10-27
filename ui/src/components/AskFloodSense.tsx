@@ -7,7 +7,8 @@ import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
 import { servingLabel, servingQualifier } from "../lib/format";
-import { greetingFor, switchEventLabel } from "../lib/chatGreeting";
+import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
+import { shownEventId } from "../lib/events";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
 
@@ -31,7 +32,8 @@ export function AskFloodSense() {
   const desk = useConsole();
   const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page, deskRoute } =
     desk;
-  const greeting = greetingFor(deskRoute);
+  const greeting = greetingFor(deskRoute, shownEventId(deskRoute, desk.eventId));
+  const exampleId = useId();
   const [showExample, setShowExample] = useState(false);
   // agents-visual: screen context (and a replay moment, when the popup was opened from Replay).
   const { askContext, screenContext } = desk;
@@ -52,8 +54,6 @@ export function AskFloodSense() {
   const dismissRef = useRef(dismiss);
   dismissRef.current = dismiss;
   const serving = servingLabel(answer);
-  const when = serving.kind === "cached" ? `${serving.text} UTC` : serving.text;
-  const badge = serving.kind === "live" ? "Live" : servingQualifier(serving) === "cache" ? "Cached" : "Replay";
   const hasLayerC = answer.citations.some((citation) => citation.layer === "c");
   // Optional recorded run. Unset or failed keeps the fixture answer.
   const [recorded, setRecorded] = useState<RecordedRun | null>(null);
@@ -209,14 +209,6 @@ export function AskFloodSense() {
           <header className="ask-head">
             <div>
               <h2 id={titleId}>Ask FloodSense</h2>
-              {showExample &&
-                (recorded ? (
-                  <p className="ask-badge ask-badge-replay">Recorded run · not live</p>
-                ) : (
-                  <p className={`ask-badge ask-badge-${serving.kind}`}>
-                    {badge} · {when}
-                  </p>
-                ))}
               <div className="segmented segmented--small ask-modes" role="group" aria-label="Answer mode">
                 <span className="segmented__option is-active" title="Answers are grounded in retrieved, cited sources">
                   With retrieval
@@ -255,17 +247,18 @@ export function AskFloodSense() {
                 type="button"
                 className="ask-link"
                 aria-expanded={showExample}
+                aria-controls={exampleId}
                 onClick={() => setShowExample((v) => !v)}
               >
                 {showExample ? "Hide the example answer" : "See an example answer"}
-              </button>{" "}
-              <span className="note">Recorded run · not live</span>
+              </button>
             </div>
-            {showExample && (
-            <div className="ask-turn">
-              <p className="ask-badge ask-badge-replay">Example · Recorded run · not live</p>
+            <div className="ask-turn" id={exampleId} hidden={!showExample}>
+              {showExample && (
+              <>
+              {!recorded && <p className="ask-badge ask-badge-replay">Example · Recorded run · not live</p>}
               {recorded ? (
-                <RecordedAnswer run={recorded} badge={`Recorded run · not live · ${recorded.runId}`} />
+                <RecordedAnswer run={recorded} badge={`Example · Recorded run · not live · ${recorded.runId}`} />
               ) : (
                 <>
                   <p className="note">
@@ -319,8 +312,9 @@ export function AskFloodSense() {
                   Open evidence
                 </button>
               </div>
+              </>
+              )}
             </div>
-            )}
             {turns.map((turn, i) => (
               <div
                 key={turn.id}
@@ -334,9 +328,7 @@ export function AskFloodSense() {
                     run={turn.run}
                     badge={runBadge(turn.run)}
                     onSwitch={
-                      pending === null && turn.run.status === "out_of_scope" && turn.run.elsewhere
-                        ? (eventId) => void send(turn.question, eventId)
-                        : undefined
+                      pending === null && switchTarget(turn.run) ? (eventId) => void send(turn.question, eventId) : undefined
                     }
                   />
                 ) : (

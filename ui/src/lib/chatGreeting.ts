@@ -23,9 +23,22 @@ const INSURER_SUGGESTIONS = [
   "Which sites should we review first?",
 ] as const;
 
-/** Pure: the opening message for a role and page. */
-export function greetingFor(route: DeskRoute): ChatGreeting {
-  if (route.role === "insurer") return { text: INSURER_TEXT, suggestions: INSURER_SUGGESTIONS };
+const INSURER_AHR_SUGGESTIONS = [
+  "Which of our sites lie in the Ahr valley flood footprint?",
+  "How high did the Ahr rise at Altenahr on 14 July 2021?",
+  "What happened in the Ahr valley in July 2021?",
+] as const;
+
+/**
+ * Pure: the opening message for a role and page. `shownEvent` is the event the page shows
+ * (`shownEventId`), so an Ahr page never suggests a Valencia exposure question.
+ */
+export function greetingFor(route: DeskRoute, shownEvent: EventId = "EMSR773"): ChatGreeting {
+  if (route.role === "insurer")
+    return {
+      text: INSURER_TEXT,
+      suggestions: route.page !== "now" && shownEvent === "EMSR517" ? INSURER_AHR_SUGGESTIONS : INSURER_SUGGESTIONS,
+    };
   if (route.page === "now")
     return {
       text: CITIZEN_TEXT,
@@ -38,4 +51,10 @@ export function greetingFor(route: DeskRoute): ChatGreeting {
 export function switchEventLabel(eventId: string): string | null {
   const meta = EVENT_META[eventId as EventId];
   return meta ? `Ask about ${meta.short} instead` : null;
+}
+
+/** Pure: the event a declined run's switch button re-asks on, or null when no button shows. */
+export function switchTarget(run: { status: string | null; elsewhere?: string | null }): string | null {
+  if (run.status !== "out_of_scope" || !run.elsewhere) return null;
+  return switchEventLabel(run.elsewhere) ? run.elsewhere : null;
 }

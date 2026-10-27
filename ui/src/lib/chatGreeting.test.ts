@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { buildRunRequest } from "../api/ask";
 import { adoptRunBody } from "../api/replay";
-import { greetingFor, switchEventLabel } from "./chatGreeting";
+import { greetingFor, switchEventLabel, switchTarget } from "./chatGreeting";
 
 describe("greetingFor", () => {
   it("greets a citizen on Overview with Paiporta, Köln and Ahr 2021 suggestions", () => {
@@ -24,6 +25,38 @@ describe("greetingFor", () => {
     for (const page of ["now", "replay", "overview", "area", "actions", "evidence"] as const) {
       expect(greetingFor({ role: "citizen", page }).suggestions).toHaveLength(3);
     }
+  });
+});
+
+describe("greeting follows the event the page shows", () => {
+  it("never suggests a Valencia question on an Ahr insurer page", () => {
+    for (const page of ["replay", "sites"] as const) {
+      const g = greetingFor({ role: "insurer", page }, "EMSR517");
+      expect(g.suggestions.join(" ")).not.toMatch(/Valencia/);
+      expect(g.suggestions.join(" ")).toMatch(/Ahr/);
+    }
+    expect(greetingFor({ role: "insurer", page: "portfolio" }, "EMSR773").suggestions.join(" ")).toMatch(/Valencia/);
+  });
+});
+
+describe("switch-button wiring", () => {
+  it("shows only for a declined run that names a known event", () => {
+    expect(switchTarget({ status: "out_of_scope", elsewhere: "EMSR517" })).toBe("EMSR517");
+    expect(switchTarget({ status: "out_of_scope", elsewhere: null })).toBeNull();
+    expect(switchTarget({ status: "out_of_scope", elsewhere: "EMSR000" })).toBeNull();
+    expect(switchTarget({ status: "done", elsewhere: "EMSR517" })).toBeNull();
+  });
+
+  it("re-sends the same question with the target event_id", () => {
+    const target = switchTarget({ status: "out_of_scope", elsewhere: "EMSR517" });
+    const body = buildRunRequest({
+      question: "What is the water level near Ahr Valley?",
+      eventId: target ?? undefined,
+      provider: "nim" as never,
+      allowedProviders: [],
+    });
+    expect(body.event_id).toBe("EMSR517");
+    expect(body.question).toBe("What is the water level near Ahr Valley?");
   });
 });
 
