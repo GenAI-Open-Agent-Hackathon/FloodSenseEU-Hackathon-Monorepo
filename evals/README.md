@@ -9,6 +9,8 @@ Owners: Saleeta, Zain, Mihir (docs/OWNERSHIP.md). Two real floods, at least 10 i
 ```bash
 python evals/run_evals.py --out reports/evals.md            # both events; fakes when no credentials are set
 python evals/run_evals.py --event EMSR773 --strict          # exit 1 when a target is missed (CI)
+python evals/run_evals.py --items val-01,ahr-01               # only these items
+python evals/run_evals.py --provider anthropic               # a test provider (needs LLM_PROVIDER_SWITCH); default is Nightshift
 ```
 
 Headline number: **hallucination rate** = claims the Judge marks unsupported / all claims (target ≤ 5 %). Also citation
@@ -18,3 +20,5 @@ Item fields: `question`, optional `replay_ts` (what the run may know), `expect` 
 match against summary + claims + playbook), `forbid` (figures that must not appear, e.g. casualty numbers that are not in
 our views). The `expect` / `forbid` tokens were written against the seed views; Saleeta and Urvashi validate them against the
 ingested sources and add the reference answers and human labels per claim for the Judge–human agreement rate.
+
+The report header names the provider. Numbers from a test provider are not the judged Nightshift path; say which one you report.
