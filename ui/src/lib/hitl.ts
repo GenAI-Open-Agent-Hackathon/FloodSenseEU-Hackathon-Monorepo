@@ -34,7 +34,13 @@ export interface MemoryUsed {
   approvedAt: string | null;
   text: string;
   relevance: number | null;
+  /** Who approved it, from the engines' provenance label. */
+  reviewer: string | null;
+  /** Added by `tasks.py demo-seed` for a demo, not approved by an analyst. */
+  seeded: boolean;
 }
+
+export const SEEDED_MEMORY_CHIP = "Demo seed — not analyst-approved";
 
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim().length > 0 ? v : null);
@@ -54,6 +60,8 @@ export function adoptMemoryUsed(value: unknown): MemoryUsed[] {
         approvedAt: str(m.approved_at),
         text,
         relevance: num(m.relevance),
+        reviewer: str(m.reviewer),
+        seeded: m.seeded === true,
       },
     ];
   });
@@ -70,6 +78,7 @@ export function shortDate(iso: string | null): string {
 export const NO_MEMORIES = "No approved memories matched — this run starts fresh.";
 
 export function memoryLine(m: MemoryUsed): string {
+  if (m.seeded) return `Seeded for the demo as run ${m.runId ?? "unknown"} on ${shortDate(m.approvedAt)}: ${m.text}`;
   return `Recalled from approved run ${m.runId ?? "unknown"} on ${shortDate(m.approvedAt)}: ${m.text}`;
 }
 
