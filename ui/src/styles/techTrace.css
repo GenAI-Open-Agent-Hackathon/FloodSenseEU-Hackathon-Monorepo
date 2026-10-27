@@ -5,7 +5,9 @@
 .tt-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
 .tt-tile { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .tt-tile[data-tile="zetaris"] { border-color: var(--zetaris-border); background: var(--zetaris-bg); }
-.tt-tile-idle { background: var(--surface-2); opacity: 0.9; }
+.tt-tile-idle { background: var(--surface-2); }
+.tt-embedded { margin: 0.5rem 0 0; }
+.tt-latest, .tt-note { margin: 0.75rem 0; }
 .tt-tile-open { grid-column: 1 / -1; }
 .tt-btn {
   display: flex; flex-direction: column; gap: 0.15rem; width: 100%; box-sizing: border-box; min-height: 44px;
@@ -14,8 +16,6 @@
 }
 .tt-btn::after { content: "\25B8"; position: absolute; right: 0.55rem; top: 0.5rem; color: var(--muted); }
 .tt-btn[aria-expanded="true"]::after { content: "\25BE"; }
-.tt-static { cursor: default; padding-right: 0.6rem; }
-.tt-static::after { content: none; }
 .tt-name { font-size: 0.75rem; font-weight: 700; color: var(--brand-ink); overflow-wrap: anywhere; }
 .tt-tile[data-tile="zetaris"] .tt-name { color: var(--zetaris-ink); }
 .tt-tile-idle .tt-name { color: var(--muted); }

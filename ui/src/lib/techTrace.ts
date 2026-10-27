@@ -1,19 +1,22 @@
 import type { RecordedRun } from "../api/replay";
 import type { MemoryUsed } from "./hitl";
+import { providerOf } from "./lanes";
 import { formatLatency, parseBoard } from "./pipeline";
 
 /**
  * "How this answer was made": four sponsor tiles derived only from fields the run snapshot already carries
- * (trace, claims[].citations, memory_used, judge_summary, lane, router_reason, model_ids). Nothing is invented:
- * a tile with no evidence says so, and Nightshift is never claimed for a run without a model call.
+ * (trace, claims[].citations, memory_used, judge_summary, lane, router_reason, model_ids, served_from). Nothing is
+ * invented: a tile with no evidence says so, Nightshift is never claimed for a run without a Nightshift model call,
+ * and a cached or recorded answer says it was not run just now.
  */
 
 export type TileId = "zetaris" | "nightshift" | "hmem" | "world";
 
 export const GLOSSARY: Record<TileId, string> = {
-  zetaris: "Zetaris: one SQL layer over every source.",
-  nightshift: "Meterless Nightshift: the cloud that runs the Nemotron language models.",
-  hmem: "Meterless H-MEM: remembers only findings an analyst approved.",
+  zetaris: "Zetaris: the only SQL path to the data.",
+  nightshift:
+    "Meterless Nightshift: the gateway that routes the agents' model calls (meterless/fast and meterless/deep) to NVIDIA Nemotron models.",
+  hmem: "Meterless H-MEM: remembers approved findings (and clearly labelled demo seeds).",
   world: "Meterless World Model: tracks which hypotheses the evidence still supports.",
 };
 
@@ -45,7 +48,7 @@ export interface TechTraceModel {
 export interface ZetarisUse {
   queryIds: string[];
   views: string[];
-  /** True when document passages (layer c) were hydrated through the Zetaris JDBC connection. */
+  /** Distinct document passages (layer c) hydrated through the Zetaris JDBC connection. */
   ragChunks: number;
   upstream: { title: string; publisher: string | null; url: string | null }[];
 }
@@ -96,8 +99,8 @@ function zetarisTile(run: RecordedRun): Tile {
     details.push({ label: "Upstream sources", value: z.upstream.map((u) => (u.publisher ? `${u.title} (${u.publisher})` : u.title)).join("; ") });
   }
   const headline = z.queryIds.length
-    ? `${plural(z.queryIds.length, "query", "queries")} across ${viewNames.length ? viewNames.join(", ") : "Zetaris views"}`
-    : "No Zetaris query cited";
+    ? `${plural(z.queryIds.length, "cited query", "cited queries")} across ${viewNames.length ? viewNames.join(", ") : "Zetaris views"}`
+    : "No cited Zetaris query";
   return { id: "zetaris", name: "Zetaris", used: z.queryIds.length > 0, headline, glossary: GLOSSARY.zetaris, details };
 }
 
@@ -106,9 +109,14 @@ function zetarisTile(run: RecordedRun): Tile {
 export interface ModelUse {
   id: string;
   name: string;
+  /** "Nightshift", "Anthropic (test switch)" or another stated provider; null when the id does not say. */
+  provider: string | null;
+  /** True only for a Nemotron id served through the Nightshift gateway. */
+  nightshift: boolean;
   /** fast / deep, when a trace step that ran this model states it. */
   lanes: string[];
-  calls: number;
+  /** Trace steps that carried this model id (model-assisted steps, not counted calls). */
+  steps: number;
   latencyMs: number;
 }
 
@@ -126,19 +134,27 @@ const llmIds = (modelId: string | null | undefined): string[] =>
     .map((m) => m.trim())
     .filter((m) => m && m !== "deterministic");
 
-/** Pure: the models that answered, from the trace's model_id, lane and latency_ms (run.modelIds when the trace names none). */
-export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds">): { models: ModelUse[]; calls: number; latencyMs: number } {
+/**
+ * Pure: the models that answered, from the trace's model_id, lane and latency_ms (run.modelIds when the trace names none).
+ * `steps` counts model-assisted steps only (a step with a non-deterministic model_id). `latencyMs` is the summed
+ * latency of those steps, which includes the data queries the step ran, so it is not model time.
+ */
+export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds" | "provider">): { models: ModelUse[]; steps: number; latencyMs: number } {
   const byId = new Map<string, ModelUse>();
-  let calls = 0;
+  const make = (id: string, explicit: string | null | undefined): ModelUse => {
+    const provider = providerOf(id, explicit ?? run.provider ?? null);
+    return { id, name: modelDisplay(id), provider, nightshift: provider === "Nightshift", lanes: [], steps: 0, latencyMs: 0 };
+  };
+  let steps = 0;
   let latencyMs = 0;
   for (const step of run.trace) {
     const ids = llmIds(step.modelId);
     if (!ids.length) continue;
-    calls += 1;
+    steps += 1;
     latencyMs += step.latencyMs ?? 0;
     for (const id of ids) {
-      const use = byId.get(id) ?? { id, name: modelDisplay(id), lanes: [], calls: 0, latencyMs: 0 };
-      use.calls += 1;
+      const use = byId.get(id) ?? make(id, step.provider);
+      use.steps += 1;
       use.latencyMs += step.latencyMs ?? 0;
       const lane = (step.lane ?? "").toLowerCase();
       if ((lane === "fast" || lane === "deep") && !use.lanes.includes(lane)) use.lanes.push(lane);
@@ -146,53 +162,89 @@ export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds">): { models
     }
   }
   if (!byId.size) {
-    for (const id of run.modelIds.flatMap((m) => llmIds(m))) {
-      if (!byId.has(id)) byId.set(id, { id, name: modelDisplay(id), lanes: [], calls: 0, latencyMs: 0 });
-    }
+    for (const id of run.modelIds.flatMap((m) => llmIds(m))) if (!byId.has(id)) byId.set(id, make(id, null));
   }
-  return { models: [...byId.values()], calls, latencyMs };
+  return { models: [...byId.values()], steps, latencyMs };
 }
 
 function totalLatency(run: Pick<RecordedRun, "trace">): number {
   return run.trace.reduce((n, s) => n + (s.latencyMs ?? 0), 0);
 }
 
+/** An answer served from the cache or a recording carries the original run's trace; it was not run just now. */
+export const RECORDED_NOTE = "Recorded run: replayed from cache, not run just now";
+
+const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.servedFrom !== "live";
+
 function nightshiftTile(run: RecordedRun): Tile {
   const use = modelUse(run);
+  const recorded: TileDetail[] = isRecorded(run) ? [{ label: "Served from", value: RECORDED_NOTE }] : [];
+  const name = "Meterless Nightshift";
   if (!use.models.length) {
     const total = totalLatency(run);
     const took = total > 0 ? ` in ${formatLatency(total)}` : "";
     return {
       id: "nightshift",
-      name: "Meterless Nightshift",
+      name,
       used: false,
       headline: "No model call",
       glossary: GLOSSARY.nightshift,
       details: [
-        {
-          label: "Why",
-          value: `No model call: answered deterministically from Zetaris data — the router chose the cheapest safe path${took}.`,
-        },
+        ...recorded,
+        { label: "Why", value: `No model call: answered deterministically from Zetaris data — the router chose the cheapest safe path${took}.` },
       ],
     };
   }
-  const headline =
-    use.calls > 0
-      ? `${use.models.map((m) => m.name.replace(/^Nemotron [\d.]+ /, "")).join(" + ")} · ${plural(use.calls, "call")}`
-      : use.models.map((m) => m.name).join(" + ");
-  const details: TileDetail[] = use.models.map((m) => ({
-    label: m.name,
-    value: [m.lanes.length ? `${m.lanes.join("/")} lane` : null, m.calls ? plural(m.calls, "call") : null, m.latencyMs > 0 ? formatLatency(m.latencyMs) : null]
-      .filter(Boolean)
-      .join(" · ") || "answered",
-  }));
-  if (use.calls > 0) details.push({ label: "Total model time", value: `${formatLatency(use.latencyMs)} over ${plural(use.calls, "model call")}` });
-  return { id: "nightshift", name: "Meterless Nightshift", used: true, headline, glossary: GLOSSARY.nightshift, details };
+  const nightshift = use.models.filter((m) => m.nightshift);
+  const other = use.models.filter((m) => !m.nightshift);
+  const stepText = (n: number) => plural(n, "model-assisted step");
+  const details: TileDetail[] = [
+    ...recorded,
+    ...use.models.map((m) => ({
+      label: m.nightshift ? m.name : `${m.name} (test provider)`,
+      value:
+        [m.lanes.length ? `${m.lanes.join("/")} lane` : null, m.steps > 0 ? stepText(m.steps) : null, m.latencyMs > 0 ? formatLatency(m.latencyMs) : null]
+          .filter(Boolean)
+          .join(" · ") || "answered",
+    })),
+  ];
+  if (use.steps > 0) {
+    details.push({ label: "Time in model-assisted steps (includes data queries)", value: `${formatLatency(use.latencyMs)} over ${plural(use.steps, "step")}` });
+  }
+  if (!nightshift.length) {
+    details.push({ label: "Provider", value: "These model calls went to the test provider, not to Nightshift." });
+    return { id: "nightshift", name, used: false, headline: `Test provider · ${other.map((m) => m.name).join(" + ")}`, glossary: GLOSSARY.nightshift, details };
+  }
+  const names = nightshift.map((m) => m.name.replace(/^Nemotron [\d.]+ /, "")).join(" + ");
+  const extra = other.length ? ` + test provider ${other.map((m) => m.name).join(", ")}` : "";
+  const headline = `${names}${extra}${use.steps > 0 ? ` · ${stepText(use.steps)}` : ""}`;
+  return { id: "nightshift", name, used: true, headline, glossary: GLOSSARY.nightshift, details };
 }
 
 /* ---------- H-MEM ---------- */
 
 export const NO_MEMORY_MATCH = "No approved memory matched this question yet";
+export const RECALL_NOT_ACTIVE = "H-MEM recall was not active in this run";
+export const RECALL_FAILED = "H-MEM recall failed in this run";
+
+export type RecallState = "ran" | "failed" | "not_active";
+
+/**
+ * Pure: did H-MEM recall run? Evidence is a trace event: the memory step ("recalled N ...", or "recall failed"),
+ * a forecast history step that reports H-MEM, or memory_used itself. No such event means recall was not active
+ * (quick lane, FF_HMEM off, engines off), which is different from "ran and nothing matched".
+ */
+export function recallState(run: Pick<RecordedRun, "trace" | "memoryUsed">): RecallState {
+  if ((run.memoryUsed ?? []).length > 0) return "ran";
+  for (const s of run.trace) {
+    if (s.node === "memory") {
+      if (/recall failed/i.test(s.summary)) return "failed";
+      if (/recalled\s+\d+/i.test(s.summary)) return "ran";
+    }
+    if (s.node === "history" && /h-mem/i.test(s.summary) && !/h-mem[^;]*\b(off|unavailable|disabled|failed)\b/i.test(s.summary)) return "ran";
+  }
+  return "not_active";
+}
 
 function memoryDetail(m: MemoryUsed): TileDetail {
   const origin = m.seeded ? "demo seed" : m.runId ? `approved run ${m.runId}` : "approved";
@@ -202,15 +254,18 @@ function memoryDetail(m: MemoryUsed): TileDetail {
 
 function hmemTile(run: RecordedRun): Tile {
   const memories = run.memoryUsed ?? [];
-  const writes = run.status === "awaiting_approval";
+  const recall = recallState(run);
+  // The write on approval exists only when H-MEM is on; recall having run is the trace's evidence of that.
+  const writes = run.status === "awaiting_approval" && recall === "ran";
   const details: TileDetail[] = memories.map(memoryDetail);
   if (writes) details.push({ label: "On approval", value: "this finding is written to H-MEM" });
   if (!memories.length) {
+    const base = recall === "not_active" ? RECALL_NOT_ACTIVE : recall === "failed" ? RECALL_FAILED : NO_MEMORY_MATCH;
     return {
       id: "hmem",
       name: "Meterless H-MEM",
       used: false,
-      headline: writes ? `${NO_MEMORY_MATCH} · + writes on approval` : NO_MEMORY_MATCH,
+      headline: writes ? `${base} · + writes on approval` : base,
       glossary: GLOSSARY.hmem,
       details,
     };
@@ -259,17 +314,31 @@ function reasonText(reason: string | null | undefined): string | null {
   return t.replace(/^chose\s+\w+:\s*/i, "").replace(/\s*·?\s*escalated:.*$/i, "").trim() || null;
 }
 
-export function routerLine(run: Pick<RecordedRun, "lane" | "routerReason">): string | null {
+export function routerLine(run: Pick<RecordedRun, "lane" | "routerReason" | "servedFrom">): string | null {
   const reason = reasonText(run.routerReason);
-  if (run.lane && reason) return `Router → ${run.lane} lane (${reason})`;
-  if (run.lane) return `Router → ${run.lane} lane`;
-  return reason ? `Router → ${reason}` : null;
+  let line: string | null = null;
+  if (run.lane && reason) line = `Router → ${run.lane} lane (${reason})`;
+  else if (run.lane) line = `Router → ${run.lane} lane`;
+  else if (reason) line = `Router → ${reason}`;
+  if (isRecorded(run)) return line ? `${line} · ${RECORDED_NOTE}` : RECORDED_NOTE;
+  return line;
 }
 
 export function judgeLine(run: Pick<RecordedRun, "judgeOverall" | "hallucinationRate">): string | null {
   if (run.judgeOverall === null || run.judgeOverall === undefined) return null;
   const halluc = run.hallucinationRate === null || run.hallucinationRate === undefined ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)}%`;
   return `Checked ${run.judgeOverall.toFixed(2)}${halluc}`;
+}
+
+/** Pure: which past-run row the insurer Review page describes. Live: the newest finished run. Past: the newest one for the chosen event. */
+export function pickRunRow<T extends { runId: string; status: string; eventId: string | null }>(
+  rows: readonly T[],
+  mode: "live" | "past",
+  eventId: string | null,
+): T | null {
+  const finished = rows.filter((r) => r.status !== "running");
+  if (mode === "past") return finished.find((r) => r.eventId === eventId) ?? null;
+  return finished[0] ?? null;
 }
 
 /** Pure: everything the TechTrace panel draws. */

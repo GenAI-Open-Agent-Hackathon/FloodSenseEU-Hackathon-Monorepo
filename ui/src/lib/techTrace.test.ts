@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adoptRunBody, type RecordedRun } from "../api/replay";
-import { buildTechTrace, modelDisplay, NO_MEMORY_MATCH, zetarisUse } from "./techTrace";
+import { buildTechTrace, modelDisplay, NO_MEMORY_MATCH, pickRunRow, RECALL_FAILED, RECALL_NOT_ACTIVE, RECORDED_NOTE, routerLine, zetarisUse } from "./techTrace";
 
 const step = (seq: number, node: string, lane: string, model_id: string | null, latency_ms: number, summary: string) => ({
   seq,
@@ -108,7 +108,7 @@ const FORECAST = body({
   trace: [
     step(1, "router", "none", null, 0, "chose forecast"),
     step(2, "forecast_data", "sql", null, 1000, "weather"),
-    step(3, "history", "sql", null, 900, "history"),
+    step(3, "history", "sql", null, 900, "EMSR517 seed AHR01: 1 row; PEG07 H-MEM: 0 approved memories"),
     step(4, "forecast_answer", "none", "deterministic", 0, "4 claims"),
     step(5, "judge", "none", "deterministic", 2, "PASS"),
   ],
@@ -134,11 +134,11 @@ describe("techTrace: quick lane (no model call)", () => {
     expect(n.details[0].value).toContain("the router chose the cheapest safe path in 900 ms");
   });
   it("counts one Zetaris query and the upstream source", () => {
-    expect(tile(QUICK, "zetaris").headline).toBe("1 query across gauge_levels");
+    expect(tile(QUICK, "zetaris").headline).toBe("1 cited query across gauge_levels");
     expect(zetarisUse(QUICK).upstream.map((u) => u.title)).toEqual(["PEGELONLINE Rhine water levels"]);
   });
   it("says no memory matched and no World Model", () => {
-    expect(tile(QUICK, "hmem").headline).toBe(NO_MEMORY_MATCH);
+    expect(tile(QUICK, "hmem").headline).toBe(RECALL_NOT_ACTIVE);
     expect(tile(QUICK, "world").headline).toBe("Not used by this lane");
   });
 });
@@ -149,16 +149,16 @@ describe("techTrace: full lane (models, memory, world model)", () => {
     expect(z.queryIds).toEqual(["q-a", "q-b", "q-rag"]);
     expect(z.views).toEqual(["floodsense.eu_watch", "floodsense.exposure_join"]);
     expect(z.ragChunks).toBe(2);
-    expect(tile(FULL, "zetaris").headline).toBe("3 queries across eu_watch, exposure_join, document chunks");
+    expect(tile(FULL, "zetaris").headline).toBe("3 cited queries across eu_watch, exposure_join, document chunks");
     expect(tile(FULL, "zetaris").details.some((d) => d.value.includes("Zetaris JDBC"))).toBe(true);
   });
   it("lists the models with lane, calls and total model time", () => {
     const n = tile(FULL, "nightshift");
     expect(n.used).toBe(true);
-    expect(n.headline).toBe("Super VL 120B + Lightning 30B · 3 calls");
-    expect(n.details.find((d) => d.label === "Nemotron 3.5 Super VL 120B")?.value).toBe("deep lane · 2 calls · 16.0 s");
-    expect(n.details.find((d) => d.label === "Nemotron 3.5 Lightning 30B")?.value).toBe("fast lane · 1 call · 8.0 s");
-    expect(n.details.at(-1)?.value).toBe("24.0 s over 3 model calls");
+    expect(n.headline).toBe("Super VL 120B + Lightning 30B · 3 model-assisted steps");
+    expect(n.details.find((d) => d.label === "Nemotron 3.5 Super VL 120B")?.value).toBe("deep lane · 2 model-assisted steps · 16.0 s");
+    expect(n.details.find((d) => d.label === "Nemotron 3.5 Lightning 30B")?.value).toBe("fast lane · 1 model-assisted step · 8.0 s");
+    expect(n.details.at(-1)?.value).toBe("24.0 s over 3 steps");
   });
   it("shows recalled memories, the seed label and the write on approval", () => {
     const h = tile(FULL, "hmem");
@@ -181,14 +181,78 @@ describe("techTrace: forecast lane", () => {
   it("answers deterministically over several views, no World Model", () => {
     const m = buildTechTrace(FORECAST);
     expect(m.routerLine).toBe("Router → forecast lane (forecast question ('next 48 hours') about KÖLN)");
-    expect(tile(FORECAST, "zetaris").headline).toBe("3 queries across weather_forecast, gauge_levels, hazard_timeline");
+    expect(tile(FORECAST, "zetaris").headline).toBe("3 cited queries across weather_forecast, gauge_levels, hazard_timeline");
     expect(tile(FORECAST, "nightshift").used).toBe(false);
     expect(tile(FORECAST, "nightshift").details[0].value).toContain("in 1.9 s");
     expect(tile(FORECAST, "world").headline).toBe("Not used by this lane");
     expect(tile(FORECAST, "hmem").headline).toBe(NO_MEMORY_MATCH);
   });
-  it("adds + writes on approval only to an awaiting run with no memory", () => {
-    const awaiting = body({ status: "awaiting_approval", lane: "full" });
-    expect(tile(awaiting, "hmem").headline).toBe(`${NO_MEMORY_MATCH} · + writes on approval`);
+  it("adds + writes on approval only to an awaiting run whose recall ran", () => {
+    const ran = body({ status: "awaiting_approval", lane: "full", trace: [step(1, "memory", "none", null, 5, "recalled 0 past approved finding(s) for the Investigator")] });
+    expect(tile(ran, "hmem").headline).toBe(`${NO_MEMORY_MATCH} · + writes on approval`);
+  });
+});
+
+describe("techTrace: H-MEM recall not active", () => {
+  it("separates engines-off from no match, and makes no write promise without recall", () => {
+    const off = body({ status: "awaiting_approval", lane: "full", trace: [step(1, "scope", "none", null, 0, "in scope")] });
+    expect(tile(off, "hmem").headline).toBe(RECALL_NOT_ACTIVE);
+    const failed = body({ lane: "full", trace: [step(1, "memory", "none", null, 5, "recall failed: boom; the Investigator runs without it")] });
+    expect(tile(failed, "hmem").headline).toBe(RECALL_FAILED);
+  });
+});
+
+describe("techTrace: cached and replayed answers", () => {
+  it("notes on the first line and the Nightshift tile that the run is recorded", () => {
+    for (const served_from of ["cache", "replay"]) {
+      const r = body({
+        served_from,
+        lane: "quick",
+        router_reason: "chose quick: live level question about KÖLN",
+        trace: [step(1, "router", "none", null, 0, "chose quick"), step(2, "live_watch", "sql", null, 900, "x")],
+      });
+      expect(buildTechTrace(r).routerLine).toContain(RECORDED_NOTE);
+      expect(tile(r, "nightshift").details[0]).toEqual({ label: "Served from", value: RECORDED_NOTE });
+    }
+    expect(routerLine(QUICK)).not.toContain("Recorded run");
+    expect(tile(QUICK, "nightshift").details[0].label).toBe("Why");
+  });
+});
+
+describe("techTrace: router-LLM quick run and non-Nemotron models", () => {
+  const llmQuick = body({
+    lane: "quick",
+    router_reason: "chose quick: live level question",
+    trace: [
+      step(1, "router", "fast", "nvidia/nemotron-3.5-lightning-30b-a3b", 700, "chose quick"),
+      step(2, "live_watch", "sql", null, 900, "gauge_levels 1 row"),
+      step(3, "quick_answer", "none", "deterministic", 0, "1 template claims"),
+    ],
+  });
+  it("counts the router step as a model-assisted step, not a call", () => {
+    const n = tile(llmQuick, "nightshift");
+    expect(n.used).toBe(true);
+    expect(n.headline).toBe("Lightning 30B · 1 model-assisted step");
+    expect(n.details.at(-1)?.label).toBe("Time in model-assisted steps (includes data queries)");
+  });
+  it("never labels a non-Nemotron model as Nightshift", () => {
+    const test = body({ lane: "full", trace: [step(1, "skeptic", "deep", "anthropic/claude-sonnet-5-5", 3000, "checked")] });
+    const n = tile(test, "nightshift");
+    expect(n.used).toBe(false);
+    expect(n.headline).toBe("Test provider · claude-sonnet-5-5");
+    expect(n.details.some((d) => d.value.includes("not to Nightshift"))).toBe(true);
+  });
+});
+
+describe("techTrace: pickRunRow (insurer Review)", () => {
+  const rows = [
+    { runId: "a", status: "running", eventId: "EMSR517" },
+    { runId: "b", status: "answered", eventId: "EMSR773" },
+    { runId: "c", status: "awaiting_approval", eventId: "EMSR517" },
+  ];
+  it("live takes the newest finished run; past the newest for the chosen event, or none", () => {
+    expect(pickRunRow(rows, "live", null)?.runId).toBe("b");
+    expect(pickRunRow(rows, "past", "EMSR517")?.runId).toBe("c");
+    expect(pickRunRow(rows, "past", "EMSR999")).toBeNull();
   });
 });
