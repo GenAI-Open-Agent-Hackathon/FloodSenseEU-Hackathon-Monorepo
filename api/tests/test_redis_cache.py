@@ -94,7 +94,28 @@ class _OnRedis:
 
 
 class AnswerCacheOnRedisTest(_OnRedis, test_cache.AnswerCacheTest):
-    pass
+    # Local LRU eviction does not delete in Redis; the TTL bounds an entry there.
+    def test_the_oldest_entry_goes_first_when_full(self) -> None:
+        c = AnswerCache(test_cache.settings(max_entries=2))
+        for i in range(3):
+            c.remember(test_cache.run(f"r{i}", question=f"q{i}"), "f")
+        self.assertEqual(c.stats()["entries"], 2)
+        self.assertEqual(c.lookup({"question": "q0"}, "f").run_id, "r0")
+
+    # In Redis, drop deletes the slot of the request that found the run.
+    def test_drop_forgets_a_run(self) -> None:
+        c = AnswerCache(test_cache.settings())
+        c.remember(test_cache.run(), "f")
+        c.drop("r1", {"question": "Which sites are exposed?"}, "f")
+        self.assertIsNone(c.lookup({"question": "Which sites are exposed?"}, "f"))
+
+    def test_recordings_keep_one_slot_per_question(self) -> None:
+        c = AnswerCache(test_cache.settings(max_recordings=1))
+        c.record(test_cache._recording("a", "EMSR773", "q"))
+        c.record(test_cache._recording("b", "EMSR517", "q"))
+        self.assertEqual(c.stats()["recordings"], 1)
+        self.assertEqual(c.recording_for({"question": "q", "event_id": "EMSR773"})["run_id"], "a")
+        self.assertEqual(c.recording_for({"question": "q", "event_id": "EMSR517"})["run_id"], "b")
 
 
 class ApiFlowOnRedisTest(_OnRedis, test_cache.ApiFlowTest):
@@ -132,8 +153,67 @@ class RedisBackendTest(unittest.TestCase):
         other = AnswerCache(test_cache.settings(), redis_client=self.client)
         self.assertEqual(other.lookup({"question": "which sites are exposed"}, "f").run_id, "r1")
         self.assertEqual(other.recording_for({"question": "q"})["run_id"], "a")
-        other.drop("r1")
-        self.assertIsNone(self.cache.lookup({"question": "which sites are exposed"}, "f"))
+        other.drop("r1", {"question": "which sites are exposed"}, "f")
+        third = AnswerCache(test_cache.settings(), redis_client=self.client)
+        self.assertIsNone(third.lookup({"question": "which sites are exposed"}, "f"))
+
+    def test_drop_deletes_only_the_looked_up_slot_without_a_scan(self) -> None:
+        self.cache.remember(finished("r1", "q1"), "f")
+        self.cache.remember(finished("r2", "q2"), "f")
+        spy = mock.MagicMock(wraps=self.client)
+        c = AnswerCache(test_cache.settings(), redis_client=spy)
+        c.drop("r1", {"question": "q1"}, "f")
+        spy.scan_iter.assert_not_called()
+        spy.keys.assert_not_called()
+        self.assertEqual(spy.delete.call_count, 1)
+        self.assertIsNone(c.lookup({"question": "q1"}, "f"))
+        self.assertEqual(c.lookup({"question": "q2"}, "f").run_id, "r2")
+
+    def test_stats_do_not_scan_redis(self) -> None:
+        spy = mock.MagicMock(wraps=self.client)
+        c = AnswerCache(test_cache.settings(), redis_client=spy)
+        c.remember(finished(), "f")
+        self.assertEqual(c.stats()["entries"], 1)
+        spy.scan_iter.assert_not_called()
+        spy.keys.assert_not_called()
+
+    def test_a_miss_in_redis_falls_through_to_memory_after_recovery(self) -> None:
+        flaky = StubRedis()
+        c = AnswerCache(test_cache.settings(), redis_client=flaky)
+        flaky.broken = True
+        with self.assertLogs("floodsense.api.cache", "WARNING"):
+            c.remember(finished(), "f")
+        c.record(test_cache._recording("a", "EMSR773", "q"))
+        flaky.broken = False
+        c._redis._down_until = 0.0  # Redis is back, empty of what was written while down
+        self.assertEqual(c.recording_for({"question": "q"})["run_id"], "a")
+        self.assertEqual(c.lookup({"question": "which sites are exposed"}, "f").run_id, "r1")
+        # The entry is written back, so another process now sees it.
+        other = AnswerCache(test_cache.settings(), redis_client=flaky)
+        self.assertEqual(other.lookup({"question": "which sites are exposed"}, "f").run_id, "r1")
+
+    def test_a_recording_older_than_a_day_is_still_served(self) -> None:
+        c = AnswerCache(test_cache.settings(ttl_replay_s=86400), redis_client=self.client)
+        c.record(test_cache._recording("a", "EMSR773", "q"))
+        key = next(iter(self.client.scan_iter(REPLAY_PREFIX + "*")))
+        self.assertGreater(self.client.ttl(key), 86400 * 2)
+        fresh = AnswerCache(test_cache.settings(), redis_client=self.client)  # restart
+        with mock.patch.object(cache_mod.time, "time", return_value=time.time() + 3 * 86400):
+            self.assertEqual(fresh.recording_for({"question": "q"})["run_id"], "a")
+
+    def test_a_slow_call_trips_the_down_window(self) -> None:
+        slow = StubRedis()
+        real_get = slow.get
+
+        def sluggish(key):
+            time.sleep(0.06)
+            return real_get(key)
+
+        slow.get = sluggish
+        c = AnswerCache(test_cache.settings(lookup_timeout_s=0.05), redis_client=slow)
+        with self.assertLogs("floodsense.api.cache", "WARNING"):
+            c.lookup({"question": "x"}, "f")
+        self.assertEqual(c.stats()["backend"], "memory")
 
     def test_recordings_use_the_replay_prefix(self) -> None:
         self.cache.record(test_cache._recording("a", "EMSR773", "q"))
@@ -202,8 +282,9 @@ class RealRedisSmokeTest(unittest.TestCase):
         other = AnswerCache(test_cache.settings(), redis_client=client)
         self.assertEqual(other.lookup({"question": q}, "f").run_id, "smoke1")
         self.assertEqual(other.stats()["backend"], "redis")
-        other.drop("smoke1")
-        self.assertIsNone(c.lookup({"question": q}, "f"))
+        other.drop("smoke1", {"question": q}, "f")
+        third = AnswerCache(test_cache.settings(), redis_client=client)
+        self.assertIsNone(third.lookup({"question": q}, "f"))
 
 
 if __name__ == "__main__":
