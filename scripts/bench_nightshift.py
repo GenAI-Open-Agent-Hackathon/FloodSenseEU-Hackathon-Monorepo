@@ -73,6 +73,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--event", default="EMSR773")
     ap.add_argument("--question", default="Why are our Valencia sites at risk?")
+    ap.add_argument("--doc-query", default=None, help="also retrieve documents (layer c)")
     ap.add_argument("--json", action="store_true", help="print one JSON object")
     a = ap.parse_args()
 
@@ -90,6 +91,8 @@ def main() -> int:
         "lang": "en",
         "reviewer": None,
     }
+    if a.doc_query:
+        req["doc_query"] = a.doc_query
     served_from, cached_at = labelling.computation_label(None, live=False)
     T0 = time.time()
     out = graph.invoke(
@@ -112,7 +115,12 @@ def main() -> int:
     )
     total = time.time() - T0
     nodes = [
-        {"node": t["node"], "s": round((t.get("latency_ms") or 0) / 1000, 1), "lane": t.get("lane")}
+        {
+            "node": t["node"],
+            "s": round((t.get("latency_ms") or 0) / 1000, 1),
+            "lane": t.get("lane"),
+            "model_id": t.get("model_id"),
+        }
         for t in out.get("trace", [])
     ]
     summary = out.get("judge_summary") or {}
@@ -125,13 +133,14 @@ def main() -> int:
         },
         "repair_rounds": out.get("repair_rounds"),
         "revise_rounds": out.get("revise_rounds"),
+        "model_ids": out.get("model_ids"),
     }
     if a.json:
         print(json.dumps(result))
         return 0
     print(f"total {result['total_s']} s  judge={result['judge']}  repair={result['repair_rounds']}")
     for n in nodes:
-        print(f"  node {n['node']:<14} {n['s']:>7.1f} s  lane={n['lane']}")
+        print(f"  node {n['node']:<14} {n['s']:>7.1f} s  lane={n['lane']} model={n['model_id']}")
     for c in timed.rows:
         print(
             f"  call {c['task']:<13} {c['lane']:<5} start={c['start']:>6.1f} {c['s']:>6.1f} s "

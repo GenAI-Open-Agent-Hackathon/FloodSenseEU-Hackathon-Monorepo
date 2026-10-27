@@ -169,9 +169,7 @@ class VerifyTest(unittest.TestCase):
         exp["assets"] = exp["assets"][:1]
         exp["policies"] = 25
         exp["sum_insured_eur"] = 1_250_000.0
-        exp["by_segment"] = [
-            {"segment": "retail", "policies": 25, "sum_insured_eur": 1_250_000.0}
-        ]
+        exp["by_segment"] = [{"segment": "retail", "policies": 25, "sum_insured_eur": 1_250_000.0}]
         qid = next(
             q
             for q in exp["query_ids"]

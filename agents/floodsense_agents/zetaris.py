@@ -79,7 +79,9 @@ def _view_of(sql: str) -> str:
 _BOUND = re.compile(r"^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|\d{4}-\d{2}-\d{2})$")
 
 
-def inline_bound(sql: str, params: tuple[str, ...] | list[str] | None) -> tuple[str, tuple[str, ...]]:
+def inline_bound(
+    sql: str, params: tuple[str, ...] | list[str] | None
+) -> tuple[str, tuple[str, ...]]:
     """Split a statement into the placeholder form and a rendered copy.
 
     SQLite runs the placeholder form with the tuple. The live SQL API has no
@@ -309,6 +311,7 @@ CREATE TABLE {s}.exposure_join(policy_id TEXT, site_id TEXT, lat REAL, lon REAL,
 CREATE TABLE {s}.gauge_levels(station TEXT, water TEXT, ts_utc TEXT, level_cm REAL, source TEXT);
 CREATE TABLE {s}.provenance(dataset TEXT, source_url TEXT, publisher TEXT, licence TEXT, attribution TEXT, fetched_at TEXT);
 """
+
 
 def _gauge_seed_rows() -> list[tuple]:
     """One row per station on each event that lists gauges. level_cm stays empty.

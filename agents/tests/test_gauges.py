@@ -45,7 +45,9 @@ class GaugeContractTest(unittest.TestCase):
         self.assertIn("gauge_levels", CONTRACT_VIEWS)
         self.assertIn("gauge_levels", OWNERS)
         self.assertEqual(OWNERS["gauge_levels"].view, "gauge_levels")
-        settings = (ROOT / "agents" / "floodsense_agents" / "settings.py").read_text(encoding="utf-8")
+        settings = (ROOT / "agents" / "floodsense_agents" / "settings.py").read_text(
+            encoding="utf-8"
+        )
         example = (ROOT / "agents" / ".env.example").read_text(encoding="utf-8")
         self.assertIn('_flag("FF_LIVE_DATA", False)', settings)
         self.assertIn("FF_LIVE_DATA=false", example)
@@ -72,7 +74,7 @@ class GaugeContractTest(unittest.TestCase):
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
         out = make_watchers(deps)(_state("EMSR517"))
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 5)
+        self.assertEqual(len(sqls), 6)  # rain, rain_total, discharge, warning, gauges, provenance
         gauge_sql = next(sql for sql in sqls if "gauge_levels" in sql)
         self.assertIn("level_cm", gauge_sql)
         self.assertNotIn("SELECT *", gauge_sql.upper())
@@ -92,7 +94,7 @@ class GaugeContractTest(unittest.TestCase):
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
         out = make_watchers(deps)(_state("EMSR773"))
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 4)
+        self.assertEqual(len(sqls), 5)
         self.assertFalse(any("gauge_levels" in sql for sql in sqls))
         self.assertIn("provenance", sqls[-1])
 

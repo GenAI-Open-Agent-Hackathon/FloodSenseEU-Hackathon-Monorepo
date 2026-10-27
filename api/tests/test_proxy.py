@@ -70,6 +70,13 @@ class ProxyTest(unittest.TestCase):
         self.assertTrue(r.headers.get("x-query-id"))
         self.assertEqual(r.headers.get("cache-control"), "no-store")
 
+    def test_replay_source_is_forwarded(self) -> None:
+        r = self.c.get("/views/hazard_timeline", params={"event_id": "EMSR517", "source": "replay"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers.get("x-schema"), "floodsense_seed")
+        self.assertEqual(r.headers.get("x-source"), "replay")
+        self.assertTrue(all(row["point_id"].startswith("AHR") for row in r.json()))
+
     def test_unknown_view_is_404_through_the_api(self) -> None:
         self.assertEqual(self.c.get("/views/policies").status_code, 404)
 

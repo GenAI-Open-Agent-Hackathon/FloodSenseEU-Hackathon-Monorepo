@@ -65,7 +65,9 @@ class PointVocabularyTest(unittest.TestCase):
         ahr = EVENTS["EMSR517"]
         self.assertEqual(valencia.river_points, ("VAL01",))
         self.assertEqual(valencia.rain_points, ("VAL07",))
-        self.assertTrue(set(valencia.river_points + valencia.rain_points) <= set(VALENCIA_POINT_IDS))
+        self.assertTrue(
+            set(valencia.river_points + valencia.rain_points) <= set(VALENCIA_POINT_IDS)
+        )
         self.assertEqual(ahr.river_points, ("AHR01",))
         self.assertEqual(ahr.rain_points, ("AHR02",))
         self.assertTrue(set(ahr.river_points + ahr.rain_points) <= set(AHR_POINT_IDS))
@@ -90,9 +92,7 @@ class PointVocabularyTest(unittest.TestCase):
         self.assertEqual(hazard, wanted)
         self.assertEqual(daily, rivers)
         self.assertTrue(hazard.isdisjoint(SLUGS))
-        attribution = next(
-            row[4] for row in _SEED["provenance"] if row[1] and "EMSR773" in row[1]
-        )
+        attribution = next(row[4] for row in _SEED["provenance"] if row[1] and "EMSR773" in row[1])
         self.assertEqual(
             attribution,
             "Copernicus Emergency Management Service (© 2024 European Union), EMSR773",
@@ -103,9 +103,9 @@ class PointVocabularyTest(unittest.TestCase):
         discharge = (
             ROOT / "zetaris/migrations/012_create_seed_view_discharge_daily.sql"
         ).read_text(encoding="utf-8")
-        hazard = (
-            ROOT / "zetaris/migrations/013_create_seed_view_hazard_timeline.sql"
-        ).read_text(encoding="utf-8")
+        hazard = (ROOT / "zetaris/migrations/013_create_seed_view_hazard_timeline.sql").read_text(
+            encoding="utf-8"
+        )
         for point_id in EVENTS["EMSR773"].river_points + EVENTS["EMSR773"].rain_points:
             self.assertIn(f"'{point_id}'", discharge)
             self.assertIn(f"'{point_id}'", hazard)

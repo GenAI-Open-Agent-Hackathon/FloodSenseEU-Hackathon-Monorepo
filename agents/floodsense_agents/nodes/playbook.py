@@ -77,6 +77,35 @@ def _deterministic(state: FloodState) -> list[PlaybookAction]:
     ]
 
 
+MAX_ACTIONS = 4  # the prompt asks for at most 4; more are cut, not shown
+TOP_ASSETS = 5  # largest exposed sites shown to the model
+
+
+def _prompt(state: FloodState) -> str:
+    """The Playbook's user prompt, compact so the call fits the Nightshift gateway.
+
+    The chain, one line per claim, and the exposure as totals, segments and
+    the largest sites only: the full asset list is what made the prompt large.
+    """
+    exp = state.get("exposure") or {}
+    assets = sorted(
+        (a for a in exp.get("assets") or [] if isinstance(a, dict)),
+        key=lambda a: -float(a.get("sum_insured_eur") or 0),
+    )[:TOP_ASSETS]
+    hyps = "\n".join(
+        f"{h['id']} {h['link']} [{h.get('status', 'proposed')}]: {h['statement']}"
+        for h in state["hypotheses"]
+    )
+    return (
+        f"CHAIN: {state.get('summary')}\nHYPOTHESES:\n{hyps}\nCLAIMS:\n"
+        + "\n".join(f"{c['claim_id']}: {c['text']}" for c in state["claims"])
+        + f"\nEXPOSURE: {exp.get('policies', 0)} policies, sum insured "
+        f"{float(exp.get('sum_insured_eur') or 0):.0f} EUR; by segment "
+        f"{(exp.get('by_segment') or [])[:8]}; largest sites "
+        f"{[{k: a.get(k) for k in ('policy_id', 'segment', 'sum_insured_eur') if k in a} for a in assets]}"
+    )
+
+
 def make(deps: Deps):
     def playbook(state: FloodState) -> dict:
         t = time.time()
@@ -91,15 +120,10 @@ def make(deps: Deps):
         lane = "none"
         uncited = 0
         try:
-            user = (
-                f"CHAIN: {state.get('summary')}\nHYPOTHESES: "
-                f"{[(h['id'], h['link'], h['status'], h['statement']) for h in state['hypotheses']]}\n"
-                f"CLAIMS:\n"
-                + "\n".join(f"{c['claim_id']}: {c['text']}" for c in state["claims"])
-                + f"\nEXPOSURE: {state.get('exposure')}"
-            )
             text, model_id = deps.llm.complete(
-                "fast", PLAYBOOK.replace("{lang}", state["request"].get("lang", "en")), user
+                "fast",
+                PLAYBOOK.replace("{lang}", state["request"].get("lang", "en")),
+                _prompt(state),
             )
             js = parse_json(text)
             ids = {c["claim_id"] for c in state["claims"]}
@@ -111,7 +135,7 @@ def make(deps: Deps):
                     claim_ids=[i for i in a.get("claim_ids", []) if i in ids],
                     outbound=bool(a.get("outbound", False)),
                 )
-                for a in js.get("actions", [])
+                for a in js.get("actions", [])[:MAX_ACTIONS]
             ]
             # An action that cites nothing (or only claim ids this run does not
             # have) rests on no evidence. It is dropped rather than shown.

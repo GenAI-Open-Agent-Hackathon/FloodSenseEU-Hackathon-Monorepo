@@ -76,9 +76,7 @@ EVENT_PATTERNS: tuple[str, ...] = (
 _EVENT_RE = re.compile(
     "|".join(rf"\b(?:{p})\b" for p in EVENT_PATTERNS), re.IGNORECASE | re.UNICODE
 )
-_LIVE_RE = re.compile(
-    "|".join(rf"\b(?:{p})\b" for p in LIVE_PATTERNS), re.IGNORECASE | re.UNICODE
-)
+_LIVE_RE = re.compile("|".join(rf"\b(?:{p})\b" for p in LIVE_PATTERNS), re.IGNORECASE | re.UNICODE)
 
 
 def classify(question: str) -> tuple[str, str]:
@@ -102,7 +100,11 @@ def resolve_mode(request: dict) -> dict:
             "reason": "replay_ts is set, so the run replays the event window",
         }
     if explicit == LIVE and not settings.live_data:
-        return {"mode": LIVE, "explicit": LIVE, "reason": f"mode=live requested, but {LIVE_DISABLED}"}
+        return {
+            "mode": LIVE,
+            "explicit": LIVE,
+            "reason": f"mode=live requested, but {LIVE_DISABLED}",
+        }
     if explicit in (LIVE, EVENT):
         return {"mode": explicit, "explicit": explicit, "reason": f"mode={explicit} requested"}
     mode, reason = classify(str(request.get("question") or ""))
@@ -177,9 +179,7 @@ GAUGE_STALE_H = 6
 # gauge_levels may gain an optional per-station threshold column. Its name is
 # not fixed yet, so any numeric column whose name matches this is the threshold.
 GAUGE_THRESHOLD_COL = re.compile(r"threshold|warn|alert|mhw|hsw|stufe|limit", re.IGNORECASE)
-OFFICIAL_NOTE = (
-    "Not an official warning; official: Hochwassermeldedienst (Länder) / DWD."
-)
+OFFICIAL_NOTE = "Not an official warning; official: Hochwassermeldedienst (Länder) / DWD."
 
 
 def has_gauges(event: dict) -> bool:
