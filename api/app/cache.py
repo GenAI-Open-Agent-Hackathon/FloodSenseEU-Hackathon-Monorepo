@@ -318,7 +318,12 @@ def _customer_of(source: dict[str, Any]) -> str:
 def _event_of(source: dict[str, Any]) -> str:
     # The request's event first: a run routed to EMSR517 by its question still
     # answers the ask that sent EMSR773 (agents events.route_event).
-    return canonical_event(_request_of(source).get("event_id") or source.get("event_id"))
+    # A run's own event_id may be the routed one; its request is what was asked.
+    request = source.get("request")
+    # A request that carries the key (every RunRequest dump does) decides, even as None.
+    if isinstance(request, dict) and "event_id" in request:
+        return canonical_event(request.get("event_id"))
+    return canonical_event(source.get("event_id"))
 
 
 def _context_of(source: dict[str, Any]) -> tuple:
