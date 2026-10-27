@@ -410,6 +410,49 @@ class TaskTest(unittest.TestCase):
         self.assertNotIn("os.system", source)
         self.assertNotIn("python3", source)
 
+    def test_demo_seed_and_reset_run_in_the_api_container(self) -> None:
+        calls: list[list[str]] = []
+
+        def runner(argv: list[str], cwd: Path) -> int:
+            calls.append(argv)
+            return 0
+
+        self.assertEqual(tasks.main(["demo-seed"], root=self.root, runner=runner), 0)
+        self.assertEqual(tasks.main(["demo-reset"], root=self.root, runner=runner), 0)
+        self.assertEqual(calls[0][:4], ["docker", "compose", "-p", "floodsense-app"])
+        self.assertEqual(calls[0][-7:], ["exec", "-T", "api", "python", "-m", "app.demo_seed", "seed"])
+        self.assertEqual(calls[1][-1], "reset")
+
+    def test_demo_ratelimit_reports_429_and_retry_after(self) -> None:
+        import urllib.error
+
+        sent = []
+
+        class Ok:
+            status = 422
+            headers: dict = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def opener(req, timeout=None):
+            sent.append(req.data)
+            if len(sent) > 10:
+                raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {"Retry-After": "6"}, None)
+            return Ok()
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = tasks.cmd_demo_ratelimit("http://api.test", opener=opener)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(sent), 12)
+        self.assertEqual(set(sent), {b"[]"})
+        self.assertIn("Retry-After: 6s", out.getvalue())
+        self.assertIn("2 of 12 refused with 429", out.getvalue())
+
     @staticmethod
     def _fail_runner(argv: list[str], cwd: Path) -> int:
         raise AssertionError(argv)

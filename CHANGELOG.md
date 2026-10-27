@@ -11,6 +11,12 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- API `GET /system` (`app/system.py`): read-only status for the demo. Cache backend, key counts per prefix, hit and miss counters; rate-limit config, in-flight runs and recent 429s; engines health; the H-MEM count and the newest 5 memories with a `seeded` flag; the World Model board of the newest run; LLM lanes and providers. In-process counters in `app/metrics.py`. No secrets.
+- Engines `GET /hmem/memories?limit=`: the newest memories, read-only (no H-MEM query, no ledger entry).
+- `python tasks.py demo-seed`, `demo-reset` and `demo-ratelimit` (`api/app/demo_seed.py`). Seed stores labelled findings (reviewer `demo-seed`, "seeded for demo") for Valencia (Paiporta, Barranc del Poyo) and the Ahr (Altenahr) through the engines' approval store, with the recorded run's citations, and warms Redis with the two newest approved, Judge-passed runs so a repeat is served "Cached answer · not live".
+- UI insurer **System** page (`SystemPanel.tsx`, `#/insurer/system`): Memory, Cache, Rate limits and Models & engines cards, polling `/system` every 5 s, with a "seeded" chip on demo-seed items.
+- Compose passes `ENGINES_URL=http://engines:8300` to the api service.
+- Seeded memories stay labelled inside a run: `memory_used[].seeded` and `reviewer` (new contracts `memory_used`), the memory trace note, and a `[demo seed]` prefix in the Investigator prompt. Warmed cache entries keep the 30-day recording TTL; `/system` lists only warmed runs whose key is still live. demo-seed warns when `FF_SEMANTIC_CACHE` is off.
 - RAG corpus: four insurer and authority documents, all stored under licences that allow it (docs/legal/sources.md rows 15-18): EEA briefings on economic losses and the insurance protection gap (2025 and 2022, CC BY 4.0), EIOPA Staff Discussion Paper EIOPA-19/485 on the natural catastrophe protection gap (EIOPA legal notice), and the EU Floods Directive 2007/60/EC (Commission reuse policy). Tier 3, `event_id: null`. Not yet embedded: run `python scripts/rag_ingest.py` against pgvector.
 - Corpus manifest: optional `audience` (insurer, citizen, authority), `language` and `year` per document, checked by `fetch-rag-corpus`. Every entry now has them.
 - Evals: `evals/insurer_docs.yaml` (`ins-01` to `ins-03`, `--set insurer_docs`) needs the new documents and has its own aggregate. `run_evals.py` passes an item's `doc_query` and reports `source_cited` against its `expect_source` per item, per block and in the markdown report. Existing items are unchanged.
@@ -53,6 +59,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Changed
 
+- Evals run with H-MEM and the engines off (`FF_HMEM=false`, no `ENGINES_URL`, `NoMemory`/`NoWorld`), so seeded or approved memories never enter an eval run. The report header says "H-MEM off".
 - `retrieve_docs`: inside an event run the event top k is unchanged. For an insurer role or an insurance-type question (insur*, versicher*, seguro*, protection gap, economic loss(es), claims paid, policy/policies) it appends at most 2 event-agnostic passages, only from EU-wide documents or the event's country (no ES documents in EMSR517 runs, no DE documents in EMSR773 runs). `rag.chunks` has no country or audience column; the allowed doc_ids come from `rag_scope.json` (a warning is logged when it is missing). Each generic passage gets its own claim `C-doc-g<n>` built from that passage; it never sits on a claim from an event passage.
 
 ### Fixed

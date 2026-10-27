@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, TypedDict
 
-from floodsense_agents.engines import NoWorld, WorldModel
+from floodsense_agents.engines import NoWorld, WorldModel, memory_origin
 from floodsense_agents.models import Evidence, TraceEvent
 from floodsense_agents.nightshift import LLM
 from floodsense_agents.zetaris import Zetaris, now_utc
@@ -137,6 +137,7 @@ def memory_used(memories: list[dict] | None) -> list[dict]:
         if not isinstance(m, dict):
             continue
         prov = m.get("provenance") if isinstance(m.get("provenance"), dict) else {}
+        seeded, reviewer = memory_origin(m)
         out.append(
             {
                 "memory_id": m.get("memory_id"),
@@ -146,6 +147,8 @@ def memory_used(memories: list[dict] | None) -> list[dict]:
                 "approved_at": prov.get("learned_at"),
                 "text": str(m.get("content") or "")[:200],
                 "relevance": m.get("relevance"),
+                "reviewer": reviewer,
+                "seeded": seeded,
             }
         )
     return out

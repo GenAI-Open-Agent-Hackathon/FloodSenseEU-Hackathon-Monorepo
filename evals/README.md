@@ -26,3 +26,5 @@ ingested sources and add the reference answers and human labels per claim for th
 with its own aggregate. Its items add `doc_query` (passed to the run so the Investigator calls `retrieve_docs`) and `expect_source` (the corpus URL a cited claim should carry, reported as `source_cited`). They need `FF_RAG_DOCS` on and the corpus ingested.
 
 The report header names the provider. Numbers from a test provider are not the judged Nightshift path; say which one you report.
+
+**Memory is off in evals.** `run_evals.py` forces `FF_HMEM=false`, clears `ENGINES_URL`, and builds the graph with `NoMemory` and `NoWorld`, whatever `agents/.env` says. A memory seeded for a demo (`python tasks.py demo-seed`, reviewer `demo-seed`) or approved by an analyst therefore never reaches an eval run, and a score cannot lean on an earlier answer. The report header says "H-MEM off".

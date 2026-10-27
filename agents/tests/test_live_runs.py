@@ -318,6 +318,8 @@ class MemoryUsedTest(unittest.TestCase):
                     "approved_at": "2026-10-01T10:00:00.000Z",
                     "text": "VAL03 peaked at 471 m3/s on 29 Oct.",
                     "relevance": 0.9,
+                    "reviewer": None,
+                    "seeded": False,
                 }
             ],
         )
