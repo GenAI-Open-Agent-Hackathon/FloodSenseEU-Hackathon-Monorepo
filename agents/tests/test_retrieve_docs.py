@@ -206,6 +206,33 @@ class GenericRankingTest(unittest.TestCase):
         self.assertNotIn("de-1", ids)
         self.assertEqual(ids[:3], ["ev773-a", "ev773-b", "ev773-c"])
 
+    def test_watch_run_reads_only_event_agnostic_documents(self) -> None:
+        ids = self._run("When did the Elbe flood?", "LIVE-EU", k=4)
+        self.assertEqual(ids, ["es-1", "de-1", "eu-1", "eu-2"])
+        self.assertFalse(any(i.startswith("ev") for i in ids))
+
+    def test_watch_run_with_a_country_keeps_that_country_and_eu(self) -> None:
+        result = retrieve_docs(
+            "When did the Elbe flood?",
+            4,
+            {"event_id": "LIVE-EU", "country": "de"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        self.assertIsNone(result.error)
+        self.assertEqual(
+            [c["chunk_id"] for c in result.citations], ["de-1", "eu-1", "eu-2", "eu-3"]
+        )
+
+    def test_committed_scope_has_the_river_history_documents(self) -> None:
+        scope = retrieve_mod.load_scope()
+        self.assertEqual(scope.get("wiki-2002-european-floods"), "EU")
+        self.assertIn("wiki-2002-european-floods", retrieve_mod.watch_doc_ids(scope, "CZ"))
+        self.assertNotIn("wiki-seine", retrieve_mod.watch_doc_ids(scope, "DE"))
+
     def test_no_generic_without_insurer_words_or_role(self) -> None:
         self.assertEqual(
             self._run("How much rain fell in Chiva?", "EMSR773"), ["ev773-a", "ev773-b"]

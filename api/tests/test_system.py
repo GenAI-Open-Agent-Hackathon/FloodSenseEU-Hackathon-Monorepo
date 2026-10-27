@@ -236,7 +236,8 @@ class SystemRouteTest(unittest.TestCase):
 class DemoSeedTest(unittest.TestCase):
     def test_every_seed_is_labelled_and_cited(self) -> None:
         events = {s["event_id"] for s in demo_seed.SEEDS}
-        self.assertEqual(events, {"EMSR773", "EMSR517"})
+        # LIVE-EU: the river-history seeds, recalled by Europe live watch runs
+        self.assertEqual(events, {"EMSR773", "EMSR517", "LIVE-EU"})
         text = json.dumps(demo_seed.SEEDS)
         for place in ("Paiporta", "Barranc del Poyo", "Altenahr"):
             self.assertIn(place, text)
