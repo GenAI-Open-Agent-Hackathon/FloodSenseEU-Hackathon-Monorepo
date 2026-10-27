@@ -106,6 +106,11 @@ describe("plain status mapping", () => {
     expect(v).toBe("Our model shows river flow at Alfafar centre at least twice its own recent normal (the past three days; not official).");
     expect(v).not.toMatch(/usual/);
   });
+  it("keeps the elevated model sentence free of a seasonal remark", () => {
+    const s = calmSentence("model", "over", "Loire", "Orleans");
+    expect(s).not.toMatch(/seasonal/i);
+    expect(s).toMatch(/Model, not an official warning\.$/);
+  });
   it("sorts worst first and separates gauges from model points in the counts", () => {
     const order = worstFirst(sources).map((s) => s.name);
     expect(order[0]).toBe("Passau Donau");

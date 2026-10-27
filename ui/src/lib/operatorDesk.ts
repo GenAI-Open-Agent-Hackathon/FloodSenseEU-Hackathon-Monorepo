@@ -541,8 +541,10 @@ const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? 
 
 export interface ForecastBrief {
   runId: string;
-  /** FloodSense screening word: Normal, Watch or Warning. Never an official level. */
+  /** FloodSense screening word: Normal, Watch or Elevated. Never an official level. */
   status: string | null;
+  /** Status plus its driver, e.g. "Elevated (river model)"; null on older runs. */
+  statusLabel: string | null;
   statusReason: string | null;
   lead: string;
   screening: string | null;
@@ -561,6 +563,7 @@ export function forecastBriefFrom(body: Record<string, unknown> | null, runId: s
   return {
     runId,
     status: str(f.status),
+    statusLabel: str(f.status_label),
     statusReason: str(f.status_reason),
     lead,
     screening: str(f.screening),
@@ -571,11 +574,13 @@ export function forecastBriefFrom(body: Record<string, unknown> | null, runId: s
   };
 }
 
-/** The screening word as a chip: red is reserved for a gauge above mean high water, so a rain screening is never red. */
-export function screeningView(status: string | null): StatusView {
-  if (status === "Normal") return { word: "Normal (screening)", tone: "normal", rank: 8 };
-  if (status === "Watch") return { word: "Watch (screening)", tone: "watch", rank: 3 };
-  if (status === "Warning") return { word: "Elevated rain (screening)", tone: "elevated", rank: 1 };
+/** The screening status with its driver as a chip: red is reserved for a gauge above mean high water, so a rain screening is never red. */
+export function screeningView(status: string | null, label?: string | null): StatusView {
+  const word = (fallback: string) => label?.trim() || fallback;
+  if (status === "Normal") return { word: word("Normal"), tone: "normal", rank: 8 };
+  if (status === "Watch") return { word: word("Watch"), tone: "watch", rank: 3 };
+  // "Warning" is the word older recorded runs carry; it is shown as Elevated, never as a warning.
+  if (status === "Elevated" || status === "Warning") return { word: word("Elevated"), tone: "elevated", rank: 1 };
   return { word: "No screening", tone: "unknown", rank: 9 };
 }
 

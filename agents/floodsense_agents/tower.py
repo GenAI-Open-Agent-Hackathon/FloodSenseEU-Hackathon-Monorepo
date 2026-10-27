@@ -367,7 +367,7 @@ def recovered_text(s: Source, prev: str) -> str:
     return f"{where(s)} is back to {word.lower()} (was {was})."
 
 
-_SCREEN = {fc.NORMAL: "normal", fc.WATCH: "watch", fc.WARNING: "elevated"}
+_SCREEN = {fc.NORMAL: "normal", fc.WATCH: "watch", fc.ELEVATED: "elevated"}
 
 
 def checked_text(s: Source, chk: dict) -> str:

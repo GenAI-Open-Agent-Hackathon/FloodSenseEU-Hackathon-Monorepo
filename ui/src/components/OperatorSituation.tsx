@@ -374,7 +374,7 @@ function FocusBrief({
         ) : (
           <>
             <p>
-              <StatusChip view={screeningView(outlook.brief.status)} /> <span className="muted small">FloodSense screening, not an official warning</span>
+              <StatusChip view={screeningView(outlook.brief.status, outlook.brief.statusLabel)} /> <span className="muted small">FloodSense screening, not an official warning</span>
             </p>
             <p>{outlook.brief.lead}</p>
             <ul className="op-claims">
