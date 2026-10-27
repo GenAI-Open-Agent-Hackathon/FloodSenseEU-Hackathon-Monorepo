@@ -10,8 +10,8 @@ Small, committable tables for the Valencia 2024 demo. Large downloads stay in `i
 | `ems_footprint.csv` | One row per EMSR773 layer: features, flooded hectares, bbox, download URL | `ems_footprint.py` | Copernicus EMS. Terms read; citation wording to check |
 | `osm_sites.csv` | 961 OSM sites (industrial, retail, school, health, emergency) in the Horta Sud bbox, tagged `in_flood_footprint` | `osm_sites.py` + `osm_query.overpassql` | OpenStreetMap, ODbL 1.0 |
 | `portfolio_synthetic.csv` | 359 invented commercial-property policies on the industrial and retail sites | `synthetic_portfolio.py` (seed 773) | Generated. **Synthetic.** No personal data |
-| `ahr_discharge_daily.csv` | 44 rows: daily GloFAS discharge at AHR01-AHR04, 10-20 Jul 2021 (EMSR517 Ahr replay). Feeds migration 045 | `ahr_hazard.py` | Open-Meteo Flood API (GloFAS reanalysis), CC BY 4.0. Modelled |
-| `ahr_hazard_timeline.csv` | 384 rows: hourly UTC rain at AHR01-AHR04, 13-16 Jul 2021, with that day's discharge. Feeds migration 046 | `ahr_hazard.py` | Open-Meteo Historical Weather API (ERA5), CC BY 4.0. Modelled |
+| `ahr_discharge_daily.csv` | 44 rows: daily GloFAS discharge at AHR01-AHR04, 10-20 Jul 2021 (EMSR517 Ahr replay). Feeds migration 051 | `ahr_hazard.py` | Open-Meteo Flood API (GloFAS reanalysis), CC BY 4.0. Modelled |
+| `ahr_hazard_timeline.csv` | 384 rows: hourly UTC rain at AHR01-AHR04, 13-16 Jul 2021, with that day's discharge. Feeds migration 052 | `ahr_hazard.py` | Open-Meteo Historical Weather API (ERA5), CC BY 4.0. Modelled |
 | `provenance.csv` | Dataset, source URL, licence, attribution, access date for each dataset | by hand | See `docs/legal/sources.md` |
 | `eval_sources.md` | Draft source list for the evaluation set | by hand | n/a |
 
@@ -19,7 +19,7 @@ Small, committable tables for the Valencia 2024 demo. Large downloads stay in `i
 
 ```text
 Copernicus rapid-mapping API ──► raw/ems/*.zip ──► ems_footprint.py ──► ems_footprint.csv, valencia_points.csv
-Open-Meteo archive + Flood APIs ──► ahr_hazard.py ──► ahr_*.csv ──► (--migrations) zetaris/migrations/045, 046
+Open-Meteo archive + Flood APIs ──► ahr_hazard.py ──► ahr_*.csv ──► (--migrations) zetaris/migrations/051, 052
 Overpass API (osm_query.overpassql) ──► raw/osm_valencia.json ──► osm_sites.py ──► osm_sites.csv
 osm_sites.csv ──► synthetic_portfolio.py ──► portfolio_synthetic.csv
 ```

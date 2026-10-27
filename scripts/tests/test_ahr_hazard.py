@@ -1,4 +1,4 @@
-"""ingestion/prep/ahr_hazard.py with a fake HTTP fetch: rows, units, and the rendered 045/046."""
+"""ingestion/prep/ahr_hazard.py with a fake HTTP fetch: rows, units, and the rendered 051/052."""
 import os
 import sys
 import unittest
@@ -32,8 +32,8 @@ class AhrHazardTest(unittest.TestCase):
         self.assertIn("-- min_rows: 144", ah.render_discharge_migration(dis))
 
     def test_committed_migrations_match_committed_csvs(self):
-        for fname, render, src in (("045_seed_discharge_daily_ahr.sql", ah.render_discharge_migration, ah.DISCHARGE_CSV),
-                                   ("046_seed_hazard_timeline_ahr.sql", ah.render_hazard_migration, ah.HAZARD_CSV)):
+        for fname, render, src in (("051_seed_discharge_daily_ahr.sql", ah.render_discharge_migration, ah.DISCHARGE_CSV),
+                                   ("052_seed_hazard_timeline_ahr.sql", ah.render_hazard_migration, ah.HAZARD_CSV)):
             with open(os.path.join(ah.MIGRATIONS, fname), encoding="utf-8") as f:
                 self.assertEqual(f.read(), render(ah.read_csv(src)), fname)
 
