@@ -62,6 +62,14 @@ The alert control steps 28–31 Oct 2024 and adds a notice if modelled discharge
 
 The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls.
 
+### Look and citizen Overview
+
+Colours, type, and cards follow the team's mock UI (`Hackathon-Monorepo-mock-ui`); the tokens are at the top of `src/styles/global.css`. Citizen Overview asks "Is my area at risk, and why?": place search and chips, a Risk right now card (discharge band and m³/s for the replay date, the answer's serving label, and the Judge overall score as 0.00–1.00, as on the other pages; there is no separate risk score), three numbered Why sentences with numbered source chips, What should I do (approved steps only), a river-gauge map, and gauge cards. Table and column names in claim text are reworded by `src/lib/plain.ts` on citizen and insurer pages; the original sentence stays under Technical detail or in the hover text. The answer serving line appears once, in the replay strip. Sources and licences are one collapsed footer. Under 760px the nav is a drawer (backdrop, Escape, closes after a pick) and the header is two rows.
+
+### River-gauge map
+
+`GET {VITE_API_URL}/views/gauge_levels` (Zetaris `floodsense.gauge_levels`, PEGELONLINE Rhine/Mosel gauges). The browser never calls PEGELONLINE. Numbers sent as strings are coerced. Markers sit at the view's `lat`/`lon` (fallback: `STATION_POSITIONS` in `src/lib/gauges.ts`), coloured by `band` (below, near, above, unknown = No threshold). Cards show level, `trend_cm_h` as rising/steady/falling, MW and MHW, and the measured time. Each row's origin comes from `source`: a seed, fixture or replay stamp is labelled Seed or Fixture (dashed marker), never Live. A row with `is_stale` true (or missing) is labelled Stale. Live appears only for a live-source, fresh row, and the map chip says Live only when every gauge is. The view is re-read every 5 minutes; a failed or empty read is retried, not cached. An empty or unreachable view says "No live gauge readings yet". No sample gauges are drawn. Tiles: OpenStreetMap via Leaflet.
+
 ## Fixture and live
 
 On load the screen paints the fixtures, then checks the API.

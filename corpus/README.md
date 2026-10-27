@@ -11,8 +11,11 @@ Layer (c) documents, shipped in `v0.14.0`. `FF_RAG_DOCS` stays off. This folder 
 | `hess-29-6715-2025` | `pdf/hess-29-6715-2025.pdf` | Rombeek, Hrachowitz, and Uijlenhoet (2025), CC BY 4.0 |
 | `nhess-23-1287-2023` | `pdf/nhess-23-1287-2023.pdf` | Ludwig, Mohr, and co-authors (2023), CC BY 4.0 |
 | `easyxlab-s19` | `pdf/easyxlab-s19.html` | EasyxLab S19 paper text. The Cloudflare scripts after the footer are not stored. The study's code is Apache-2.0 and is not in this folder. The Generalitat flood geometry is not in this file |
+| `nhess-23-525-2023` | `pdf/nhess-23-525-2023.pdf` | Mohr and co-authors (2023), CC BY 4.0. July 2021 event analysis (10 MB) |
+| `nhess-23-973-2023` | `pdf/nhess-23-973-2023.pdf` | Thieken and co-authors (2023), CC BY 4.0. German flood warning system in July 2021 |
+| `boe-a-2004-18910` | `pdf/boe-a-2004-18910-original.pdf` | RDL 7/2004, Consorcio de Compensacion de Seguros statute, original 2004 BOE text under the BOE reuse conditions. Tier 3. Not the consolidated text |
 
-Tier 3 is an admission rule. The manifest has no Tier 3 file. A bulletin is added only after `docs/legal/sources.md` records the licence, the attribution, and that full text may be stored.
+Tier 3 is an admission rule. The only Tier 3 file is `boe-a-2004-18910`. A bulletin is added only after `docs/legal/sources.md` records the licence, the attribution, and that full text may be stored.
 
 ```bash
 python tasks.py fetch-rag-corpus

@@ -245,6 +245,9 @@ class CommittedCorpusTest(unittest.TestCase):
                 "hess-29-6715-2025",
                 "nhess-23-1287-2023",
                 "easyxlab-s19",
+                "nhess-23-525-2023",
+                "nhess-23-973-2023",
+                "boe-a-2004-18910",
             ],
         )
         self.assertTrue(all(row["placement"] == "git" for row in manifest))
@@ -255,6 +258,9 @@ class CommittedCorpusTest(unittest.TestCase):
             "10.5194/nhess-23-1287-2023",
             "https://easybyte.es/lab/studies/s19/paper/",
             "CC BY 4.0",
+            "10.5194/nhess-23-525-2023",
+            "10.5194/nhess-23-973-2023",
+            "BOE-A-2004-18910",
         ):
             self.assertIn(needle, legal)
 

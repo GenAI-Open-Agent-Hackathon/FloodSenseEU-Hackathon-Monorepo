@@ -204,6 +204,11 @@ export function AskFloodSense() {
                   {badge} · {when}
                 </p>
               )}
+              <div className="segmented segmented--small ask-modes" role="group" aria-label="Answer mode">
+                <span className="segmented__option is-active" title="Answers are grounded in retrieved, cited sources">
+                  With retrieval
+                </span>
+              </div>
             </div>
             <button ref={closeRef} type="button" className="icon-button" aria-label="Close Ask FloodSense" onClick={dismiss}>
               <CloseIcon />

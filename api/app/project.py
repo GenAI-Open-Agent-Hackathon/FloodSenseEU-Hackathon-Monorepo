@@ -24,7 +24,10 @@ _DT = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
 )
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-_LOOSE_UTC = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?Z?$")
+# Zetaris returns a timestamp as 2026-10-23 00:00:00.0, so the fraction is
+# optional rather than absent. Without it a provenance row's fetched_at does
+# not parse and the citation it backs is dropped.
+_LOOSE_UTC = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?Z?$")
 
 
 def _http_url(value: object) -> bool:
