@@ -31,6 +31,7 @@ from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis, Loca
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
 from floodsense_agents.prompts import INVESTIGATOR, rows_block
+from floodsense_agents.provenance import rows_for as provenance_rows
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 from floodsense_agents.zetaris import now_utc, run_sql_parallel
@@ -71,15 +72,14 @@ def cite(claim_id: str, ev: Evidence, provenance: list[dict], n: int) -> list[Ci
             accessed_at=ev.executed_at_utc,
         )
     ]
-    dataset = ev.view.split(".")[-1]
-    for k, p in enumerate(x for x in provenance if x.get("dataset") == dataset):
+    for k, p in enumerate(provenance_rows(ev.view, provenance)):
         cits.append(
             Citation(
                 citation_id=f"{claim_id}-b{n}.{k + 1}",
                 claim_id=claim_id,
                 layer="b",
                 source_url=p.get("source_url"),
-                title=dataset,
+                title=p.get("dataset"),
                 publisher=p.get("publisher"),
                 licence=p.get("licence"),
                 attribution=p.get("attribution"),
