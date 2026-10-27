@@ -7,7 +7,9 @@ Point ids are the warehouse ids, not town slugs. Valencia is VAL01–VAL08
 004 and 012). Chiva is VAL07. Paiporta, on the Barranco del Poyo, is VAL01.
 Turís is not on that list, so it is not a filter. The Ahr ids are the
 ingestion/feeds/feeds.py tuple: AHR01 Altenahr, AHR02 Ahrweiler.
-floodsense_seed hazard and discharge views hold the Valencia series only.
+floodsense_seed hazard and discharge views hold Valencia and, since migrations
+051/052, a real Open-Meteo Ahr extract (AHR01-AHR04, ERA5 rain 13-16 Jul 2021,
+GloFAS discharge 10-20 Jul 2021). The live floodsense views are Valencia only.
 """
 
 from __future__ import annotations
