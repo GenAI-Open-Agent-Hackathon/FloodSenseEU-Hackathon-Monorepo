@@ -73,6 +73,9 @@ class StubRedis:
         self._check()
         return sum(1 for k in keys if self.data.pop(k, None) is not None)
 
+    def keys(self, pattern="*"):
+        return list(self.scan_iter(pattern))
+
     def scan_iter(self, match="*", count=None):
         self._check()
         prefix = match.rstrip("*")
