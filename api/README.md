@@ -52,6 +52,10 @@ Passed through to the agents' watch loop (`agents/README.md` "Control tower"): `
 
 ## System status (`GET /system`)
 
+## Views cache (`GET /views/{name}`)
+
+`app/views_cache.py`. The live views (`eu_watch`, `hazard_now`, `weather_forecast`, `discharge_daily`, `rain_hourly`, `hazard_timeline`) are Zetaris REST tables that call Open-Meteo at query time, so every page load, reviewer browser, tower scan and run repeated those calls and Open-Meteo answered 429. The API now keeps a copy per view name and query string: TTL 600 s for those views, 120 s for `gauge_levels` (the poller writes every 10 minutes), 1 h for `source=replay`; other views pass through. Concurrent requests for one key share one upstream call (single flight). If the upstream fails (5xx, 429, timeout) and a copy up to 24 h old exists, it is served with `x-views-cache: stale` and `x-views-age-s: N`, with the copy's own `x-query-id` and `x-executed-at`; it is never labelled fresh. A fresh read is `x-views-cache: miss` or `hit`. With no copy the upstream error goes through unchanged (502, or 503 when the agents are unreachable). Errors are never cached. Copies persist in Redis when `REDIS_URL` works (key prefix `floodsense:views:v1:`, same client as the answer cache) and always sit in memory; a restart with Redis keeps the last good copies. At startup a background thread reads each live view once, 5 s apart, skipping fresh copies (`VIEWS_CACHE_WARM=0` turns it off); `/health` never waits for it. `GET /system` carries `views_cache`: backend, hits, misses, stale serves and the last upstream error per view.
+
 `app/system.py`. Read-only, safe to poll (the UI System page polls every 5 s), `Cache-Control: no-store`. It returns no URL, key, token or `.env` value, and every dependency degrades on its own (`ok: false` plus an `error` line), so the route answers 200 while the agents or engines are down.
 
 | Field | What it says | Source |

@@ -7,6 +7,7 @@ import { summariseGauges, type GaugeSummary } from "../lib/gauges";
 import { summariseAll, type PointNow } from "../lib/now";
 import { DEMO_SNAPSHOT_AT, isDemo } from "../lib/demo";
 import { WATCH_TOTAL, type LiveHealth } from "../lib/mode";
+import { staleViews } from "../lib/staleness";
 import { oldestFetch } from "../lib/places";
 import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
 
@@ -136,11 +137,17 @@ export function useLiveWatch(): LiveWatch {
     (euWatch.state === "unavailable" || euWatch.state === "empty") && "GloFAS points (eu_watch)",
     hazard.state === "error" && "Valencia points (hazard_now)",
   ].filter((x): x is string => !!x);
+  const staleList = staleViews([
+    gauges.state === "rows" ? gauges.cache : null,
+    euWatch.state === "rows" ? euWatch.cache : null,
+    hazard.state === "ready" ? hazard.data.cache : null,
+  ]);
+  const staleKey = JSON.stringify(staleList);
   const loading = gauges.state === "loading" || euWatch.state === "loading" || hazard.state === "loading";
   const failedKey = failed.join("|");
   const health = useMemo<LiveHealth>(
-    () => ({ loaded: sources.length, total: WATCH_TOTAL, failed: failedKey ? failedKey.split("|") : [], loading }),
-    [sources.length, failedKey, loading],
+    () => ({ loaded: sources.length, total: WATCH_TOTAL, failed: failedKey ? failedKey.split("|") : [], loading, stale: JSON.parse(staleKey) as typeof staleList }),
+    [sources.length, failedKey, loading, staleKey],
   );
   useEffect(() => {
     reportLiveHealth(health);

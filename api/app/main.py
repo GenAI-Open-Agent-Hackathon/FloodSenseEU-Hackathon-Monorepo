@@ -20,6 +20,7 @@ lookups use CACHE_LOOKUP_TIMEOUT_S, not the 600s run budget. Rate limits
 Retry-After. GET routes are not limited.
 
 GET  /health                      this service
+GET  /views/{name}                contract view rows, cached (app/views_cache.py): x-views-cache miss | hit | stale
 GET  /config                      flags and lanes, from the agents
 GET  /system                      read-only status: memory, cache, rate limits, models (app/system.py)
 POST /runs                        start a run; returns when the graph pauses for human approval
@@ -57,6 +58,7 @@ import hmac
 import json
 import os
 import re
+import threading
 import time
 from typing import Any
 
@@ -79,6 +81,7 @@ from app.project import project_run
 from app.metrics import counters
 from app.ratelimit import RateLimiter, TokenBuckets
 from app.system import build_system
+from app.views_cache import ViewsCache, WARM_VIEWS
 
 AGENTS_URL = os.environ.get("AGENTS_URL", "http://127.0.0.1:8100").rstrip("/")
 UI_ORIGINS = [
@@ -99,6 +102,7 @@ TIMEOUT = httpx.Timeout(
 
 app = FastAPI(title="FloodSense EU", version="0.12.0")
 cache = AnswerCache()
+views_cache = ViewsCache(cache._redis)
 limiter = RateLimiter()
 # "Scan now" and the auto-assess switch: a small bucket of their own, so they never spend a run token.
 watch_buckets = TokenBuckets(float(os.environ.get("WATCH_CYCLES_PER_MIN") or 6))
@@ -108,7 +112,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
     # The UI reads the Zetaris query id and row metadata of /views from these headers.
-    expose_headers=["x-query-id", "x-schema", "x-source", "x-executed-at", "x-dropped-rows", "x-truncated", "Retry-After"],
+    expose_headers=["x-query-id", "x-schema", "x-source", "x-executed-at", "x-dropped-rows", "x-truncated", "x-views-cache", "x-views-age-s", "Retry-After"],
 )
 
 
@@ -352,6 +356,7 @@ async def system() -> JSONResponse:
         agents_json=_agents_json,
         lookup_timeout=_lookup_timeout(),
     )
+    body["views_cache"] = views_cache.stats()
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
 
@@ -628,29 +633,57 @@ async def past_runs(limit: int = 50, thread_id: str | None = None) -> Response:
 
 @app.get("/views/{name}")
 async def get_view(name: str, event_id: str | None = None, source: str | None = None) -> Response:
-    """Rows of one contract view. Not cached, not rate limited.
+    """Rows of one contract view, through the views cache (app/views_cache.py). Not rate limited.
 
-    source=replay asks for the event replay's schema (floodsense_seed for the Ahr);
-    the agents service validates it.
+    The live REST-backed views are cached per name and query string (x-views-cache: miss | hit),
+    and a copy up to 24 h old is served when the upstream fails (x-views-cache: stale,
+    x-views-age-s). source=replay asks for the event replay's schema (floodsense_seed for
+    the Ahr); the agents service validates it.
     """
-    params: dict | None = {}
+    params: dict[str, str] = {}
     if event_id is not None:
         params["event_id"] = event_id
     if source is not None:
         params["source"] = source
-    params = params or None
+
+    async def upstream() -> tuple[int, str, str, dict[str, str]]:
+        r = await _agents_request("GET", f"/views/{name}", params=params or None)
+        headers = {k: v for k, v in r.headers.items() if k.lower().startswith("x-")}
+        return (
+            r.status_code,
+            r.content.decode("utf-8", errors="replace"),
+            r.headers.get("content-type", "application/json"),
+            headers,
+        )
+
     try:
-        r = await _agents_request("GET", f"/views/{name}", params=params)
+        served = await views_cache.get(name, params, upstream)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"agents service unreachable at {AGENTS_URL}: {type(e).__name__}")
-    headers = {k: v for k, v in r.headers.items() if k.lower().startswith("x-")}
+    headers = served.response_headers()
     headers["cache-control"] = "no-store"
     return Response(
-        content=r.content,
-        status_code=r.status_code,
-        media_type=r.headers.get("content-type", "application/json"),
+        content=served.body,
+        status_code=served.status,
+        media_type=served.content_type,
         headers=headers,
     )
+
+
+def _fetch_view_sync(name: str) -> tuple[int, str, str, dict[str, str]]:
+    r = httpx.get(f"{AGENTS_URL}/views/{name}", timeout=TIMEOUT)
+    headers = {k: v for k, v in r.headers.items() if k.lower().startswith("x-")}
+    return r.status_code, r.text, r.headers.get("content-type", "application/json"), headers
+
+
+@app.on_event("startup")
+def _warm_views() -> None:
+    """Fill the views cache in the background: one call per live view, 5 s apart. /health never waits."""
+    if os.environ.get("VIEWS_CACHE_WARM", "1").strip().lower() in ("0", "false", "no", "off"):
+        return
+    threading.Thread(
+        target=views_cache.warm, args=(_fetch_view_sync, WARM_VIEWS), name="views-warm", daemon=True
+    ).start()
 
 
 @app.get("/runs/{run_id}")

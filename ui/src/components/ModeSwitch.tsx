@@ -3,6 +3,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { demoSnapshotText, DEMO_CHIP_TEXT } from "../lib/demo";
 import { EVENT_META, type EventId } from "../lib/events";
 import { isDemoIsolated, PAST_EVENTS } from "../lib/mode";
+import { staleNote } from "../lib/staleness";
 import type { LiveWatch } from "../hooks/useLiveWatch";
 import "../styles/mode.css";
 
@@ -133,7 +134,20 @@ export function ChoosePast({ title, children }: { title: string; children?: Reac
 export function LiveHealthNote({ live }: { live: Pick<LiveWatch, "health" | "refresh"> }) {
   const { demo, mode, setDemo } = useConsole();
   const h = live.health;
-  if (demo || mode === "past" || h.loading || h.failed.length === 0) return null;
+  if (demo || mode === "past" || h.loading) return null;
+  const stale = staleNote(h.stale ?? []);
+  if (h.failed.length === 0) {
+    return stale ? (
+      <div className="demo-offer live-health is-stale" role="status">
+        <span>
+          <strong>{stale}.</strong> The view is served from the last successful read, not live.
+        </span>
+        <button type="button" className="button" onClick={live.refresh}>
+          Retry
+        </button>
+      </div>
+    ) : null;
+  }
   return (
     <div className="demo-offer live-health" role="status">
       <span>

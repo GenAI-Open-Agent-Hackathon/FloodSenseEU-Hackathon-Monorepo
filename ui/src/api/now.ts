@@ -1,5 +1,6 @@
 import { asGaugeLevelRow, asHazardNowRow, parseList, type GaugeLevelRow, type HazardNowRow } from "../lib/now";
 import { demoFetch, isDemo } from "../lib/demo";
+import { cacheInfoOf, type ViewCacheInfo } from "../lib/staleness";
 import { apiBaseUrl, apiTimeoutMs } from "./config";
 
 export interface HazardNowResult {
@@ -8,6 +9,7 @@ export interface HazardNowResult {
   queryId: string | null;
   executedAt: string | null;
   truncated: boolean;
+  cache?: ViewCacheInfo;
 }
 
 /** Caller's signal (unmount, refresh) plus the configured timeout. */
@@ -43,6 +45,7 @@ export async function fetchHazardNow(signal: AbortSignal): Promise<HazardNowResu
     queryId: headers.get("x-query-id"),
     executedAt: headers.get("x-executed-at"),
     truncated: headers.get("x-truncated") === "true",
+    cache: cacheInfoOf("hazard_now", headers),
   };
 }
 

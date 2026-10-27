@@ -1,5 +1,6 @@
 import type { AskContext } from "./askContext";
 import { DEFAULT_EVENT_ID, EVENT_META, type EventId } from "./events";
+import { staleStripText, type StaleView } from "./staleness";
 
 /**
  * The one global mode. "live" is the live watch (all 45 sources); "past" is the replay of one chosen flood.
@@ -72,6 +73,8 @@ export interface LiveHealth {
   /** Plain names of the views that failed ("GloFAS points (eu_watch)"). */
   failed: string[];
   loading: boolean;
+  /** Views served from the API cache after the live source failed (last good copy). */
+  stale?: StaleView[];
 }
 
 export const WATCH_TOTAL = 45;
@@ -89,6 +92,8 @@ export function modeStripText(state: ModeState, checkedAt: number | null, health
   if (state.mode === "past") return `Past flood: ${EVENT_META[state.eventId].short} (replay)`;
   if (state.demo) return isDemoIsolated(page) ? "Demo data · bundled snapshot, not live" : "Live data (demo mode only affects the watch views)";
   const partial = health && health.failed.length > 0 && !health.loading ? ` · ${health.loaded} of ${health.total} sources` : "";
+  const old = health && !health.loading ? staleStripText(health.stale ?? []) : null;
+  if (old) return `Live data · ${old}`;
   if (checkedAt !== null) return `Live data · checked ${hhmmOf(checkedAt)} UTC${partial}`;
   if (!health || health.loading) return "Live data · checking…";
   return "Live data · unavailable";
