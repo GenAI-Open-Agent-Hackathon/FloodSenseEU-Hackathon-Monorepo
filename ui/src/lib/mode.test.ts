@@ -4,6 +4,7 @@ import { fetchGaugeLevels } from "../api/gauges";
 import { fetchEuWatch } from "../api/euWatch";
 import { fetchHazardNow } from "../api/now";
 import { contextForMode, modeSearch, modeStripText, modeUrl, parseModeSearch } from "./mode";
+import { replayStatus } from "./places";
 import { CITIZEN_PURPOSE, INSURER_PURPOSE } from "./pagePurpose";
 import { CITIZEN_PAGES, DESK_NAV, INSURER_PAGES } from "./route";
 
@@ -91,5 +92,15 @@ describe("page purpose table", () => {
         expect(readme, line).toContain(line);
       }
     }
+  });
+});
+
+describe("replay status", () => {
+  it("uses the event's own line, never Valencia's 20/80 demo lines, and is never red", () => {
+    expect(replayStatus(249.6, 100).word).toBe("Above the 100 m³/s FloodSense alert line");
+    expect(replayStatus(50, 100).word).toBe("Below the 100 m³/s FloodSense alert line");
+    expect(replayStatus(null, 100).word).toBe("No reading");
+    expect(replayStatus(249.6, 100).tone).not.toBe("warning");
+    expect(replayStatus(30, 100).word).not.toMatch(/20|80/);
   });
 });

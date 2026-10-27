@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { runBadge } from "../api/ask";
+import { fetchPastRuns } from "../api/pastRuns";
+import { useConsole } from "../context/ConsoleContext";
+import { eventLabel, newestCompletedFullRun } from "../lib/approvalQueue";
 import { adoptRunBody, fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import sampleRun from "../fixtures/run_f16733274f1c.json";
 import { AgentPipeline } from "./AgentPipeline";
@@ -12,11 +15,15 @@ export function sampleRecordedRun(): RecordedRun | null {
   return adoptRunBody(sampleRun as unknown as Record<string, unknown>, SAMPLE_RUN_ID);
 }
 
-type Source = { kind: "bundled" } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
+type Source = { kind: "bundled" } | { kind: "newest"; id: string; label: string; question: string | null } | { kind: "none"; label: string } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
 
 /** Pure: the note under the header for where the run came from. Null for a configured run that loaded. */
 export function causalChainNote(source: Source): string | null {
   switch (source.kind) {
+    case "newest":
+      return `Newest completed full run for ${source.label}${source.question ? `: “${source.question}”` : ""} (${source.id}).`;
+    case "none":
+      return `No completed full-lane run for ${source.label} yet. Showing the bundled recording of run ${SAMPLE_RUN_ID} instead, a Valencia 2024 example. Not live.`;
     case "bundled":
       return `Bundled recording of run ${SAMPLE_RUN_ID}, shipped with the UI. Not this session's run, not live.`;
     case "failed":
@@ -28,36 +35,55 @@ export function causalChainNote(source: Source): string | null {
   }
 }
 
-/** Insurer Review header: the agent graph of the reviewed run. VITE_REPLAY_RUN_ID, else the bundled recording, said so. */
+/**
+ * Insurer Review header: the agent graph of the reviewed run. VITE_REPLAY_RUN_ID wins; else the newest completed
+ * full-lane run for the current mode's event (from GET /runs/past); else the bundled recording, said so.
+ */
 export function CausalChainHeader() {
+  const { mode, eventId } = useConsole();
   const [run, setRun] = useState<RecordedRun | null>(() => sampleRecordedRun());
   const [source, setSource] = useState<Source>(() => {
     const id = replayRunId();
     return id ? { kind: "loading", id } : { kind: "bundled" };
   });
   useEffect(() => {
-    const id = replayRunId();
-    if (!id) return;
     const controller = new AbortController();
-    void fetchRecordedRun(id, undefined, controller.signal).then((r) => {
-      if (controller.signal.aborted) return;
-      if (r) {
-        setRun(r);
-        setSource({ kind: "configured", id });
-      } else setSource({ kind: "failed", id });
+    const configured = replayRunId();
+    const label = mode === "past" ? eventLabel(eventId) : "live data";
+    setRun(sampleRecordedRun());
+    if (configured) {
+      setSource({ kind: "loading", id: configured });
+      void fetchRecordedRun(configured, undefined, controller.signal).then((r) => {
+        if (controller.signal.aborted) return;
+        if (r) {
+          setRun(r);
+          setSource({ kind: "configured", id: configured });
+        } else setSource({ kind: "failed", id: configured });
+      });
+      return () => controller.abort();
+    }
+    setSource({ kind: "none", label });
+    void fetchPastRuns(50, controller.signal).then(async (list) => {
+      if (controller.signal.aborted || !list.ok) return;
+      const row = newestCompletedFullRun(list.rows, mode, eventId);
+      if (!row) return;
+      const r = await fetchRecordedRun(row.runId, undefined, controller.signal);
+      if (controller.signal.aborted || !r) return;
+      setRun(r);
+      setSource({ kind: "newest", id: row.runId, label, question: row.question });
     });
     return () => controller.abort();
-  }, []);
+  }, [mode, eventId]);
   if (!run) return null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
   const note = causalChainNote(source);
-  const isSample = run.runId === SAMPLE_RUN_ID && source.kind !== "configured";
+  const isSample = run.runId === SAMPLE_RUN_ID && source.kind !== "configured" && source.kind !== "newest";
   return (
     <section className="card agp-card" aria-label="Causal chain">
       <div className="stp-card-head">
         <p className="section-label">Causal chain</p>
         <span className={`stp-run-label stp-run-${kind}`}>
-          {run.servedFrom === "live" ? runBadge(run) : `Recorded run · not live · ${run.runId}`}
+          {run.servedFrom === "live" ? runBadge(run) : source.kind === "newest" ? `Past run · ${run.runId}` : `Recorded run · not live · ${run.runId}`}
         </span>
       </div>
       {note && (

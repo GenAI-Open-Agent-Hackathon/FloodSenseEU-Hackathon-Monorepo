@@ -41,10 +41,19 @@ export function ModeSwitch() {
           </select>
         </label>
       )}
-      <label className="mode-demo" title="Swap the live readings for a bundled snapshot. Chat is not affected.">
-        <input type="checkbox" checked={demo} onChange={(event) => setDemo(event.target.checked)} />
-        Demo data
-      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={demo}
+        className="mode-switch"
+        title="Swap the live readings for a bundled snapshot. Chat is not affected."
+        onClick={() => setDemo(!demo)}
+      >
+        <span className="mode-switch__track" aria-hidden="true">
+          <span className="mode-switch__thumb" />
+        </span>
+        <span>Demo data</span>
+      </button>
       <DemoChip />
     </div>
   );

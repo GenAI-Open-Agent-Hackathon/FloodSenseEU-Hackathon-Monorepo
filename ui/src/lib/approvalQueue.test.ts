@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptPastRuns, approvalHeader, buildQueue, pickSelection, queueRowLine, utcStamp } from "./approvalQueue";
+import { adoptPastRuns, approvalHeader, buildQueue, curateQueue, earlierText, isSmallTalk, pickSelection, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
 
 const PAST = {
   runs: [
@@ -54,7 +54,7 @@ describe("approval queue layout", () => {
 
   it("writes the row line from the run's own state and time", () => {
     const [row] = buildQueue(adoptPastRuns(PAST), null);
-    expect(queueRowLine(row)).toBe("Awaiting your decision · 27 Oct 2026, 10:30 UTC · LIVE-EU");
+    expect(queueRowLine(row)).toBe("Live · 10:30 UTC");
     expect(utcStamp("nonsense")).toBeNull();
   });
 });
@@ -78,7 +78,7 @@ describe("Approvals header", () => {
       { label: "Lane", value: "Full investigation" },
       { label: "Model", value: "Nemotron 3.5 Lightning 30B via Nightshift" },
       { label: "Judge", value: "0.91 · passes" },
-      { label: "Event", value: "LIVE-EU" },
+      { label: "Event", value: "Live" },
     ]);
     expect(h.note).toBeNull();
     // No serving or cache line from the console's fixture answer leaks into a live run's header.
@@ -98,5 +98,84 @@ describe("Approvals header", () => {
     expect(h.kind).toBe("example");
     expect(h.facts[0]).toEqual({ label: "Run", value: "run_fixture (example)" });
     expect(h.note).toMatch(/not live/);
+  });
+});
+
+describe("curateQueue", () => {
+  const row = (runId: string, over: Record<string, unknown> = {}) => ({
+    run_id: runId,
+    status: "awaiting_approval",
+    question: "Why was Altenahr at risk on 14 Jul 2021?",
+    created_at: "2026-10-27T12:28:00Z",
+    event_id: "EMSR517",
+    mode: "event",
+    lane: "full",
+    judge_overall: 1,
+    ...over,
+  });
+  const base = buildQueue(
+    adoptPastRuns([
+      row("new", { created_at: "2026-10-27T12:28:00Z" }),
+      row("old1", { created_at: "2026-10-27T10:06:00Z" }),
+      row("old2", { created_at: "2026-10-27T09:06:00Z" }),
+      row("hello", { question: "Hello, how are you FloodSense?", lane: "reply" }),
+      row("quick", { question: "How high is the Rhine?", lane: "quick" }),
+      row("fc", { question: "Do the next 48 hours look safe at Köln?", lane: "forecast" }),
+      row("noact", { question: "Is Bonn at risk?" }),
+      row("val", { question: "Why Paiporta?", event_id: "EMSR773" }),
+      row("live", { question: "Is the Elbe high?", event_id: "LIVE-EU", mode: "live" }),
+    ]),
+    null,
+  );
+  const counts = { new: 2, old1: 2, old2: 1, noact: 0, val: 1, live: 1 };
+  const input = { mode: "past" as const, eventId: "EMSR517", hidden: new Set<string>(), showHidden: false, actionCounts: counts };
+
+  it("keeps full-lane runs with outbound actions and folds duplicates into the newest", () => {
+    const { rows } = curateQueue(base, input);
+    expect(rows.map((r) => r.runId)).toEqual(["new"]);
+    expect(rows[0].earlier).toBe(2);
+    expect(earlierText(rows[0])).toBe("+2 earlier runs");
+    expect(queueRowLine(rows[0])).toBe("Ahr 2021 · 12:28 UTC · Judge 1.00");
+  });
+
+  it("drops small talk and abandoned running runs", () => {
+    expect(isSmallTalk("Hello, how are you FloodSense?")).toBe(true);
+    expect(isSmallTalk("Hi, how are you?")).toBe(true);
+    expect(isSmallTalk("Is Bonn at risk?")).toBe(false);
+    const q = buildQueue(
+      adoptPastRuns([
+        row("small", { question: "Hi, how are you?" }),
+        row("stale", { status: "running", created_at: "2026-10-27T08:00:00Z" }),
+        row("fresh", { status: "running", question: "Is Bonn at risk?", created_at: "2026-10-27T12:25:00Z" }),
+      ]),
+      null,
+    );
+    const out = curateQueue(q, { ...input, actionCounts: { small: 3 }, now: Date.parse("2026-10-27T12:30:00Z") });
+    expect(out.rows.map((r) => r.runId)).toEqual(["fresh"]);
+  });
+
+  it("scopes to the mode: Live shows live runs, Past the chosen event", () => {
+    expect(curateQueue(base, { ...input, mode: "live" }).rows.map((r) => r.runId)).toEqual(["live"]);
+    expect(curateQueue(base, { ...input, eventId: "EMSR773" }).rows.map((r) => r.runId)).toEqual(["val"]);
+  });
+
+  it("asks for the actions of runs it has not looked up yet", () => {
+    expect(curateQueue(base, { ...input, actionCounts: {} }).pendingIds.sort()).toEqual(["new", "noact"]);
+  });
+
+  it("hides a run until Show hidden, and counts it", () => {
+    const hidden = new Set(["new"]);
+    const a = curateQueue(base, { ...input, hidden });
+    expect(a.rows).toEqual([]);
+    expect(a.hiddenCount).toBe(1);
+    expect(curateQueue(base, { ...input, hidden, showHidden: true }).rows.map((r) => r.runId)).toEqual(["new"]);
+  });
+
+  it("round-trips the hidden list through storage", () => {
+    const mem: Record<string, string> = {};
+    const storage = { getItem: (k: string) => mem[k] ?? null, setItem: (k: string, v: string) => void (mem[k] = v) };
+    writeHidden(storage, new Set(["a", "b"]));
+    expect([...readHidden(storage)].sort()).toEqual(["a", "b"]);
+    expect(readHidden(null).size).toBe(0);
   });
 });

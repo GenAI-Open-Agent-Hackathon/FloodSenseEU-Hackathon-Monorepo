@@ -22,7 +22,6 @@ import { SafeLink } from "./SafeLink";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
 import { answerEventId, sourceFromCitation } from "../lib/sources";
 import {
-  dischargeBand,
   glofasDischargeNote,
   hazardOnDate,
   peakRow,
@@ -33,6 +32,7 @@ import {
   seriesFor,
   sourceExplanation,
 } from "../lib/series";
+import { REPLAY_EVENTS } from "../lib/disasterReplay";
 import { ahrDischarge, ahrMapPoints, EVENT_META } from "../lib/events";
 import {
   basisLabel,
@@ -44,13 +44,13 @@ import {
   plainOf,
   questionForPlace,
   quickPlaces,
+  replayStatus,
   searchPlaces,
   worstFirst,
   type Place,
   type StatusView,
 } from "../lib/places";
 import { evidenceForSource, GAUGE_PIPELINE, GLOFAS_PIPELINE, HAZARD_NOW_PIPELINE } from "../lib/liveEvidence";
-import type { DischargeBand } from "../types/ui";
 import { CitationList, ProvenanceList } from "./EvidenceDrawer";
 import { MapPanel } from "./MapPanel";
 import { Sparkline } from "./Sparkline";
@@ -62,14 +62,6 @@ import { LoadingNote, SlowSourceNote } from "./Loading";
 const WHY_CLAIMS = 3;
 const MAX_MATCHES = 60;
 
-/** A replay day's discharge band in plain words (FloodSense demo cuts, never an official level; never red). */
-const BAND_VIEW: Record<DischargeBand, StatusView> = {
-  low: { word: "Normal flow", tone: "normal", rank: 8 },
-  typical: { word: "Normal flow", tone: "normal", rank: 8 },
-  elevated: { word: "Above 20 m³/s demo line", tone: "neutral", rank: 5 },
-  peak: { word: "Above 80 m³/s demo line", tone: "elevated", rank: 4 },
-};
-const NO_READING: StatusView = { word: "No reading", tone: "unknown", rank: 9 };
 
 /**
  * The live views, the place list and the chosen place, shared by every citizen page. The global mode decides the
@@ -279,12 +271,13 @@ function ReviewedSteps() {
 
 /** Replay place: the replay day's discharge, as a plain status, labelled a past flood. */
 function replayReading(place: Place, desk: ReturnType<typeof useConsole>): { view: StatusView; m3s: number | null; day: string } {
+  const line = REPLAY_EVENTS.find((e) => e.eventId === place.eventId)?.thresholdM3s ?? 100;
   if (place.eventId === "EMSR517") {
     const row = ahrDischarge().find((r) => r.point_id === place.pointId && r.date === desk.ahrDate);
-    return { view: row ? BAND_VIEW[dischargeBand(row.discharge_m3s)] : NO_READING, m3s: row?.discharge_m3s ?? null, day: desk.ahrDate };
+    return { view: replayStatus(row?.discharge_m3s ?? null, line), m3s: row?.discharge_m3s ?? null, day: desk.ahrDate };
   }
   const row = rowAt(desk.discharge.rows, place.pointId ?? "", desk.date);
-  return { view: row ? BAND_VIEW[dischargeBand(row.discharge_m3s)] : NO_READING, m3s: row?.discharge_m3s ?? null, day: desk.date };
+  return { view: replayStatus(row?.discharge_m3s ?? null, line), m3s: row?.discharge_m3s ?? null, day: desk.date };
 }
 
 const TONE_CARD: Record<StatusView["tone"], string> = {
@@ -341,7 +334,7 @@ function RiskCard({ ctx }: { ctx: ReturnType<typeof useCitizenPlace> }) {
           <summary>Details</summary>
           <p className="note">
             {r.m3s === null ? "No river-flow reading for this day." : `${formatM3s(r.m3s)} m³/s modelled river flow (GloFAS) on ${formatDay(r.day)}.`}{" "}
-            Status uses FloodSense demo lines, not an official threshold. Change the day on Replay.
+            The line is FloodSense's own alert line for this replay, not an official threshold. Change the day on Replay.
           </p>
         </details>
         <div className="button-row">

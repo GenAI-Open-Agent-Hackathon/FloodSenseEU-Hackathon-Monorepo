@@ -260,3 +260,14 @@ export function headlineText(c: HeadlineCounts): string {
   return parts.join(" · ");
 }
 
+
+/**
+ * A replay day's status against the event's own replay line (REPLAY_EVENTS thresholdM3s, FloodSense's Watchers
+ * line, never an official threshold and never another event's demo line). Amber above the line, never red.
+ */
+export function replayStatus(m3s: number | null, threshold: number): StatusView {
+  if (m3s === null) return { word: "No reading", tone: "unknown", rank: 9 };
+  return m3s >= threshold
+    ? { word: `Above the ${threshold} m³/s FloodSense alert line`, tone: "elevated", rank: 4 }
+    : { word: `Below the ${threshold} m³/s FloodSense alert line`, tone: "normal", rank: 8 };
+}

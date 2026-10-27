@@ -13,7 +13,7 @@ import { GaugeList, GaugeMap } from "./GaugeMap";
 import { Sparkline } from "./Sparkline";
 import { LoadingNote, SlowSourceNote } from "./Loading";
 import { DemoChip } from "./ModeSwitch";
-import { demoSnapshotText } from "../lib/demo";
+import { DEMO_SNAPSHOT_AT, demoSnapshotText } from "../lib/demo";
 
 const REFRESH_MS = 5 * 60_000;
 const MODEL_NOTE = "Modelled (GloFAS via Open-Meteo), not an official warning";
@@ -107,8 +107,8 @@ export function InsurerNowPage() {
   const stamp = load.state === "ready" ? latestPastStamp(load.data.rows) : null;
   const fetchedAt = load.state === "ready" ? load.fetchedAt : null;
   useEffect(() => {
-    if (fetchedAt !== null) reportChecked(fetchedAt);
-  }, [fetchedAt, reportChecked]);
+    if (fetchedAt !== null) reportChecked(demo ? Date.parse(DEMO_SNAPSHOT_AT) : fetchedAt);
+  }, [fetchedAt, reportChecked, demo]);
 
   return (
     <div className="now-page">
@@ -117,7 +117,7 @@ export function InsurerNowPage() {
           <h2 className="now-title">Right now{stamp ? ` · ${localTime(stamp)}` : ""}</h2>
           {load.state === "ready" && (
             <p className="now-meta" aria-live="polite">
-              <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />} Updated {relativeTime(load.fetchedAt, clock)}
+              <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />}{demo ? "" : ` Updated ${relativeTime(load.fetchedAt, clock)}`}
               {load.data.queryId ? ` · Zetaris query ${load.data.queryId.slice(0, 8)}` : ""}
               {load.data.dropped > 0 ? ` · ${load.data.dropped} rows dropped` : ""}
               {load.data.truncated ? " · truncated" : ""}

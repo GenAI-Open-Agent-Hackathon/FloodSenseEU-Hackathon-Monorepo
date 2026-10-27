@@ -86,7 +86,7 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
       <div className="card-head">
         <div>
           <p className="section-label">
-            Map · {EVENT_META[eventId].short} · {eventId}
+            Map · {EVENT_META[eventId].short}
           </p>
           <h2>Points on {formatDay(date)}</h2>
         </div>
@@ -103,7 +103,7 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
       </div>
       {ahr && (
         <p className="note" id={exposureNote}>
-          Exposed sites are off: no insured book is loaded for EMSR517.
+          Exposed sites are off: no insured book is loaded for Ahr 2021.
         </p>
       )}
       <div className="toolbar">

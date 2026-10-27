@@ -51,6 +51,7 @@ export function ReviewColumn() {
         </div>
       </div>
       <ServingLine inline />
+      <p className="note">Example answer: the bundled Valencia 2024 recording. The agent graph above is the newest completed run for the current mode when there is one.</p>
       <p className="note">
         Skeptic notes and Judge scores are fixtures for this screen. They are not a Nightshift call, and they do not
         choose a model lane. The human still decides. Nothing here is sent.

@@ -150,12 +150,12 @@ function ReplayExposure() {
     return (
       <section className="card" aria-label="Replay exposure">
         <p className="section-label">
-          Replay exposure · {EVENT_META[desk.eventId].short} · {desk.eventId} · not live
+          Replay exposure · {EVENT_META[desk.eventId].short} · not live
         </p>
         <h2>No insured book for this event</h2>
         <p className="note">
-          The synthetic portfolio (exposure_join) is joined to the EMSR773 Valencia footprint only. There are no policies or footprint rows for{" "}
-          {desk.eventId}, so there is nothing to total here.
+          The synthetic demo portfolio sits in Valencia, so it is joined to the Valencia 2024 flood footprint only. It has no policies or footprint rows
+          for {EVENT_META[desk.eventId].short}, so there is nothing to total here.
         </p>
         <div className="button-row">
           <button type="button" className="button" onClick={() => desk.setEventId("EMSR773")}>
@@ -171,7 +171,7 @@ function ReplayExposure() {
       <div className="card-head">
         <div>
           <p className="section-label">Replay exposure · {formatDay(desk.date)} · not live</p>
-          <h2 id="pf-replay">Synthetic book against the EMSR773 footprint</h2>
+          <h2 id="pf-replay">Synthetic book against the Valencia 2024 flood footprint</h2>
         </div>
         <span className="chip chip--sample">Replay of a past event</span>
       </div>
@@ -214,7 +214,7 @@ function ReplayExposure() {
         </ul>
       )}
       <p className="note">
-        Portfolio rows are synthetic. exposure_join.in_footprint marks them against the Copernicus EMSR773 footprint of the 29 Oct 2024 flood.
+        Portfolio rows are synthetic. exposure_join.in_footprint marks them against the Copernicus Valencia 2024 footprint of the 29 Oct 2024 flood.
       </p>
     </section>
   );
