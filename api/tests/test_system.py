@@ -169,12 +169,19 @@ class SystemBodyTest(unittest.TestCase):
         stub.set(CACHE_PREFIX + "a", "{}")
         stub.set(REPLAY_PREFIX + "b", "{}")
         stub.set(REPLAY_PREFIX + "c", "{}")
-        stub.set(DEMO_SEED_KEY, json.dumps({"run_ids": ["r1"]}))
+        marker = {
+            "run_ids": ["r1", "gone"],
+            "entries": [
+                {"run_id": "r1", "cache_key": CACHE_PREFIX + "a"},
+                {"run_id": "gone", "cache_key": CACHE_PREFIX + "expired"},
+            ],
+        }
+        stub.set(DEMO_SEED_KEY, json.dumps(marker))
         stub.set("other", "{}")
         body = build(cache=AnswerCache(CacheSettings(), redis_client=stub))
         self.assertEqual(body["cache"]["backend"], "redis")
         self.assertEqual(body["cache"]["keys"], {"cache": 1, "replay": 2, "demo": 1})
-        self.assertEqual(body["cache"]["seeded_runs"], ["r1"])
+        self.assertEqual(body["cache"]["seeded_runs"], ["r1"])  # the expired one is not listed
 
     def test_helpers(self) -> None:
         self.assertTrue(is_seeded({"run_id": "demo-seed-x"}))
@@ -297,9 +304,24 @@ class DemoSeedTest(unittest.TestCase):
         self.assertEqual(marker["note"], "seeded for demo")
         keys = cache.key_counts()
         self.assertEqual(keys, {"cache": 2, "replay": 2, "demo": 1})
+        self.assertEqual(cache.demo_seeded_live(), ["a", "c"])
+        for entry in marker["entries"]:
+            stored = json.loads(stub.get(entry["cache_key"]))
+            self.assertEqual(stored["ttl_s"], cache.settings.recording_ttl_s)
+            self.assertGreater(stub.ttl(entry["cache_key"]), 86400)
         with mock.patch("builtins.print"):
             demo_seed.reset(cache)
         self.assertEqual(cache.key_counts(), {"cache": 0, "replay": 0, "demo": 0})
+
+    def test_semantic_cache_warning(self) -> None:
+        off = AnswerCache(CacheSettings(semantic_cache=False), redis_client=None)
+        on = AnswerCache(CacheSettings(semantic_cache=True), redis_client=None)
+        self.assertIn("FF_SEMANTIC_CACHE=true", demo_seed.semantic_cache_warning(off))
+        self.assertIsNone(demo_seed.semantic_cache_warning(on))
+
+    def test_ahr_seed_is_not_an_eval_question(self) -> None:
+        questions = {s["question"] for s in demo_seed.SEEDS}
+        self.assertNotIn("What discharge did the Altenahr gauge reach?", questions)
 
     def test_warm_cache_needs_redis(self) -> None:
         cache = AnswerCache(CacheSettings(), redis_client=None)

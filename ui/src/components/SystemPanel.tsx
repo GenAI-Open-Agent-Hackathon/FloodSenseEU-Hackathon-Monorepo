@@ -5,7 +5,9 @@ import {
   countText,
   hitRate,
   laneLabel,
+  liveSummary,
   modelName,
+  providersLabel,
   shortUtc,
   type SystemStatus,
 } from "../lib/system";
@@ -17,19 +19,22 @@ export function SystemPanel() {
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    let alive = true;
+    // One request at a time: the next poll is scheduled only after this one settles,
+    // and unmounting aborts the request in flight and the pending timer.
+    const controller = new AbortController();
+    let timer: number | undefined;
     const tick = async () => {
-      const got = await fetchSystem();
-      if (!alive) return;
+      const got = await fetchSystem(undefined, controller.signal);
+      if (controller.signal.aborted || got.aborted) return;
       if (got.status) setStatus(got.status);
       setError(got.error);
       setCheckedAt(new Date());
+      timer = window.setTimeout(() => void tick(), SYSTEM_POLL_MS);
     };
     void tick();
-    const id = window.setInterval(() => void tick(), SYSTEM_POLL_MS);
     return () => {
-      alive = false;
-      window.clearInterval(id);
+      controller.abort();
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -48,14 +53,17 @@ export function SystemCards({
 }) {
   return (
     <div className="page-stack system-page">
-      <p className="note system-intro" aria-live="polite">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveSummary(status, error)}
+      </p>
+      <p className="note system-intro">
         What the agents remember, what the cache and the rate limits are doing, and which models answer. Refreshes every 5
         seconds.
         {checkedAt ? ` Last checked ${checkedAt.toLocaleTimeString("en-GB")}.` : " Checking…"}
         {status?.since ? ` Counters since ${shortUtc(status.since)} (API start).` : ""}
       </p>
       {error && (
-        <p className="status-note" role="status">
+        <p className="status-note">
           {error}
           {status ? ". Showing the last answer." : ""}
         </p>
@@ -89,8 +97,8 @@ function MemoryCard({ status }: { status: SystemStatus | null }) {
       {m && !m.ok && <p className="note">{m.error ?? "Engines not reachable."}</p>}
       {m && m.seeded > 0 && (
         <p className="note">
-          <span className="chip chip--sample">seeded</span> items were added by demo-seed before recording, not by an
-          analyst.
+          {m.seeded} of the latest {m.latest.length} are <span className="chip chip--sample">seeded</span>: added by
+          demo-seed before recording, not by an analyst.
         </p>
       )}
       {m && m.latest.length > 0 ? (
@@ -171,7 +179,7 @@ function ModelsCard({ status }: { status: SystemStatus | null }) {
   return (
     <section className="card system-card" aria-label="Models and engines">
       <p className="section-label">Models &amp; engines</p>
-      <h2>{mo?.ok ? `Nightshift · ${mo.providers.join(", ") || "nightshift"}` : "Models"}</h2>
+      <h2>{mo?.ok ? providersLabel(mo.providers) : "Models"}</h2>
       <p className="note">Which language models answer, and whether the memory and World Model engines are up.</p>
       {mo?.ok ? (
         <ul className="system-list">

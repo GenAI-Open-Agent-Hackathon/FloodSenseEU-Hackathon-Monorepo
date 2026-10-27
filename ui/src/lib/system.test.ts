@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SystemCards } from "../components/SystemPanel";
-import { countText, hitRate, laneLabel, modelName, parseSystem, shortUtc } from "./system";
+import { countText, hitRate, laneLabel, liveSummary, modelName, parseSystem, providersLabel, shortUtc } from "./system";
 
 const body = {
   counters_since_utc: "2026-10-27T08:00:00Z",
@@ -81,6 +81,18 @@ describe("helpers", () => {
     expect(countText(null)).toBe("–");
     expect(shortUtc("2026-10-27T09:12:00.000Z")).toBe("27 Oct 09:12 UTC");
     expect(shortUtc(null)).toBe("–");
+    expect(providersLabel(["nightshift"])).toBe("Nightshift");
+    expect(providersLabel([])).toBe("Nightshift");
+    expect(providersLabel(["nightshift", "anthropic"])).toBe("Nightshift + Anthropic (test)");
+  });
+
+  it("keeps the live summary free of the clock", () => {
+    const s = parseSystem(body)!;
+    const text = liveSummary(s, null);
+    expect(text).toBe("5 remembered findings, 1 of 2 live runs in flight, 2 refused in the last 5 minutes, engines up.");
+    expect(liveSummary(s, null)).toBe(text);
+    expect(liveSummary(null, null)).toBe("");
+    expect(liveSummary(null, "API not reached")).toContain("unavailable");
   });
 });
 
@@ -100,6 +112,12 @@ describe("SystemCards", () => {
     expect(out).toContain("1 of 2 live runs in flight");
     expect(out).toContain("Nemotron 3.5 Lightning 30B A3B");
     expect(out).toContain("engines up");
+    expect(out).toContain("<h2>Nightshift</h2>");
+    expect(out).not.toContain("Nightshift · nightshift");
+    expect(out).toContain("1 of the latest 2 are");
+    // Only the summary is live; the "Last checked" line is not.
+    expect(out.match(/aria-live/g)?.length).toBe(1);
+    expect(out).toMatch(/aria-live="polite"[^>]*>5 remembered findings/);
     expect(out).toContain("counts not exposed");
   });
 

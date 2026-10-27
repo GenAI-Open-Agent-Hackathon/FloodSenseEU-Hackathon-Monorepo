@@ -13,6 +13,7 @@ from .models import (
     Judge,
     JudgeClaim,
     Locator,
+    MemoryUsed,
     PlaybookAction,
 )
 
@@ -25,5 +26,6 @@ __all__ = [
     "Judge",
     "JudgeClaim",
     "Locator",
+    "MemoryUsed",
     "PlaybookAction",
 ]

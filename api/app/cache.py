@@ -707,6 +707,18 @@ class AnswerCache:
         _, value = self._redis.get_json(DEMO_SEED_KEY)
         return value
 
+    def demo_seeded_live(self) -> list[str]:
+        """Warmed run ids whose cache entry is still in Redis. An expired or evicted one is left out."""
+        marker = self.demo_seeded() or {}
+        live = []
+        for item in marker.get("entries") or []:
+            if not isinstance(item, dict) or not isinstance(item.get("cache_key"), str):
+                continue
+            _, value = self._redis.get_json(item["cache_key"]) if self._redis else (False, None)
+            if value is not None:
+                live.append(str(item.get("run_id")))
+        return live
+
     def stats(self) -> dict[str, Any]:
         """Flags, backend and this process's counts. No Redis scan."""
         backend = self.backend()

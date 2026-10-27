@@ -26,12 +26,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agents"))
 os.environ.setdefault("CHECKPOINTER", "memory")
 os.environ.setdefault("FF_JUDGE", "true")
+# Evals are isolated from memory: no H-MEM recall and no engines sidecar, so a
+# seeded (tasks.py demo-seed) or analyst-approved memory never reaches an eval
+# run. Forced, not defaulted: an exported FF_HMEM or ENGINES_URL is ignored here.
+os.environ["FF_HMEM"] = "false"
+os.environ["ENGINES_URL"] = ""
 
 import yaml  # noqa: E402
 from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 from floodsense_agents.graph import build_deps, build_graph  # noqa: E402
 from floodsense_agents.models import ApprovalDecision, RunRequest  # noqa: E402
+from floodsense_agents.engines import NoWorld  # noqa: E402
 from floodsense_agents.runtime import Runtime  # noqa: E402
+from floodsense_agents.state import NoMemory  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 EVENTS = {"EMSR773": "valencia_2024.yaml", "EMSR517": "ahr_2021.yaml"}
@@ -40,6 +47,14 @@ TARGETS = {
     "citation_coverage": (">=", 1.0),
     "numeric_accuracy": (">=", 1.0),
 }
+
+
+def isolated_deps():
+    """build_deps() without H-MEM or the World Model, whatever agents/.env says."""
+    deps = build_deps()
+    deps.memory = NoMemory()
+    deps.world = NoWorld()
+    return deps
 
 
 def mentions(text: str, token: str) -> bool:
@@ -154,7 +169,7 @@ def markdown(results: dict) -> str:
     out = [
         f"# FloodSense evals — {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}",
         "",
-        f"LLM `{results['llm']}` (provider `{results.get('provider', 'default')}`) · Zetaris `{results['zetaris']}` · targets: hallucination ≤ 5 %, "
+        f"LLM `{results['llm']}` (provider `{results.get('provider', 'default')}`) · Zetaris `{results['zetaris']}` · H-MEM off · targets: hallucination ≤ 5 %, "
         f"coverage 100 %, numeric 100 %",
         "",
     ]
@@ -199,12 +214,13 @@ def main(argv=None) -> int:
     )
     ap.add_argument("--items", help="comma-separated item ids to run (default: all)")
     args = ap.parse_args(argv)
-    deps = build_deps()
+    deps = isolated_deps()
     rt = Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps)
     results = {
         "llm": type(deps.llm).__name__,
         "provider": args.provider or "default",
         "zetaris": type(deps.zetaris).__name__,
+        "memory": "off (evals never recall H-MEM)",
         "events": {},
     }
     wanted = {i.strip() for i in args.items.split(",")} if args.items else None

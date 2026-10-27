@@ -16,6 +16,11 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 - `python tasks.py demo-seed`, `demo-reset` and `demo-ratelimit` (`api/app/demo_seed.py`). Seed stores labelled findings (reviewer `demo-seed`, "seeded for demo") for Valencia (Paiporta, Barranc del Poyo) and the Ahr (Altenahr) through the engines' approval store, with the recorded run's citations, and warms Redis with the two newest approved, Judge-passed runs so a repeat is served "Cached answer · not live".
 - UI insurer **System** page (`SystemPanel.tsx`, `#/insurer/system`): Memory, Cache, Rate limits and Models & engines cards, polling `/system` every 5 s, with a "seeded" chip on demo-seed items.
 - Compose passes `ENGINES_URL=http://engines:8300` to the api service.
+- Seeded memories stay labelled inside a run: `memory_used[].seeded` and `reviewer` (new contracts `memory_used`), the memory trace note, and a `[demo seed]` prefix in the Investigator prompt. Warmed cache entries keep the 30-day recording TTL; `/system` lists only warmed runs whose key is still live. demo-seed warns when `FF_SEMANTIC_CACHE` is off.
+
+### Changed
+
+- Evals run with H-MEM and the engines off (`FF_HMEM=false`, no `ENGINES_URL`, `NoMemory`/`NoWorld`), so seeded or approved memories never enter an eval run. The report header says "H-MEM off".
 
 ### Fixed
 

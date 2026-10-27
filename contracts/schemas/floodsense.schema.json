@@ -252,6 +252,22 @@
         }
       }
     },
+    "memory_used": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One past approved finding H-MEM recalled for the Investigator. Context only, never evidence. seeded is true for items added by tasks.py demo-seed, not by an analyst.",
+      "required": ["memory_id", "text", "seeded"],
+      "properties": {
+        "memory_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": ["string", "null"] },
+        "claim_id": { "type": ["string", "null"] },
+        "approved_at": { "type": ["string", "null"] },
+        "text": { "type": "string" },
+        "relevance": { "type": ["number", "null"] },
+        "reviewer": { "type": ["string", "null"] },
+        "seeded": { "type": "boolean" }
+      }
+    },
     "answer_fields": {
       "type": "object",
       "additionalProperties": false,
@@ -283,7 +299,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/playbook_action" }
         },
-        "judge": { "$ref": "#/$defs/judge" }
+        "judge": { "$ref": "#/$defs/judge" },
+        "memory_used": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/memory_used" }
+        }
       }
     },
     "answer_cache_rule": {

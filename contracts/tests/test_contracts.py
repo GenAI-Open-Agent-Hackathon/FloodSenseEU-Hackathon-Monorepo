@@ -27,6 +27,7 @@ from floodsense_contracts.models import (  # noqa: E402
     Judge,
     JudgeClaim,
     Locator,
+    MemoryUsed,
     ModelId,
     PlaybookAction,
 )
@@ -44,6 +45,7 @@ MODELS = {
     "judge": Judge,
     "playbook_action": PlaybookAction,
     "approval": Approval,
+    "memory_used": MemoryUsed,
     "answer_fields": Answer,
 }
 

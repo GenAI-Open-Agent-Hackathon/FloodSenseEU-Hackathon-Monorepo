@@ -191,7 +191,7 @@ async def build_system(
     keys, backend = await asyncio.gather(
         asyncio.to_thread(cache.key_counts), asyncio.to_thread(cache.backend)
     )
-    seeded = await asyncio.to_thread(cache.demo_seeded)
+    seeded_runs = await asyncio.to_thread(cache.demo_seeded_live)
     snap = counters.snapshot()
     rl = limiter.settings
     flags = (cfg or {}).get("flags") or {}
@@ -205,7 +205,7 @@ async def build_system(
             "hits": snap["cache_hits"],
             "misses": snap["cache_misses"],
             "replays_served": snap["replays_served"],
-            "seeded_runs": [str(r) for r in ((seeded or {}).get("run_ids") or [])],
+            "seeded_runs": seeded_runs,
         },
         "rate_limit": {
             "runs_per_min_per_client": rl.runs_per_min,

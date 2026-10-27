@@ -19,6 +19,7 @@ import math
 import re
 import time
 
+from floodsense_agents.engines import memory_origin
 from floodsense_agents.events import hazard_schema, point_label
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
 from floodsense_agents.live import (
@@ -254,8 +255,8 @@ def memory_block(memories: list[dict] | None) -> str:
     if not memories:
         return ""
     lines = [
-        f"- {m.get('content', '')} (run {m.get('run_id', '?')}, relevance "
-        f"{float(m.get('relevance') or 0):.2f})"
+        f"- {'[demo seed] ' if memory_origin(m)[0] else ''}{m.get('content', '')} "
+        f"(run {m.get('run_id', '?')}, relevance {float(m.get('relevance') or 0):.2f})"
         for m in memories[:MEMORY_PROMPT_MAX]
     ]
     return (

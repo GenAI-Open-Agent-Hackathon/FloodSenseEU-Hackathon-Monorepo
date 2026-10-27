@@ -146,6 +146,17 @@ class Approval(ContractModel):
     judge: Judge | None = None
 
 
+class MemoryUsed(ContractModel):
+    memory_id: str = Field(min_length=1)
+    run_id: str | None = None
+    claim_id: str | None = None
+    approved_at: str | None = None
+    text: str
+    relevance: float | None = None
+    reviewer: str | None = None
+    seeded: bool
+
+
 class Answer(ContractModel):
     run_id: str
     question: str
@@ -156,6 +167,7 @@ class Answer(ContractModel):
     cached_at: str | None = Field(default=None, pattern=DATE_TIME)
     playbook_actions: list[PlaybookAction] = Field(default_factory=list)
     judge: Judge | None = None
+    memory_used: list[MemoryUsed] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def cached_at_matches_served_from(self) -> Answer:

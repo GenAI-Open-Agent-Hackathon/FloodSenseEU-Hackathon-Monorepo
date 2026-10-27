@@ -127,6 +127,31 @@ export function modelName(id: string): string {
     .join(" ");
 }
 
+/** "Nightshift", or "Nightshift + Anthropic (test)" when the test switch is on. */
+export function providersLabel(providers: string[]): string {
+  const names = (providers.length ? providers : ["nightshift"]).map((p) =>
+    p === "nightshift" ? "Nightshift" : p === "anthropic" ? "Anthropic (test)" : p,
+  );
+  return [...new Set(names)].join(" + ");
+}
+
+/**
+ * The text of the page's live region. It changes only when something a listener cares about
+ * changes (memory count, in-flight runs, recent 429s, engines up or down, an error), never with
+ * the clock, so a screen reader is not interrupted every 5 seconds.
+ */
+export function liveSummary(status: SystemStatus | null, error: string | null): string {
+  if (!status) return error ? `System status unavailable: ${error}` : "";
+  const parts = [
+    `${countText(status.memory.count)} remembered findings`,
+    `${status.rateLimit.inFlight} of ${status.rateLimit.maxConcurrent} live runs in flight`,
+    `${status.rateLimit.recent429} refused in the last 5 minutes`,
+    `engines ${status.engines.ok ? "up" : "down"}`,
+  ];
+  if (error) parts.push(`last refresh failed: ${error}`);
+  return parts.join(", ") + ".";
+}
+
 /** Count or a dash while unknown. */
 export function countText(n: number | null): string {
   return n === null ? "–" : String(n);

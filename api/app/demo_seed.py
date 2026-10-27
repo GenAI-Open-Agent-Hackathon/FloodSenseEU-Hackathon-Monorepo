@@ -43,6 +43,7 @@ from app.cache import (
     DEMO_SEED_KEY,
     REPLAY_PREFIX,
     AnswerCache,
+    Entry,
     _slot,
     approved_by_a_person,
     ask_of,
@@ -130,7 +131,8 @@ SEEDS: list[dict[str, Any]] = [
     {
         "run_id": "demo-seed-ahr-altenahr",
         "event_id": "EMSR517",
-        "question": "What discharge did the Altenahr gauge reach?",
+        # Not an eval question (ahr-03 asks "What discharge did the Altenahr gauge reach?").
+        "question": "How high did the Ahr run at Altenahr in July 2021?",
         "claims": [
             {
                 "claim_id": "C2",
@@ -245,6 +247,8 @@ def warm_cache(agents_url: str, cache: AnswerCache, transport: httpx.BaseTranspo
             print("  cache: no approved, Judge-passed run in the agents yet; nothing warmed.")
             print("         Ask two questions, approve them on the Approvals page, then seed again.")
             return []
+        ttl = cache.settings.recording_ttl_s
+        entries: list[dict[str, str]] = []
         slots: list[str] = []
         questions: list[str] = []
         warmed: list[str] = []
@@ -252,8 +256,14 @@ def warm_cache(agents_url: str, cache: AnswerCache, transport: httpx.BaseTranspo
             run = runs[rid]
             if not cache.remember(run, flags):
                 continue
+            # A warmed entry lives as long as the recording (30 days), not the 15 min
+            # (live) or 1 day (replay) a cache entry gets, so it survives until recording.
+            key = key_of(run.get("request") or {}, flags)
+            cache._write_entry(key, Entry(rid, time.time(), ttl), ttl)
             warmed.append(rid)
-            slots.append(_slot(CACHE_PREFIX, key_of(run.get("request") or {}, flags)))
+            cache_key = _slot(CACHE_PREFIX, key)
+            slots.append(cache_key)
+            entries.append({"run_id": rid, "cache_key": cache_key})
             replay = _get(c, f"/runs/{rid}/replay")
             if isinstance(replay, dict):
                 cache.record(replay)
@@ -263,6 +273,8 @@ def warm_cache(agents_url: str, cache: AnswerCache, transport: httpx.BaseTranspo
             print(f"  cache: run {rid} warmed ({canonical_event(run.get('event_id'))}): {q}")
     marker = {
         "run_ids": warmed,
+        "entries": entries,
+        "ttl_s": cache.settings.recording_ttl_s,
         "questions": questions,
         "keys": slots,
         "seeded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -270,9 +282,18 @@ def warm_cache(agents_url: str, cache: AnswerCache, transport: httpx.BaseTranspo
     }
     if cache._redis is not None:
         cache._redis.set_json(DEMO_SEED_KEY, marker, cache.settings.recording_ttl_s)
-    if not cache.settings.semantic_cache:
-        print("  note: FF_SEMANTIC_CACHE is off in this process; a repeat is served from cache only when it is on.")
     return warmed
+
+
+def semantic_cache_warning(cache: AnswerCache) -> str | None:
+    """The warm hit needs FF_SEMANTIC_CACHE=true on the API. This runs with the API's env."""
+    if cache.settings.semantic_cache:
+        return None
+    return (
+        "WARNING: FF_SEMANTIC_CACHE is off for the API. The warmed runs are in Redis, but a repeat "
+        "question is answered live (or 429) until FF_SEMANTIC_CACHE=true is set in api/.env and "
+        "the api container is recreated."
+    )
 
 
 def reset(cache: AnswerCache) -> int:
@@ -286,7 +307,7 @@ def reset(cache: AnswerCache) -> int:
             cache._redis.delete(*keys, DEMO_SEED_KEY)
         print(f"  cache: removed {len(keys)} warmed keys and the marker.")
     print("  memory: H-MEM has no delete route. To start empty, stop the stack and remove the")
-    print("          engines volume: python tasks.py down, then docker volume rm floodsense-app_engines-data")
+    print("          engines volume: python tasks.py down, then docker volume rm floodsense-app_engines")
     return 0
 
 
@@ -302,6 +323,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "reset":
         return reset(cache)
     print("Demo seed (labelled: reviewer demo-seed, note 'seeded for demo')")
+    warning = semantic_cache_warning(cache)
+    if warning:
+        print(warning)
     code = 0
     if not args.skip_memory:
         try:
@@ -316,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
         except httpx.HTTPError as e:
             print(f"  cache: agents not reachable ({type(e).__name__})")
             code = 1
+    if warning and not args.skip_cache:
+        print(warning)
     print(json.dumps({"done": code == 0}))
     return code
 
