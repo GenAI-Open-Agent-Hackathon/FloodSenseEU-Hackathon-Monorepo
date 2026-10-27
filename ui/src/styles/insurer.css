@@ -77,8 +77,10 @@
 .assess__status { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
 .rehearsal__steps { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0.9rem 0 0.5rem; }
 .rehearsal__steps strong { min-width: 7.5rem; text-align: center; font-variant-numeric: tabular-nums; }
-.rehearsal__crossed { margin-top: 0.75rem; padding: 0.9rem 1rem; border: 1px solid var(--danger-border); border-radius: var(--radius-sm); background: var(--risk-severe-soft); display: flex; flex-direction: column; gap: 0.6rem; }
-.rehearsal__crossed p { margin: 0; overflow-wrap: anywhere; }
+.rehearsal__crossed { margin-top: 0.75rem; padding: 0.75rem 1rem; border: 1px solid var(--sample-border); border-left: 4px solid var(--warn-ink); border-radius: var(--radius-sm); background: var(--risk-moderate-soft); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.25rem; }
+.rehearsal__crossed p { margin: 0; overflow-wrap: anywhere; flex: 1 1 16rem; }
+/* The assess block sizes to its content here: its row-context flex-basis must not become a 17rem height. */
+.rehearsal__crossed .assess { flex: 0 1 auto; align-self: center; }
 
 /* ---- portfolio + live sites ---- */
 .demo-book { margin: 0.2rem 0 0.8rem; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); background: var(--sample-bg); border: 1px dashed var(--sample-border); color: var(--warn-ink); font-size: 0.88rem; font-weight: 600; }
@@ -96,8 +98,17 @@
   .apv-queue { position: static; }
 }
 @media (max-width: 480px) {
+  .apv-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .apv-facts div { padding: 0.4rem 0.55rem; }
+  .apv-facts dt { font-size: 0.66rem; }
+  .apv-facts dd { font-size: 0.85rem; }
+  .pf-table, .pf-table tbody, .pf-table tr, .pf-table td { display: block; }
+  .pf-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .pf-table tr { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.55rem 0.7rem; margin-bottom: 0.6rem; background: var(--surface); }
+  .pf-table td { border: 0; padding: 0.15rem 0; display: flex; gap: 0.6rem; justify-content: space-between; }
+  .pf-table td::before { content: attr(data-label); color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; flex: none; padding-top: 0.15rem; }
+  .pf-table td:first-child { font-weight: 650; }
   .apv-detail > .card, .alerts-page > .card { padding: 1rem; }
   .assess { flex-basis: 100%; }
   .assess .button { width: 100%; }
-  .pf-table th:nth-child(3), .pf-table td:nth-child(3) { white-space: nowrap; }
 }

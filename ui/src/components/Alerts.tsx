@@ -123,6 +123,7 @@ function LiveAlertMonitor() {
     gaugeExecutedAt: watch.gaugeExecutedAt,
     gauges: watch.gauges,
     points: watch.points,
+    valencia: watch.valencia,
     gaugeQueryId: watch.gaugeQueryId,
     modelQueryId: watch.modelQueryId,
     missing: watch.missing,

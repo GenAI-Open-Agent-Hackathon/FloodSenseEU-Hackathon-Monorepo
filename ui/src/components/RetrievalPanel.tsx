@@ -4,6 +4,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { numberRunReferences, refById } from "../lib/references";
 import { buildRetrieval } from "../lib/retrieval";
 import { RefMarks } from "./RefMarks";
+import { plainLanguage } from "../lib/plain";
 
 /**
  * Layer (c) retrieval: query → passages → Zetaris query id → Judge verdict per claim. Nothing when no layer (c).
@@ -36,7 +37,7 @@ export function RetrievalPanel({ run, scope }: { run: RecordedRun; scope?: strin
         return (
           <div key={g.claimId} className={`rag-group${g.flagged ? " rag-flagged" : ""}`}>
             <p className="rag-claim">
-              <span className="rag-k">{g.claimId}</span> {g.claimText} <RefMarks nums={nums} refs={refs.refs} />
+              <span className="rag-k">{g.claimId}</span> {plainLanguage(g.claimText)} <RefMarks nums={nums} refs={refs.refs} />
             </p>
             <ol className="rag-passages">
               {g.passages.map((p, i) => {

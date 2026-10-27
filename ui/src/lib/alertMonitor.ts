@@ -34,6 +34,8 @@ export interface AlertRow {
 export interface MonitorInput {
   gauges: readonly GaugeSummary[];
   points: readonly EuWatchRow[];
+  /** Valencia hazard_now points against the FloodSense demo lines (not official). */
+  valencia?: readonly WatchSource[];
   gaugeQueryId?: string | null;
   gaugeExecutedAt?: string | null;
   modelQueryId?: string | null;
@@ -41,9 +43,14 @@ export interface MonitorInput {
   missing?: readonly string[];
 }
 
-/** Pure: total watched sources with a position (what the Now map draws). */
+/** Pure: live sources with a position (PEGELONLINE gauges + GloFAS points), what the Now map draws. */
 export function watchedCount(input: MonitorInput): number {
   return input.gauges.filter((g) => g.lat !== null && g.lon !== null).length + input.points.length;
+}
+
+/** "37 live sources + 8 Valencia demo points": the one way every page counts the watch. */
+export function countsText(live: number, valencia: number): string {
+  return valencia > 0 ? `${live} live sources + ${valencia} Valencia demo points` : `${live} live sources`;
 }
 
 /**
@@ -91,6 +98,24 @@ export function elevatedSources(input: MonitorInput): { rows: AlertRow[]; notLiv
       station: null,
     });
   }
+  for (const s of input.valencia ?? []) {
+    const level = LEVEL_OF[s.status];
+    if (!level) continue;
+    if (!s.live) {
+      notLive += 1;
+      continue;
+    }
+    rows.push({
+      id: s.id,
+      source: s,
+      level,
+      status: statusView(s.kind, s.status),
+      basis: `${basisLabel(s.kind)} · FloodSense demo line, not official`,
+      at: s.measuredAt,
+      evidence: evidenceForSource(s, { queryId: null }),
+      station: null,
+    });
+  }
   rows.sort(
     (a, b) => a.status.rank - b.status.rank || (b.source.ratio ?? -1) - (a.source.ratio ?? -1) || a.source.name.localeCompare(b.source.name),
   );
@@ -117,7 +142,10 @@ export function monitorView(
   input: MonitorInput & { state: "loading" | "rows" | "empty" | "unavailable"; checkedAt: number | null },
 ): MonitorView {
   if (input.state === "loading") return { kind: "loading", text: "Checking the watched sources…" };
-  const total = watchedCount(input);
+  const liveCount = watchedCount(input);
+  const vCount = input.valencia?.length ?? 0;
+  const total = liveCount + vCount;
+  const counted = countsText(liveCount, vCount);
   if (input.state === "unavailable" && total === 0) {
     return { kind: "unavailable", text: "The live views could not be read. No alert can be shown until they answer." };
   }
@@ -129,19 +157,20 @@ export function monitorView(
     const counts = new Map<string, number>();
     for (const r of rows) counts.set(r.status.word, (counts.get(r.status.word) ?? 0) + 1);
     const parts = [...counts].map(([word, n]) => `${n} ${word}`).join(", ");
-    return { kind: "alerts", text: `${parts} of ${total} watched sources${at}${gap}`, rows, total, notLive };
+    return { kind: "alerts", text: `${parts} of ${counted}${at}${gap}`, rows, total, notLive };
   }
   const banded = [
     ...input.gauges.filter((g) => g.lat !== null && g.lon !== null).map((g) => g.status),
     ...input.points.map((p) => p.band),
+    ...(input.valencia ?? []).map((s) => s.status),
   ];
   const unknown = banded.filter((s) => s === "unknown").length;
   if (gap) {
-    return { kind: "calm", text: `None of the ${total} sources read is at watch level${at}${gap}`, total, notLive };
+    return { kind: "calm", text: `None of the ${counted} read is at watch level${at}${gap}`, total, notLive };
   }
   const text =
     unknown === 0
-      ? `All ${total} watched sources are below watch level${at}`
+      ? `All ${counted} are below watch level${at}`
       : `No watched source is at watch level: ${total - unknown} of ${total} below, ${unknown} without a threshold${at}`;
   return { kind: "calm", text, total, notLive };
 }
@@ -153,7 +182,7 @@ const PLACE_OK = /^[\p{L}\p{N}_ .,'()-]{1,64}$/u;
 export function assessQuestion(row: Pick<AlertRow, "source" | "status">): string {
   const s = row.source;
   const what = s.kind === "gauge" ? `the gauge reads ${row.status.word.toLowerCase()} (${s.value})` : `the GloFAS model reads ${row.status.word} (${s.value})`;
-  return `Assess the flood risk to our insured sites near ${s.name} on the ${s.river} right now: ${what}. What should the insurer do?`;
+  return `Assess the flood risk to our insured sites near ${s.name} ${s.river ? `on the ${s.river} ` : ""}right now: ${what}. What should the insurer do?`;
 }
 
 /**
@@ -163,6 +192,8 @@ export function assessQuestion(row: Pick<AlertRow, "source" | "status">): string
 export function assessContext(row: Pick<AlertRow, "source" | "station">): AskContext {
   const ctx: AskContext = { role: "insurer", page: "alerts" };
   if (PLACE_OK.test(row.source.name)) ctx.place = row.source.name;
+  const pid = /^valencia:([A-Z]{3}\d{2})$/.exec(row.source.id)?.[1];
+  if (pid) ctx.point_id = pid;
   if (row.station && STATION_OK.test(row.station)) ctx.station = row.station;
   return ctx;
 }

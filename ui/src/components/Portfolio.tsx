@@ -53,10 +53,10 @@ export function Portfolio() {
                 <tbody>
                   {nearest.groups.map((g) => (
                     <tr key={g.source.id}>
-                      <td>
+                      <td data-label="Nearest source">
                         {g.source.river ? `${g.source.river} at ${g.source.name}` : g.source.name} <span className="muted small">({g.source.kind === "gauge" ? "gauge" : "model"}, {g.source.country})</span>
                       </td>
-                      <td>
+                      <td data-label="Live status">
                         {g.near ? (
                           <span className={`plain-chip plain-chip--${statusView(g.source.kind, g.source.status).tone}`}>{statusView(g.source.kind, g.source.status).word}</span>
                         ) : (
@@ -64,10 +64,10 @@ export function Portfolio() {
                         )}
                         {!g.source.live && <span className="muted small"> · not live</span>}
                       </td>
-                      <td>
+                      <td data-label="Distance">
                         {Math.round(g.minKm) === Math.round(g.maxKm) ? `${Math.round(g.minKm)} km` : `${Math.round(g.minKm)}–${Math.round(g.maxKm)} km`}
                       </td>
-                      <td>{g.sites}</td>
+                      <td data-label="Sites">{g.sites}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -6,7 +6,7 @@ import { useInsurerWatch } from "../hooks/useInsurerWatch";
 import { EU_WATCH_BOUNDS, type WatchSource } from "../lib/euWatch";
 import { escapeHtml } from "../lib/gauges";
 import { statusView } from "../lib/places";
-import { hhmm, monitorView } from "../lib/alertMonitor";
+import { countsText, hhmm, monitorView } from "../lib/alertMonitor";
 import { statusLabel } from "../lib/origin";
 import { DEMO_BOOK_LINE } from "../lib/nearest";
 import type { ExposureJoinRow } from "../types/views";
@@ -23,7 +23,7 @@ export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
   const [showSites, setShowSites] = useState(true);
   const note = useId();
   const sites = showSites ? desk.exposure.rows : NO_SITES;
-  const view = monitorView({ ...watch, state: watch.state, checkedAt: watch.checkedAt });
+  const view = monitorView({ ...watch, valencia: watch.valencia, state: watch.state, checkedAt: watch.checkedAt });
   const gauges = watch.sources.filter((s) => s.kind === "gauge").length;
 
   return (
@@ -64,8 +64,8 @@ export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
         </li>
       </ul>
       <p className="note">
-        Circles: {gauges} PEGELONLINE gauges, level against the official MHW. Diamonds: {watch.sources.length - gauges} GloFAS model points, a model
-        band and not an official warning. Dashed: not live (stale or seed).
+        Circles: {gauges} PEGELONLINE gauges, level against the long-term MHW. Diamonds: {watch.sources.filter((s) => s.kind === "model").length} GloFAS model points, a model
+        band and not an official warning. Squares: {watch.valencia.length} Valencia demo points against FloodSense demo lines (not official). That is {countsText(gauges + watch.sources.filter((s) => s.kind === "model").length, watch.valencia.length)}. Dashed: not live (stale or seed).
         {watch.checkedAt !== null ? ` Checked ${hhmm(watch.checkedAt)}.` : ""} Pick a past flood above to replay it.
       </p>
     </section>

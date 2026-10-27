@@ -78,7 +78,7 @@ describe("live alert monitor filtering", () => {
     expect(watchedCount(input)).toBe(3);
     const view = monitorView({ ...input, state: "rows", checkedAt: NOW });
     expect(view.kind).toBe("calm");
-    expect(view.text).toBe("All 3 watched sources are below watch level · checked 11:42 UTC");
+    expect(view.text).toBe("All 3 live sources are below watch level · checked 11:42 UTC");
   });
 
   it("does not call a source without a threshold 'below'", () => {
@@ -88,11 +88,11 @@ describe("live alert monitor filtering", () => {
 
   it("headlines the alert count and reports an unreadable view as unavailable, not calm", () => {
     const alerts = monitorView({ gauges: [gauge("KAUB", "over"), gauge("BONN", "ok")], points: [model("EU08", "near")], state: "rows", checkedAt: NOW });
-    expect(alerts).toMatchObject({ kind: "alerts", text: "1 Above mean high water, 1 Watch (model) of 3 watched sources · checked 11:42 UTC" });
+    expect(alerts).toMatchObject({ kind: "alerts", text: "1 Above mean high water, 1 Watch (model) of 3 live sources · checked 11:42 UTC" });
     expect(monitorView({ gauges: [], points: [], state: "unavailable", checkedAt: NOW }).kind).toBe("unavailable");
     expect(monitorView({ gauges: [], points: [], state: "loading", checkedAt: null }).kind).toBe("loading");
     expect(monitorView({ gauges: [gauge("BONN", "ok")], points: [], missing: ["GloFAS points"], state: "rows", checkedAt: NOW }).text).toBe(
-      "None of the 1 sources read is at watch level · checked 11:42 UTC · GloFAS points could not be read",
+      "None of the 1 live sources read is at watch level · checked 11:42 UTC · GloFAS points could not be read",
     );
   });
 
@@ -103,5 +103,37 @@ describe("live alert monitor filtering", () => {
     const [frankfurt] = elevatedSources({ gauges: [gauge("FRANKFURT1 (ODER)", "over")], points: [] }).rows;
     // Digits and brackets break the agents' station pattern: the station is left out, the place stays.
     expect(assessContext(frankfurt)).toEqual({ role: "insurer", page: "alerts", place: "Frankfurt1 (Oder)" });
+  });
+});
+
+describe("Valencia demo points in the monitor", () => {
+  const val = (id: string, status: GaugeStatus) => ({
+    id: `valencia:${id}`,
+    kind: "valencia" as const,
+    name: "Paiporta centre",
+    river: "",
+    country: "ES",
+    lat: 39.43,
+    lon: -0.42,
+    status,
+    ratio: 1.2,
+    value: "up to 95.0 m³/s (now and next 48 h)",
+    live: true,
+    question: "",
+    measuredAt: "2026-10-27T10:00:00Z",
+  });
+
+  it("raises them through statusView, labelled as a demo line, and counts live + demo separately", () => {
+    const input = { gauges: [gauge("BONN", "ok")], points: [model("EU07", "ok")], valencia: [val("VAL01", "over"), val("VAL02", "ok")] };
+    const { rows } = elevatedSources(input);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status.word).toBe("Above 80 m³/s demo line");
+    expect(rows[0].basis).toMatch(/FloodSense demo line, not official/);
+    expect(assessContext(rows[0])).toMatchObject({ point_id: "VAL01", place: "Paiporta centre" });
+    expect(assessQuestion(rows[0])).not.toMatch(/on the  /);
+    const view = monitorView({ ...input, state: "rows", checkedAt: NOW });
+    expect(view.text).toBe("1 Above 80 m³/s demo line of 2 live sources + 2 Valencia demo points · checked 11:42 UTC");
+    const calm = monitorView({ gauges: [gauge("BONN", "ok")], points: [], valencia: [val("VAL02", "ok")], state: "rows", checkedAt: NOW });
+    expect(calm.text).toBe("All 1 live sources + 1 Valencia demo points are below watch level · checked 11:42 UTC");
   });
 });

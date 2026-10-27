@@ -8,6 +8,8 @@ export interface InsurerWatch {
   points: EuWatchRow[];
   /** Every source of the shared live watch (gauges, GloFAS points, Valencia hazard_now points). */
   sources: WatchSource[];
+  /** Valencia hazard_now demo points (FloodSense demo lines, not official). */
+  valencia: WatchSource[];
   gaugeQueryId: string | null;
   modelQueryId: string | null;
   gaugeExecutedAt: string | null;
@@ -33,6 +35,7 @@ export function useInsurerWatch(): InsurerWatch {
       gauges: live.gaugeSummaries,
       points: e.rows,
       sources: live.sources,
+      valencia: live.sources.filter((s) => s.kind === "valencia"),
       gaugeQueryId: "queryId" in g ? (g.queryId ?? null) : null,
       gaugeExecutedAt: "executedAt" in g ? (g.executedAt ?? null) : null,
       modelQueryId: e.queryId,
