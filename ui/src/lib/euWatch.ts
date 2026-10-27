@@ -80,7 +80,8 @@ export function stationName(station: string): string {
   return station.toLowerCase().replace(/(^|[\s(.-])(\p{L})/gu, (_, pre: string, c: string) => pre + c.toUpperCase());
 }
 
-export type SourceKind = "gauge" | "model";
+/** gauge: PEGELONLINE vs MHW; model: eu_watch GloFAS band; valencia: hazard_now GloFAS vs the FloodSense demo line. */
+export type SourceKind = "gauge" | "model" | "valencia";
 
 /** One marker / list row: a PEGELONLINE gauge or a GloFAS point. */
 export interface WatchSource {
@@ -97,6 +98,8 @@ export interface WatchSource {
   value: string;
   live: boolean;
   question: string;
+  /** Measured time (gauge), model day (eu_watch) or latest model hour (Valencia). */
+  measuredAt: string | null;
 }
 
 const STATUS_RANK: Record<GaugeStatus, number> = { over: 0, near: 1, ok: 2, unknown: 3 };
@@ -122,6 +125,7 @@ export function fromGauge(g: GaugeSummary): WatchSource | null {
     value: `${Math.round(g.levelCm)} cm${g.warningLevelCm ? ` · MHW ${Math.round(g.warningLevelCm)} cm` : ""}`,
     live: g.origin === "live" && !g.stale,
     question: questionFor(river, name),
+    measuredAt: g.measuredAt,
   };
 }
 
@@ -146,6 +150,35 @@ export function fromModel(r: EuWatchRow): WatchSource {
         : `7-day max ${Math.round(r.forecast_max_m3s)} m³/s${ratio === null ? "" : ` · ${ratio.toFixed(1)}× 30-day median`}`,
     live: r.forecast_max_m3s !== null && !r.source.toLowerCase().includes("seed"),
     question: questionFor(r.river, r.name),
+    measuredAt: r.as_of_date,
+  };
+}
+
+/** Valencia model point from hazard_now: the higher of now and the 48 h forecast max, against the demo cuts. */
+export function fromValencia(
+  point: { point_id: string; name: string; lat: number; lon: number },
+  now: { latest: { discharge_m3s: number | null; ts_utc: string } | null; forecastMax: { discharge_m3s: number } | null },
+  cuts: { watch: number; warning: number },
+): WatchSource {
+  const values = [now.latest?.discharge_m3s ?? null, now.forecastMax?.discharge_m3s ?? null].filter(
+    (v): v is number => v !== null,
+  );
+  const top = values.length ? Math.max(...values) : null;
+  const status: GaugeStatus = top === null ? "unknown" : top >= cuts.warning ? "over" : top >= cuts.watch ? "near" : "ok";
+  return {
+    id: `valencia:${point.point_id}`,
+    kind: "valencia",
+    name: point.name,
+    river: "",
+    country: "ES",
+    lat: point.lat,
+    lon: point.lon,
+    status,
+    ratio: top === null ? null : top / cuts.warning,
+    value: top === null ? "no model reading" : `up to ${top.toFixed(1)} m³/s (now and next 48 h)`,
+    live: top !== null,
+    question: `Is ${point.name} at risk in the next 48 hours?`,
+    measuredAt: now.latest?.ts_utc ?? null,
   };
 }
 

@@ -6,14 +6,19 @@ const ahr = { date: "2021-07-14" };
 
 describe("replayBarView (context strip)", () => {
   it("uses the live-watch wording on Now, on both desks", () => {
-    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live · Valencia model + Europe live watch" });
-    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live · Valencia model + Europe live watch");
+    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live · Europe live watch" });
+    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live · Europe live watch");
   });
 
-  it("names Valencia plainly on citizen Overview and My area", () => {
-    for (const page of ["overview", "area"] as const) {
-      const v = replayBarView({ role: "citizen", page }, "EMSR517", valencia, ahr);
-      expect(v.text).toBe("Viewing: Valencia flood · 29 Oct 2024 (replay of a past event)");
+  it("says Live data on citizen live pages, and names a chosen replay place plainly", () => {
+    for (const page of ["overview", "area", "actions", "evidence"] as const) {
+      expect(replayBarView({ role: "citizen", page }, "EMSR517", valencia, ahr)).toEqual({ kind: "live", text: "Live data" });
+      expect(replayBarView({ role: "citizen", page }, "EMSR517", valencia, ahr, "EMSR773").text).toBe(
+        "Viewing: Valencia flood · 29 Oct 2024 (replay of a past event)",
+      );
+      expect(replayBarView({ role: "citizen", page }, "EMSR773", valencia, ahr, "EMSR517").text).toBe(
+        "Viewing: Ahr flood · 14 Jul 2021 (replay of a past event)",
+      );
     }
   });
 
@@ -31,7 +36,7 @@ describe("replayBarView (context strip)", () => {
     for (const page of ["approvals", "portfolio", "alerts", "review", "how"] as const) {
       expect(replayBarView({ role: "insurer", page }, "EMSR773", valencia, ahr)).toEqual({ kind: "none", text: "" });
     }
-    for (const page of ["actions", "evidence", "how"] as const) {
+    for (const page of ["how"] as const) {
       expect(replayBarView({ role: "citizen", page }, "EMSR773", valencia, ahr).kind).toBe("none");
     }
   });
