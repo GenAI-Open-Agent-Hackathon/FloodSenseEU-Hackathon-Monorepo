@@ -240,14 +240,20 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
                 clock,
             ),
             (
-                # Reanalysis views (GloFAS / ERA5, migrations 051/052) carry no
-                # warning column values; a missing column is not a counter-example.
-                "a warning was issued for the river point, or the view carries no warnings",
-                f"SELECT COUNT(warning_level) AS warnings, COUNT(*) AS n FROM {s}.hazard_timeline "
-                f"WHERE point_id IN ({river_pts}) AND ts_utc BETWEEN ? AND ? HAVING COUNT(*) >= 1 "
-                f"AND (COUNT(warning_level) >= 1 OR (SELECT COUNT(warning_level) FROM "
-                f"{s}.hazard_timeline WHERE ts_utc BETWEEN ? AND ?) = 0)",
-                clock + clock,
+                "a warning was issued for the river point",
+                f"SELECT point_id, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline WHERE "
+                f"point_id IN ({river_pts}) AND warning_level IS NOT NULL AND ts_utc BETWEEN "
+                f"? AND ? GROUP BY point_id",
+                clock,
+                # Skip probe: reanalysis views (GloFAS / ERA5, migrations 051/052)
+                # carry no warnings at all, so the check cannot apply. A row here
+                # means skip; a skipped check is recorded and is not support.
+                (
+                    "the view carries no warnings in the window",
+                    f"SELECT COUNT(*) AS n FROM {s}.hazard_timeline WHERE ts_utc BETWEEN ? AND ? "
+                    f"AND warning_level IS NOT NULL HAVING COUNT(*) = 0",
+                    clock,
+                ),
             ),
         ]
     if h.link == "river->site":
@@ -308,14 +314,30 @@ def make(deps: Deps):
             ok, why = _generic_ok(h, state)
             rounds, qids, notes = 0, [], []
             checks = _checks_for(h, state)[: settings.skeptic_max_rounds] if ok else []
+            passed_n = skipped_n = 0
             if ok:
-                for name, sql, params in checks:
+                for name, sql, params, *probe in checks:
+                    if probe:
+                        why_skip, skip_sql, skip_params = probe[0]
+                        p = deps.zetaris.run_sql(skip_sql, skip_params or None)
+                        new_ev.append(p)
+                        qids.append(p.query_id)
+                        if p.error:
+                            notes.append(f"probe error ({name}): {p.error}")
+                        elif p.row_count >= 1:
+                            skipped_n += 1
+                            notes.append(f"skipped: {name} ({why_skip})")
+                            continue
                     rounds += 1
                     e = deps.zetaris.run_sql(sql, params or None)
                     new_ev.append(e)
                     qids.append(e.query_id)
                     passed = e.row_count >= 1 and not e.error
-                    notes.append(f"{'ok' if passed else 'FAILED'}: {name}")
+                    notes.append(
+                        f"{'ok' if passed else 'FAILED'}: {name}"
+                        + (f" (query error: {e.error})" if e.error else "")
+                    )
+                    passed_n += int(passed)
                     if not passed:
                         ok, why = False, f"counter-check failed: {name}"
                         break
@@ -325,11 +347,14 @@ def make(deps: Deps):
             # proposed. Live mode never rejects without a failed check.
             if ok and not checks:
                 verdict, rationale = "proposed", "unchecked: no counter-check applies to this link"
+            elif ok and passed_n == 0 and skipped_n:
+                # Skipped checks are not support.
+                verdict, rationale = "proposed", "unchecked: every counter-check was skipped; " + rationale
             elif not ok and rounds == 0 and is_live(state):
                 verdict, rationale = "proposed", f"unchecked: {why}"
             prompt = (
                 f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
-                f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "
+                f"{rows_block(new_ev[-len(qids):] if qids else [])}\nDETERMINISTIC RESULT: "
                 f"{verdict} ({rationale})"
             )
             h.status, h.rounds, h.evidence, h.rationale = verdict, rounds, qids, rationale

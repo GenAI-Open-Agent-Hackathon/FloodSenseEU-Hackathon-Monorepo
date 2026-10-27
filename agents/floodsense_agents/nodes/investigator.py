@@ -13,6 +13,7 @@ lane, in the Playbook.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import re
@@ -69,14 +70,29 @@ def numbers_in(text: str) -> list[float]:
     return out
 
 
+def _as_number(v) -> float | None:
+    """A cell as a float. The REST API returns every value as a string ('72.3')."""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v.strip())
+        except ValueError:
+            return None
+    return None
+
+
 def cell_values(evs: list[Evidence]) -> list[float]:
     """Every numeric cell of the cited rows (the values the Judge can match)."""
     out: list[float] = []
     for e in evs:
         for row in e.rows_sample:
             for v in row.values():
-                if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    out.append(float(v))
+                n = _as_number(v)
+                if n is not None:
+                    out.append(n)
     return out
 
 
@@ -86,6 +102,22 @@ _WORD_DATE = re.compile(
     rf"\b(?:\d{{1,2}}(?:[-–]\d{{1,2}})? {_MONTHS}(?: \d{{4}})?|{_MONTHS} \d{{1,2}}(?:, \d{{4}})?"
     rf"|{_MONTHS} \d{{4}})(?!\d)"
 )
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T][\d:.]*Z?)?")
+# A clock time: "00:00 UTC", "19:11".
+_CLOCK = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")
+# A number the text names as a line: "the 100 m3/s line", "threshold of 100", "above the 30 mm/h mark".
+_UNIT = r"(?:\s*(?:mm/h|mm|m3/s|m³/s|cm|%))?"
+_LINE_NAMED = re.compile(
+    rf"\b(?:the|a|an)\s+(\d+(?:\.\d+)?){_UNIT}\s+(?:anomaly\s+)?(?:line|threshold|mark|limit)\b"
+    rf"|\b(?:threshold|line|limit)\s+(?:of|at)\s+(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+# A coordinate filter: "lat 50.2-50.7, lon 6.6-7.4", "bbox 50.2, 50.7, ...".
+_FILTER_NAMED = re.compile(
+    r"\b(?:lat(?:itude)?|lon(?:gitude)?|bbox|bounding box)\b[\s:=]*\(?"
+    r"-?\d+(?:\.\d+)?(?:\s*(?:-|–|to|and|,)\s*-?\d+(?:\.\d+)?)*",
+    re.IGNORECASE,
+)
 
 
 def date_numbers(text: str) -> list[float]:
@@ -93,28 +125,71 @@ def date_numbers(text: str) -> list[float]:
     return [float(n) for m in _WORD_DATE.findall(text or "") for n in re.findall(r"\d+", m)]
 
 
-def cited_numbers(numbers: list[float], evs: list[Evidence], text: str = "") -> list[float]:
-    """Drop the numbers that are SQL literals of the cited queries, not cells.
+def _spans(rx: re.Pattern, text: str) -> list[tuple[int, int]]:
+    return [m.span() for m in rx.finditer(text)]
 
-    The model copied the bbox (50.2, 50.7, 6.6, 7.4) of the exposure query into
-    a claim's numbers; those are filters, not results, and the Judge scored the
-    claim 0 on numeric accuracy for them. A number that is a cell stays. A
-    number that is neither stays too, so the Judge still flags a wrong value.
+
+def cited_numbers(
+    numbers: list[float], evs: list[Evidence], text: str = ""
+) -> tuple[list[float], list[dict]]:
+    """(kept, dropped): drop a number only where the text itself says it is not a result.
+
+    A number is dropped only when it is not a cell of a cited row and every
+    place the text states it is explained: inside a date expression ("13 Jul
+    2021"), named as a declared line ("the 100 m3/s line"), or written as the
+    coordinate filter it is ("lat 50.2-50.7", and a literal of the cited SQL).
+    "Peaked at 100 m3/s" against a 250 cell stays, and the Judge flags it.
+    "13 m3/s on 13 Jul" keeps 13: one of its two mentions is a value.
+    Dropped numbers are returned with the reason, for Claim.numbers_dropped.
     """
     vals = cell_values(evs)
-    # SQL literals of the cited queries, and the day / year of dates the text spells out
-    # (the live Ahr run's C3 carried [13, 2021] for "13 Jul 2021").
-    literals = [x for e in evs for x in numbers_in(e.sql or "")] + date_numbers(text)
-    # A declared line the text compares against ("under the 30 mm/h line") is not a cell either.
-    literals += [float(d.value) for d in DEFINITIONS.values()]
     tol = settings.numeric_tolerance
+    sql_literals = [x for e in evs for x in numbers_in(e.sql or "")]
+    lines = [float(d.value) for d in DEFINITIONS.values()]
+    dates = _spans(_WORD_DATE, text) + _spans(_ISO_DATE, text) + _spans(_CLOCK, text)
+    named_lines = [
+        (m.span(), float(m.group(1) or m.group(2))) for m in _LINE_NAMED.finditer(text)
+    ]
+    filters = _spans(_FILTER_NAMED, text)
 
     def near(n: float, pool: list[float]) -> bool:
         return any(
             math.isclose(n, v, rel_tol=tol, abs_tol=0.5 if abs(n) < 10 else 0.0) for v in pool
         )
 
-    return [n for n in numbers if near(n, vals) or not any(math.isclose(n, x) for x in literals)]
+    def inside(span: tuple[int, int], spans: list[tuple[int, int]]) -> bool:
+        return any(a <= span[0] and span[1] <= b for a, b in spans)
+
+    mentions: dict[float, list[str | None]] = {}
+    for m in _NUM.finditer(text):
+        try:
+            n = float(m.group().replace(",", ""))
+        except ValueError:
+            continue
+        span = m.span()
+        why = None
+        if inside(span, dates):
+            why = "date"
+        elif any(inside(span, [s]) and math.isclose(n, v) for s, v in named_lines) and any(
+            math.isclose(n, x) for x in lines
+        ):
+            why = "named line"
+        elif inside(span, filters) and any(math.isclose(n, x) for x in sql_literals):
+            why = "query filter"
+        mentions.setdefault(n, []).append(why)
+
+    kept: list[float] = []
+    dropped: list[dict] = []
+    for n in numbers:
+        if near(n, vals):
+            kept.append(n)
+            continue
+        whys = next((w for k, w in mentions.items() if math.isclose(k, n)), [])
+        if whys and all(whys):
+            dropped.append({"value": n, "reason": whys[0]})
+        else:
+            kept.append(n)
+    return kept, dropped
 
 
 def cite(claim_id: str, ev: Evidence, provenance: list[dict], n: int) -> list[Citation]:
@@ -857,7 +932,8 @@ LIVE_PROMPT = (
 
 def _model(
     state: FloodState, deps: Deps, extra: list[Evidence]
-) -> tuple[list[Hypothesis], list[Claim], str, str] | None:
+) -> tuple[list[Hypothesis], list[Claim], str, str, list[dict]] | None:
+    """The model's chain; the last item lists the claims dropped, with why."""
     evidence = [Evidence(**e) for e in state["evidence"].values()] + extra
     live = (
         LIVE_PROMPT.format(schema=settings.schema, now=now_utc()) if is_live(state) else ""
@@ -878,26 +954,39 @@ def _model(
     known = {e.query_id: e for e in evidence}
     prov = state.get("provenance", [])
     claims = []
+    drops: list[dict] = []
     for c in js["claims"]:
         evs = [known[q] for q in c.get("query_ids", []) if q in known]
         if not live and evs and all(e.row_count == 0 or e.error for e in evs):
             # Event mode: a claim whose every cited query came back empty has no
             # rows behind it, and the Skeptic rejects its whole hypothesis for it
             # (live Ahr run: the empty warning_level query sank H1). Drop it.
-            log.info("investigator: dropped claim %s, its cited queries returned no rows", c.get("claim_id"))
+            errors = [f"{e.query_id}: {e.error}" for e in evs if e.error]
+            drop = {
+                "claim_id": str(c.get("claim_id")),
+                "reason": "errored evidence" if errors else "empty evidence",
+                "query_ids": [e.query_id for e in evs],
+                "errors": errors,
+            }
+            drops.append(drop)
+            log.warning(
+                "investigator: dropped claim %s (%s) %s", drop["claim_id"], drop["reason"], errors
+            )
             continue
         cid = str(c["claim_id"])
+        kept, gone = cited_numbers(
+            [float(x) for x in c.get("numbers", []) if isinstance(x, (int, float))]
+            or numbers_in(str(c["text"])),
+            evs,
+            str(c["text"]),
+        )
         claims.append(
             Claim(
                 claim_id=cid,
                 text=str(c["text"]),
                 kind=c.get("kind") if c.get("kind") in ("fact", "number", "cause") else "fact",
-                numbers=cited_numbers(
-                    [float(x) for x in c.get("numbers", []) if isinstance(x, (int, float))]
-                    or numbers_in(str(c["text"])),
-                    evs,
-                    str(c["text"]),
-                ),
+                numbers=kept,
+                numbers_dropped=gone,
                 citations=[x for i, e in enumerate(evs, 1) for x in cite(cid, e, prov, i)],
                 hypothesis_id=c.get("hypothesis_id"),
             )
@@ -913,7 +1002,7 @@ def _model(
         for h in js.get("hypotheses", [])
         if h.get("link") in LINKS
     ]
-    return hyps, claims, str(js.get("summary", "")), model_id
+    return hyps, claims, str(js.get("summary", "")), model_id, drops
 
 
 _DOC_SQL = (
@@ -949,6 +1038,35 @@ def _doc_locator(raw: dict) -> Locator | None:
     )
 
 
+def _verified_raw(raw: dict) -> bool:
+    """The retrieved row's quote hashes, its chunk hashes, and the quote is in the chunk."""
+    quote, digest = raw.get("quote"), raw.get("content_sha256")
+    text, text_digest = raw.get("text"), raw.get("text_sha256")
+    if not all(isinstance(x, str) and x for x in (quote, digest, text, text_digest)):
+        return False
+    return (
+        hashlib.sha256(quote.encode()).hexdigest() == digest
+        and hashlib.sha256(text.encode()).hexdigest() == text_digest
+        and quote in text
+    )
+
+
+def _doc_text(raw: dict, limit: int = 220) -> str:
+    """'<title>, p. N para. M: "<excerpt>"' with the excerpt cut from the verified quote."""
+    quote = " ".join(str(raw.get("quote")).split())
+    excerpt = quote
+    if len(excerpt) > limit:
+        cut = excerpt[:limit]
+        end = max(cut.rfind(". "), cut.rfind("; "))
+        excerpt = cut[: end + 1] if end > limit // 3 else cut[: cut.rfind(" ")]
+    loc = raw.get("locator") if isinstance(raw.get("locator"), dict) else {}
+    where = ", ".join(
+        f"{k} {loc[k]}" for k in ("page", "paragraph") if loc.get(k) is not None
+    )
+    title = _text(raw, "title") or "Document"
+    return f'{title}{", " + where if where else ""}: "{excerpt.strip()}"'
+
+
 def _attach_documents(claims, raws, request, query):
     """Append layer (c) citations to the named claim, or to a new fact claim C-doc."""
     target_id = request.get("doc_claim_id")
@@ -957,7 +1075,12 @@ def _attach_documents(claims, raws, request, query):
         None,
     )
     if target is None:
-        target = Claim(claim_id="C-doc", text=query, kind="fact")
+        # A document-only claim asserts what the top verified passage says, never
+        # the search query. No verifiable passage: no C-doc.
+        top = next((r for r in raws if _verified_raw(r)), None)
+        if top is None:
+            return claims, []
+        target = Claim(claim_id="C-doc", text=_doc_text(top), kind="fact")
         claims = [*claims, target]
     start = 1 + sum(1 for item in target.citations if item.layer == "c")
     rows_for_q: dict[str, list[dict]] = {}
@@ -1043,18 +1166,25 @@ def make(deps: Deps):
             hyps, claims, summary, extra = _deterministic(state, deps)
         model_id = "deterministic"
         lane = "sql"
+        drop_note = ""
         try:
             # Live: the deterministic hazard_now chain stands. A model-written
             # chain cited the empty threshold queries and lost the "nothing
             # crosses" answer; its numbers and past/forecast labels are not ours.
             got = None if findings is not None else _model(state, deps, extra)
             if got:
-                m_hyps, m_claims, m_summary, model_id = got
+                m_hyps, m_claims, m_summary, model_id, drops = got
+                drop_note = "".join(
+                    f"; dropped model claim {d['claim_id']} ({d['reason']}"
+                    + (f": {'; '.join(d['errors'])[:300]}" if d["errors"] else "")
+                    + ")"
+                    for d in drops
+                )
                 if m_hyps and m_claims:
                     hyps, claims, summary, lane = m_hyps, m_claims, m_summary or summary, "fast"
         except Exception as e:  # the deterministic chain is complete; the model only refines it
             log.warning("investigator: model step skipped (%s)", str(e)[:140])
-        doc_note = ""
+        doc_note = drop_note
         if deps.retrieve_docs is not None:
             request = state.get("request") or {}
             doc_query = request.get("doc_query")
@@ -1066,10 +1196,10 @@ def make(deps: Deps):
                         {"event_id": state.get("event_id")},
                     )
                 except Exception as exc:
-                    doc_note = f" retrieve_docs error: {str(exc)[:200]}"
+                    doc_note += f" retrieve_docs error: {str(exc)[:200]}"
                 else:
                     if result.error:
-                        doc_note = f" retrieve_docs error: {result.error}"
+                        doc_note += f" retrieve_docs error: {result.error}"
                     elif result.citations:
                         claims, doc_evidence = _attach_documents(
                             claims, result.citations, request, doc_query

@@ -138,6 +138,8 @@ class EventSpec:
     # (migrations 051/052) is in floodsense_seed, so an EMSR517 replay must
     # read it there or it reads Valencia's views and finds nothing.
     hazard_schema: str | None = None
+    # Every warehouse point id of the event (hazard_timeline / discharge_daily).
+    point_ids: tuple[str, ...] = ()
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -167,6 +169,7 @@ EVENTS: dict[str, EventSpec] = {
         ),
         (),
         ("Chiva", "Paiporta"),
+        point_ids=VALENCIA_POINT_IDS,
     ),
     "EMSR517": EventSpec(
         "EMSR517",
@@ -189,6 +192,7 @@ EVENTS: dict[str, EventSpec] = {
         RHINE_GAUGES,
         ("Altenahr", "Ahrweiler", "Bad Neuenahr-Ahrweiler", *GERMAN_PLACES),
         "floodsense_seed",
+        point_ids=AHR_POINT_IDS,
     ),
 }
 # Views whose rows are per event point (hazard and discharge), so the replay

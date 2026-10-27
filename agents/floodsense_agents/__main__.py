@@ -51,15 +51,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 
 from floodsense_agents import __version__
 from floodsense_agents import desk, labelling
-from floodsense_agents.events import (
-    AHR_POINT_IDS,
-    ALIASES,
-    EVENTS,
-    HAZARD_VIEWS,
-    VALENCIA_POINT_IDS,
-    hazard_schema,
-    spec,
-)
+from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import available_providers
 from floodsense_agents.readiness import report as readiness_report
@@ -535,10 +527,6 @@ def _usable(name: str, row: dict) -> bool:
 # ?source=replay: the views an event replay reads (events.hazard_schema), whatever
 # FF_LIVE_DATA says. The live floodsense hazard views hold Valencia only; the Ahr
 # 2021 extract (migrations 051/052) is in floodsense_seed.
-_REPLAY_POINTS: dict[str, tuple[str, ...]] = {
-    "EMSR773": VALENCIA_POINT_IDS,
-    "EMSR517": AHR_POINT_IDS,
-}
 
 
 def _replay_from(name: str, event_id: str | None) -> tuple[str, str]:
@@ -546,10 +534,10 @@ def _replay_from(name: str, event_id: str | None) -> tuple[str, str]:
     if name not in HAZARD_VIEWS:
         raise HTTPException(422, f"source=replay serves {', '.join(HAZARD_VIEWS)} only")
     key = ALIASES.get(event_id or "", event_id or "")
-    if key not in _REPLAY_POINTS:
-        raise HTTPException(422, f"source=replay needs event_id, one of {', '.join(_REPLAY_POINTS)}")
+    if key not in EVENTS or not EVENTS[key].point_ids:
+        raise HTTPException(422, f"source=replay needs event_id, one of {', '.join(EVENTS)}")
     schema = hazard_schema(EVENTS[key].as_dict(), "floodsense_seed")
-    ids = ", ".join(f"'{p}'" for p in _REPLAY_POINTS[key])
+    ids = ", ".join(f"'{p}'" for p in EVENTS[key].point_ids)
     return schema, f" WHERE point_id IN ({ids})"
 
 
