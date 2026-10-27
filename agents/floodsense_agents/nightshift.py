@@ -85,9 +85,7 @@ def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx
     with httpx.stream("POST", url, json=payload, headers=headers, timeout=timeout) as r:
         if r.status_code != 200:
             r.read()
-            return httpx.Response(
-                r.status_code, content=r.content, headers=r.headers, request=req
-            )
+            return httpx.Response(r.status_code, content=r.content, headers=r.headers, request=req)
         parts: list[str] = []
         finish = model = usage = None
         stray: list[str] = []  # error events or non-SSE lines, for the error message

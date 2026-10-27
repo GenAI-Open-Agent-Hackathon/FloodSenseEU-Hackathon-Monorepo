@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { adoptRunBody } from "../api/replay";
 import { buildRunRequest } from "../api/ask";
 import sample from "../fixtures/run_f16733274f1c.json";
 import ahr from "../fixtures/ahr_2021.json";
-import { ahrFixture, usableEventRows } from "./replaySource";
+import { ahrFixture, loadAhrRows, replayBadge, replayViewUrl, usableEventRows } from "./replaySource";
 import { chartDescription } from "../components/DisasterReplay";
 import { causalChainNote } from "../components/CausalChainHeader";
 import { buildPipeline, formatLatency, parseBoard, PIPELINE_ORDER } from "./pipeline";
@@ -212,6 +212,30 @@ describe("replay sources and labels", () => {
     ).toHaveLength(1);
     expect(ahrFixture().badge).toBe("Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris");
   });
+
+  it("reads the Ahr replay from floodsense_seed and badges it", async () => {
+    expect(replayViewUrl("http://api", "hazard_timeline", "EMSR517")).toBe(
+      "http://api/views/hazard_timeline?event_id=EMSR517&source=replay",
+    );
+    expect(replayBadge("floodsense_seed")).toBe("Replay · Zetaris floodsense_seed · not live");
+    const rows = [{ point_id: "AHR01", ts_utc: "2021-07-14T12:00:00Z", rain_mm: 5.5, discharge_m3s: 249.61 }];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(rows), { headers: { "x-schema": "floodsense_seed", "x-query-id": "q-1" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const got = await loadAhrRows(REPLAY_EVENTS[0]);
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain("source=replay");
+    expect(got.fromZetaris).toBe(true);
+    expect(got.badge).toBe("Replay · Zetaris floodsense_seed · not live");
+    expect(got.rows).toHaveLength(1);
+  });
+
+  it("falls back to the fixture when the replay read holds no AHR rows", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]")));
+    const got = await loadAhrRows(REPLAY_EVENTS[0]);
+    expect(got.fromZetaris).toBe(false);
+    expect(got.badge).toBe(ahrFixture().badge);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("describes the chart and the causal chain source", () => {
     const rows = ahr.hazard_timeline.filter((r) => r.point_id === "AHR01") as ReplayReading[];

@@ -48,14 +48,25 @@ const AHR_NAMES: Record<string, string> = {
   AHR03: "Upper Ahr",
 };
 
+/** Badge for rows read through `?source=replay`; `schema` is the x-schema header (floodsense_seed for the Ahr). */
+export function replayBadge(schema: string | null): string {
+  return `Replay · Zetaris ${schema || "floodsense_seed"} · not live`;
+}
+
+/** The replay read of one hazard view for an event: the seed views where the real Ahr rows live, not floodsense.* (Valencia only). */
+export function replayViewUrl(base: string, view: "hazard_timeline" | "discharge_daily", eventId: string): string {
+  return `${base}/views/${view}?event_id=${encodeURIComponent(eventId)}&source=replay`;
+}
+
 /**
- * Ahr rows: GET /views/hazard_timeline?event_id=EMSR517 when Zetaris serves AHR points for the window
- * (PR #61 seeds AHR01–AHR04), else the bundled Open-Meteo fixture, labelled as not from Zetaris.
+ * Ahr rows: GET /views/hazard_timeline?event_id=EMSR517&source=replay, which reads floodsense_seed (migrations 051/052)
+ * even when FF_LIVE_DATA points the app at the live floodsense views. Used when it holds AHR points for the window;
+ * else the bundled Open-Meteo fixture, labelled as not from Zetaris.
  */
 export async function loadAhrRows(event: DisasterEvent, signal?: AbortSignal): Promise<EventRows> {
   if (ahrSourceMode() === "fixture") return ahrFixture();
   try {
-    const r = await fetch(`${apiBaseUrl()}/views/hazard_timeline?event_id=${encodeURIComponent(event.eventId)}`, {
+    const r = await fetch(replayViewUrl(apiBaseUrl(), "hazard_timeline", event.eventId), {
       credentials: "omit",
       signal,
     });
@@ -63,11 +74,12 @@ export async function loadAhrRows(event: DisasterEvent, signal?: AbortSignal): P
       const rows = usableEventRows(await r.json(), event, "AHR");
       if (rows) {
         const ids = [...new Set(rows.map((x) => x.point_id))].sort();
+        const schema = r.headers.get("x-schema");
         return {
           rows,
           points: ids.map((id) => ({ point_id: id, name: AHR_NAMES[id] ?? id })),
-          source: `Zetaris hazard_timeline view, event ${event.eventId}, query id ${r.headers.get("x-query-id") ?? "n/a"}. ERA5 hourly rain, GloFAS daily discharge (modelled).`,
-          badge: "Zetaris · hazard_timeline",
+          source: `Zetaris ${schema ?? "floodsense_seed"}.hazard_timeline (replay), event ${event.eventId}, query id ${r.headers.get("x-query-id") ?? "n/a"}. ERA5 hourly rain, GloFAS daily discharge (modelled).`,
+          badge: replayBadge(schema),
           fromZetaris: true,
         };
       }

@@ -97,6 +97,28 @@ class ProjectionTest(unittest.TestCase):
             self.assertIn(row["status"], ("pending", "approved", "edited", "rejected"))
             self.assertNotEqual(row["status"], "auto")
 
+    def test_numbers_dropped_is_projected_and_matches_the_schema(self) -> None:
+        import copy
+
+        run = copy.deepcopy(self.graph_run)
+        cid = run["claims"][0]["claim_id"]
+        run["claims"][0]["numbers_dropped"] = [
+            {"value": 2021, "reason": "date"},
+            {"value": "bad", "reason": "x"},
+        ]
+        out = project_run(run)
+        self.assertIsNotNone(out)
+        claim = next(c for c in out["answer"]["claims"] if c["claim_id"] == cid)
+        self.assertEqual(claim["numbers_dropped"], [{"value": 2021.0, "reason": "date"}])
+        validator_for("answer").validate(out["answer"])
+        judge = out["answer"].get("judge")
+        if judge:
+            row = next((c for c in judge["claims"] if c["claim_id"] == cid), None)
+            if row is not None:
+                self.assertEqual(row["numbers_dropped"], [{"value": 2021.0, "reason": "date"}])
+        # Absent stays absent.
+        self.assertNotIn("numbers_dropped", self.projected["answer"]["claims"][-1])
+
     def test_a_live_label_is_not_invented_for_a_seed_run(self) -> None:
         self.assertNotEqual(self.graph_run["served_from"], "live")
         self.assertEqual(self.projected["answer"]["served_from"], self.graph_run["served_from"])

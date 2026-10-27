@@ -132,9 +132,7 @@ class Runtime:
             "reviewer_note": None,
         }
         out["status"] = "awaiting_approval" if paused else v.get("status", "running")
-        kind, at = labelling.computation_label(
-            v.get("replay_ts"), live=self._answers_are_live()
-        )
+        kind, at = labelling.computation_label(v.get("replay_ts"), live=self._answers_are_live())
         # A clocked replay stays replay. A stored "cache" mark must not hide
         # the clock on the way out of the checkpointer.
         stored = v.get("served_from")

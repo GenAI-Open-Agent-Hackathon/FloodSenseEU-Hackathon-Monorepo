@@ -36,15 +36,35 @@ class StringZetaris:
         self.sql.append(sql)
         self.sample = sample
         rows = [
-            {"policy_id": "P-1", "site_id": "S-1", "lat": "39.4", "lon": "-0.4",
-             "in_footprint": "true", "sum_insured_eur": "1000000", "segment": "retail",
-             "synthetic": "yes"},
-            {"policy_id": "P-2", "site_id": "S-2", "lat": "39.5", "lon": "-0.3",
-             "in_footprint": "false", "sum_insured_eur": "", "segment": "office",
-             "synthetic": "yes"},
+            {
+                "policy_id": "P-1",
+                "site_id": "S-1",
+                "lat": "39.4",
+                "lon": "-0.4",
+                "in_footprint": "true",
+                "sum_insured_eur": "1000000",
+                "segment": "retail",
+                "synthetic": "yes",
+            },
+            {
+                "policy_id": "P-2",
+                "site_id": "S-2",
+                "lat": "39.5",
+                "lon": "-0.3",
+                "in_footprint": "false",
+                "sum_insured_eur": "",
+                "segment": "office",
+                "synthetic": "yes",
+            },
         ]
-        return Evidence(query_id="q-1", view="x", sql=sql, rows_sample=rows[:sample],
-                        row_count=2, executed_at_utc="2026-10-26T00:00:00Z")
+        return Evidence(
+            query_id="q-1",
+            view="x",
+            sql=sql,
+            rows_sample=rows[:sample],
+            row_count=2,
+            executed_at_utc="2026-10-26T00:00:00Z",
+        )
 
 
 class RowsZetaris:
@@ -54,8 +74,14 @@ class RowsZetaris:
         self.rows = rows
 
     def run_sql(self, sql, params=None, sample=20):
-        return Evidence(query_id="q-2", view="x", sql=sql, rows_sample=self.rows[:sample],
-                        row_count=len(self.rows), executed_at_utc="2026-10-26T00:00:00Z")
+        return Evidence(
+            query_id="q-2",
+            view="x",
+            sql=sql,
+            rows_sample=self.rows[:sample],
+            row_count=len(self.rows),
+            executed_at_utc="2026-10-26T00:00:00Z",
+        )
 
 
 def _without_hazard_now() -> FakeZetaris:
@@ -67,7 +93,9 @@ def _without_hazard_now() -> FakeZetaris:
 class ViewsTest(unittest.TestCase):
     def _client(self, zetaris) -> TestClient:
         deps = Deps(zetaris=zetaris, llm=FakeNightshift(), memory=NoMemory())
-        service.set_runtime(Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps))
+        service.set_runtime(
+            Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps)
+        )
         return TestClient(service.app)
 
     def test_unknown_view_is_404_and_never_queried(self) -> None:
@@ -105,18 +133,36 @@ class ViewsTest(unittest.TestCase):
         self.assertEqual(z.sample, 5001)  # Evidence keeps every row, not the 20-row sample
 
     def test_bad_cells_drop_the_row_not_the_view(self) -> None:
-        good = {"policy_id": "P-1", "site_id": "S-1", "lat": "1", "lon": "2",
-                "in_footprint": "false", "sum_insured_eur": "5", "segment": "retail"}
-        z = RowsZetaris([good, {**good, "policy_id": "P-2", "in_footprint": "maybe"},
-                         {**good, "policy_id": "P-3", "lat": "abc"}])
+        good = {
+            "policy_id": "P-1",
+            "site_id": "S-1",
+            "lat": "1",
+            "lon": "2",
+            "in_footprint": "false",
+            "sum_insured_eur": "5",
+            "segment": "retail",
+        }
+        z = RowsZetaris(
+            [
+                good,
+                {**good, "policy_id": "P-2", "in_footprint": "maybe"},
+                {**good, "policy_id": "P-3", "lat": "abc"},
+            ]
+        )
         r = self._client(z).get("/views/exposure_join")
         self.assertEqual([x["policy_id"] for x in r.json()], ["P-1"])
         self.assertIs(r.json()[0]["in_footprint"], False)
         self.assertEqual(r.headers["x-dropped-rows"], "2")
 
     def test_provenance_needs_an_http_source_url(self) -> None:
-        row = {"dataset": "d", "source_url": "https://x.eu", "publisher": "p",
-               "licence": "l", "attribution": "a", "fetched_at": "2026-10-22"}
+        row = {
+            "dataset": "d",
+            "source_url": "https://x.eu",
+            "publisher": "p",
+            "licence": "l",
+            "attribution": "a",
+            "fetched_at": "2026-10-22",
+        }
         z = RowsZetaris([row, {**row, "source_url": None}, {**row, "source_url": "javascript:x"}])
         r = self._client(z).get("/views/provenance")
         self.assertEqual(len(r.json()), 1)
@@ -151,9 +197,44 @@ class ViewsTest(unittest.TestCase):
         self._client(z).get("/views/exposure_join", params={"event_id": "x' OR 1=1"})
         self.assertNotIn("WHERE", z.sql[0])
 
+    def test_replay_source_reads_floodsense_seed_for_the_event_points(self) -> None:
+        z = FakeZetaris()
+        z._conn.execute("DELETE FROM floodsense.hazard_timeline WHERE point_id LIKE 'AHR%'")
+        z._conn.commit()
+        c = self._client(z)
+        with mock.patch.object(settings, "live_data", True):
+            live = c.get("/views/hazard_timeline", params={"event_id": "EMSR517"})
+            r = c.get("/views/hazard_timeline", params={"event_id": "EMSR517", "source": "replay"})
+            d = c.get("/views/discharge_daily", params={"event_id": "ahr_2021", "source": "replay"})
+        self.assertEqual(live.headers["x-schema"], "floodsense")
+        self.assertFalse(any(row["point_id"].startswith("AHR") for row in live.json()))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["x-schema"], "floodsense_seed")
+        self.assertEqual(r.headers["x-source"], "replay")
+        ids = {row["point_id"] for row in r.json()}
+        self.assertTrue(ids)
+        self.assertTrue(all(i.startswith("AHR") for i in ids), ids)
+        self.assertEqual(d.status_code, 200)
+        self.assertTrue(all(row["point_id"].startswith("AHR") for row in d.json()))
+
+    def test_replay_source_is_allowlisted(self) -> None:
+        z = StringZetaris()
+        c = self._client(z)
+        bad = [
+            ("exposure_join", {"event_id": "EMSR517", "source": "replay"}),
+            ("hazard_timeline", {"source": "replay"}),
+            ("hazard_timeline", {"event_id": "x' OR 1=1", "source": "replay"}),
+            ("hazard_timeline", {"event_id": "EMSR517", "source": "floodsense_seed"}),
+        ]
+        for name, params in bad:
+            self.assertEqual(c.get(f"/views/{name}", params=params).status_code, 422, params)
+        self.assertEqual(z.sql, [])
+
     def test_a_failed_read_is_502(self) -> None:
         # hazard_now is dropped from this fake, so the read errors.
-        self.assertEqual(self._client(_without_hazard_now()).get("/views/hazard_now").status_code, 502)
+        self.assertEqual(
+            self._client(_without_hazard_now()).get("/views/hazard_now").status_code, 502
+        )
 
 
 if __name__ == "__main__":

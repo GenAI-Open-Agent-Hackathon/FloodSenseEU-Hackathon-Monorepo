@@ -76,7 +76,9 @@ class Resolution(unittest.TestCase):
             self.assertEqual(classify(q)[0], "event", q)
 
     def test_replay_ts_forces_event(self) -> None:
-        got = resolve_mode({"question": QUESTION, "mode": "live", "replay_ts": "2024-10-29T16:00:00Z"})
+        got = resolve_mode(
+            {"question": QUESTION, "mode": "live", "replay_ts": "2024-10-29T16:00:00Z"}
+        )
         self.assertEqual(got["mode"], "event")
         self.assertIn("replay_ts", got["reason"])
 
@@ -97,7 +99,9 @@ class Nodes(unittest.TestCase):
         self.assertIn(("discharge", "forecast"), kinds)
         self.assertTrue(all("at 20" in a["why"] for a in live["anomalies"]))
         event = watchers.make(deps())(state(EVENT))
-        sqls = [e["sql"] for e in event["evidence"].values() if e["view"] != "floodsense.provenance"]
+        sqls = [
+            e["sql"] for e in event["evidence"].values() if e["view"] != "floodsense.provenance"
+        ]
         self.assertTrue(all("hazard_timeline" in q for q in sqls), sqls)
 
     def test_quiet_forecast_is_a_result(self) -> None:
@@ -150,8 +154,13 @@ class Nodes(unittest.TestCase):
         with mock.patch.object(settings, "live_data", False):
             out = watchers.make(deps())(state(LIVE))
             self.assertEqual(out["anomalies"], [])
-            self.assertTrue(all("horizon IN ('past', 'forecast')" in e["sql"]
-                                for e in out["evidence"].values() if "hazard_now" in e["view"]))
+            self.assertTrue(
+                all(
+                    "horizon IN ('past', 'forecast')" in e["sql"]
+                    for e in out["evidence"].values()
+                    if "hazard_now" in e["view"]
+                )
+            )
 
 
 @mock.patch.object(settings, "live_data", True)
@@ -256,13 +265,23 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(empty["row_count"], 0)
         s = state(LIVE)
         s.update(evidence=w["evidence"], live_findings={"discharge_crosses": False})
-        cit = {"citation_id": "C1-a1", "claim_id": "C1", "layer": "a", "query_id": empty["query_id"]}
+        cit = {
+            "citation_id": "C1-a1",
+            "claim_id": "C1",
+            "layer": "a",
+            "query_id": empty["query_id"],
+        }
         s["claims"] = [
             {"claim_id": "C1", "text": "No point crosses 100 m3/s.", "citations": [cit]},
             {"claim_id": "C2", "text": "Nothing cited.", "citations": []},
         ]
         s["hypotheses"] = [
-            {"id": "H2", "link": "catchment->river", "statement": "No crossing", "citations": ["C1"]},
+            {
+                "id": "H2",
+                "link": "catchment->river",
+                "statement": "No crossing",
+                "citations": ["C1"],
+            },
             {"id": "H9", "link": "site->exposure", "statement": "Model extra", "citations": ["C1"]},
             {"id": "H8", "link": "rain->catchment", "statement": "Uncited", "citations": ["C2"]},
         ]

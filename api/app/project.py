@@ -234,10 +234,28 @@ def _project_citations(
     return out
 
 
+def _dropped(raw: Any) -> dict[str, Any]:
+    """{"numbers_dropped": [...]} with the well-formed entries, or {} when there are none."""
+    out = []
+    for d in raw or []:
+        if not isinstance(d, dict) or not isinstance(d.get("reason"), str):
+            continue
+        v = d.get("value")
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        out.append({"value": float(v), "reason": d["reason"]})
+    return {"numbers_dropped": out} if out else {}
+
+
 def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
     raw = body.get("judge")
     if not isinstance(raw, list) or not raw:
         return None
+    dropped_by_id = {
+        c.get("claim_id"): c.get("numbers_dropped")
+        for c in body.get("claims") or []
+        if isinstance(c, dict) and isinstance(c.get("numbers_dropped"), list)
+    }
     claims = []
     for row in raw:
         if not isinstance(row, dict):
@@ -271,6 +289,7 @@ def _project_judge(body: dict[str, Any]) -> dict[str, Any] | None:
                 "score": score,
                 "rationale": rationale,
                 "model_id": model_id,
+                **_dropped(dropped_by_id.get(claim_id)),
             }
         )
     if not claims:
@@ -390,7 +409,9 @@ def project_run(body: dict[str, Any]) -> dict[str, Any] | None:
         claim_id = raw.get("claim_id")
         text = raw.get("text")
         if isinstance(claim_id, str) and claim_id and isinstance(text, str) and text.strip():
-            claims.append({"claim_id": claim_id, "text": text.strip()})
+            claims.append(
+                {"claim_id": claim_id, "text": text.strip(), **_dropped(raw.get("numbers_dropped"))}
+            )
     if not claims or not citations:
         return None
 

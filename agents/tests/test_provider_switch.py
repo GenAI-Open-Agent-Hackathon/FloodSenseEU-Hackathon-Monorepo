@@ -125,7 +125,11 @@ class AnthropicClientTest(unittest.TestCase):
         return post
 
     def test_max_tokens_and_empty_text_raise(self) -> None:
-        cut = {"model": "m", "stop_reason": "max_tokens", "content": [{"type": "text", "text": "{"}]}
+        cut = {
+            "model": "m",
+            "stop_reason": "max_tokens",
+            "content": [{"type": "text", "text": "{"}],
+        }
         empty = {"model": "m", "stop_reason": "end_turn", "content": [{"type": "thinking"}]}
         with patch.dict(os.environ, ON), patch("floodsense_agents.nightshift.time.sleep"):
             for body in (cut, empty):

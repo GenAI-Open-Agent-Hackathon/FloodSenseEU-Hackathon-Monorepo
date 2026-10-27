@@ -101,6 +101,7 @@ class InvestigatorSplitTest(unittest.TestCase):
         det = make_investigator(_deps(FakeNightshift()))(_state())
         fail = ("rain->catchment", "catchment->river", "river->site")
         out = make_investigator(_deps(FakeNightshift({"investigator": per_link(fail)})))(_state())
+
         def shape(run):  # query ids differ between two fake runs
             return [
                 (c["claim_id"], c["text"], [x["citation_id"] for x in c["citations"]])
@@ -115,7 +116,12 @@ class CompactRowsTest(unittest.TestCase):
     def test_rows_with_the_claimed_numbers_survive_the_cut(self) -> None:
         rows = [{"ts_utc": f"t{i:02d}", "discharge_m3s": float(i)} for i in range(30)]
         rows[27]["discharge_m3s"] = 21600000.0
-        ev = Evidence(query_id="q1", view="v", sql="SELECT 1", rows_sample=rows, row_count=30,
+        ev = Evidence(
+            query_id="q1",
+            view="v",
+            sql="SELECT 1",
+            rows_sample=rows,
+            row_count=30,
             executed_at_utc="2026-10-27T00:00:00Z",
         )
         text = compact_rows(ev, numbers=[21600000], max_rows=8)
@@ -182,7 +188,9 @@ class StreamPostTest(unittest.TestCase):
         from floodsense_agents import nightshift
 
         with patch.object(nightshift.httpx, "stream", lambda *a, **k: _FakeStream(lines)):
-            return nightshift.stream_post("http://x/chat/completions", json={}, headers={}, timeout=1)
+            return nightshift.stream_post(
+                "http://x/chat/completions", json={}, headers={}, timeout=1
+            )
 
     def test_chunks_assemble_into_one_reply(self) -> None:
         chunk = 'data: {"model": "nvidia/n", "choices": [{"delta": {"content": "%s"}}]}'
