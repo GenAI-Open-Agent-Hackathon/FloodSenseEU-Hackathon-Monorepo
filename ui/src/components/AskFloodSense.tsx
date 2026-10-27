@@ -4,7 +4,7 @@ import { RetrievalPanel } from "./RetrievalPanel";
 import { mergeContext } from "../lib/askContext";
 import { capTurns, followUpThreadId, modeForPage, modeLabel } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
-import { useConsole } from "../context/ConsoleContext";
+import { useConsole, useConsoleMaybe } from "../context/ConsoleContext";
 import { citationsForClaim, numberedCitations } from "../lib/citations";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
 import { answerEventId, sourceFromCitation, sourceFromRun } from "../lib/sources";
@@ -17,6 +17,7 @@ import { routeHref } from "../lib/route";
 import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
 import { turnBadge } from "../lib/turnBadge";
 import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
+import { evidenceForMemories } from "../lib/liveEvidence";
 import { memoryLine, NO_MEMORIES, SEEDED_MEMORY_CHIP, type MemoryUsed } from "../lib/hitl";
 import { setAwaitingRunId } from "../lib/lastRun";
 import { friendlyError, statusFromMessage } from "../lib/friendlyError";
@@ -647,6 +648,7 @@ function ErrorTurn({
 /** Run-level H-MEM recall. Memories are prompt context, never cited, so no sentence is marked as using one. */
 export function MemoriesPanel({ memories, run }: { memories: MemoryUsed[]; run?: RecordedRun }) {
   const board = run ? buildPipeline(run).board : null;
+  const openLiveEvidence = useConsoleMaybe()?.openLiveEvidence;
   return (
     <section className="mem-panel" aria-label="Memories used">
       <p className="mem-title">Memories used</p>
@@ -672,7 +674,16 @@ export function MemoriesPanel({ memories, run }: { memories: MemoryUsed[]; run?:
           {board.states.map((s) => `${s.id} ${s.state.replace(/_/g, " ")}`).join(" · ")}
         </p>
       )}
-      {memories.length > 0 && <p className="note">Context for the whole run; not linked to any one sentence.</p>}
+      {memories.length > 0 && (
+        <p className="note">
+          Context for the whole run; not linked to any one sentence.{" "}
+          {openLiveEvidence && (
+            <button type="button" className="link-button" onClick={() => openLiveEvidence(evidenceForMemories(memories))}>
+              Open in the evidence panel
+            </button>
+          )}
+        </p>
+      )}
     </section>
   );
 }

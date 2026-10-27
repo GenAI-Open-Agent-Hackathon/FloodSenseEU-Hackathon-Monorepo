@@ -9,6 +9,7 @@ export interface EuWatchLoad {
   state: "loading" | "rows" | "empty" | "unavailable";
   detail: string;
   queryId: string | null;
+  executedAt?: string | null;
 }
 
 /** GloFAS model points outside Germany, through the Zetaris-backed API. The browser never calls Open-Meteo. */
@@ -21,11 +22,12 @@ export async function fetchEuWatch(signal?: AbortSignal, fetcher: typeof fetch =
   try {
     const response = await fetcher(`${base}${EU_WATCH_PATH}`, { credentials: "omit", signal: controller.signal });
     const queryId = response.headers?.get?.("x-query-id") ?? null;
+    const executedAt = response.headers?.get?.("x-executed-at") ?? null;
     if (!response.ok) return { rows: [], state: "unavailable", detail: `GET ${EU_WATCH_PATH} returned ${response.status}`, queryId };
     const rows = parseRows(await response.json(), asEuWatchRow);
     if (rows === null) return { rows: [], state: "unavailable", detail: `${EU_WATCH_PATH} did not match the view columns`, queryId };
     if (rows.length === 0) return { rows: [], state: "empty", detail: `GET ${EU_WATCH_PATH} returned no rows`, queryId };
-    return { rows, state: "rows", detail: `GET ${base}${EU_WATCH_PATH}`, queryId };
+    return { rows, state: "rows", detail: `GET ${base}${EU_WATCH_PATH}`, queryId, executedAt };
   } catch {
     return { rows: [], state: "unavailable", detail: `GET ${EU_WATCH_PATH} failed`, queryId: null };
   } finally {

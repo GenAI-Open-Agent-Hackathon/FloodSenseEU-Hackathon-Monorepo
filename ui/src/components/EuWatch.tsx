@@ -6,6 +6,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { EU_WATCH_BOUNDS, sortSources, type SortKey, type WatchSource } from "../lib/euWatch";
 import { escapeHtml, type GaugeStatus } from "../lib/gauges";
 import { TILE_ATTRIBUTION, TILE_URL } from "./GaugeMap";
+import { basisLabel, plainStatus, STATUS_WORD } from "../lib/places";
 
 const STATUS_TEXT: Record<GaugeStatus, string> = { ok: "below", near: "near", over: "above", unknown: "unknown" };
 const SORTS: { key: SortKey; label: string }[] = [
@@ -22,9 +23,9 @@ function ask(openAsk: ReturnType<typeof useConsole>["openAsk"], s: WatchSource) 
 /** Legend in two groups, so an official threshold band is never read as a model band. */
 export function EuWatchLegend() {
   const dots: { status: GaugeStatus; label: string }[] = [
-    { status: "ok", label: "below" },
-    { status: "near", label: "near" },
-    { status: "over", label: "above" },
+    { status: "ok", label: "Normal" },
+    { status: "near", label: "Watch" },
+    { status: "over", label: "Warning" },
     { status: "unknown", label: "no reading" },
   ];
   return (
@@ -41,6 +42,13 @@ export function EuWatchLegend() {
         </span>
         <span className="muted small">7-day forecast max vs 2× past-30-day median. Model, not an official warning</span>
       </div>
+      <div className="eu-legend__group">
+        <span className="eu-legend__title">
+          <span className="eu-shape eu-shape--model" aria-hidden="true" /> Valencia model points (GloFAS)
+        </span>
+        <span className="muted small">Now and next 48 h vs FloodSense demo lines (20 / 80 m³/s). Not official</span>
+      </div>
+      <p className="muted small">Dashed or faded marker: not a fresh live reading (stale or seed).</p>
       <ul className="map-legend">
         {dots.map((d) => (
           <li key={d.status}>
@@ -112,7 +120,8 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
               title: `${s.river} at ${s.name}`,
             });
       const kind = s.kind === "gauge" ? "PEGELONLINE gauge" : "GloFAS model";
-      const tip = `${s.river} · ${s.name} (${s.country}) · ${kind}: ${s.value} · ${STATUS_TEXT[s.status]} · click to ask`;
+      const where = s.river ? `${s.river} · ${s.name}` : s.name;
+      const tip = `${where} (${s.country}) · ${STATUS_WORD[plainStatus(s.status)]} · ${kind}, ${basisLabel(s.kind)}${s.live ? "" : " · not live"} · click to ask`;
       marker.bindTooltip(escapeHtml(tip), { direction: "top", offset: [0, -6] });
       marker.on("click", () => ask(askRef.current, s));
       layer.addLayer(marker);
@@ -121,7 +130,7 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
 
   return (
     <div className="gauge-map__frame">
-      <div ref={containerRef} className="leaflet-map" role="region" aria-label="Europe live watch map" />
+      <div ref={containerRef} className="leaflet-map" role="region" aria-label={`Europe live watch map, ${sources.length} sources. The same places are listed below.`} />
     </div>
   );
 }

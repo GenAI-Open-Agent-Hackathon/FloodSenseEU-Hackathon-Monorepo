@@ -36,6 +36,7 @@ import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route"
 import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
+import type { LiveEvidence } from "../lib/liveEvidence";
 import type {
   DataOrigin,
   DischargeDailyRow,
@@ -81,6 +82,12 @@ export interface ConsoleValue {
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
   closeEvidence: () => void;
+  /** Evidence for one live data point; null when the drawer shows the replay evidence. */
+  liveEvidence: LiveEvidence | null;
+  openLiveEvidence: (evidence: LiveEvidence) => void;
+  /** Citizen place (lib/places.ts id); null is "Right now, anywhere in our watch". */
+  placeId: string | null;
+  setPlaceId: (placeId: string | null) => void;
   /** Ask FloodSense popup. Closed at start. A route change never opens it. */
   askOpen: boolean;
   /** Opens the popup. A string pre-fills the composer; it is never sent on its own. */
@@ -176,6 +183,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [ahrPointId, setAhrPointId] = useState("AHR01");
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
+  const [liveEvidence, setLiveEvidence] = useState<LiveEvidence | null>(null);
+  const [placeId, setPlaceId] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [askPrefill, setAskPrefill] = useState<string | null>(null);
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
@@ -332,6 +341,12 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const openEvidence = useCallback((topic: EvidenceTopic) => {
     setEvidenceTopic(topic);
+    setLiveEvidence(null);
+    setEvidenceOpen(true);
+  }, []);
+
+  const openLiveEvidence = useCallback((evidence: LiveEvidence) => {
+    setLiveEvidence(evidence);
     setEvidenceOpen(true);
   }, []);
 
@@ -410,6 +425,10 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       evidenceTopic,
       openEvidence,
       closeEvidence,
+      liveEvidence,
+      openLiveEvidence,
+      placeId,
+      setPlaceId,
       askOpen,
       openAsk,
       askContext,
@@ -450,6 +469,10 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       evidenceTopic,
       openEvidence,
       closeEvidence,
+      liveEvidence,
+      openLiveEvidence,
+      placeId,
+      setPlaceId,
       askOpen,
       openAsk,
       askContext,
@@ -472,6 +495,11 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;
+}
+
+/** The console, or null outside the provider (components that also render standalone). */
+export function useConsoleMaybe(): ConsoleValue | null {
+  return useContext(ConsoleContext);
 }
 
 export function useConsole(): ConsoleValue {
