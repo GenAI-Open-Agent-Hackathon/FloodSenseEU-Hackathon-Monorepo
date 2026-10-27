@@ -1373,7 +1373,11 @@ def make(deps: Deps):
                     result = deps.retrieve_docs(
                         doc_query,
                         request.get("doc_k", 4),
-                        {"event_id": state.get("event_id")},
+                        {
+                            "event_id": state.get("event_id"),
+                            # an insurer role lets retrieve_docs add generic insurer passages
+                            "role": (request.get("context") or {}).get("role"),
+                        },
                     )
                 except Exception as exc:
                     doc_note += f" retrieve_docs error: {str(exc)[:200]}"

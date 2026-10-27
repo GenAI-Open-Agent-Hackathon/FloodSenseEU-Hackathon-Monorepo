@@ -13,11 +13,13 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 - RAG corpus: four insurer and authority documents, all stored under licences that allow it (docs/legal/sources.md rows 15-18): EEA briefings on economic losses and the insurance protection gap (2025 and 2022, CC BY 4.0), EIOPA Staff Discussion Paper EIOPA-19/485 on the natural catastrophe protection gap (EIOPA legal notice), and the EU Floods Directive 2007/60/EC (Commission reuse policy). Tier 3, `event_id: null`. Not yet embedded: run `python scripts/rag_ingest.py` against pgvector.
 - Corpus manifest: optional `audience` (insurer, citizen, authority), `language` and `year` per document, checked by `fetch-rag-corpus`. Every entry now has them.
-- Evals: `val-11` to `val-13` need the new documents. `run_evals.py` passes an item's `doc_query` and reports `source_cited` against its `expect_source`. Existing items are unchanged.
+- Evals: `evals/insurer_docs.yaml` (`ins-01` to `ins-03`, `--set insurer_docs`) needs the new documents and has its own aggregate. `run_evals.py` passes an item's `doc_query` and reports `source_cited` against its `expect_source` per item, per block and in the markdown report. Existing items are unchanged.
+- Corpus manifest: optional `country` (ES, DE, EU); required when `event_id` is null. `python scripts/rag_corpus.py --write-scope` writes `agents/floodsense_agents/rag_scope.json` from it; a test keeps them in sync.
+- API cache: `CORPUS_VERSION` is part of the cache key, so answers cached before an ingest are not served.
 
 ### Changed
 
-- `retrieve_docs`: inside an event run, the pgvector search also returns event-agnostic chunks (`event_id IS NULL`), so the Tier 3 insurer and authority documents can be cited. There is no audience filter: `rag.chunks` has no audience column.
+- `retrieve_docs`: inside an event run the event top k is unchanged. For an insurer role or an insurance-type question (insur*, versicher*, seguro*, protection gap, loss(es), claim(s), policy) it appends at most 2 event-agnostic passages, only from EU-wide documents or the event's country (no ES documents in EMSR517 runs, no DE documents in EMSR773 runs). `rag.chunks` has no country or audience column; the allowed doc_ids come from `rag_scope.json`.
 
 ### Fixed
 

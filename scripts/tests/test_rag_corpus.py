@@ -87,8 +87,27 @@ class ParseManifestTest(unittest.TestCase):
                     )
                 ]
             )
+            + '  country: "EU"\n'
         )
         self.assertIsNone(parsed[0]["event_id"])
+
+    def test_country_scopes_event_agnostic_documents(self) -> None:
+        text = _yaml([_entry(tier=3, event_id=None)])
+        # without a country a null-event document is left out of the scope file
+        self.assertIn('"generic": {}', rag_corpus.scope_json(rag_corpus.parse_manifest(text)))
+        scoped = rag_corpus.parse_manifest(text + '  country: "ES"\n')
+        self.assertIn('"hess-29-6715-2025": "ES"', rag_corpus.scope_json(scoped))
+        with self.assertRaises(rag_corpus.CorpusError):
+            rag_corpus.parse_manifest(text + '  country: "Spain"\n')
+
+    def test_scope_file_matches_the_manifest(self) -> None:
+        """agents/floodsense_agents/rag_scope.json is regenerated with --write-scope."""
+        manifest = rag_corpus.parse_manifest(
+            (ROOT / "corpus" / "manifest.yaml").read_text(encoding="utf-8")
+        )
+        committed = (ROOT / rag_corpus.SCOPE_FILE).read_text(encoding="utf-8")
+        self.assertEqual(committed, rag_corpus.scope_json(manifest))
+        self.assertIn('"boe-a-2004-18910": "ES"', committed)
 
     def test_optional_audience_language_year(self) -> None:
         text = _yaml([_entry()]) + '  audience: "insurer"\n  language: "en"\n  year: 2025\n'
