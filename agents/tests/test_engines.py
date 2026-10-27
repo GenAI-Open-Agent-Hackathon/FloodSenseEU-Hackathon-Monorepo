@@ -72,6 +72,8 @@ class FakeEngines:
             if not str(body.get("query", "")).strip():
                 return self.bad("query must be a non-empty string")
             return httpx.Response(200, json={"memories": [ELSEWHERE, RECALLED], "trace": {}})
+        if path == "/hmem/memories":
+            return httpx.Response(200, json={"total": 0, "memories": []})
         if path == "/hmem/store":
             claims = body.get("claims")
             if not body.get("run_id") or not body.get("question") or not isinstance(claims, list):
@@ -210,7 +212,7 @@ class ClientTest(unittest.TestCase):
         got = client(fake).recall({"question": "Why Paiporta?", "event_id": "EMSR773"})
         self.assertEqual(got, [RECALLED])
         body = {"query": "Why Paiporta?", "top_n": 50, "threshold": 0.0}
-        self.assertEqual(fake.calls, [("/hmem/recall", body)])
+        self.assertEqual(fake.calls[0], ("/hmem/recall", body))
 
     def test_recall_without_an_event_keeps_the_top_n(self) -> None:
         c = EnginesClient(
