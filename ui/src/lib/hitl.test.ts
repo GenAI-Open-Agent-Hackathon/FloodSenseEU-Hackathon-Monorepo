@@ -12,6 +12,7 @@ import {
   memoryLine,
   NO_MEMORIES,
   sitesLine,
+  draftLabel,
   sourceChips,
   actionChip,
   reviewEvidence,
@@ -87,9 +88,13 @@ describe("approval card logic", () => {
     expect(items[1].actionType).toBeNull();
     expect(actionChip(items[0].actionType)).toBe("Notify policyholders");
     expect(actionChip("inform-public")).toBe("Inform public");
-    expect(sitesLine(3)).toBe("3 sites affected");
-    expect(sitesLine(1)).toBe("1 site affected");
-    expect(sitesLine(null)).toBe("sites not counted");
+    expect(sitesLine(3)).toBe("3 insured sites in the affected area");
+    expect(sitesLine(1)).toBe("1 insured site in the affected area");
+    expect(sitesLine(null)).toBe("Site count not reported by the Exposure step");
+    expect(sitesLine(0, "EMSR773")).toBe("0 insured sites in the affected area");
+    expect(sitesLine(0, "LIVE-EU")).toBe("0 insured sites · the demo book covers Valencia only");
+    expect(draftLabel(true)).toBe("Draft message (sent only after approval)");
+    expect(draftLabel(false)).toBe("Internal note — nothing is sent");
   });
   it("builds approve and edit bodies, refusing what would be a 422", () => {
     expect(buildApprovalBody("approve", " ok ", {}, items)).toEqual({ ok: true, body: { action: "approve", reviewer: "insurer-desk", reviewer_note: "ok" } });
