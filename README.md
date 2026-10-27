@@ -8,9 +8,8 @@ Who it is for:
 - Civil protection: which areas need attention first, and why?
 - Insurers: which insured sites are exposed, and what do we tell the customer?
 
-![FloodSense EU screenshot](docs/assets/screenshot.png)
+![FloodSense EU screenshot](docs/assets/screenshot.jpg)
 
-<!-- TODO: add docs/assets/screenshot.png -->
 
 Quick start (needs Python 3.10+, Docker Desktop, and your own local Zetaris and Nightshift):
 
