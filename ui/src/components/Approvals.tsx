@@ -119,7 +119,7 @@ export function Approvals() {
 
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden(safeStorage()));
   const [showHidden, setShowHidden] = useState(false);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [counts, setCounts] = useState<Record<string, { outbound: number; total: number }>>({});
   const base = useMemo(() => buildQueue(past && past.ok ? past.rows : [], handoff, tracked), [past, handoff, tracked]);
   const curated = useMemo(
     () => curateQueue(base, { mode: desk.mode, eventId: desk.eventId, hidden, showHidden, actionCounts: counts }),
@@ -136,11 +136,12 @@ export function Approvals() {
       void fetchApproval(id)
         .then(({ status, body }) => {
           if (gone) return;
-          const n = status === 200 && body ? queueFromApproval(id, body).items.filter((i) => i.outbound).length : 0;
+          const items = status === 200 && body ? queueFromApproval(id, body).items : [];
+          const n = { outbound: items.filter((i) => i.outbound).length, total: items.length };
           setCounts((m) => (m[id] === undefined ? { ...m, [id]: n } : m));
         })
         .catch(() => {
-          if (!gone) setCounts((m) => (m[id] === undefined ? { ...m, [id]: 0 } : m));
+          if (!gone) setCounts((m) => (m[id] === undefined ? { ...m, [id]: { outbound: 0, total: 0 } } : m));
         });
     }
     return () => {
@@ -306,8 +307,8 @@ export function Approvals() {
         {queue.length === 0 && curated.pendingIds.length === 0 ? (
           <p className="apv-empty note">
             {desk.mode === "past"
-              ? `No ${EVENT_META[desk.eventId].short} run has actions waiting for a decision.`
-              : "No live run has actions waiting for a decision."}{" "}
+              ? `No ${EVENT_META[desk.eventId].short} run has actions or notes waiting for a decision.`
+              : "No live run has actions or notes waiting for a decision."}{" "}
             Runs started from Alerts or Ask FloodSense land here once the agents finish.
           </p>
         ) : (
@@ -484,7 +485,12 @@ function QueueItem({
         </span>
       </button>
       {!running && (
-        <button type="button" className="link-button apv-hide" onClick={hidden ? onUnhide : onHide}>
+        <button
+          type="button"
+          className="link-button apv-hide"
+          aria-label={`${hidden ? "Unhide" : "Hide"} this run: ${row.question ?? "run waiting for review"}`}
+          onClick={hidden ? onUnhide : onHide}
+        >
           {hidden ? "Unhide this run" : "Hide this run"}
         </button>
       )}

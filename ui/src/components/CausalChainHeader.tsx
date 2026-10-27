@@ -7,6 +7,9 @@ import { adoptRunBody, fetchRecordedRun, replayRunId, type RecordedRun } from ".
 import sampleRun from "../fixtures/run_f16733274f1c.json";
 import { AgentPipeline } from "./AgentPipeline";
 import { RetrievalPanel } from "./RetrievalPanel";
+import { ReviewColumn } from "./ReviewColumn";
+import { plainLanguage } from "../lib/plain";
+import { routeHref } from "../lib/route";
 
 export const SAMPLE_RUN_ID = "f16733274f1c";
 
@@ -15,7 +18,7 @@ export function sampleRecordedRun(): RecordedRun | null {
   return adoptRunBody(sampleRun as unknown as Record<string, unknown>, SAMPLE_RUN_ID);
 }
 
-type Source = { kind: "bundled" } | { kind: "newest"; id: string; label: string; question: string | null } | { kind: "none"; label: string } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
+export type Source = { kind: "bundled" } | { kind: "newest"; id: string; label: string; question: string | null } | { kind: "none"; label: string } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
 
 /** Pure: the note under the header for where the run came from. Null for a configured run that loaded. */
 export function causalChainNote(source: Source): string | null {
@@ -36,10 +39,10 @@ export function causalChainNote(source: Source): string | null {
 }
 
 /**
- * Insurer Review header: the agent graph of the reviewed run. VITE_REPLAY_RUN_ID wins; else the newest completed
- * full-lane run for the current mode's event (from GET /runs/past); else the bundled recording, said so.
+ * The reviewed run: VITE_REPLAY_RUN_ID wins; else the newest completed full-lane run for the current mode's event
+ * (GET /runs/past); else the bundled recording of run f16733274f1c, said so.
  */
-export function CausalChainHeader() {
+export function useReviewRun(): { run: RecordedRun | null; source: Source } {
   const { mode, eventId } = useConsole();
   const [run, setRun] = useState<RecordedRun | null>(() => sampleRecordedRun());
   const [source, setSource] = useState<Source>(() => {
@@ -74,10 +77,73 @@ export function CausalChainHeader() {
     });
     return () => controller.abort();
   }, [mode, eventId]);
+  return { run, source };
+}
+
+/** Insurer Review: one run, top to bottom. A real run shows its own graph and answer; the bundled recording shows the example below it. */
+export function ReviewPage() {
+  const { run, source } = useReviewRun();
+  const real = source.kind === "newest" || source.kind === "configured";
+  return (
+    <div className="page-stack">
+      <CausalChainHeader run={run} source={source} />
+      {run && real ? (
+        <RunReviewSummary run={run} />
+      ) : (
+        <>
+          <p className="note">The answer, Skeptic and Judge below are the bundled Valencia 2024 example, the same recording as the graph above.</p>
+          <ReviewColumn />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The selected run's own answer: its claims with the Judge's grounding per claim, and the decision link. */
+function RunReviewSummary({ run }: { run: RecordedRun }) {
+  const judgeFor = (id: string) => run.judgeClaims?.find((j) => j.claimId === id);
+  return (
+    <section className="card review" aria-label="Reviewed answer">
+      <div className="card-head">
+        <div>
+          <p className="section-label">Reviewed answer · run {run.runId}</p>
+          <h2>{run.question ?? run.label}</h2>
+        </div>
+      </div>
+      <p className="status-line">
+        Judge {run.judgeOverall !== null ? run.judgeOverall.toFixed(2) : "not scored"}
+        {run.judgePasses === null ? "" : run.judgePasses ? " · passes" : " · does not pass"} ·{" "}
+        <a href={routeHref("insurer", "approvals")}>Decide on Approvals</a>
+      </p>
+      {run.claims.length === 0 ? (
+        <p className="note">This run states no claims.</p>
+      ) : (
+        <ol className="claims">
+          {run.claims.map((claim) => {
+            const j = judgeFor(claim.id);
+            return (
+              <li key={claim.id}>
+                {plainLanguage(claim.text)}
+                <span className="note">
+                  {" "}
+                  {claim.citations.length} {claim.citations.length === 1 ? "source" : "sources"}
+                  {j?.grounding ? ` · ${j.grounding}` : ""}
+                  {j?.score !== null && j?.score !== undefined ? ` · ${j.score.toFixed(2)}` : ""}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <p className="note">Open the Judge verdicts and retrieved documents under the graph above. Nothing here is sent.</p>
+    </section>
+  );
+}
+
+export function CausalChainHeader({ run, source }: { run: RecordedRun | null; source: Source }) {
   if (!run) return null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
   const note = causalChainNote(source);
-  const isSample = run.runId === SAMPLE_RUN_ID && source.kind !== "configured" && source.kind !== "newest";
   return (
     <section className="card agp-card" aria-label="Causal chain">
       <div className="stp-card-head">
@@ -89,12 +155,6 @@ export function CausalChainHeader() {
       {note && (
         <p className={`note agp-source-note${source.kind === "failed" ? " is-failed" : ""}`} role="note">
           {note}
-        </p>
-      )}
-      {isSample && (
-        <p className="note">
-          Known agent output defect in this recording: claim C2 states discharge “reached 23.38 m3/s … from 23.38 m3/s” at
-          the same instant. It is shown as recorded, not corrected.
         </p>
       )}
       <AgentPipeline run={run} collapsed={false} title="How the agents reached this answer" />

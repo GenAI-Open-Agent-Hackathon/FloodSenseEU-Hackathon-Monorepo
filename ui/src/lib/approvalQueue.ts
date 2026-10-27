@@ -20,6 +20,8 @@ export interface QueueRow {
   /** "live" or "event" (GET /runs/past `mode`). */
   mode?: string | null;
   judgeOverall: number | null;
+  /** Set by curateQueue: every action of the run is internal, so there is nothing to send, only notes to review. */
+  internalOnly?: boolean;
   /** Duplicates of the same question and event folded into this (newest) run. Set by curateQueue. */
   earlier?: number;
   earlierIds?: string[];
@@ -226,6 +228,7 @@ function hhmmUtc(iso: string | null): string | null {
 export function queueRowLine(row: QueueRow): string {
   const parts = [
     row.state === "running" ? "Agents working" : null,
+    row.internalOnly ? "Internal notes" : null,
     (row.mode === "live" ? "Live" : eventLabel(row.eventId)) || null,
     hhmmUtc(row.createdAt),
     row.judgeOverall !== null ? `Judge ${row.judgeOverall.toFixed(2)}` : null,
@@ -250,8 +253,8 @@ export interface CurateInput {
   eventId: string;
   hidden: ReadonlySet<string>;
   showHidden: boolean;
-  /** Outbound actions per run, from GET /runs/{id}/approval. Absent: not looked up yet. */
-  actionCounts: Readonly<Record<string, number>>;
+  /** Actions per run, from GET /runs/{id}/approval. Absent: not looked up yet. */
+  actionCounts: Readonly<Record<string, { outbound: number; total: number }>>;
 }
 
 export interface CuratedQueue {
@@ -267,7 +270,7 @@ const dupKey = (r: QueueRow): string => `${(r.question ?? r.runId).trim().toLowe
 /**
  * Pure: what the Approvals list actually shows. Scoped to the global mode (Live: live-data runs; Past flood: the
  * chosen event's runs), full-lane runs only (quick, forecast and reply runs have nothing to approve), runs with at
- * least one outbound action, duplicates (same question and event) folded into the newest with `earlier`, and
+ * at least one action (internal-only runs are listed as "Internal notes"), duplicates (same question and event) folded into the newest with `earlier`, and
  * hidden runs held back. Runs started in this tab are kept while the agents work or until they reach review.
  */
 export function curateQueue(queue: readonly QueueRow[], input: CurateInput): CuratedQueue {
@@ -298,7 +301,11 @@ export function curateQueue(queue: readonly QueueRow[], input: CurateInput): Cur
   for (const r of seen.values()) {
     if (r.handoffOnly) decidable.push(r);
     else if (input.actionCounts[r.runId] === undefined) pendingIds.push(r.runId);
-    else if (input.actionCounts[r.runId] > 0) decidable.push(r);
+    else {
+      const c = input.actionCounts[r.runId];
+      if (c.outbound > 0) decidable.push(r);
+      else if (c.total > 0) decidable.push({ ...r, internalOnly: true });
+    }
   }
   const isHidden = (r: QueueRow) => input.hidden.has(r.runId);
   const visible = decidable.filter((r) => input.showHidden || !isHidden(r));

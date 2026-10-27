@@ -2,13 +2,15 @@ import { useState, type ReactNode } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { demoSnapshotText, DEMO_CHIP_TEXT } from "../lib/demo";
 import { EVENT_META, type EventId } from "../lib/events";
-import { PAST_EVENTS } from "../lib/mode";
+import { isDemoIsolated, PAST_EVENTS } from "../lib/mode";
+import type { LiveWatch } from "../hooks/useLiveWatch";
 import "../styles/mode.css";
 
 /** The "DEMO DATA" chip. Shown wherever demo data is on, so demo rows are never mistaken for live ones. */
 export function DemoChip({ className = "" }: { className?: string }) {
-  const { demo } = useConsole();
-  if (!demo) return null;
+  const { demo, mode, deskRoute } = useConsole();
+  // Nothing is demo in Past mode, and Approvals, Review, System and How it works read the live API: no chip there.
+  if (!demo || mode === "past" || !isDemoIsolated(deskRoute.page)) return null;
   return (
     <span className={`demo-chip ${className}`.trim()} title={`Bundled snapshot of ${demoSnapshotText()}. Not live.`}>
       {DEMO_CHIP_TEXT}
@@ -61,10 +63,12 @@ export function ModeSwitch() {
 
 /** "Live data unavailable — show demo data?" Offered when the API or every live view fails; never switches on its own. */
 export function DemoOffer() {
-  const { demo, setDemo, healthChecked, healthOk, liveFailed, mode } = useConsole();
+  const { demo, setDemo, healthChecked, healthOk, liveHealth, mode } = useConsole();
   const [dismissed, setDismissed] = useState(false);
   if (demo || dismissed || mode === "past") return null;
-  if (!(healthChecked && !healthOk) && !liveFailed) return null;
+  // Any failed view offers it, not only all of them.
+  const anyFailed = !!liveHealth && !liveHealth.loading && liveHealth.failed.length > 0;
+  if (!(healthChecked && !healthOk) && !anyFailed) return null;
   return (
     <div className="demo-offer" role="status">
       <span>Live data unavailable — show demo data?</span>
@@ -111,5 +115,31 @@ export function ChoosePast({ title, children }: { title: string; children?: Reac
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Visible (never collapsed) note when part of the live watch could not be read, so a page never reads as calm
+ * on the sources that did load. Names the failed views and offers a retry and the demo-data switch.
+ */
+export function LiveHealthNote({ live }: { live: Pick<LiveWatch, "health" | "refresh"> }) {
+  const { demo, mode, setDemo } = useConsole();
+  const h = live.health;
+  if (demo || mode === "past" || h.loading || h.failed.length === 0) return null;
+  return (
+    <div className="demo-offer live-health" role="status">
+      <span>
+        <strong>
+          {h.loaded} of {h.total} sources loaded.
+        </strong>{" "}
+        Could not read: {h.failed.join(", ")}. Showing what we have; nothing here says the missing sources are calm.
+      </span>
+      <button type="button" className="button" onClick={live.refresh}>
+        Retry
+      </button>
+      <button type="button" className="button primary" onClick={() => setDemo(true)}>
+        Show demo data
+      </button>
+    </div>
   );
 }

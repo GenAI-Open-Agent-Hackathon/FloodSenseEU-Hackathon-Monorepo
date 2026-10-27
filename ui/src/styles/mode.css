@@ -85,3 +85,7 @@
 .mode-switch[aria-checked="true"] .mode-switch__track { background: var(--sample-bg); border-color: var(--sample-border); }
 .mode-switch[aria-checked="true"] .mode-switch__thumb { background: var(--warn-ink); transform: translateX(0.9rem); }
 @media (prefers-reduced-motion: reduce) { .mode-switch__track, .mode-switch__thumb { transition: none; } }
+
+.mode-seg button, .mode-event select, .mode-switch { min-height: 44px; }
+.mode-seg button { padding-left: 1.1rem; padding-right: 1.1rem; }
+@media (max-width: 520px) { .shell-stage { padding-bottom: 7rem; } }

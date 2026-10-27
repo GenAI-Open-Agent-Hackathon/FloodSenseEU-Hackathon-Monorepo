@@ -12,7 +12,7 @@ import { statusLabel } from "../lib/origin";
 import { next48hQuestion } from "../api/ask";
 import { OriginList } from "./Banners";
 import { LoadingNote } from "./Loading";
-import { SwitchToLive } from "./ModeSwitch";
+import { LiveHealthNote, SwitchToLive } from "./ModeSwitch";
 import "../styles/insurer.css";
 
 const SITE_PAGE = 25;
@@ -56,6 +56,7 @@ function LivePortfolio() {
           </div>
           <span className="chip chip--sample">{statusLabel(desk.exposure.origin)} book</span>
         </div>
+        <LiveHealthNote live={watch.live} />
         <p className="demo-book">{DEMO_BOOK_LINE}</p>
         {watch.state === "loading" ? (
           <LoadingNote what="the live watch" partial />

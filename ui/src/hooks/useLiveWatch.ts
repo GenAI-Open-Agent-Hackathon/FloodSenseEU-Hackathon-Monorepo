@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchEuWatch, type EuWatchLoad } from "../api/euWatch";
 import { fetchHazardNow, type HazardNowResult } from "../api/now";
-import { BAND_ELEVATED_M3S, SIMULATED_ALERT_M3S } from "../config/scenario";
 import { useConsole } from "../context/ConsoleContext";
-import { buildSources, fromValencia, type WatchSource } from "../lib/euWatch";
+import { buildSources, fromValencia, valenciaCuts, type WatchSource } from "../lib/euWatch";
 import { summariseGauges, type GaugeSummary } from "../lib/gauges";
 import { summariseAll, type PointNow } from "../lib/now";
 import { DEMO_SNAPSHOT_AT, isDemo } from "../lib/demo";
+import { WATCH_TOTAL, type LiveHealth } from "../lib/mode";
 import { oldestFetch } from "../lib/places";
 import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
 
@@ -63,14 +63,13 @@ export interface LiveWatch {
   refresh: () => void;
   /** Oldest fetch time of the loaded views (ms), or null. */
   updatedAt: number | null;
+  /** How many of the 45 sources loaded and which views failed. */
+  health: LiveHealth;
 }
-
-/** Valencia demo cuts (config/scenario.ts): elevated -> Watch, the 80 m³/s demo alert line -> Warning. */
-export const VALENCIA_CUTS = { watch: BAND_ELEVATED_M3S, warning: SIMULATED_ALERT_M3S };
 
 /** The live views behind the citizen pages and Now, read once and shared for five minutes. */
 export function useLiveWatch(): LiveWatch {
-  const { points, demo, reportChecked, reportLiveFailed } = useConsole();
+  const { points, demo, reportChecked, reportLiveHealth } = useConsole();
   const [tick, setTick] = useState(0);
   const gauges = useGaugeLevels(tick, demo);
   const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
@@ -116,7 +115,7 @@ export function useLiveWatch(): LiveWatch {
     const out = buildSources(gaugeSummaries, euWatch.rows);
     for (const summary of valencia) {
       const p = points.find((x) => x.point_id === summary.point_id);
-      if (p) out.push(fromValencia(p, summary, VALENCIA_CUTS));
+      if (p) out.push(fromValencia(p, summary, valenciaCuts(summary.past)));
     }
     return out;
   }, [gaugeSummaries, euWatch.rows, valencia, points]);
@@ -132,9 +131,33 @@ export function useLiveWatch(): LiveWatch {
   useEffect(() => {
     if (updatedAt !== null) reportChecked(updatedAt);
   }, [updatedAt, reportChecked]);
-  const allFailed = gauges.state === "unavailable" && euWatch.state === "unavailable" && hazard.state === "error";
+  const failed = [
+    (gauges.state === "unavailable" || gauges.state === "empty") && "river gauges (gauge_levels)",
+    (euWatch.state === "unavailable" || euWatch.state === "empty") && "GloFAS points (eu_watch)",
+    hazard.state === "error" && "Valencia points (hazard_now)",
+  ].filter((x): x is string => !!x);
+  const loading = gauges.state === "loading" || euWatch.state === "loading" || hazard.state === "loading";
+  const failedKey = failed.join("|");
+  const health = useMemo<LiveHealth>(
+    () => ({ loaded: sources.length, total: WATCH_TOTAL, failed: failedKey ? failedKey.split("|") : [], loading }),
+    [sources.length, failedKey, loading],
+  );
   useEffect(() => {
-    reportLiveFailed(allFailed);
-  }, [allFailed, reportLiveFailed]);
-  return { gauges, gaugeSummaries, euWatch, hazard, valencia, sources, refresh, updatedAt };
+    reportLiveHealth(health);
+  }, [health, reportLiveHealth]);
+  // One automatic retry about 20 s after a view failed, so a brief outage heals without a manual Refresh.
+  const retried = useRef(false);
+  useEffect(() => {
+    if (health.failed.length === 0 || health.loading) {
+      if (health.failed.length === 0) retried.current = false;
+      return;
+    }
+    if (retried.current) return;
+    const timer = window.setTimeout(() => {
+      retried.current = true;
+      setTick((t) => t + 1);
+    }, 20_000);
+    return () => window.clearTimeout(timer);
+  }, [health]);
+  return { gauges, gaugeSummaries, euWatch, hazard, valencia, sources, refresh, updatedAt, health };
 }

@@ -58,6 +58,7 @@ import { LiveSourceBadge } from "./LiveSources";
 import { evidenceFor, metaFor, PlaceRow, PlacesToWatch, sourceTitle, StatusChip, timeText } from "./PlacesToWatch";
 import { EuWatchLegend, EuWatchMap } from "./EuWatch";
 import { LoadingNote, SlowSourceNote } from "./Loading";
+import { LiveHealthNote } from "./ModeSwitch";
 
 const WHY_CLAIMS = 3;
 const MAX_MATCHES = 60;
@@ -309,7 +310,7 @@ function RiskCard({ ctx }: { ctx: ReturnType<typeof useCitizenPlace> }) {
         ) : (
           <>
             <p className="risk-summary__plain">
-              <strong>{headlineText(headlineCounts(live.sources))}.</strong>
+              <strong>{headlineText(headlineCounts(live.sources))}{live.health.failed.length > 0 && !live.health.loading ? ` (of the ${live.sources.length} loaded)` : ""}.</strong>
             </p>
             <PlacesToWatch live={live} limit={3} title="Most notable first" />
           </>
@@ -455,6 +456,7 @@ export function CitizenOverview() {
           </p>
         </div>
       </div>
+      <LiveHealthNote live={ctx.live} />
       <div className="grid grid--citizen">
         <section className="card span-2" aria-label="Risk right now">
           <header className="card__header">
@@ -591,6 +593,7 @@ export function CitizenArea() {
   const loading = live.sources.length === 0 && (live.gauges.state === "loading" || live.euWatch.state === "loading" || live.hazard.state === "loading");
   return (
     <div className="page-stack">
+      <LiveHealthNote live={live} />
       <PlacePicker {...ctx} />
       <section className="card" aria-label="My area">
         <header className="card__header">

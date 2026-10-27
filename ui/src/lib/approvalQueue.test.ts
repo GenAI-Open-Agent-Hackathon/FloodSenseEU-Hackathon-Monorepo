@@ -127,7 +127,8 @@ describe("curateQueue", () => {
     ]),
     null,
   );
-  const counts = { new: 2, old1: 2, old2: 1, noact: 0, val: 1, live: 1 };
+  const c = (outbound: number, total = outbound) => ({ outbound, total });
+  const counts = { new: c(2), old1: c(2), old2: c(1), noact: c(0), val: c(1), live: c(1) };
   const input = { mode: "past" as const, eventId: "EMSR517", hidden: new Set<string>(), showHidden: false, actionCounts: counts };
 
   it("keeps full-lane runs with outbound actions and folds duplicates into the newest", () => {
@@ -150,13 +151,22 @@ describe("curateQueue", () => {
       ]),
       null,
     );
-    const out = curateQueue(q, { ...input, actionCounts: { small: 3 }, now: Date.parse("2026-10-27T12:30:00Z") });
+    const out = curateQueue(q, { ...input, actionCounts: { small: c(3) }, now: Date.parse("2026-10-27T12:30:00Z") });
     expect(out.rows.map((r) => r.runId)).toEqual(["fresh"]);
   });
 
   it("scopes to the mode: Live shows live runs, Past the chosen event", () => {
     expect(curateQueue(base, { ...input, mode: "live" }).rows.map((r) => r.runId)).toEqual(["live"]);
     expect(curateQueue(base, { ...input, eventId: "EMSR773" }).rows.map((r) => r.runId)).toEqual(["val"]);
+  });
+
+  it("lists a run with only internal actions as Internal notes, and drops one with no actions", () => {
+    const only = { ...counts, noact: c(0, 3) };
+    const rows = curateQueue(base, { ...input, actionCounts: only }).rows;
+    const note = rows.find((r) => r.runId === "noact");
+    expect(note?.internalOnly).toBe(true);
+    expect(queueRowLine(note!)).toMatch(/^Internal notes · Ahr 2021/);
+    expect(curateQueue(base, { ...input, actionCounts: counts }).rows.find((r) => r.runId === "noact")).toBeUndefined();
   });
 
   it("asks for the actions of runs it has not looked up yet", () => {

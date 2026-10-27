@@ -65,11 +65,33 @@ export function hhmmOf(ms: number): string {
   return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-/** Pure: the mode sentence of the context strip. */
-export function modeStripText(state: ModeState, checkedAt: number | null): string {
+/** How much of the live watch loaded. `total` is the full watch: 26 gauges + 11 GloFAS points + 8 Valencia points. */
+export interface LiveHealth {
+  loaded: number;
+  total: number;
+  /** Plain names of the views that failed ("GloFAS points (eu_watch)"). */
+  failed: string[];
+  loading: boolean;
+}
+
+export const WATCH_TOTAL = 45;
+
+/** Pages whose data demo mode does not touch (they read the live API): the strip says so instead of showing a DEMO chip. */
+export function isDemoIsolated(page: string): boolean {
+  return !["approvals", "review", "system", "how"].includes(page);
+}
+
+/**
+ * Pure: the mode sentence of the context strip. It always ends in a final state: a time, "unavailable", or "checking…"
+ * only while the live views are really loading.
+ */
+export function modeStripText(state: ModeState, checkedAt: number | null, health: LiveHealth | null = null, page = ""): string {
   if (state.mode === "past") return `Past flood: ${EVENT_META[state.eventId].short} (replay)`;
-  if (state.demo) return "Demo data · bundled snapshot, not live";
-  return checkedAt !== null ? `Live data · checked ${hhmmOf(checkedAt)} UTC` : "Live data · checking…";
+  if (state.demo) return isDemoIsolated(page) ? "Demo data · bundled snapshot, not live" : "Live data (demo mode only affects the watch views)";
+  const partial = health && health.failed.length > 0 && !health.loading ? ` · ${health.loaded} of ${health.total} sources` : "";
+  if (checkedAt !== null) return `Live data · checked ${hhmmOf(checkedAt)} UTC${partial}`;
+  if (!health || health.loading) return "Live data · checking…";
+  return "Live data · unavailable";
 }
 
 /** Short mode name for sentences: "Live" or "Past flood: Ahr 2021". */

@@ -8,10 +8,10 @@ import { DemoChip } from "./ModeSwitch";
  * A cached answer is labelled on the answer itself, never in this strip.
  */
 export function ReplayBar() {
-  const { modeState, liveCheckedAt, playing, stopSimulation } = useConsole();
+  const { modeState, liveCheckedAt, liveHealth, deskRoute, playing, stopSimulation } = useConsole();
   return (
-    <div className="replay-bar" data-kind={modeState.mode === "past" ? "replay" : "live"}>
-      <span className="context-text">{modeStripText(modeState, liveCheckedAt)}</span>
+    <div className="replay-bar" data-kind={modeState.mode === "past" ? "replay" : "live"} role="status" aria-live="polite">
+      <span className="context-text">{modeStripText(modeState, liveCheckedAt, liveHealth, deskRoute.page)}</span>
       <DemoChip />
       {playing && (
         <>

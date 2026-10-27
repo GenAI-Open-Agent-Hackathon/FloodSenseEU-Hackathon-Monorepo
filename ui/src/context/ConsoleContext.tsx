@@ -30,10 +30,9 @@ import {
   storeProvider,
   type LlmProvider,
 } from "../lib/llmProvider";
-import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { AskContext } from "../lib/askContext";
 import { setDemoFlag } from "../lib/demo";
-import { parseModeSearch, writeModeToUrl, type Mode, type ModeState } from "../lib/mode";
+import { parseModeSearch, writeModeToUrl, type LiveHealth, type Mode, type ModeState } from "../lib/mode";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
 import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
@@ -90,9 +89,9 @@ export interface ConsoleValue {
   /** Oldest fetch time of the live views on screen (ms), for "Live data · checked HH:MM". Null until loaded. */
   liveCheckedAt: number | null;
   reportChecked: (ms: number) => void;
-  /** Every live view answered with an error (the API may be up but Zetaris is not). Drives the demo-data offer. */
-  liveFailed: boolean;
-  reportLiveFailed: (failed: boolean) => void;
+  /** How much of the live watch loaded, and which views failed. Drives the strip, the partial-outage note and the demo offer. */
+  liveHealth: LiveHealth | null;
+  reportLiveHealth: (health: LiveHealth) => void;
   /** Ahr (EMSR517) map date and point, kept here so they survive a remount of Sites / map. */
   ahrDate: string;
   setAhrDate: (date: string) => void;
@@ -211,7 +210,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [eventId, setEventIdState] = useState<EventId>(modeInit.eventId ?? DEFAULT_EVENT_ID);
   const [healthChecked, setHealthChecked] = useState(false);
   const [liveCheckedAt, setLiveCheckedAt] = useState<number | null>(null);
-  const [liveFailed, setLiveFailed] = useState(false);
+  const [liveHealth, setLiveHealth] = useState<LiveHealth | null>(null);
   const [ahrDate, setAhrDate] = useState(AHR_DEFAULT_DATE);
   const [ahrPointId, setAhrPointId] = useState("AHR01");
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -224,10 +223,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
   const approvalPendingRef = useRef(true);
   approvalPendingRef.current = approval.status === "pending";
-  const [notices, setNotices] = useState<Notice[]>(() => [
-    replayNotice(bundle.answer),
-    fixtureDischargeNotice(bundle.discharge),
-  ]);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
@@ -274,7 +270,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     setLiveCheckedAt(null);
   }, []);
   const reportChecked = useCallback((ms: number) => setLiveCheckedAt((prev) => (prev === ms ? prev : ms)), []);
-  const reportLiveFailed = useCallback((failed: boolean) => setLiveFailed(failed), []);
+  const reportLiveHealth = useCallback((h: LiveHealth) => setLiveHealth(h), []);
   const modeState = useMemo<ModeState>(() => ({ mode, eventId, demo }), [mode, eventId, demo]);
   useEffect(() => {
     writeModeToUrl(modeState);
@@ -285,6 +281,22 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Back / Forward: an entry can differ in the query (mode) as well as the hash (page), and Chrome fires only
+  // popstate for that, so re-read both from the URL.
+  useEffect(() => {
+    const onPop = () => {
+      const m = parseModeSearch(window.location.search);
+      setDemoFlag(m.demo);
+      setDemoState(m.demo);
+      setModeState(m.mode);
+      setEventIdState(m.eventId);
+      setPlaceId(null);
+      setDeskRoute(readRoute(approvalPendingRef.current));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   useEffect(() => {
@@ -354,18 +366,6 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       cancelled = true;
     };
   }, [demo]);
-
-  useEffect(() => {
-    setNotices((list) => {
-      const rest = list.filter((notice) => notice.id !== "seed-loaded" && notice.id !== "fixture-loaded");
-      if (discharge.origin === "live") return rest;
-      const notice =
-        discharge.origin === "seed" ? seedRowsNotice(discharge.rows) : fixtureDischargeNotice(discharge.rows);
-      const current = list.find((item) => item.id === notice.id);
-      if (current && current.title === notice.title && current.body === notice.body) return list;
-      return [notice, ...rest];
-    });
-  }, [discharge.origin, discharge.rows]);
 
   useEffect(() => {
     if (!playing) return;
@@ -504,8 +504,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       healthChecked,
       liveCheckedAt,
       reportChecked,
-      liveFailed,
-      reportLiveFailed,
+      liveHealth,
+      reportLiveHealth,
       ahrDate,
       setAhrDate,
       ahrPointId,
@@ -563,8 +563,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       healthChecked,
       liveCheckedAt,
       reportChecked,
-      liveFailed,
-      reportLiveFailed,
+      liveHealth,
+      reportLiveHealth,
       ahrDate,
       ahrPointId,
       evidenceOpen,

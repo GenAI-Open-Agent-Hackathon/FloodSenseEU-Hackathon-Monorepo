@@ -6,7 +6,7 @@ import { onTrackedRuns, runForKey, startAssessment, trackedLine, trackedRuns, ty
 import { rehearsalAt, rehearsalQuestion } from "../lib/rehearsal";
 import { REPLAY_EVENTS, buildFrames, dayStarts, crossingText, isDailyDischarge } from "../lib/disasterReplay";
 import { ahrFixture, loadAhrRows, type EventRows } from "../lib/replaySource";
-import { SwitchToLive } from "./ModeSwitch";
+import { LiveHealthNote, SwitchToLive } from "./ModeSwitch";
 import { routeHref } from "../lib/route";
 import "../styles/insurer.css";
 
@@ -132,6 +132,7 @@ function LiveAlertMonitor() {
   });
   return (
     <section className="card monitor" aria-labelledby="monitor-title">
+      <LiveHealthNote live={watch.live} />
       <div className="card-head">
         <div>
           <p className="section-label">Live alert monitor</p>

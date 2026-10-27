@@ -6,7 +6,7 @@ import { relativeTime } from "../lib/now";
 import { basisLabel, calmSentence, headlineCounts, headlineText, plainOf, worstFirst } from "../lib/places";
 import { EuWatchLegend, EuWatchMap } from "./EuWatch";
 import { LoadingNote, SlowSourceNote } from "./Loading";
-import { DemoChip, SwitchToLive } from "./ModeSwitch";
+import { DemoChip, LiveHealthNote, SwitchToLive } from "./ModeSwitch";
 import { PlacePicker, useCitizenPlace } from "./CitizenView";
 import { demoSnapshotText } from "../lib/demo";
 import { InsurerNowPage } from "./InsurerNowPage";
@@ -52,8 +52,8 @@ function CitizenNowPage() {
         <div>
           <h2 className="now-title">Right now, across our watch</h2>
           <p className="now-meta" aria-live="polite">
-            <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />}
-            {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
+            <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : live.sources.length > 0 ? "Live data · Zetaris" : "Live data unavailable"}</span> {demo && <DemoChip />}
+            {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}${live.health.failed.length > 0 && !live.health.loading ? ` · ${live.health.loaded} of ${live.health.total} sources` : ""}` : ""}
           </p>
         </div>
         <div className="button-row">
@@ -66,6 +66,7 @@ function CitizenNowPage() {
         </div>
       </header>
 
+      <LiveHealthNote live={live} />
       {lead ? (
         <section className="now-lead" aria-label={chosen ? "Your place" : "Most notable place right now"}>
           <p className="eyebrow">{chosen ? "Your place" : "Most notable right now"}</p>
@@ -80,7 +81,7 @@ function CitizenNowPage() {
           <p className="note">
             {timeText(lead.kind, lead.measuredAt)} · {basisLabel(lead.kind)}
           </p>
-          <p className="note">Across the watch: {headlineText(headlineCounts(live.sources))}.</p>
+          <p className="note">Across the watch: {headlineText(headlineCounts(live.sources))}{live.health.failed.length > 0 && !live.health.loading ? ` (of the ${live.sources.length} loaded)` : ""}.</p>
         </section>
       ) : (
         loading ? (

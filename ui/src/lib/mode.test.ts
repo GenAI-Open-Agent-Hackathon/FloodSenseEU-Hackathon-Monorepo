@@ -3,8 +3,9 @@ import { demoFetch, isDemo, setDemoFlag } from "./demo";
 import { fetchGaugeLevels } from "../api/gauges";
 import { fetchEuWatch } from "../api/euWatch";
 import { fetchHazardNow } from "../api/now";
-import { contextForMode, modeSearch, modeStripText, modeUrl, parseModeSearch } from "./mode";
+import { isDemoIsolated, contextForMode, modeSearch, modeStripText, modeUrl, parseModeSearch } from "./mode";
 import { replayStatus } from "./places";
+import { valenciaCuts } from "./euWatch";
 import { CITIZEN_PURPOSE, INSURER_PURPOSE } from "./pagePurpose";
 import { CITIZEN_PAGES, DESK_NAV, INSURER_PAGES } from "./route";
 
@@ -102,5 +103,42 @@ describe("replay status", () => {
     expect(replayStatus(null, 100).word).toBe("No reading");
     expect(replayStatus(249.6, 100).tone).not.toBe("warning");
     expect(replayStatus(30, 100).word).not.toMatch(/20|80/);
+  });
+});
+
+describe("Valencia cuts follow the point's own flow", () => {
+  it("does not raise a point whose base flow is ~30 m³/s", () => {
+    const past = [29, 30, 31, 30.5, 30].map((q) => ({ discharge_m3s: q }));
+    const cuts = valenciaCuts(past);
+    expect(cuts.watch).toBeCloseTo(60);
+    expect(cuts.warning).toBeCloseTo(120);
+    expect(30.1).toBeLessThan(cuts.watch);
+  });
+  it("floors a near-dry point at 5 m³/s so noise is not an alert", () => {
+    expect(valenciaCuts([{ discharge_m3s: 0.05 }, { discharge_m3s: null }])).toEqual({ watch: 10, warning: 20 });
+    expect(valenciaCuts([])).toEqual({ watch: 10, warning: 20 });
+  });
+});
+
+describe("context strip always reaches a final state", () => {
+  const live = { mode: "live" as const, eventId: "EMSR517" as const, demo: false };
+  const at = Date.UTC(2026, 9, 27, 12, 50);
+  it("says checking only while the views load, then a time or unavailable", () => {
+    expect(modeStripText(live, null, { loaded: 0, total: 45, failed: [], loading: true }, "approvals")).toBe("Live data · checking…");
+    expect(modeStripText(live, null, { loaded: 0, total: 45, failed: ["river gauges (gauge_levels)"], loading: false }, "approvals")).toBe("Live data · unavailable");
+    expect(modeStripText(live, at, { loaded: 45, total: 45, failed: [], loading: false }, "system")).toBe("Live data · checked 12:50 UTC");
+  });
+  it("names a partial load instead of reading as calm", () => {
+    const t = modeStripText(live, at, { loaded: 26, total: 45, failed: ["GloFAS points (eu_watch)"], loading: false }, "now");
+    expect(t).toBe("Live data · checked 12:50 UTC · 26 of 45 sources");
+  });
+  it("labels pages demo mode cannot isolate, and has no demo wording in Past", () => {
+    const demo = { ...live, demo: true };
+    expect(modeStripText(demo, at, null, "now")).toMatch(/^Demo data/);
+    for (const page of ["approvals", "review", "system", "how"]) {
+      expect(isDemoIsolated(page)).toBe(false);
+      expect(modeStripText(demo, at, null, page)).toBe("Live data (demo mode only affects the watch views)");
+    }
+    expect(modeStripText({ ...demo, mode: "past" }, at, null, "now")).toBe("Past flood: Ahr 2021 (replay)");
   });
 });
