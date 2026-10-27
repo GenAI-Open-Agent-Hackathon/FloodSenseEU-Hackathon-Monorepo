@@ -10,7 +10,7 @@ import "../styles/mode.css";
 export function DemoChip({ className = "" }: { className?: string }) {
   const { demo, mode, deskRoute } = useConsole();
   // Nothing is demo in Past mode, and Approvals, Review, System and How it works read the live API: no chip there.
-  if (!demo || mode === "past" || !isDemoIsolated(deskRoute.page)) return null;
+  if (!demo || (mode === "past" && deskRoute.role !== "operator") || !isDemoIsolated(deskRoute.page)) return null;
   return (
     <span className={`demo-chip ${className}`.trim()} title={`Bundled snapshot of ${demoSnapshotText()}. Not live.`}>
       {DEMO_CHIP_TEXT}
@@ -20,18 +20,26 @@ export function DemoChip({ className = "" }: { className?: string }) {
 
 /** The global mode switch in the header: Live | Past flood (with the event), and the Demo data toggle. */
 export function ModeSwitch() {
-  const { mode, setMode, eventId, setEventId, demo, setDemo } = useConsole();
+  const { mode, setMode, eventId, setEventId, demo, setDemo, deskRoute } = useConsole();
+  // The Civil protection desk is live only: there is no past form of the situation board.
+  const operator = deskRoute.role === "operator";
   return (
     <div className="mode-row" role="group" aria-label="Data mode">
-      <div className="mode-seg" role="group" aria-label="Mode">
-        <button type="button" aria-pressed={mode === "live"} onClick={() => setMode("live")}>
-          Live
-        </button>
-        <button type="button" aria-pressed={mode === "past"} onClick={() => setMode("past")}>
-          Past flood
-        </button>
-      </div>
-      {mode === "past" && (
+      {operator ? (
+        <span className="demo-chip" style={{ letterSpacing: 0 }}>
+          Live only · the Civil protection desk always reads live data
+        </span>
+      ) : (
+        <div className="mode-seg" role="group" aria-label="Mode">
+          <button type="button" aria-pressed={mode === "live"} onClick={() => setMode("live")}>
+            Live
+          </button>
+          <button type="button" aria-pressed={mode === "past"} onClick={() => setMode("past")}>
+            Past flood
+          </button>
+        </div>
+      )}
+      {mode === "past" && !operator && (
         <label className="mode-event">
           <span className="sr-only">Past flood</span>
           <select value={eventId} aria-label="Past flood event" onChange={(event) => setEventId(event.target.value as EventId)}>

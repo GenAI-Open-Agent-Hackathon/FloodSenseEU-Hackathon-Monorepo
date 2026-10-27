@@ -65,6 +65,9 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 | Insurer | Review | Is the evidence solid? | bundled recorded run (Valencia 2024) | Causal chain, Skeptic, Judge of the recorded run | Same recorded run |
 | Insurer | System | Are memory, cache, limits and models healthy? | /system | Counters and status (same in both modes) | Same |
 | Insurer | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Same |
+| Operator | Situation board | Which places need a call, and what do we say? | gauge_levels, eu_watch, hazard_now, forecast lane | Situation board with N of 45 sources, a call script and Escalate to agents | Live only (no past form) |
+| Operator | Approvals | Which of our escalated runs need a decision? | /runs/past (this desk's own runs) | Queue and decision bar for runs started here | Live only (no past form) |
+| Operator | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Live only (no past form) |
 
 (`src/lib/pagePurpose.ts` holds the same rows; `src/lib/mode.test.ts` fails when they drift.)
 
@@ -75,6 +78,16 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 The header has the product name, Citizen and Insurer links (`#/citizen`, `#/insurer`), a light/dark control, a notification bell, and an account icon.
 
 A collapsible left nav lists that desk's pages, one task per page. Citizen: Overview, My area, What to do, Evidence (`#/citizen`, `#/citizen/area`, `#/citizen/actions`, `#/citizen/evidence`). Insurer: Approvals, Portfolio, Sites / map, Alerts, Review (`#/insurer/approvals` and the same pattern). `#/insurer` and an empty hash open Approvals while the decision is pending, else Portfolio.
+
+**Civil protection desk (`#/operator`, role `operator`).** The third header button. The customer on the public side: emergency hotline staff who take calls are not flood experts, and gauges are run state by state. Pages:
+
+| Page | Hash | Purpose |
+| --- | --- | --- |
+| Situation board | `#/operator` | Pick a country and a river or area (45 watch sources). One screen: the plain status of every source on the river, upstream to downstream (by PEGELONLINE `river_km`, direction per water in `RIVER_KM_DIRECTION`; watch-list order, labelled, where the views give no km); the next-48 h outlook from the deterministic forecast lane (`POST /runs?wait=false` with context role operator, place or station, then `GET /runs/{id}`; no model call, about 1-2 s); "what has happened here before" (replay pattern, H-MEM memory, report passage), framed as past with its [R n] source; the Call script; Escalate to agents; Copy brief. |
+| Approvals | `#/operator/approvals` | The Approvals component filtered to runs started from this desk (tracked key `operator:`), with authority wording (Inform public, Request support, Internal review). No packed insurer example. Nothing is sent. |
+| How it works | `#/operator/how` | The shared diagram, with "Your approval" as the human step. |
+
+The **Call script** card is a fixed template, not a model output (`buildCallScript` in `src/lib/operatorDesk.ts`). "What to tell callers" is three or four lines in DE or EN (ES for a Spanish place) that state only the status (gauge vs long-term mean high water; model bands in amber, never red), plus the official links of the place's country from `WARNING_LINKS` and "call 112". "What you can say / what you must not say" is fixed text (never a forecast of your own; refer to the Hochwassermeldedienst of your Land). Every line has a [n] badge for its source: [1] the live view and its query id, [2] the FloodSense status rule, [3] the official services, [4] the call-script template. The only digits in a spoken line are 112 and the "7 days" / "30 days" of the model band rules, and a test fails otherwise. The card ends with "Model-based screening, not an official warning". **Copy brief** puts a plain-text brief on the clipboard with the time, the river order, the outlook, the past, the script and its sources, and every query id. **Escalate to agents** starts one full run per press (it never starts by itself) through `startAssessment`; it is followed over SSE and lands in the desk's own queue. The agents accept `role: "operator"` in `RunContext`; the front door gives the operator its own reply text and suggestions. Past mode: the global Live | Past switch of #90 is not on main yet, so the desk is Live only (TODO in `OperatorSituation.tsx`).
 
 Approve, Edit, and Reject live only on Approvals, in a sticky bar. Review has the Causal chain, Skeptic, and Judge tabs.
 

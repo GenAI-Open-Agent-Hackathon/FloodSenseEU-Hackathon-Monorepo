@@ -97,6 +97,8 @@ export function screenContextFor(
   ahrSel: { date: string; pointId: string },
   mode: "live" | "past" = "live",
 ): AskContext {
+  // Civil protection pages name no event or Valencia point: the place is the one picked on the board.
+  if (route.role === "operator") return { role: route.role, page: route.page };
   if (mode === "past") return { role: route.role, page: route.page, ...activeEventSelection(eventId, valencia, ahrSel) };
   return { role: route.role, page: route.page };
 }

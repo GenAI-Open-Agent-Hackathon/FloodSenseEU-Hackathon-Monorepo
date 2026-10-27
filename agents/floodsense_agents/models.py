@@ -232,7 +232,7 @@ class RunContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     page: str | None = Field(default=None, pattern=r"^[a-z][a-z_-]{0,23}$")
-    role: Literal["citizen", "insurer"] | None = None
+    role: Literal["citizen", "insurer", "operator"] | None = None
     place: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[\w .,'()-]+$")
     point_id: str | None = Field(default=None, pattern=r"^[A-Z]{3}\d{2}$")
     station: str | None = Field(default=None, pattern=r"^[A-Za-zÄÖÜäöüß .-]{2,40}$")

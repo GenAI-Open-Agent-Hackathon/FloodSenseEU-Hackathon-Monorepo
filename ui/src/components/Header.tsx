@@ -63,6 +63,9 @@ export function Header() {
           <a href="#/insurer" aria-current={desk.route === "insurer" ? "page" : undefined}>
             Insurer
           </a>
+          <a href="#/operator" aria-current={desk.route === "operator" ? "page" : undefined}>
+            Civil protection
+          </a>
         </nav>
         <div className="header-tools">
           {showProviderSelect(desk.llmProviders) && (

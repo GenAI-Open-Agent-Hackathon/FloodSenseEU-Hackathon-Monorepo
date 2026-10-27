@@ -6,8 +6,8 @@ import { fetchHazardNow } from "../api/now";
 import { isDemoIsolated, contextForMode, modeSearch, modeStripText, modeUrl, parseModeSearch } from "./mode";
 import { replayStatus } from "./places";
 import { valenciaCuts } from "./euWatch";
-import { CITIZEN_PURPOSE, INSURER_PURPOSE } from "./pagePurpose";
-import { CITIZEN_PAGES, DESK_NAV, INSURER_PAGES } from "./route";
+import { CITIZEN_PURPOSE, INSURER_PURPOSE, OPERATOR_PURPOSE } from "./pagePurpose";
+import { CITIZEN_PAGES, DESK_NAV, INSURER_PAGES, OPERATOR_PAGES } from "./route";
 
 describe("mode state and URL persistence", () => {
   it("defaults to Live, Ahr 2021, no demo", () => {
@@ -79,6 +79,7 @@ describe("page purpose table", () => {
     for (const page of INSURER_PAGES) for (const f of Object.values(INSURER_PURPOSE[page])) expect(f.length).toBeGreaterThan(3);
     expect(Object.keys(CITIZEN_PURPOSE).sort()).toEqual([...CITIZEN_PAGES].sort());
     expect(Object.keys(INSURER_PURPOSE).sort()).toEqual([...INSURER_PAGES].sort());
+    expect(Object.keys(OPERATOR_PURPOSE).sort()).toEqual([...OPERATOR_PAGES].sort());
   });
 
   it("is the table in ui/README.md, row for row", () => {
@@ -86,6 +87,7 @@ describe("page purpose table", () => {
     for (const [desk, table, nav] of [
       ["Citizen", CITIZEN_PURPOSE, DESK_NAV.citizen],
       ["Insurer", INSURER_PURPOSE, DESK_NAV.insurer],
+      ["Operator", OPERATOR_PURPOSE, DESK_NAV.operator],
     ] as const) {
       for (const item of nav) {
         const row = (table as Record<string, { purpose: string; data: string; live: string; past: string }>)[item.page];

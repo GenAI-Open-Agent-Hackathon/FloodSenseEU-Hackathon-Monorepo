@@ -11,6 +11,14 @@ export interface ChatGreeting {
 const CITIZEN_TEXT = "Hi! I'm FloodSense. Ask me about flood risk where you are — every answer cites its sources.";
 const INSURER_TEXT = "Hi! I'm FloodSense. Ask me about your portfolio's flood exposure — every answer cites its sources.";
 
+const OPERATOR_TEXT = "Hi! I'm FloodSense. I can brief you on any watched place and prepare a script for callers — every answer cites its sources.";
+
+const OPERATOR_SUGGESTIONS = [
+  "Which gauges on the Elbe are above normal?",
+  "Brief me on the Rhine at Köln",
+  "What does the 48 h outlook show along the Danube?",
+] as const;
+
 const INSURER_SUGGESTIONS = [
   "Which of our insured sites are exposed in Valencia?",
   "How much insured value sits inside the flood footprint?",
@@ -53,6 +61,7 @@ const INSURER_LIVE_SUGGESTIONS = [
  * Past suggestions are about the chosen flood, so an Ahr page never suggests a Valencia question.
  */
 export function greetingFor(route: DeskRoute, mode: Mode = "live", shownEvent: EventId = "EMSR773"): ChatGreeting {
+  if (route.role === "operator") return { text: OPERATOR_TEXT, suggestions: OPERATOR_SUGGESTIONS };
   if (route.role === "insurer") {
     if (mode === "live") return { text: INSURER_TEXT, suggestions: INSURER_LIVE_SUGGESTIONS };
     return { text: INSURER_TEXT, suggestions: shownEvent === "EMSR517" ? INSURER_AHR_SUGGESTIONS : INSURER_SUGGESTIONS };

@@ -1,4 +1,4 @@
-import type { CitizenPage, InsurerPage } from "./route";
+import type { CitizenPage, InsurerPage, OperatorPage } from "./route";
 
 export interface PagePurpose {
   /** What the page is for in the story. */
@@ -111,5 +111,27 @@ export const INSURER_PURPOSE: Record<InsurerPage, PagePurpose> = {
     data: "/config, /system",
     live: "Router, agents, data and human approval, with status dots",
     past: "Same",
+  },
+};
+
+/** The Civil protection desk is live only: its Past column says so. */
+export const OPERATOR_PURPOSE: Record<OperatorPage, PagePurpose> = {
+  situation: {
+    purpose: "Which places need a call, and what do we say?",
+    data: "gauge_levels, eu_watch, hazard_now, forecast lane",
+    live: "Situation board with N of 45 sources, a call script and Escalate to agents",
+    past: "Live only (no past form)",
+  },
+  approvals: {
+    purpose: "Which of our escalated runs need a decision?",
+    data: "/runs/past (this desk's own runs)",
+    live: "Queue and decision bar for runs started here",
+    past: "Live only (no past form)",
+  },
+  how: {
+    purpose: "How does FloodSense work?",
+    data: "/config, /system",
+    live: "Router, agents, data and human approval, with status dots",
+    past: "Live only (no past form)",
   },
 };

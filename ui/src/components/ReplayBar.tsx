@@ -10,8 +10,8 @@ import { DemoChip } from "./ModeSwitch";
 export function ReplayBar() {
   const { modeState, liveCheckedAt, liveHealth, deskRoute, playing, stopSimulation } = useConsole();
   return (
-    <div className="replay-bar" data-kind={modeState.mode === "past" ? "replay" : "live"} role="status" aria-live="polite">
-      <span className="context-text">{modeStripText(modeState, liveCheckedAt, liveHealth, deskRoute.page)}</span>
+    <div className="replay-bar" data-kind={modeState.mode === "past" && deskRoute.role !== "operator" ? "replay" : "live"} role="status" aria-live="polite">
+      <span className="context-text">{modeStripText(deskRoute.role === "operator" ? { ...modeState, mode: "live" } : modeState, liveCheckedAt, liveHealth, deskRoute.page)}</span>
       <DemoChip />
       {playing && (
         <>

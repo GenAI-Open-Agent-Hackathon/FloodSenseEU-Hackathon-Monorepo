@@ -100,6 +100,8 @@ export interface WatchSource {
   question: string;
   /** Measured time (gauge), model day (eu_watch) or latest model hour (Valencia). */
   measuredAt: string | null;
+  /** PEGELONLINE river kilometre (gauges only), so the operator desk can order a river's gauges. */
+  riverKm?: number | null;
 }
 
 const STATUS_RANK: Record<GaugeStatus, number> = { over: 0, near: 1, ok: 2, unknown: 3 };
@@ -126,6 +128,7 @@ export function fromGauge(g: GaugeSummary): WatchSource | null {
     live: g.origin === "live" && !g.stale,
     question: questionFor(river, name),
     measuredAt: g.measuredAt,
+    riverKm: g.riverKm ?? null,
   };
 }
 
