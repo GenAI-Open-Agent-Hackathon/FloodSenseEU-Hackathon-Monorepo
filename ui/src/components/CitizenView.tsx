@@ -21,7 +21,7 @@ import {
 } from "../lib/safety";
 import { SafeLink } from "./SafeLink";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
-import { sourceFromCitation } from "../lib/sources";
+import { answerEventId, sourceFromCitation } from "../lib/sources";
 import {
   dischargeBand,
   glofasDischargeNote,
@@ -103,10 +103,9 @@ function PlacePicker() {
 }
 
 function CiteChips({ items }: { items: NumberedCitation[] }) {
-  // The citizen pages show Valencia 2024 (EMSR773).
-  return (
-    <SourceBadges items={items.map((item) => ({ n: item.n, detail: sourceFromCitation(item.citation, "EMSR773") }))} />
-  );
+  const { answer } = useConsole();
+  const eventId = answerEventId(answer);
+  return <SourceBadges items={items.map((item) => ({ n: item.n, detail: sourceFromCitation(item.citation, eventId) }))} />;
 }
 
 /** General, sourced guidance first (no gate), then the gated, agent-written step, and a way into the chat. */

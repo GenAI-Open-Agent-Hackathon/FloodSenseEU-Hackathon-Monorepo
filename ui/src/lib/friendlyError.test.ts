@@ -10,12 +10,16 @@ describe("stripInternal", () => {
     expect(out).toMatch(/RemoteProtocolError/);
     expect(stripInternal("GET http://localhost:18000/runs/x failed; 10.0.0.5:8000 down; redis:6379")).not.toMatch(/localhost|10\.0\.0\.5|6379/);
   });
-  it("removes bare service hostnames", () => {
+  it("strips service names only in host-like contexts", () => {
     for (const host of ["agents", "api", "engines", "pgvector", "redis"]) {
-      const out = stripInternal(`Name or service not known: ${host} refused the connection`);
-      expect(out).not.toMatch(new RegExp(`\\b${host}\\b`));
-      expect(out).toMatch(/refused the connection/);
+      for (const raw of [`GET http://${host}/runs failed`, `${host}:8100 refused`, `dial //${host} refused`, `user@${host} refused`]) {
+        expect(stripInternal(raw)).not.toMatch(new RegExp(`\\b${host}\\b`));
+      }
     }
+    expect(stripInternal("our agents are busy; the api returned 503")).toBe("our agents are busy; the api returned 503");
+  });
+  it("keeps quoted version strings", () => {
+    expect(stripInternal("schema 'v1.2' and \"2.0.1\" are fine")).toBe("schema 'v1.2' and \"2.0.1\" are fine");
   });
   it("removes quoted hostnames", () => {
     const out = stripInternal(`could not resolve 'redis' or "agents.internal" (host 'pgvector')`);

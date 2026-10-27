@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NEXT_48H_QUESTION } from "../api/ask";
+import { fetchEuWatch, type EuWatchLoad } from "../api/euWatch";
 import { fetchHazardNow, type HazardNowResult } from "../api/now";
 import { useConsole } from "../context/ConsoleContext";
 import { useGaugeLevels } from "../hooks/useGaugeLevels";
+import { buildSources } from "../lib/euWatch";
 import { summariseGauges } from "../lib/gauges";
 import { latestPastStamp, relativeTime, sparkSeries, summariseAll, type PointNow, type Trend } from "../lib/now";
 import { pointById } from "../lib/series";
+import { EuWatchSection } from "./EuWatch";
 import { GaugeList, GaugeMap } from "./GaugeMap";
 import { Sparkline } from "./Sparkline";
 
@@ -35,13 +38,16 @@ const TREND_TEXT: Record<Trend, { arrow: string; label: string }> = {
 
 /**
  * Live page, one labelled section per region: the eight Valencia points (Open-Meteo/GloFAS model, own fetch, never the
- * replay fixture) and the Rhine & Mosel PEGELONLINE gauges (gauge_levels view, shared with the citizen gauge map).
+ * replay fixture), the German PEGELONLINE gauges (gauge_levels view, shared with the citizen gauge map), and the
+ * Europe live watch: those gauges plus the GloFAS points of eu_watch on one map, each click pre-filling Ask.
  */
 export function NowPage() {
   const { points, openAsk } = useConsole();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const gauges = useGaugeLevels();
   const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
+  const [euWatch, setEuWatch] = useState<EuWatchLoad>({ state: "loading", rows: [], detail: "", queryId: null });
+  const watchSources = useMemo(() => buildSources(gaugeSummaries, euWatch.rows), [gaugeSummaries, euWatch.rows]);
   const [clock, setClock] = useState(() => Date.now());
   const controller = useRef<AbortController | null>(null);
 
@@ -50,6 +56,10 @@ export function NowPage() {
     const ctrl = new AbortController();
     controller.current = ctrl;
     setLoad((prev) => (prev.state === "ready" ? prev : { state: "loading" }));
+    void fetchEuWatch(ctrl.signal).then((result) => {
+      // A failed refresh keeps the last good rows on screen.
+      if (!ctrl.signal.aborted) setEuWatch((prev) => (result.state === "rows" || prev.state !== "rows" ? result : prev));
+    });
     fetchHazardNow(ctrl.signal)
       .then((data) => {
         if (!ctrl.signal.aborted) setLoad({ state: "ready", data, fetchedAt: Date.now() });
@@ -144,7 +154,7 @@ export function NowPage() {
       <section className="now-region" aria-labelledby="now-de">
         <div className="now-region-head">
           <h3 className="now-subtitle" id="now-de">
-            Germany · Rhine &amp; Mosel (PEGELONLINE live gauges)
+            Germany · federal waterways (PEGELONLINE live gauges)
           </h3>
         </div>
         <p className="now-note">Measured water levels. Colour and bar compare each level with the station's MHW; dashed or Stale means not a fresh live reading.</p>
@@ -152,6 +162,8 @@ export function NowPage() {
         <GaugeList load={gauges} gauges={gaugeSummaries} />
         <p className="now-source">Quelle: WSV, PEGELONLINE</p>
       </section>
+
+      <EuWatchSection sources={watchSources} model={euWatch} />
     </div>
   );
 }

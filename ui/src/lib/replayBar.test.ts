@@ -5,9 +5,9 @@ const valencia = { date: "2024-10-29" };
 const ahr = { date: "2021-07-14" };
 
 describe("replayBarView (context strip)", () => {
-  it("says Live data on Now, on both desks", () => {
-    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live data" });
-    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live data");
+  it("uses the live-watch wording on Now, on both desks", () => {
+    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live · Valencia model + Europe live watch" });
+    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live · Valencia model + Europe live watch");
   });
 
   it("names Valencia plainly on citizen Overview and My area", () => {

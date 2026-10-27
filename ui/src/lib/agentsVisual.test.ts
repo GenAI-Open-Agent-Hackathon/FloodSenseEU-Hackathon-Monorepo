@@ -77,7 +77,8 @@ describe("buildPipeline", () => {
       )!;
     const text = (r: ReturnType<typeof body>) => buildPipeline(r).nodes.find((n) => n.id === "skeptic")!.badges[0].text;
     expect(text(body({}))).toMatch(/^Nightshift · /);
-    expect(text(body({ request: { llm_provider: "openrouter" } }))).toMatch(/^Nightshift · /);
+    // An explicit provider in the run or trace wins over the id rule.
+    expect(text(body({ request: { llm_provider: "openrouter" } }))).toMatch(/^openrouter · /);
     expect(text(body({}, { model_id: "anthropic/claude-haiku-4-5" }))).toMatch(/^Anthropic \(test switch\) · /);
     expect(text(body({ request: { llm_provider: "nightshift" } }))).toMatch(/^Nightshift · /);
     expect(text(body({}, { provider: "nightshift" }))).toMatch(/^Nightshift · /);

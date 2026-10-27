@@ -7,7 +7,7 @@ import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationsForClaim, numberedCitations } from "../lib/citations";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
-import { sourceFromCitation, sourceFromRun } from "../lib/sources";
+import { answerEventId, sourceFromCitation, sourceFromRun } from "../lib/sources";
 import { buildPipeline } from "../lib/pipeline";
 import { servingLabel, servingQualifier } from "../lib/format";
 import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
@@ -366,7 +366,7 @@ export function AskFloodSense() {
                         <SourceBadges
                           items={citationsForClaim(answer, claim.claim_id).map((c) => ({
                             n: c.n,
-                            detail: sourceFromCitation(c.citation, "EMSR773"),
+                            detail: sourceFromCitation(c.citation, answerEventId(answer)),
                           }))}
                         />
                       </li>

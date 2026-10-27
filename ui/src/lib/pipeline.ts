@@ -14,14 +14,9 @@ export const PIPELINE_ORDER = [
   "approval",
 ] as const;
 
-/** The router (front door) is drawn first, and only when the trace has a router step. */
-export type PipelineNodeId = (typeof PIPELINE_ORDER)[number] | "router";
-
-/** Trace node names of the router step. */
-export const ROUTER_NODES = ["router", "front_door", "front-door", "route"];
+export type PipelineNodeId = (typeof PIPELINE_ORDER)[number];
 
 export const NODE_LABELS: Record<PipelineNodeId, string> = {
-  router: "Router",
   scope: "Scope",
   watchers: "Watchers",
   memory: "Memory",
@@ -48,6 +43,8 @@ export interface PipelineNode {
   latencyMs: number | null;
   lane: string | null;
   modelId: string | null;
+  /** Provider the trace states for this node's model step, when it does. */
+  provider: string | null;
   summary: string;
   /** How many times the node ran (a revise or repair loop runs it again). */
   runs: number;
@@ -82,7 +79,7 @@ function llmIds(modelId: string | null | undefined): string[] {
 /** Badge for an LLM id, by the shared provider rule (`providerOf`): Nemotron ids are Nightshift, anthropic/ ids the test switch. */
 export function modelBadge(modelId: string, provider?: string | null): PipelineBadge {
   const label = laneLabel(modelId);
-  const p = providerOf(modelId) ?? ((provider ?? "").toLowerCase() === "nightshift" ? "Nightshift" : null);
+  const p = providerOf(modelId, provider);
   if (p === "Nightshift") return { kind: "nightshift", text: `Nightshift · ${label}` };
   if (p) return { kind: "model", text: `${p} · ${label}` };
   return { kind: "model", text: modelId };
@@ -125,10 +122,8 @@ export function buildPipeline(run: RecordedRun): PipelineModel {
     run.trace.filter((s) => /^repair round/i.test(s.summary)).length,
   );
 
-  const hasRouter = run.trace.some((s) => ROUTER_NODES.includes(s.node));
-  const order: PipelineNodeId[] = hasRouter ? ["router", ...PIPELINE_ORDER] : [...PIPELINE_ORDER];
-  const nodes = order.map((id): PipelineNode => {
-    const steps = run.trace.filter((s) => (id === "router" ? ROUTER_NODES.includes(s.node) : s.node === id) && !isEdge(s));
+  const nodes = PIPELINE_ORDER.map((id): PipelineNode => {
+    const steps = run.trace.filter((s) => s.node === id && !isEdge(s));
     const work = steps.filter((s) => s.latencyMs !== null && s.latencyMs !== undefined);
     const latencies = work.map((s) => s.latencyMs as number);
     const main = steps.find((s) => s.lane || s.modelId) ?? steps[0];
@@ -171,6 +166,7 @@ export function buildPipeline(run: RecordedRun): PipelineModel {
       latencyMs: latencies.length ? latencies.reduce((a, c) => a + c, 0) : null,
       lane: main?.lane ?? null,
       modelId: main?.modelId ?? null,
+      provider: main?.provider ?? null,
       summary,
       runs: steps.length,
       badges,

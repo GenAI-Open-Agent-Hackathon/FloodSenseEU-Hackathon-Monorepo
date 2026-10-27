@@ -21,6 +21,9 @@ export function headerSubtitle(): string {
   return PRODUCT_TAGLINE;
 }
 
+/** The Now page's own subtitle (#78 live-watch wording), shown in the context strip on Now. */
+export const NOW_SUBTITLE = "Live · Valencia model + Europe live watch";
+
 /** One map point with real coordinates from the seed rows. */
 export interface MapPoint {
   point_id: string;
@@ -144,7 +147,7 @@ export function replayBarView(
   valencia: { date: string },
   ahrSel: { date: string },
 ): ContextStrip {
-  if (route.page === "now") return { kind: "live", text: "Live data" };
+  if (route.page === "now") return { kind: "live", text: NOW_SUBTITLE };
   if (!pageShowsReplay(route)) return { kind: "none", text: "" };
   const shown: EventId = route.page === "replay" || route.page === "sites" ? eventId : "EMSR773";
   const date = shown === "EMSR517" ? ahrSel.date : valencia.date;

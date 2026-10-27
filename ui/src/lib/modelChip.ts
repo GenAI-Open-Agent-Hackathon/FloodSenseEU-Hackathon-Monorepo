@@ -22,14 +22,14 @@ function llmIds(modelId: string | null | undefined): string[] {
  * The model chip for one agent step, from the trace `model_id` and `lane` (fast / deep / sql):
  * "Nemotron 3.5 Lightning 30B · Nightshift fast lane", "SQL · Zetaris", or "rules" for a deterministic step.
  */
-export function modelChip(modelId: string | null | undefined, lane: string | null | undefined): string {
+export function modelChip(modelId: string | null | undefined, lane: string | null | undefined, provider?: string | null): string {
   const ids = llmIds(modelId);
   const l = (lane ?? "").toLowerCase();
   if (ids.length) {
     const id = ids[ids.length - 1];
     const name = modelName(id);
-    const provider = providerOf(id);
-    if (provider !== "Nightshift") return provider ? `${name} · ${provider}` : name;
+    const p = providerOf(id, provider);
+    if (p !== "Nightshift") return p ? `${name} · ${p}` : name;
     const laneWord = l === "deep" ? "deep lane" : l === "fast" ? "fast lane" : null;
     return laneWord ? `${name} · Nightshift ${laneWord}` : `${name} · Nightshift`;
   }

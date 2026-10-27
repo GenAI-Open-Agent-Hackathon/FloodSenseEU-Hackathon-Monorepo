@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { RecordedRun } from "../api/replay";
 import { buildPipeline, formatLatency, type PipelineBadge, type WorldBoard } from "../lib/pipeline";
 import type { LiveRunState } from "../lib/liveRun";
@@ -119,11 +119,12 @@ export function pipelineSummary(run: RecordedRun): string {
   return parts.join(" · ");
 }
 
-function Collapsible({ line, open, label, children }: { line: string; open: boolean; label: string; children: ReactNode }) {
+function Collapsible({ line, children }: { line: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
   return (
-    <details className="agp stp" open={open} aria-label={label}>
+    <details className="agp stp" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary className="stp-summary-line">
-        <span>{line}</span> <span className="stp-toggle">show steps</span>
+        <span>{line}</span> <span className="stp-toggle">{open ? "hide steps" : "show steps"}</span>
       </summary>
       {children}
     </details>
@@ -151,7 +152,7 @@ export function AgentPipeline({
     label: node.label,
     state: node.status,
     durationMs: node.latencyMs,
-    chip: node.status === "skipped" || node.id === "approval" ? null : modelChip(node.modelId, node.lane),
+    chip: node.status === "skipped" || node.id === "approval" ? null : modelChip(node.modelId, node.lane, node.provider ?? run.provider ?? null),
     summary: node.summary,
     runs: node.runs,
     badges: node.badges.filter((b) => b.kind !== "world"),
@@ -172,7 +173,7 @@ export function AgentPipeline({
   const label = title ?? "Agent pipeline";
   if (collapsed) {
     return (
-      <Collapsible key={run.runId} line={pipelineSummary(run)} open={false} label={label}>
+      <Collapsible key={run.runId} line={pipelineSummary(run)}>
         {body}
       </Collapsible>
     );
@@ -215,7 +216,7 @@ export function LiveAgentPipeline({ state, collapsed = false }: { state: LiveRun
   );
   if (collapsed) {
     return (
-      <Collapsible line={`${done} of ${state.nodes.length} agents finished · run ${state.runId}`} open={false} label="Agent pipeline">
+      <Collapsible line={`${done} of ${state.nodes.length} agents finished · run ${state.runId}`}>
         {body}
       </Collapsible>
     );

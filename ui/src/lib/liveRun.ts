@@ -47,10 +47,6 @@ export type LiveEvent =
 
 /** Graph node names in the trace, mapped to the pipeline the UI draws. world_model is not a node here. */
 const NODE_ALIASES: Record<string, PipelineNodeId> = {
-  router: "router",
-  front_door: "router",
-  "front-door": "router",
-  route: "router",
   scope: "scope",
   watchers: "watchers",
   memory: "memory",
@@ -123,12 +119,7 @@ export function modelLine(modelId: string | null, lane: string | null): string {
 }
 
 function patch(state: LiveRunState, id: PipelineNodeId, fn: (n: LiveNode) => LiveNode): LiveNode[] {
-  // The router is drawn first, and only once the stream names it.
-  const nodes: LiveNode[] =
-    id === "router" && !state.nodes.some((n) => n.id === "router")
-      ? [{ id: "router", label: NODE_LABELS.router, state: "idle", durationMs: null, modelId: null, lane: null, summary: "", runs: 0 }, ...state.nodes]
-      : state.nodes;
-  return nodes.map((n) => (n.id === id ? fn(n) : n));
+  return state.nodes.map((n) => (n.id === id ? fn(n) : n));
 }
 
 /** Pure reducer. Unknown nodes and duplicate trace seqs are ignored. */
