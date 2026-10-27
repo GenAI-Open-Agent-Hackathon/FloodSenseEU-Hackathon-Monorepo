@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import valencia from "../fixtures/valencia_points.json";
 import type { ValenciaPoint } from "../types/views";
 import {
+  activeEventSelection,
   ahrDischarge,
   ahrMapPoints,
   boundsOf,
@@ -21,8 +22,24 @@ describe("headerSubtitle", () => {
     expect(headerSubtitle("sites", "EMSR517")).toBe("Ahr 2021 replay · EMSR517");
     expect(headerSubtitle("replay", "EMSR773")).toBe("Valencia replay · EMSR773");
   });
-  it("defaults to the Valencia views", () => {
-    expect(DEFAULT_EVENT_ID).toBe("EMSR773");
+  it("defaults to Ahr, as Replay always opened", () => {
+    expect(DEFAULT_EVENT_ID).toBe("EMSR517");
+  });
+  it("the Ask selection follows the active event", () => {
+    const val = { date: "2024-10-29", pointId: "VAL01", points: [{ point_id: "VAL01", name: "Paiporta centre" }] };
+    const ahrSel = { date: "2021-07-14", pointId: "AHR04" };
+    expect(activeEventSelection("EMSR517", val, ahrSel)).toEqual({
+      event_id: "EMSR517",
+      replay_date: "2021-07-14",
+      point_id: "AHR04",
+      place: "Dernau",
+    });
+    expect(activeEventSelection("EMSR773", val, ahrSel)).toEqual({
+      event_id: "EMSR773",
+      replay_date: "2024-10-29",
+      point_id: "VAL01",
+      place: "Paiporta centre",
+    });
   });
 });
 

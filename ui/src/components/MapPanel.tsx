@@ -1,6 +1,6 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { BAND_ELEVATED_M3S, BAND_TYPICAL_M3S, SIMULATED_ALERT_M3S } from "../config/scenario";
 import { formatDay } from "../lib/format";
@@ -9,7 +9,6 @@ import { statusLabel } from "../lib/origin";
 import { datesOf, dischargeBand, rowsOnDate } from "../lib/series";
 import { REPLAY_EVENTS } from "../lib/disasterReplay";
 import {
-  AHR_DEFAULT_DATE,
   ahrDischarge,
   ahrMapPoints,
   boundsOf,
@@ -39,8 +38,8 @@ export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boo
   const eventId = fixedEvent ?? desk.eventId;
   const ahr = eventId === "EMSR517";
   const [showExposure, setShowExposure] = useState(exposureDefault);
-  const [ahrDate, setAhrDate] = useState(AHR_DEFAULT_DATE);
-  const [ahrPointId, setAhrPointId] = useState(AHR_POINTS[0]?.point_id ?? "");
+  const { ahrDate, setAhrDate, ahrPointId, setAhrPointId } = desk;
+  const exposureNote = useId();
 
   const points = useMemo(() => (ahr ? AHR_POINTS : valenciaMapPoints(desk.points)), [ahr, desk.points]);
   const rows = ahr ? AHR_ROWS : desk.discharge.rows;
@@ -84,11 +83,17 @@ export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boo
             type="checkbox"
             checked={showExposure && !ahr}
             disabled={ahr}
+            aria-describedby={ahr ? exposureNote : undefined}
             onChange={(event) => setShowExposure(event.target.checked)}
           />
           Exposed sites
         </label>
       </div>
+      {ahr && (
+        <p className="note" id={exposureNote}>
+          Exposed sites are off: no insured book is loaded for EMSR517.
+        </p>
+      )}
       {!fixedEvent && (
         <div className="dr-events" role="group" aria-label="Event">
           {REPLAY_EVENTS.map((e) => (
@@ -164,7 +169,6 @@ export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boo
       <p className="note">
         Marker colour is modelled discharge_m3s (GloFAS daily) from {origin}. Labels are the point's place; open a marker for its
         code and value.
-        {ahr ? " No insured book is loaded for EMSR517, so there are no exposed sites to show." : ""}
         {peakCount > 0 ? ` ${peakCount} point${peakCount === 1 ? "" : "s"} in the peak band this day.` : ""}
       </p>
     </section>
@@ -224,37 +228,66 @@ function EventMap({
     if (mapRef.current && bounds) mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
   }, [eventId, points]);
 
+  // Markers are built once per point list, so a click (which changes the selection) keeps its popup open.
+  const markers = useRef(new Map<string, L.Marker>());
   useEffect(() => {
     const layer = pointsLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    markers.current.clear();
     for (const point of points) {
+      const marker = L.marker([point.lat, point.lon], {
+        keyboard: true,
+        riseOnHover: true,
+        icon: L.divIcon({
+          className: "site-pin",
+          html: '<span class="site-pin__dot" data-band="low" data-selected="false"></span>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      });
+      marker.bindTooltip(escapeHtml(point.label), { permanent: true, direction: "right", offset: [10, 0], className: "site-label" });
+      marker.bindPopup("");
+      marker.on("click", () => selectRef.current(point.point_id));
+      layer.addLayer(marker);
+      markers.current.set(point.point_id, marker);
+    }
+  }, [points]);
+
+  // Values and selection only restyle the existing markers.
+  useEffect(() => {
+    for (const point of points) {
+      const marker = markers.current.get(point.point_id);
+      if (!marker) continue;
       const m3s = values.get(point.point_id) ?? null;
       const band = m3s === null ? "low" : dischargeBand(m3s);
       const selected = point.point_id === selectedId;
       const text = pointPopupText(point, m3s, formatDay(date));
-      const marker = L.marker([point.lat, point.lon], {
-        icon: L.divIcon({
-          className: "site-pin",
-          html: `<span class="site-pin__dot" data-band="${band}" data-selected="${selected}"></span>`,
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
-        }),
-        keyboard: true,
-        title: text,
-        alt: text,
-        riseOnHover: true,
-        zIndexOffset: selected ? 1000 : 0,
-      });
-      marker.bindTooltip(escapeHtml(point.label), {
-        permanent: true,
-        direction: "right",
-        offset: [10, 0],
-        className: `site-label${selected ? " is-selected" : ""}`,
-      });
-      marker.bindPopup(escapeHtml(text));
-      marker.on("click", () => selectRef.current(point.point_id));
-      layer.addLayer(marker);
+      const el = marker.getElement();
+      const dot = el?.querySelector(".site-pin__dot");
+      if (!el || !dot) {
+        marker.setIcon(
+          L.divIcon({
+            className: "site-pin",
+            html: `<span class="site-pin__dot" data-band="${band}" data-selected="${selected}"></span>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          }),
+        );
+      } else {
+        dot.setAttribute("data-band", band);
+        dot.setAttribute("data-selected", String(selected));
+      }
+      const icon = marker.getElement();
+      if (icon) {
+        icon.setAttribute("aria-label", text);
+        icon.setAttribute("title", text);
+        icon.setAttribute("role", "button");
+        icon.setAttribute("aria-pressed", String(selected));
+      }
+      marker.setZIndexOffset(selected ? 1000 : 0);
+      marker.getTooltip()?.getElement()?.classList.toggle("is-selected", selected);
+      marker.setPopupContent(escapeHtml(text));
     }
   }, [points, values, date, selectedId]);
 

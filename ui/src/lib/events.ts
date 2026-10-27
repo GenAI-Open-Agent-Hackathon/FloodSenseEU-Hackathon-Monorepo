@@ -5,8 +5,8 @@ import type { PageId } from "./route";
 
 export type EventId = DisasterEvent["eventId"];
 
-/** The event the console opens on: the Valencia views every other page already reads. */
-export const DEFAULT_EVENT_ID: EventId = "EMSR773";
+/** The event the console opens on: Ahr first, as the Replay page always did (Germany-first demo). */
+export const DEFAULT_EVENT_ID: EventId = "EMSR517";
 
 export const EVENT_META: Record<EventId, { short: string; region: string }> = {
   EMSR517: { short: "Ahr 2021", region: "Germany · Ahr valley" },
@@ -68,4 +68,18 @@ export function boundsOf(points: readonly { lat: number; lon: number }[]): [[num
     [Math.min(...lats), Math.min(...lons)],
     [Math.max(...lats), Math.max(...lons)],
   ];
+}
+
+/** The selected point and replay date of the active event, for the Ask `context`. */
+export function activeEventSelection(
+  eventId: EventId,
+  valencia: { date: string; pointId: string; points: readonly { point_id: string; name: string }[] },
+  ahrSel: { date: string; pointId: string },
+): { event_id: EventId; replay_date: string; point_id: string; place?: string } {
+  if (eventId === "EMSR517") {
+    const point = ahrMapPoints().find((p) => p.point_id === ahrSel.pointId);
+    return { event_id: eventId, replay_date: ahrSel.date, point_id: ahrSel.pointId, place: point?.name };
+  }
+  const point = valencia.points.find((p) => p.point_id === valencia.pointId);
+  return { event_id: eventId, replay_date: valencia.date, point_id: valencia.pointId, place: point?.name };
 }
