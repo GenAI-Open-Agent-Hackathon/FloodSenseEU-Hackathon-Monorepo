@@ -65,7 +65,7 @@ Passed through to the agents' watch loop (`agents/README.md` "Control tower"): `
 | `engines` | `configured`, `ok`, H-MEM and World Model counts from the engines' `GET /health` | `ENGINES_URL` (Compose sets `http://engines:8300`) |
 | `memory` | `count`, the newest 5 (`id`, `run_id`, `event_id`, `approved_at`, `text` cut to 160 chars, `label`, `seeded`) | engines `GET /hmem/memories` (read-only: no H-MEM query, so polling changes no access counts) |
 | `world_model` | the newest run's board: `run_id`, `hypotheses`, `by_status`, the first 8 links | engines `GET /wm/board` |
-| `models` | `lanes`, `llm_providers`, `flags`, `latest_model_ids` | agents `GET /config` and the newest run |
+| `models` | `lanes`, `flags`, `latest_model_ids` | agents `GET /config` and the newest run |
 | `watch` | `ok`, `loop_enabled`, `interval_s`, `last_cycle_at`, `sources`, `elevated`, `events`, `awaiting_approval`, `auto_assess` (`enabled`, caps, used), `model_calls` | agents `GET /watch/status` |
 | `rag` | `enabled` (`FF_RAG_DOCS`); `documents` and `passages` are null: no cheap count query is exposed yet | agents `GET /config` |
 

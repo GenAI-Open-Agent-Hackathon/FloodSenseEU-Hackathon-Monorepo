@@ -331,7 +331,7 @@ Two routing modes, no `meterless/auto` in the demo. Nightshift model ids are rou
 - Fast: `meterless/fast`
 - Deep: `meterless/deep`
 
-The two lanes are routing modes, so Nightshift picks the model. The fast lane is Nemotron 3.5 Lightning 30B A3B (`nvidia/nemotron-3.5-lightning-30b-a3b`); the deep (full) lane is Nemotron Super 120B. The calls recorded in the 27 Oct 2026 eval subset (`model_ids`) were all answered by Lightning. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
+The two lanes are routing modes, so Nightshift picks the model. Both lanes use Nemotron models. The calls recorded in the 27 Oct 2026 eval subset (`model_ids`) were all answered by Lightning. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
 
 Every chat completion goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id that answered is logged on the trace. Document embeddings are the ADR 0009 exception and are not this client.
 

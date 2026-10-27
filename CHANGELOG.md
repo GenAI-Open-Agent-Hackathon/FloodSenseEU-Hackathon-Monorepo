@@ -16,7 +16,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Changed
 
-- Docs say what the lanes use: the fast lane is Nemotron 3.5 Lightning 30B A3B and the deep lane is Nemotron Super 120B. Answers are described as cited and judged, with no rate quoted.
+- Docs say what the lanes use: both lanes use Nemotron models chosen by Nightshift (Lightning 30B A3B answered every call recorded on 27 Oct). Answers are described as cited and judged, with no rate quoted.
 
 ## [1.0.0] - 2026-10-27
 

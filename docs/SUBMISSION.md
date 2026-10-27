@@ -104,7 +104,7 @@ All runs on 27 Oct 2026, live Zetaris. `evals/run_evals.py` with `evals/valencia
 
 ### Subset on the judged path, Nightshift with NVIDIA Nemotron
 
-Default provider. 4 items: val-02, val-05, ahr-03, ahr-05. Every row's `model_ids` is `nvidia/nemotron-3.5-lightning-30b-a3b`, per the per-row `model_ids` in [evals/2026-10-27-nightshift-subset.json](evals/2026-10-27-nightshift-subset.json). Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
+4 items: val-02, val-05, ahr-03, ahr-05. Every row's `model_ids` is `nvidia/nemotron-3.5-lightning-30b-a3b`, per the per-row `model_ids` in [evals/2026-10-27-nightshift-subset.json](evals/2026-10-27-nightshift-subset.json). Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
 
 | Metric | Result |
 | --- | --- |
