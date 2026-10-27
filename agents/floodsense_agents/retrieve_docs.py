@@ -64,7 +64,8 @@ LIMIT $3
 GENERIC_MAX = 2
 # Generic passages are added only for an insurer role or an insurance-type question.
 _INSURER_WORDS = re.compile(
-    r"\b(insur\w*|versicher\w*|seguro\w*|protection gap|loss|losses|claims?|polic(?:y|ies))\b",
+    r"\b(insur\w*|versicher\w*|seguro\w*|protection gap|insured loss(?:es)?"
+    r"|economic loss(?:es)?|claims paid|polic(?:y|ies))\b",
     re.IGNORECASE,
 )
 # Event country. rag.chunks has no country column, so the allowed generic doc_ids
@@ -136,6 +137,7 @@ def retrieve_docs(
     except Exception as exc:
         return RetrieveResult([], _short(exc))
     ranked = list(ranked)[:k]
+    generic_ids: set[str] = set()
     if event_id is not None and search_generic is not None and wants_generic(query, filters):
         allowed = generic_doc_ids(event_id, load_scope() if scope is None else scope)
         if allowed:
@@ -148,6 +150,7 @@ def retrieve_docs(
                 if chunk_id not in seen:
                     ranked.append((chunk_id, distance))
                     seen.add(chunk_id)
+                    generic_ids.add(chunk_id)
     if not ranked:
         return RetrieveResult([], None)
     ids = [chunk_id for chunk_id, _distance in ranked]
@@ -167,6 +170,9 @@ def retrieve_docs(
             continue
         citation = _citation(query_id, row)
         if citation is not None:
+            if chunk_id in generic_ids:
+                # event-agnostic passage: the Investigator gives it its own claim
+                citation["generic"] = True
             citations.append(citation)
     return RetrieveResult(citations, None)
 
@@ -199,7 +205,13 @@ def load_scope() -> dict[str, str]:
         try:
             data = json.loads(_SCOPE_FILE.read_text(encoding="utf-8"))
             _SCOPE_CACHE = {str(k): str(v) for k, v in data.get("generic", {}).items()}
-        except (OSError, ValueError, AttributeError):
+        except (OSError, ValueError, AttributeError) as exc:
+            import logging
+
+            logging.getLogger("floodsense.retrieve_docs").warning(
+                "rag_scope.json missing or invalid (%s); no generic passages will be added",
+                exc.__class__.__name__,
+            )
             _SCOPE_CACHE = {}
     return _SCOPE_CACHE
 

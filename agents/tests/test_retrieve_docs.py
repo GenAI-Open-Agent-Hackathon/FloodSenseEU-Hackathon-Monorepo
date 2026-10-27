@@ -213,6 +213,74 @@ class GenericRankingTest(unittest.TestCase):
         ids = self._run("How much rain fell in Chiva?", "EMSR773", role="insurer")
         self.assertEqual(ids, ["ev773-a", "ev773-b", "es-1", "eu-1"])
 
+    def test_bare_loss_or_claims_does_not_pull_generic(self) -> None:
+        for query in ("What losses did Paiporta see?", "Which claims came in?", "loss of power"):
+            self.assertFalse(retrieve_mod.wants_generic(query, {"event_id": "EMSR773"}), query)
+        for query in (
+            "economic losses 1980-2023",
+            "insured loss share",
+            "claims paid by the Consorcio",
+            "Versicherungsdichte",
+            "seguro de inundación",
+            "protection gap",
+            "policy wording",
+        ):
+            self.assertTrue(retrieve_mod.wants_generic(query, None), query)
+
+    def test_generic_citations_are_flagged(self) -> None:
+        result = retrieve_docs(
+            "insured losses",
+            2,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        flags = {c["chunk_id"]: c.get("generic", False) for c in result.citations}
+        self.assertEqual(flags, {"ev773-a": False, "ev773-b": False, "es-1": True, "eu-1": True})
+
+    def test_generic_citation_sits_only_on_its_own_passage_claim(self) -> None:
+        result = retrieve_docs(
+            "insured losses",
+            2,
+            {"event_id": "EMSR773"},
+            embedder=lambda texts, _kind: [[1.0, 0.0]],
+            search=self._search,
+            hydrate=self._hydrate,
+            search_generic=self._generic,
+            scope=self.SCOPE,
+        )
+        for request in ({}, {"doc_claim_id": "C1"}):
+            base = [Claim(claim_id="C1", text="Chiva rain", kind="fact")]
+            claims, _evidence = _attach_documents(base, result.citations, request, "q")
+            by_chunk = {c["chunk_id"]: c for c in result.citations}
+            generic_claims = 0
+            for claim in claims:
+                for cit in claim.citations:
+                    raw = by_chunk[cit.chunk_id]
+                    if raw.get("generic"):
+                        generic_claims += 1
+                        # one generic passage, and the claim text is that passage
+                        self.assertEqual(len(claim.citations), 1)
+                        self.assertTrue(claim.claim_id.startswith("C-doc-g"))
+                        excerpt = claim.text.split(': "', 1)[1].rstrip('"')
+                        self.assertIn(excerpt.rstrip("."), " ".join(raw["quote"].split()))
+                    else:
+                        self.assertFalse(claim.claim_id.startswith("C-doc-g"))
+            self.assertEqual(generic_claims, 2, request)
+
+    def test_missing_scope_file_logs_a_warning(self) -> None:
+        saved = (retrieve_mod._SCOPE_FILE, retrieve_mod._SCOPE_CACHE)
+        try:
+            retrieve_mod._SCOPE_FILE = Path(__file__).with_name("no-such-scope.json")
+            retrieve_mod._SCOPE_CACHE = None
+            with self.assertLogs("floodsense.retrieve_docs", level="WARNING"):
+                self.assertEqual(retrieve_mod.load_scope(), {})
+        finally:
+            retrieve_mod._SCOPE_FILE, retrieve_mod._SCOPE_CACHE = saved
+
     def test_generic_failure_keeps_event_passages(self) -> None:
         def broken(_vector, _ids, _k):
             raise RuntimeError("generic search failed")
