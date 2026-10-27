@@ -104,7 +104,8 @@ class AhrReplay(unittest.TestCase):
         self.assertEqual(links["rain->catchment"]["status"], "supported")
         self.assertEqual(links["catchment->river"]["status"], "supported")
         text = " ".join(c["text"] for c in out["claims"])
-        self.assertIn("Bad Neuenahr-Ahrweiler (AHR02) recorded 142 mm", text)
+        # 142 mm, or 154 mm once PR #62 adds the 13:00 rain hour to the fake.
+        self.assertRegex(text, r"Bad Neuenahr-Ahrweiler \(AHR02\) recorded (?:142|154) mm")
         self.assertIn("Altenahr (AHR01) reached 1000 m3/s", text)
         self.assertIn("no discharge value", text)
         self.assertIn("Rain began", text)
