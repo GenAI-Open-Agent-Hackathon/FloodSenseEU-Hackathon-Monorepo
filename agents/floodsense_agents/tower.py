@@ -73,10 +73,11 @@ HONEST_LABEL = (
 MANUAL_MIN_GAP_S = 5.0
 MAX_CHECKS_PER_CYCLE = 20
 EXPOSURE_RADIUS_KM = 25.0
-VALENCIA_DEMO_CUTS = (
-    20.0,
-    80.0,
-)  # ui/src/config/scenario.ts BAND_ELEVATED_M3S, SIMULATED_ALERT_M3S
+# A Valencia point is measured against its own past rows: watch at 2x, over at 4x their median, the median
+# floored at 5 m3/s (ui/src/lib/euWatch.ts valenciaCuts, #90).
+VALENCIA_WATCH_X = 2.0
+VALENCIA_WARNING_X = 4.0
+VALENCIA_MEDIAN_FLOOR = 5.0
 SQL_SAMPLE = 6000
 
 # --------------------------------------------------------------------- status
@@ -103,8 +104,17 @@ def status_view(kind: str, status: str) -> dict[str, Any]:
             return {"word": "Elevated (model)", "tone": "elevated", "rank": 1}
         return {"word": "Watch (model)", "tone": "watch", "rank": 3}
     if status == "over":
-        return {"word": "Above 80 m³/s demo line", "tone": "elevated", "rank": 4}
-    return {"word": "Above 20 m³/s demo line", "tone": "neutral", "rank": 5}
+        return {"word": "Far above its recent normal (model)", "tone": "elevated", "rank": 4}
+    return {"word": "Above its recent normal (model)", "tone": "neutral", "rank": 5}
+
+
+def valencia_cuts(past: list[float]) -> tuple[float, float]:
+    """(watch, warning) of one point from its past rows; ui/src/lib/euWatch.ts valenciaCuts."""
+    v = sorted(past)
+    n = len(v)
+    median = 0.0 if n == 0 else v[(n - 1) // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
+    base = max(median, VALENCIA_MEDIAN_FLOOR)
+    return base * VALENCIA_WATCH_X, base * VALENCIA_WARNING_X
 
 
 def is_elevated(status: str) -> bool:
@@ -246,7 +256,6 @@ def valencia_sources(ev) -> list[Source]:
     by_point: dict[str, list[dict]] = {}
     for r in ev.rows_sample:
         by_point.setdefault(str(r.get("point_id") or ""), []).append(r)
-    watch, warning = VALENCIA_DEMO_CUTS
     out: list[Source] = []
     for pid, rows in sorted(by_point.items()):
         if pid not in POINT_NAMES or not pid.startswith("VAL"):
@@ -266,6 +275,7 @@ def valencia_sources(ev) -> list[Source]:
         pq = [q for _, r in past if (q := _num(r.get("discharge_m3s"))) is not None]
         values = [v for v in (now_q, fmax) if v is not None]
         top = max(values) if values else None
+        watch, warning = valencia_cuts(pq)
         status = (
             "unknown"
             if top is None
@@ -293,6 +303,8 @@ def valencia_sources(ev) -> list[Source]:
                     "now_m3s": now_q,
                     "forecast_max_discharge_m3s": fmax,
                     "past_max_discharge_m3s": max(pq) if pq else None,
+                    "watch_m3s": watch,
+                    "warning_m3s": warning,
                     "ts_utc": latest[1].get("ts_utc") if latest else None,
                 },
             }
@@ -333,8 +345,9 @@ def _reading(s: Source) -> str:
     if top is None:
         return ""
     return (
-        f"Modelled river flow reaches {_n(top)} m³/s (latest hour and next 48 h) against the "
-        f"FloodSense demo lines of 20 and 80 m³/s. Not official."
+        f"Modelled river flow reaches {_n(top)} m³/s (latest hour and next 48 h), measured against "
+        f"this point's own past flow (above twice, and far above four times, its median; the "
+        f"median is never taken below 5 m³/s). Not official."
     )
 
 
@@ -415,6 +428,32 @@ def assess_question(s: Source) -> str:
         f"Assess the flood risk to our insured sites near {s['name']} {on}right now: {what}. "
         f"What should the insurer do?"
     )
+
+
+# ------------------------------------------------------------ feed failures
+
+VIEW_LABEL = {
+    "gauge_levels": "river gauge",
+    "eu_watch": "river model",
+    "hazard_now": "Valencia model",
+}
+MODEL_VIEWS = ("eu_watch", "hazard_now")
+
+
+def friendly_error(view: str, msg: str) -> str:
+    """Plain words for a failed read. Never a URL, JSON or hostname: those stay in ``detail``."""
+    label = VIEW_LABEL.get(view, "data")
+    if re.search(r"\b429\b", msg or ""):
+        if view in MODEL_VIEWS:
+            return (
+                "Open-Meteo is rate-limiting the model feed right now, so these sources keep "
+                "their last status."
+            )
+        return (
+            f"The {label} feed is rate-limiting requests right now, so these sources keep "
+            f"their last status."
+        )
+    return f"The {label} feed could not be read this scan; sources keep their last status."
 
 
 # ------------------------------------------------------------------ the store
@@ -796,7 +835,7 @@ class ControlTower:
         self._cycle_lock = threading.Lock()
         self._last_manual = 0.0
         self._first_cycle_done = False
-        self._view_down: set[str] = set()
+        self._view_down: dict[str, dict] = {}
         self._announced: set[str] = set()
         self.auto_runs: dict[str, Source] = {}
         self._thread: threading.Thread | None = None
@@ -822,6 +861,7 @@ class ControlTower:
         place_id: str | None = None,
         data: dict | None = None,
         agent: str | None = None,
+        detail: str | None = None,
     ) -> dict:
         assert kind in KINDS, kind
         tone_status = status
@@ -849,6 +889,8 @@ class ControlTower:
             "source": {"view": view, "query_id": query_id},
             "data": data or {},
         }
+        if detail:
+            event["detail"] = detail
         return self.store.append(event)
 
     # ------------------------------------------------------------- cycle
@@ -900,17 +942,35 @@ class ControlTower:
         sources, errors, _qids = read_sources(z, schema)
         # A view that cannot be read keeps its sources' last status (no false "recovered").
         for view, msg in errors.items():
-            if view not in self._view_down:
-                self._view_down.add(view)
-                self.emit(
-                    "info",
-                    f"Could not read {view} this scan; its sources keep their last status ({msg[:120]}).",
-                    view=view,
-                )
+            text = friendly_error(view, msg)
+            down = self._view_down.get(view)
+            if down is None or down["text"] != text:
+                stamp = now_utc()
+                down = {
+                    "text": text,
+                    "count": 0,
+                    "since": _hhmm(stamp) or "",
+                    "key": f"down:{view}:{self.store.latest_id()}",
+                }
+                self._view_down[view] = down
+            down["count"] += 1
+            # Identical consecutive failures share a dedupe key: the feed shows one row, "x N since HH:MM".
+            self.emit(
+                "info",
+                text,
+                view=view,
+                detail=msg[:300],
+                data={"dedupe_key": down["key"], "repeats": down["count"], "since": down["since"]},
+            )
         for view in list(self._view_down):
             if view not in errors:
-                self._view_down.discard(view)
-                self.emit("info", f"{view} answers again.", view=view)
+                self._view_down.pop(view, None)
+                self.emit(
+                    "info",
+                    f"The {VIEW_LABEL.get(view, 'data')} feed can be read again.",
+                    view=view,
+                    data={"recovered": True},
+                )
         view_kind = {"gauge_levels": "gauge", "eu_watch": "model", "hazard_now": "valencia"}
         down_kinds = {view_kind[v] for v in errors}
         new_prev = {sid: st for sid, st in self.prev.items() if sid.split(":")[0] in down_kinds}

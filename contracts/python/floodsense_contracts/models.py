@@ -267,6 +267,7 @@ class WatchEvent(ContractModel):
     text: str = Field(min_length=1)
     run_id: str | None = None
     source: WatchSource
+    detail: str | None = None
     data: dict[str, Any]
 
 

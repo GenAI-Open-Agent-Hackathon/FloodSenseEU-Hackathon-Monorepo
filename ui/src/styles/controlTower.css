@@ -39,6 +39,8 @@
 .ct-event__who time { margin-left: auto; font-variant-numeric: tabular-nums; }
 .ct-icon { flex: none; color: var(--brand); }
 .ct-event__text { margin: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.ct-event__detail { grid-column: 1 / -1; margin: 0.2rem 0 0; }
+.ct-event__detail pre { margin: 0.25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.78rem; }
 .ct-event__meta { margin: 0; display: flex; gap: 0.35rem 0.7rem; flex-wrap: wrap; align-items: center; color: var(--muted); }
 .ct-event__place { font-weight: 600; color: var(--text); }
 .ct-foot { margin: 0; overflow-wrap: anywhere; }

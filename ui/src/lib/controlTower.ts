@@ -70,6 +70,7 @@ export function asWatchEvent(value: unknown): WatchEvent | null {
     text,
     run_id: str(r.run_id),
     source: { view, query_id: str(source.query_id) },
+    detail: str(r.detail),
     data: rec(r.data) ?? {},
   };
 }
@@ -123,6 +124,30 @@ export function asWatchStatus(value: unknown): WatchStatus | null {
 export function eventNumber(id: string): number {
   const m = /(\d+)$/.exec(id);
   return m ? Number(m[1]) : 0;
+}
+
+/**
+ * Identical consecutive failures of one feed share `data.dedupe_key`; the newest of each key is the one row
+ * the feed shows (its `data.repeats` and `data.since` give "x N since HH:MM").
+ */
+export function collapseRepeats(events: readonly WatchEvent[]): WatchEvent[] {
+  const last = new Map<string, string>();
+  for (const e of events) {
+    const k = e.data.dedupe_key;
+    if (typeof k === "string") last.set(k, e.id);
+  }
+  return events.filter((e) => {
+    const k = e.data.dedupe_key;
+    return typeof k !== "string" || last.get(k) === e.id;
+  });
+}
+
+/** "x 3 since 14:05" for a failure that repeated; null for a single occurrence. */
+export function repeatNote(e: WatchEvent): string | null {
+  const n = e.data.repeats;
+  if (typeof n !== "number" || n < 2) return null;
+  const since = typeof e.data.since === "string" && /^\d{2}:\d{2}$/.test(e.data.since) ? ` since ${e.data.since}` : "";
+  return `\u00d7${n}${since}`;
 }
 
 /** Add `incoming` to `prev` by id, oldest first, at most `cap` kept (the newest). */
@@ -314,7 +339,7 @@ export function evidenceForEvent(e: WatchEvent): LiveEvidence {
         timeLabel: "Modelled",
         licence: "CC BY 4.0 · Weather data by Open-Meteo.com (Copernicus GloFAS)",
         link: GLOFAS_LINK,
-        notes: ["Status uses FloodSense demo lines (20 and 80 m³/s), not an official threshold.", NOT_OFFICIAL],
+        notes: ["Status compares each point with its own past rows (above twice and far above four times their median), not an official threshold.", NOT_OFFICIAL],
       };
     case "weather_forecast":
       return {

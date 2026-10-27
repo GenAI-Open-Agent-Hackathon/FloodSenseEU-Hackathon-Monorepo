@@ -10,6 +10,7 @@ import {
   HONEST_LABEL,
   askQuestionFor,
   canOpenApprovals,
+  collapseRepeats,
   capsText,
   elapsedText,
   eventNumber,
@@ -20,6 +21,7 @@ import {
   hhmm,
   loopState,
   placeOptions,
+  repeatNote,
   tiles,
   unreachableText,
   type FeedFilter,
@@ -91,7 +93,7 @@ function ControlTowerBody() {
     watched: live.sources.length,
     elevated: counts.gaugesAbove + counts.gaugesNear + counts.modelElevated + counts.modelWatch,
   });
-  const visible = useMemo(() => filterEvents(ct.events, filter), [ct.events, filter]);
+  const visible = useMemo(() => filterEvents(collapseRepeats(ct.events), filter), [ct.events, filter]);
   const places = useMemo(() => placeOptions(ct.events), [ct.events]);
   const awaiting = ct.status?.awaiting_run_ids ?? [];
   const auto = ct.status?.auto_assess ?? null;
@@ -314,10 +316,17 @@ function FeedRow({
       </div>
       <p className="ct-event__text">
         {e.text}{" "}
+        {repeatNote(e) && <span className="muted small ct-event__repeat">{repeatNote(e)}</span>}{" "}
         {hasSource(e) && (
           <LiveSourceBadge n={n} evidence={evidenceForEvent(e)} />
         )}
       </p>
+      {e.detail && (
+        <details className="ct-event__detail small">
+          <summary className="muted">Technical detail</summary>
+          <pre>{e.detail}</pre>
+        </details>
+      )}
       <p className="ct-event__meta small">
         {e.place && (
           <span className="ct-event__place">
