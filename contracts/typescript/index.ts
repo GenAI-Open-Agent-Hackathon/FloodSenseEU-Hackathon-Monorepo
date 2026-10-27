@@ -252,6 +252,8 @@ export interface WatchEvent {
   text: string;
   run_id: string | null;
   source: WatchSource;
+  /** Technical detail (a raw upstream error), never in the plain text; the UI shows it collapsed. Optional. */
+  detail?: string | null;
   /** The numbers behind the sentence (sites, insured_eur, rain_48h_mm, screening, ...). */
   data: Record<string, unknown>;
 }
