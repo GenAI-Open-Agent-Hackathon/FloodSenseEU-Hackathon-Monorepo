@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import httpx
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -461,6 +463,55 @@ class ApprovedLiveMemoryTest(unittest.TestCase):
         eu03 = next(p for p in FORECAST_POINTS if p[0] == "EU03")
         old = {"memory_id": "old", "run_id": "r0", "content": "Orléans peaked.", "tags": []}
         self.assertEqual([r["memory_id"] for r in forecast._memory_rows([old], eu03)], ["old"])
+
+
+RECENT = {
+    "memory_id": "mem-213",
+    "content": "Loire at Orleans (FR, EU03): level 2.1 m, rising.",
+    "confidence": 0.8,
+    "run_id": "f6cc",
+    "claim_id": "C1",
+    "event_id": "LIVE-EU",
+    "tags": ["floodsense", "event:LIVE-EU"],
+    "provenance": {"label": "run f6cc approved by insurer-desk", "learned_at": "2026-10-27"},
+}
+
+
+def _engines(calls: list[str]):
+    from floodsense_agents.engines import EnginesClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/hmem/recall":
+            old = [
+                {"memory_id": f"old-{i}", "content": "Ahr peaked.", "tags": ["event:EMSR517"]}
+                for i in range(5)
+            ]
+            return httpx.Response(200, json={"memories": old})
+        return httpx.Response(200, json={"total": 1, "memories": [RECENT]})
+
+    return EnginesClient("http://e.test", transport=httpx.MockTransport(handler))
+
+
+@mock.patch.object(settings, "live_data", True)
+@mock.patch.object(settings, "ff_hmem", True)
+class RecentMemoryTest(unittest.TestCase):
+    def test_recent_memory_the_ranker_missed_reaches_the_forecast_lane(self) -> None:
+        deps = Deps(zetaris=_zetaris(), llm=FakeNightshift(), memory=_engines([]))
+        snap = Runtime(deps=deps).start(
+            RunRequest(question="Do the next 48 hours look safe at Orléans right now?")
+        )
+        used = {m["memory_id"]: m for m in snap["memory_used"]}
+        self.assertIn("mem-213", used)
+        self.assertFalse(used["mem-213"]["seeded"])
+
+    def test_recent_list_is_read_once_within_the_cache_window(self) -> None:
+        calls: list[str] = []
+        c = _engines(calls)
+        for _ in range(2):
+            got = c.recall({"question": "Orleans Loire flood", "event_id": "LIVE-EU"})
+        self.assertEqual(calls.count("/hmem/memories"), 1)
+        self.assertEqual(got[-1]["memory_id"], "mem-213")
 
 
 if __name__ == "__main__":
