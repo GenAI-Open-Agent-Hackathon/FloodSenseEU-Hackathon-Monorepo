@@ -17,7 +17,6 @@ import {
   readingsAt,
   REPLAY_EVENTS,
   replayLabel,
-  type DisasterEvent,
   type ReplayReading,
 } from "../lib/disasterReplay";
 
@@ -35,7 +34,7 @@ type EventData = EventRows;
 /** Disaster replay: scrub through Ahr 2021 or Valencia 2024 hour by hour. Never live. */
 export function DisasterReplay() {
   const desk = useConsole();
-  const [eventId, setEventId] = useState<DisasterEvent["eventId"]>("EMSR517");
+  const { eventId, setEventId } = desk;
   const event = REPLAY_EVENTS.find((e) => e.eventId === eventId) ?? REPLAY_EVENTS[0];
 
   // Ahr: Zetaris rows when the API serves AHR points, else the labelled bundled fixture.

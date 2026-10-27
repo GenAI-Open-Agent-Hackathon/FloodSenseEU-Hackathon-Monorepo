@@ -33,6 +33,7 @@ import {
 import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { AskContext } from "../lib/askContext";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
+import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
 import type {
@@ -68,6 +69,14 @@ export interface ConsoleValue {
   setDate: (date: string) => void;
   pointId: string;
   setPointId: (pointId: string) => void;
+  /** Selected event (Replay, Sites / map, Portfolio, header). One value for the whole console. */
+  eventId: EventId;
+  setEventId: (eventId: EventId) => void;
+  /** Ahr (EMSR517) map date and point, kept here so they survive a remount of Sites / map. */
+  ahrDate: string;
+  setAhrDate: (date: string) => void;
+  ahrPointId: string;
+  setAhrPointId: (pointId: string) => void;
   evidenceOpen: boolean;
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
@@ -162,6 +171,9 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const dates = useMemo(() => datesOf(discharge.rows), [discharge.rows]);
   const [date, setDateState] = useState(DEFAULT_DATE);
   const [pointId, setPointId] = useState(DEFAULT_POINT_ID);
+  const [eventId, setEventId] = useState<EventId>(DEFAULT_EVENT_ID);
+  const [ahrDate, setAhrDate] = useState(AHR_DEFAULT_DATE);
+  const [ahrPointId, setAhrPointId] = useState("AHR01");
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [askOpen, setAskOpen] = useState(false);
@@ -338,9 +350,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
   const screenContext = useCallback((): AskContext => {
-    const point = bundle.points.find((p) => p.point_id === pointId);
-    return { role: deskRoute.role, page: deskRoute.page, point_id: pointId, place: point?.name };
-  }, [bundle.points, pointId, deskRoute]);
+    return screenContextFor(deskRoute, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
+  }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId]);
 
   const decide = useCallback((status: ApprovalStatus, note: string) => {
     setApproval((current) => ({ ...current, status, note }));
@@ -389,6 +400,12 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       setDate,
       pointId,
       setPointId,
+      eventId,
+      setEventId,
+      ahrDate,
+      setAhrDate,
+      ahrPointId,
+      setAhrPointId,
       evidenceOpen,
       evidenceTopic,
       openEvidence,
@@ -426,6 +443,9 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       date,
       setDate,
       pointId,
+      eventId,
+      ahrDate,
+      ahrPointId,
       evidenceOpen,
       evidenceTopic,
       openEvidence,

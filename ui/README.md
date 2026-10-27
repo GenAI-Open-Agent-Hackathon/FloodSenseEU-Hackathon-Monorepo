@@ -50,7 +50,7 @@ Demo dates, the simulation window, map bounds, band cuts, the 8 km drill-down ra
 
 The insurer desk shows:
 
-- a schematic Valencia map with one marker per `point_id`
+- a Leaflet + OpenStreetMap map (Sites / map, `src/components/MapPanel.tsx`) for the selected event: Valencia 2024 (EMSR773, VAL01-VAL08 from `valencia_points`) or Ahr 2021 (EMSR517, AHR01-AHR04 Altenahr, Bad Neuenahr-Ahrweiler, Schuld, Dernau, the `floodsense_seed` rows from `ingestion/prep/ahr_hazard.py`). Markers sit at the rows' lat/lon, are coloured by discharge band, carry a permanent place label (code and value in the popup), and fit the event's bounds. Exposed sites are a toggleable layer for EMSR773; Ahr has no insured book, so the toggle is off and Portfolio says so. There is no river line.
 - a replay-date slider across the discharge dates
 - a drill-down that names the `discharge_daily` columns and the hazard columns when that day is in the extract
 - an evidence drawer, “Why this source”, opened from the drill-down
@@ -60,7 +60,9 @@ Approve, edit, and reject stay in the browser. Nothing is sent.
 
 The alert control steps 28–31 Oct 2024 and adds a notice if modelled discharge crosses 80 m³/s (`SIMULATED_ALERT_M3S` in `src/config/scenario.ts`). That threshold is a demo line for the map. It is not the Watchers anomaly, which is 100 m³/s (`anomaly_discharge` in `agents/floodsense_agents/governance.py`). `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
 
-The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls.
+The selected event is one value in `ConsoleContext` (`eventId`, default EMSR517 so Replay opens on Ahr; the Ahr map date and point live there too, and the Ask `context` carries the active event, date and point), shared by Replay, Sites / map, Portfolio and the header subtitle (`headerSubtitle` in `src/lib/events.ts`: the event on replay pages, "Live" on Now). Now has two labelled sections: Spain · Valencia (Open-Meteo/GloFAS model) and Germany · Rhine & Mosel (PEGELONLINE live gauges, with the gauge map and band / MHW / stale cards).
+
+The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls. Its My area map stays on Valencia.
 
 ### Look and citizen Overview
 
@@ -82,7 +84,7 @@ The reveal is CSS and stops under `prefers-reduced-motion`. `src/components/Retr
 
 Page `replay` on both desks, right after Now. Two events:
 
-- Ahr valley, 13–16 Jul 2021 (EMSR517). The page reads `GET /views/hazard_timeline?event_id=EMSR517&source=replay` (Zetaris `floodsense_seed`, migrations 051/052, even when `FF_LIVE_DATA` points the app at the live views) and uses the result when it holds AHR points inside the window, badged "Replay · Zetaris floodsense_seed · not live". Otherwise it uses `src/fixtures/ahr_2021.json`, badged "Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris". `VITE_AHR_SOURCE=fixture` forces the fixture. The fixture holds Open-Meteo Flood API (GloFAS v4 daily discharge) and Historical Weather API (ERA5 hourly precipitation) data for Altenahr, Bad Neuenahr-Ahrweiler and an upper-Ahr point, fetched 2026-10-27, CC BY 4.0 Open-Meteo.com, modelled values.
+- Ahr valley, 13–16 Jul 2021 (EMSR517). The page reads `GET /views/hazard_timeline?event_id=EMSR517&source=replay` (Zetaris `floodsense_seed`, migrations 051/052, even when `FF_LIVE_DATA` points the app at the live views) and uses the result when it holds AHR points inside the window, badged "Replay · Zetaris floodsense_seed · not live". Otherwise it uses `src/fixtures/ahr_2021.json`, badged "Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris". `VITE_AHR_SOURCE=fixture` forces the fixture. The fixture holds Open-Meteo Flood API (GloFAS v4 daily discharge) and Historical Weather API (ERA5 hourly precipitation) data for four points (AHR01 Altenahr, AHR02 Bad Neuenahr-Ahrweiler, AHR03 Schuld, AHR04 Dernau), rendered from `ingestion/prep/ahr_*.csv` (the same rows as `floodsense_seed`), CC BY 4.0 Open-Meteo.com, modelled values.
 - Valencia, 28–31 Oct 2024 (EMSR773), from the loaded `hazard_timeline` rows.
 
 The page has an hourly scrubber, day buttons and Play/Pause. Under reduced motion Play steps once a second, and the time readout is not announced while playing. Each point shows its rain and discharge at the scrubbed time. Because GloFAS discharge is daily, a crossing of the 100 m³/s Watchers line is dated by day ("Crossed the line on 14 Jul 2021 (daily value)"), never by hour. "Ask the agents about this moment" opens Ask pre-filled and sends `context` {page, event_id, replay_date, point_id, place}. Everything is labelled "Replay of … · not live".
