@@ -156,12 +156,15 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
             ),
             (
                 "rain started before the discharge peak",
-                f"SELECT MIN(r.ts_utc) AS first_rain, MAX(d.ts_utc) AS peak FROM "
-                f"{s}.hazard_timeline r, {s}.hazard_timeline d WHERE r.point_id IN ({rain_pts}) "
-                f"AND r.rain_mm > 0 AND d.point_id IN ({river_pts}) AND d.discharge_m3s IS NOT "
-                f"NULL AND r.ts_utc BETWEEN ? AND ? AND d.ts_utc BETWEEN ? AND ? "
-                f"HAVING MIN(r.ts_utc) < MAX(d.ts_utc)",
-                clock + clock,
+                # Before the peak (a replay clock mid-event) the last discharge row may
+                # predate the rain, so the clock t1 also counts: the rain began before
+                # the latest known discharge or before now. No rain x discharge join.
+                f"SELECT MIN(r.ts_utc) AS first_rain FROM {s}.hazard_timeline r WHERE "
+                f"r.point_id IN ({rain_pts}) AND r.rain_mm > 0 AND r.ts_utc BETWEEN ? AND ? "
+                f"HAVING MIN(r.ts_utc) < COALESCE((SELECT MAX(d.ts_utc) FROM {s}.hazard_timeline d "
+                f"WHERE d.point_id IN ({river_pts}) AND d.discharge_m3s IS NOT NULL AND d.ts_utc "
+                f"BETWEEN ? AND ?), ?) OR MIN(r.ts_utc) < ?",
+                clock + clock + (t1, t1),
             ),
         ]
     if h.link == "catchment->river":
