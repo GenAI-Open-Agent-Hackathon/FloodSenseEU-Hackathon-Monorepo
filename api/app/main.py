@@ -26,10 +26,13 @@ POST /runs                        start a run; returns when the graph pauses for
                                   200 + served_from cache: a repeat of a finished question (FF_SEMANTIC_CACHE)
                                   200 + served_from replay: the live run failed (FF_CACHED_REPLAY)
                                   {"fresh": true} skips the cache
+POST /runs?wait=false             202 {run_id, thread_id, status: running} at once; follow /runs/{id}/events.
+                                  Same bucket and in-flight cap; the slot is held until the run
+                                  leaves `running`. A cache hit or a replay fallback still answers 200.
 GET  /runs/past                   earlier runs (?thread_id= for one conversation)
 GET  /runs/{id}                   run snapshot
 GET  /runs/{id}/replay            a recorded run, labelled replay
-GET  /runs/{id}/events            SSE trace stream (proxied as-is)
+GET  /runs/{id}/events            SSE: `started`, `trace` and a final `status` event (proxied as-is)
 GET  /runs/{id}/approval          the approval payload (409 unless awaiting approval)
 POST /runs/{id}/approval          {action: approve | edit | reject, edits?, reviewer_note?, reviewer?}
 GET  /runs/{id}/citations         citation records + evidence + provenance
@@ -324,6 +327,79 @@ def _bucket_refusal(request: Request) -> JSONResponse | None:
     return _too_many("rate limit: too many requests from this client", wait)
 
 
+def _wants_async(request: Request) -> bool:
+    return request.query_params.get("wait", "true").strip().lower() in ("false", "0", "no")
+
+
+# Background holders of an async run's concurrency slot. Kept so the tasks are not collected.
+_HOLDERS: set[asyncio.Task] = set()
+SLOT_POLL_S = 1.0
+SLOT_HOLD_MAX_S = 900.0
+SLOT_DOWN_RELEASE_S = 30.0  # consecutive seconds of agents errors before the slot is freed
+
+
+async def _hold_slot_until_done(run_id: str) -> None:
+    """Keep one in-flight slot until the async run leaves `running`.
+
+    The slot is released when the graph pauses for approval, ends or fails, or
+    when the agents stop knowing the run, after SLOT_DOWN_RELEASE_S of the agents
+    being unreachable or erroring, or after SLOT_HOLD_MAX_S at worst.
+    """
+    t0 = time.monotonic()
+    down_since: float | None = None
+    try:
+        while time.monotonic() - t0 < SLOT_HOLD_MAX_S:
+            code, run = await _agents_json("GET", f"/runs/{run_id}", timeout=_lookup_timeout())
+            if code == 404:
+                return
+            if code >= 500 or run is None:
+                # Agents down or erroring: give the slot back after SLOT_DOWN_RELEASE_S.
+                down_since = down_since if down_since is not None else time.monotonic()
+                if time.monotonic() - down_since >= SLOT_DOWN_RELEASE_S:
+                    return
+            else:
+                down_since = None
+            if code == 200 and isinstance(run, dict) and run.get("status") != "running":
+                return
+            await asyncio.sleep(SLOT_POLL_S)
+    finally:
+        limiter.slots.release()
+
+
+async def _start_async(body: Any) -> Response:
+    """POST /runs?wait=false. The caller already holds a slot; it moves to a holder task."""
+    settings = cache.settings
+    try:
+        r = await _agents_request("POST", "/runs", body=body, params={"wait": "false"})
+    except httpx.HTTPError as e:
+        limiter.slots.release()
+        if settings.cached_replay and isinstance(body, dict):
+            replay = await _replay_for(
+                body,
+                f"the agents could not be reached ({type(e).__name__})",
+                agents_down=True,
+            )
+            if replay is not None:
+                return _json_run(replay, 200)
+        raise HTTPException(503, f"agents service unreachable at {AGENTS_URL}: {type(e).__name__}")
+    try:
+        payload = r.json()
+    except ValueError:
+        payload = None
+    run_id = payload.get("run_id") if isinstance(payload, dict) else None
+    if r.status_code == 202 and isinstance(run_id, str):
+        task = asyncio.create_task(_hold_slot_until_done(run_id))
+        _HOLDERS.add(task)
+        task.add_done_callback(_HOLDERS.discard)
+    else:
+        limiter.slots.release()
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/json"),
+    )
+
+
 @app.post("/runs", status_code=201)
 async def start_run(request: Request) -> Response:
     refused = _bucket_refusal(request)
@@ -345,6 +421,8 @@ async def start_run(request: Request) -> Response:
             "rate limit: too many runs in flight, try again shortly",
             limiter.settings.concurrency_retry_after_s,
         )
+    if _wants_async(request):
+        return await _start_async(body)
     try:
         resp = await _forward("POST", "/runs", body=body)
     except HTTPException as e:

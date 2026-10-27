@@ -25,13 +25,14 @@ GET  /version                      build sha and timestamp
 GET  /config                       flags, lanes, schema, checkpointer (no secrets)
 GET  /readiness                    the eight foundations checked against the newest run
 POST /runs                         RunRequest -> runs until the HITL interrupt; returns the run snapshot (status awaiting_approval)
+POST /runs?wait=false              202 {run_id, thread_id, status: running} at once; the graph runs in the background
 GET  /runs/past                    runs started by this process, newest first (the checkpointer holds every run's state)
 GET  /runs/{id}                    snapshot: contract state + claims, evidence, judge_summary, trace
 GET  /runs/{id}/replay             the same run labelled as a replay (served_from replay, cached_at its start)
 GET  /runs/{id}/approval           what the reviewer sees (409 unless awaiting approval)
 POST /runs/{id}/approval           ApprovalDecision {action: approve|edit|reject, edits?, reviewer_note?, reviewer?} -> resumes the run
 GET  /runs/{id}/citations          every citation record of the run plus the evidence and provenance they point at
-GET  /runs/{id}/events             SSE: the run's trace replayed in order, then one `status` event. POST /runs finishes the graph first, so this is not a live feed yet
+GET  /runs/{id}/events             SSE: `started` per node as it begins (background runs), `trace` per finished step, then one `status` event
 
     python -m floodsense_agents            # host: http://127.0.0.1:8100
 """
@@ -358,8 +359,16 @@ def config():
 
 
 @app.post("/runs", status_code=201)
-def start_run(req: RunRequest):
+def start_run(req: RunRequest, wait: bool = True):
+    """wait=true (default): run to the HITL pause and return the snapshot (201).
+
+    wait=false: 202 {run_id, thread_id, status: running} at once; the graph runs
+    in the background. Follow it on GET /runs/{id}/events or poll GET /runs/{id}.
+    """
     try:
+        if not wait:
+            accepted = runtime().start_async(req)
+            return JSONResponse(_envelope(accepted), status_code=202)
         return _envelope(runtime().start(req))
     except ThreadNotFound as e:
         raise HTTPException(404, f"thread {e.args[0]} not found; omit thread_id to start one")
@@ -411,10 +420,36 @@ def get_approval(run_id: str):
         raise HTTPException(409, str(e))
 
 
+def _check_edit(run: dict, decision: ApprovalDecision) -> None:
+    """422 unless an edit changes something, and only outbound drafts of this run."""
+    drafts = decision.draft_messages or {}
+    outbound = {a.get("action_id"): a for a in run.get("playbook") or [] if a.get("outbound")}
+    for aid, text in drafts.items():
+        if not (text or "").strip():
+            raise HTTPException(422, f"draft_messages[{aid}] is empty")
+        if aid not in outbound:
+            raise HTTPException(422, f"{aid} is not an outbound action of this run")
+    summary = (decision.edits or "").strip()
+    changes_summary = bool(summary) and summary != (run.get("summary") or "").strip()
+    changes_draft = any(
+        text.strip() != (outbound[aid].get("draft_message") or "").strip()
+        for aid, text in drafts.items()
+    )
+    if not (changes_summary or changes_draft):
+        raise HTTPException(422, "action=edit must change the summary or a draft_message")
+
+
 @app.post("/runs/{run_id}/approval")
 def post_approval(run_id: str, decision: ApprovalDecision):
-    if decision.action == "edit" and not (decision.edits or "").strip():
-        raise HTTPException(422, "action=edit requires edits")
+    if decision.action != "edit" and decision.draft_messages:
+        raise HTTPException(422, "draft_messages go with action=edit only")
+    if decision.action == "edit":
+        try:
+            run = runtime().snapshot(run_id)
+        except RunNotFound:
+            raise HTTPException(404, f"run {run_id} not found")
+        if run["status"] == "awaiting_approval":  # otherwise resume answers 409
+            _check_edit(run, decision)
     try:
         return _envelope(runtime().resume(run_id, decision))
     except RunNotFound:
@@ -440,9 +475,20 @@ async def events(run_id: str):
         raise HTTPException(404, f"run {run_id} not found")
 
     async def gen():
-        sent, t0 = 0, time.time()
+        sent, begun, t0 = 0, 0, time.time()
         while time.time() - t0 < 900:
-            s = rt.snapshot(run_id)
+            try:
+                s = await asyncio.to_thread(rt.snapshot, run_id)
+            except RunNotFound:
+                # A background run that died before its first checkpoint.
+                gone = {"run_id": run_id, "status": "not_found", "served_from": None, "cached_at": None}
+                yield f"event: status\ndata: {json.dumps(gone)}\n\n"
+                return
+            # Background runs only: a node has begun but not yet written its entry.
+            starts = rt.started(run_id)
+            for ev in starts[begun:]:
+                yield f"event: started\ndata: {json.dumps(ev)}\n\n"
+            begun = len(starts)
             for ev in s["trace"][sent:]:
                 yield f"event: trace\ndata: {json.dumps(ev)}\n\n"
             sent = len(s["trace"])
