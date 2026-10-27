@@ -14,6 +14,7 @@ Rhineland-Palatinate state service, not the WSV, so the Ahr stays in replay only
 
 Data: PEGELONLINE, WSV. Licence DL-DE->Zero-2.0. Attribution: Quelle: WSV, PEGELONLINE.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,26 +40,57 @@ SOURCE = "ds_pegelonline"
 # upstream to downstream within each. 26 stations across ten rivers.
 STATIONS = (
     # Rhine
-    "MAXAU", "MAINZ", "KAUB", "KOBLENZ", "ANDERNACH", "BONN", "KÖLN", "DÜSSELDORF", "EMMERICH",
+    "MAXAU",
+    "MAINZ",
+    "KAUB",
+    "KOBLENZ",
+    "ANDERNACH",
+    "BONN",
+    "KÖLN",
+    "DÜSSELDORF",
+    "EMMERICH",
     # Mosel, Saar
-    "Trier UP", "Cochem", "Fremersdorf",
+    "Trier UP",
+    "Cochem",
+    "Fremersdorf",
     # Main, Neckar
-    "FRANKFURT OSTHAFEN", "WÜRZBURG", "Heidelberg UP", "Lauffen",
+    "FRANKFURT OSTHAFEN",
+    "WÜRZBURG",
+    "Heidelberg UP",
+    "Lauffen",
     # Elbe
-    "DRESDEN", "MAGDEBURG-STROMBRÜCKE", "WITTENBERGE",
+    "DRESDEN",
+    "MAGDEBURG-STROMBRÜCKE",
+    "WITTENBERGE",
     # Danube (Donau)
-    "REGENSBURG EISERNE BRÜCKE", "PASSAU DONAU",
+    "REGENSBURG EISERNE BRÜCKE",
+    "PASSAU DONAU",
     # Oder
-    "FRANKFURT1 (ODER)", "HOHENSAATEN-FINOW",
+    "FRANKFURT1 (ODER)",
+    "HOHENSAATEN-FINOW",
     # Weser, Ems
-    "HANN.MUENDEN", "PORTA", "RHEINE UNTERSCHLEUSE",
+    "HANN.MUENDEN",
+    "PORTA",
+    "RHEINE UNTERSCHLEUSE",
 )
 
 COLUMNS = [
-    "station", "water", "ts_utc", "level_cm", "source",
-    "river_km", "lat", "lon", "trend_cm_h",
-    "mnw_cm", "mw_cm", "mhw_cm", "hhw_cm", "hsw_cm",
-    "band", "fetched_at",
+    "station",
+    "water",
+    "ts_utc",
+    "level_cm",
+    "source",
+    "river_km",
+    "lat",
+    "lon",
+    "trend_cm_h",
+    "mnw_cm",
+    "mw_cm",
+    "mhw_cm",
+    "hhw_cm",
+    "hsw_cm",
+    "band",
+    "fetched_at",
 ]
 
 # near: within this share of the MW..MHW span below MHW.
@@ -83,7 +115,9 @@ def stamp(dt: datetime) -> str:
 
 def trend_cm_h(measurements: list[dict]) -> float | None:
     """cm per hour between the newest reading and the one about an hour before it."""
-    pts = sorted((utc(m["timestamp"]), float(m["value"])) for m in measurements if m.get("value") is not None)
+    pts = sorted(
+        (utc(m["timestamp"]), float(m["value"])) for m in measurements if m.get("value") is not None
+    )
     if len(pts) < 2:
         return None
     t1, v1 = pts[-1]
@@ -106,13 +140,21 @@ def band(level: float | None, mw: float | None, mhw: float | None) -> str:
 
 def station_row(name: str, fetched: str, get=fetch_json) -> list:
     quoted = urllib.parse.quote(name)
-    s = get(f"{BASE}/stations/{quoted}.json", {
-        "includeTimeseries": "true", "includeCurrentMeasurement": "true",
-        "includeCharacteristicValues": "true",
-    })
+    s = get(
+        f"{BASE}/stations/{quoted}.json",
+        {
+            "includeTimeseries": "true",
+            "includeCurrentMeasurement": "true",
+            "includeCharacteristicValues": "true",
+        },
+    )
     ts = next(t for t in s.get("timeseries", []) if t.get("shortname") == "W")
     cur = ts.get("currentMeasurement") or {}
-    cvals = {c["shortname"]: c.get("value") for c in ts.get("characteristicValues", []) if c.get("unit") == "cm"}
+    cvals = {
+        c["shortname"]: c.get("value")
+        for c in ts.get("characteristicValues", [])
+        if c.get("unit") == "cm"
+    }
     level = cur.get("value")
     level = float(level) if level is not None else None
     try:
@@ -121,12 +163,22 @@ def station_row(name: str, fetched: str, get=fetch_json) -> list:
         trend = None
     mw, mhw = cvals.get("MW"), cvals.get("MHW")
     return [
-        s["shortname"], s["water"]["shortname"],
+        s["shortname"],
+        s["water"]["shortname"],
         stamp(utc(cur["timestamp"])) if cur.get("timestamp") else "",
-        level, SOURCE,
-        s.get("km"), s.get("latitude"), s.get("longitude"), trend,
-        cvals.get("MNW"), mw, mhw, cvals.get("HHW"), cvals.get("HSW"),
-        band(level, mw, mhw), fetched,
+        level,
+        SOURCE,
+        s.get("km"),
+        s.get("latitude"),
+        s.get("longitude"),
+        trend,
+        cvals.get("MNW"),
+        mw,
+        mhw,
+        cvals.get("HHW"),
+        cvals.get("HSW"),
+        band(level, mw, mhw),
+        fetched,
     ]
 
 
@@ -166,7 +218,9 @@ def poll(stations=STATIONS, get=fetch_json, out_dir: str = OUT) -> tuple[str, in
         except Exception as e:
             failed.append(f"{name}: {e}")
             # Keep the station: its last row with its old fetched_at, else an empty row.
-            rows.append(previous.get(name) or previous.get(name.upper()) or empty_row(name, fetched))
+            rows.append(
+                previous.get(name) or previous.get(name.upper()) or empty_row(name, fetched)
+            )
     if not fresh:
         return path, 0, failed
     os.makedirs(out_dir, exist_ok=True)
@@ -184,16 +238,31 @@ def stage(path: str, container: str) -> None:
     run("exec", "-u", "0", container, "mkdir", "-p", DEST)
     # Dot-prefixed temp name: Spark skips hidden files, and mv in one directory is atomic.
     run("cp", path, f"{container}:{DEST}/.live.csv.tmp")
-    run("exec", "-u", "0", container, "bash", "-c",
+    run(
+        "exec",
+        "-u",
+        "0",
+        container,
+        "bash",
+        "-c",
         f"chmod a+r {DEST}/.live.csv.tmp; chgrp 1001 {DEST}/.live.csv.tmp; chmod g+rw {DEST}/.live.csv.tmp; "
-        f"chmod a+rx {DEST}; mv -f {DEST}/.live.csv.tmp {DEST}/live.csv")
+        f"chmod a+rx {DEST}; mv -f {DEST}/.live.csv.tmp {DEST}/live.csv",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--interval", type=int, default=0, help="repeat every N seconds (600-900 suggested)")
-    ap.add_argument("--no-stage", action="store_true", help="do not copy into the Zetaris container")
-    ap.add_argument("--container", default=os.environ.get("ZETARIS_DRIVER_CONTAINER", "zetaris-driver-1"))
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--interval", type=int, default=0, help="repeat every N seconds (600-900 suggested)"
+    )
+    ap.add_argument(
+        "--no-stage", action="store_true", help="do not copy into the Zetaris container"
+    )
+    ap.add_argument(
+        "--container", default=os.environ.get("ZETARIS_DRIVER_CONTAINER", "zetaris-driver-1")
+    )
     a = ap.parse_args(argv)
     while True:
         path, n, failed = poll()

@@ -19,7 +19,7 @@ import math
 import re
 import time
 
-from floodsense_agents.events import hazard_schema, point_label
+from floodsense_agents.events import WATCH_EVENT, hazard_schema, point_label
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
 from floodsense_agents.live import (
     GAUGE_LIVE_ROWS,
@@ -43,7 +43,13 @@ from floodsense_agents.prompts import INVESTIGATOR_LINK, compact_rows
 from floodsense_agents.provenance import rows_for as provenance_rows
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
-from floodsense_agents.watch import RHINE_WATERS, is_watch_only, sql_list, watch_target
+from floodsense_agents.watch import (
+    RHINE_WATERS,
+    all_sources,
+    is_watch_only,
+    sql_list,
+    watch_target,
+)
 from floodsense_agents.zetaris import now_utc, run_sql_parallel
 
 log = logging.getLogger("floodsense.investigator")
@@ -1056,7 +1062,11 @@ def _eu_watch_live(
         text = (
             f"{r['station']} ({r.get('water') or '?'}), PEGELONLINE gauge: "
             f"{_fmt(r['level_cm'])} cm "
-            + (f"(stale reading from {r['ts_utc']}, {rel})" if stale else f"at {r['ts_utc']} ({rel})")
+            + (
+                f"(stale reading from {r['ts_utc']}, {rel})"
+                if stale
+                else f"at {r['ts_utc']} ({rel})"
+            )
         )
         if _num(r.get("trend_cm_h")):
             numbers.append(r["trend_cm_h"])
@@ -1073,7 +1083,9 @@ def _eu_watch_live(
             text += "; gauge_levels carries no MHW for this station"
         if band in ("above", "near") and not stale:
             at_risk.append(r["station"])
-        ids.append(claim(text + f". Quelle: WSV, PEGELONLINE. {OFFICIAL_NOTE}", "number", gauges, numbers))
+        ids.append(
+            claim(text + f". Quelle: WSV, PEGELONLINE. {OFFICIAL_NOTE}", "number", gauges, numbers)
+        )
         parts.append(f"{r['station']} {_fmt(r['level_cm'])} cm ({band} vs MHW)")
     if stations and not rows:
         n_live = _float((readings.rows_sample or [{}])[0].get("stations")) if readings else None
@@ -1091,7 +1103,9 @@ def _eu_watch_live(
         parts.append(f"no live gauge reading for {', '.join(stations)}")
     for r in model.rows_sample if model else []:
         label = f"{r.get('river')} at {r.get('name')} ({r.get('country')}, {r.get('point_id')})"
-        q, fmax, med = (_float(r.get(k)) for k in ("discharge_m3s", "forecast_max_m3s", "past30_median_m3s"))
+        q, fmax, med = (
+            _float(r.get(k)) for k in ("discharge_m3s", "forecast_max_m3s", "past30_median_m3s")
+        )
         band = str(r.get("band") or "unknown").lower()
         if not (_num(q) and _num(fmax) and _num(med)):
             ids.append(
@@ -1112,8 +1126,8 @@ def _eu_watch_live(
         }.get(band, "not comparable with")
         ids.append(
             claim(
-                f"{label}: GloFAS discharge {_fmt(q)} m3/s today ({r.get('as_of_date')}), 7-day "
-                f"forecast max {_fmt(fmax)} m3/s, {meaning} the past-30-day median "
+                f"{label}: GloFAS model cell value {_fmt(q)} m3/s today ({r.get('as_of_date')}), 7-day "
+                f"forecast max {_fmt(fmax)} m3/s, {meaning} the exact past-30-day median "
                 f"{_fmt(med)} m3/s; model band '{band}'. Open-Meteo Flood API (GloFAS), CC BY "
                 f"4.0. Model, not an official warning; official: the national hydrological "
                 f"service and EFAS.",
@@ -1533,11 +1547,11 @@ def make(deps: Deps):
             }
 
         findings = None
-        watch = watch_target(
-            str((state.get("request") or {}).get("question") or ""),
-            (state.get("request") or {}).get("context"),
-        )
-        if is_live(state) and is_watch_only(watch):
+        if state.get("event_id") == WATCH_EVENT:
+            req = state.get("request") or {}
+            watch = watch_target(str(req.get("question") or ""), req.get("context"))
+            if not is_watch_only(watch):
+                watch = all_sources()
             hyps, claims, summary, extra, findings = _eu_watch_live(state, deps, watch)
         elif is_live(state) and has_gauges(state["event"]):
             hyps, claims, summary, extra, findings = _rhine_live(state, deps)

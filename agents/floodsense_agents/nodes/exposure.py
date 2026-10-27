@@ -12,6 +12,7 @@ import re
 import time
 from decimal import Decimal, InvalidOperation
 
+from floodsense_agents.events import WATCH_EVENT
 from floodsense_agents.governance import IN_FOOTPRINT_SQL
 from floodsense_agents.live import focus, is_live, phrase_for_role
 from floodsense_agents.models import Claim, ExposedAsset, Exposure, Hypothesis, normalize_utc
@@ -99,7 +100,9 @@ def make(deps: Deps):
         live = is_live(state)
         # A Europe live-watch question (Budapest, the Elbe at Dresden) is not about
         # this event's footprint; the synthetic portfolio would answer another place.
-        if live and (state.get("live_findings") or {}).get("watch_hypothesis"):
+        if ev.get("event_id") == WATCH_EVENT or (state.get("live_findings") or {}).get(
+            "watch_hypothesis"
+        ):
             return {
                 "exposure": {},
                 "trace": trace(

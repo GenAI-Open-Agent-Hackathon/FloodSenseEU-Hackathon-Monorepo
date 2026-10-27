@@ -4,9 +4,9 @@ Two live sources, kept apart because they mean different things:
 
   {schema}.gauge_levels  PEGELONLINE water levels (WSV), banded against the
                          station's own MHW: an official characteristic value.
-  {schema}.eu_watch      Open-Meteo GloFAS discharge at 12 river points outside
+  {schema}.eu_watch      Open-Meteo GloFAS discharge at 11 river points outside
                          Germany, banded against the series itself (7-day
-                         forecast max vs 2x past-30-day median): a model band,
+                         forecast max vs 2x the exact past-30-day median): a model band,
                          not an official warning.
 
 watch_target() reads place and river words from the question (or the user's
@@ -17,7 +17,7 @@ path (investigator._rhine_live); is_watch_only() says when a target needs this
 path instead.
 
 STATIONS mirrors ingestion/feeds/pegel_poll.py STATIONS (a test keeps them
-equal). The point ids are migration 061's.
+equal). The point ids are migration 064's.
 """
 
 from __future__ import annotations
@@ -56,20 +56,20 @@ STATIONS: tuple[tuple[str, str], ...] = (
 # Waters the EMSR517 live gauge path already answers.
 RHINE_WATERS: tuple[str, ...] = ("RHEIN", "MOSEL")
 
-# (point_id, city, country, river, lat, lon) as in migrations 060-062.
+# (point_id, city, country, river, lat, lon) as in migrations 063-065. Seville was dropped:
+# its best GloFAS cell carries ~17 m3/s against ~160 m3/s long-term at the city.
 EU_POINTS: tuple[tuple[str, str, str, str, float, float], ...] = (
     ("EU01", "Paris", "FR", "Seine", 48.925, 2.275),
-    ("EU02", "Lyon", "FR", "Rhone", 45.725, 4.775),
+    ("EU02", "Lyon", "FR", "Rhone", 45.775, 4.825),
     ("EU03", "Orleans", "FR", "Loire", 47.875, 1.875),
-    ("EU04", "Piacenza", "IT", "Po", 45.125, 9.725),
+    ("EU04", "Piacenza", "IT", "Po", 45.075, 9.625),
     ("EU05", "Zaragoza", "ES", "Ebro", 41.625, -0.825),
     ("EU06", "Warsaw", "PL", "Vistula", 52.275, 20.975),
-    ("EU07", "Vienna", "AT", "Danube", 48.175, 16.425),
+    ("EU07", "Vienna", "AT", "Danube", 48.175, 16.475),
     ("EU08", "Budapest", "HU", "Danube", 47.475, 19.025),
     ("EU09", "Szeged", "HU", "Tisza", 46.275, 20.125),
-    ("EU10", "Liege", "BE", "Meuse", 50.675, 5.575),
+    ("EU10", "Liege", "BE", "Meuse", 50.675, 5.625),
     ("EU11", "Prague", "CZ", "Vltava", 50.125, 14.375),
-    ("EU12", "Seville", "ES", "Guadalquivir", 37.325, -6.075),
 )
 EU_POINT_IDS: tuple[str, ...] = tuple(p[0] for p in EU_POINTS)
 
@@ -133,8 +133,6 @@ _CITY: dict[str, tuple[str, ...]] = {
     "Prague": ("EU11",),
     "Praha": ("EU11",),
     "Prag": ("EU11",),
-    "Seville": ("EU12",),
-    "Sevilla": ("EU12",),
 }
 # River words -> (PEGELONLINE waters, EU rivers). Ambiguous words ("Main",
 # "Ems", "Oder" = German "or", "Po") only count capitalised.
@@ -164,7 +162,6 @@ _RIVER: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "Maas": ((), ("Meuse",)),
     "Vltava": ((), ("Vltava",)),
     "Moldau": ((), ("Vltava",)),
-    "Guadalquivir": ((), ("Guadalquivir",)),
 }
 _RIVER_CASED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "Main": (("MAIN",), ()),
@@ -181,7 +178,14 @@ def _alt(words) -> re.Pattern[str]:
 
 _CITY_RE = re.compile(_alt(_CITY).pattern, re.IGNORECASE | re.UNICODE)
 _RIVER_RE = re.compile(_alt(_RIVER).pattern, re.IGNORECASE | re.UNICODE)
-_RIVER_CASED_RE = _alt(_RIVER_CASED)
+# "Main", "Oder", "Ems", "Po" are also ordinary words ("Main roads", "Oder doch",
+# "Ems?"). They count only beside a river word: "river Main", "am Main",
+# "an der Oder", "Main at Frankfurt", "Oder river".
+_CASED = "|".join(_RIVER_CASED)
+_RIVER_CASED_RE = re.compile(
+    rf"(?:(?i:\b(?:river|fluss|am|an der)\s+)(?P<a>{_CASED})\b)"
+    rf"|(?:\b(?P<b>{_CASED})(?i:\s+(?:river|fluss|at)\b))"
+)
 _CITY_KEYS = {k.lower(): v for k, v in _CITY.items()}
 _RIVER_KEYS = {k.lower(): v for k, v in _RIVER.items()}
 _STATION_WATER = dict(STATIONS)
@@ -214,7 +218,9 @@ def watch_target(question: str, context: dict | None = None) -> dict | None:
     if stations or points:
         return _target(stations, points, ", ".join(words))
     hits = [(m.group(0), _RIVER_KEYS[m.group(0).lower()]) for m in _RIVER_RE.finditer(text)]
-    hits += [(m.group(0), _RIVER_CASED[m.group(0)]) for m in _RIVER_CASED_RE.finditer(text)]
+    for m in _RIVER_CASED_RE.finditer(text):
+        word = m.group("a") or m.group("b")
+        hits.append((word, _RIVER_CASED[word]))
     for word, (waters, rivers) in hits:
         stations += [s for s, w in STATIONS if w in waters]
         points += [p[0] for p in EU_POINTS if p[3] in rivers]
@@ -237,6 +243,48 @@ def is_watch_only(target: dict | None) -> bool:
     if target["points"]:
         return True
     return any(_STATION_WATER.get(s) not in RHINE_WATERS for s in target["stations"])
+
+
+# A watch question must ask about the present. Live cue: always live. A level or
+# discharge word: live unless the question also points at the past.
+_LIVE_CUE = re.compile(
+    r"\b(?:right now|now|currently|current|today|tonight|tomorrow|at the moment|rising|"
+    r"next (?:few )?\d* ?(?:h|hours?|days?)|coming (?:hours?|days?)|"
+    r"heute|jetzt|aktuell|derzeit|ahora|hoy|actualmente)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+_LEVEL_WORD = re.compile(
+    r"\b(?:levels?|water levels?|discharge|flow|gauges?|risk|pegel|wasserstand|abfluss|"
+    r"caudal|nivel)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+_PAST_CUE = re.compile(
+    r"\b(?:was|did|were|happened|affected|flood of|floods of|hit|last (?:year|month|week)|"
+    r"(?:19|20)\d{2}|january|february|march|april|may|june|july|august|september|october|"
+    r"november|december|januar|februar|märz|juni|juli|oktober|dezember|enero|julio|octubre|"
+    r"war|waren|wurde|fue|emsr\d*)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def has_watch_cue(question: str) -> bool:
+    """A live cue, or a level/discharge word with no past cue."""
+    q = question or ""
+    if _LIVE_CUE.search(q):
+        return True
+    return bool(_LEVEL_WORD.search(q)) and not _PAST_CUE.search(q)
+
+
+def all_sources() -> dict:
+    """Every model point and every gauge off the Rhine/Mosel: a watch run that names nothing."""
+    return _target(
+        [s for s, w in STATIONS if w not in RHINE_WATERS], list(EU_POINT_IDS), "all watch sources"
+    )
+
+
+def place_words() -> tuple[str, ...]:
+    """Every city and river word the watch reads, for the LIVE-EU scope vocabulary."""
+    return (*_CITY, *_RIVER, *_RIVER_CASED)
 
 
 def sql_list(values) -> str:

@@ -389,8 +389,21 @@ _SEED = {
     # The twelve points of migration 062: positions only, no discharge, band unknown.
     # A test that needs a reading sets one.
     "eu_watch": [
-        (p, name, cc, river, lat, lon, None, None, None, "unknown",
-         "model, not an official warning: seed row, no reading", "seed:openmeteo_flood", None)
+        (
+            p,
+            name,
+            cc,
+            river,
+            lat,
+            lon,
+            None,
+            None,
+            None,
+            "unknown",
+            "model, not an official warning: seed row, no reading",
+            "seed:openmeteo_flood",
+            None,
+        )
         for p, name, cc, river, lat, lon in EU_POINTS
     ],
     # Synthetic portfolio of the demo insurer around the EMSR773 footprint.

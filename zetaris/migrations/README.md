@@ -40,6 +40,9 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `060_create_rest_table_eu_watch_live.sql` | Rolling GloFAS REST table for 12 EU river points outside Germany (past 30 + 7 forecast days). No view. Numbered from 060 to leave room for parallel branches | Mihir |
 | `061_create_view_eu_watch.sql` | `floodsense.eu_watch`: discharge today, 7-day forecast max, past-30-day median and a relative model band per point | Mihir |
 | `062_create_seed_view_eu_watch.sql` | `floodsense_seed.eu_watch`: the 12 points, no invented discharge, band `unknown` | Mihir |
+| `063_create_rest_table_eu_watch_live_v2.sql` | EU watch REST table with cells checked against long-term mean flow (4 moved, Seville dropped). Replaces 060's table in 064 | Mihir |
+| `064_view_eu_watch_v2_exact_median.sql` | `floodsense.eu_watch` replaces 061: the 11 points of 063, exact past-30-day median | Mihir |
+| `065_seed_view_eu_watch_v2.sql` | `floodsense_seed.eu_watch` replaces 062: the 11 points of 063 | Mihir |
 
 Rules (see [../README.md](../README.md)):
 

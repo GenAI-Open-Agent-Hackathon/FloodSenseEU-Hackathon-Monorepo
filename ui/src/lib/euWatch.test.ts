@@ -63,7 +63,7 @@ describe("watch sources", () => {
     expect(list.map((s) => s.kind)).toEqual(["gauge", "model"]);
     expect(list[0].question).toBe("Is the Elbe at Dresden at risk right now?");
     expect(list[1].question).toBe(questionFor("Danube", "Budapest"));
-    expect(list[1].value).toContain("1.2× median");
+    expect(list[1].value).toContain("1.2× 30-day median");
   });
 
   it("sorts raised sources first, then by ratio", () => {

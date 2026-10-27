@@ -116,9 +116,7 @@ _EVENT_PATTERNS: tuple[str, ...] = (
 _EVENT_RE = re.compile(
     "|".join(rf"\b(?:{p})\b" for p in _EVENT_PATTERNS), re.IGNORECASE | re.UNICODE
 )
-_LIVE_RE = re.compile(
-    "|".join(rf"\b(?:{p})\b" for p in _LIVE_PATTERNS), re.IGNORECASE | re.UNICODE
-)
+_LIVE_RE = re.compile("|".join(rf"\b(?:{p})\b" for p in _LIVE_PATTERNS), re.IGNORECASE | re.UNICODE)
 
 
 def _flag(name: str, default: bool) -> bool:
@@ -656,9 +654,7 @@ class AnswerCache:
             while len(self._recordings) > self.settings.max_recordings:
                 self._recordings.popitem(last=False)  # Redis keeps it until its TTL
         if self._redis is not None:
-            self._redis.set_json(
-                _slot(REPLAY_PREFIX, slot), stored, self.settings.recording_ttl_s
-            )
+            self._redis.set_json(_slot(REPLAY_PREFIX, slot), stored, self.settings.recording_ttl_s)
 
     def recording_for(self, request: dict[str, Any]) -> dict[str, Any] | None:
         """The recording of this question, event, customer, clock and language."""

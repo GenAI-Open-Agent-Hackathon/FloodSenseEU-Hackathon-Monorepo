@@ -506,7 +506,12 @@ async def events(run_id: str):
                 s = await asyncio.to_thread(rt.snapshot, run_id)
             except RunNotFound:
                 # A background run that died before its first checkpoint.
-                gone = {"run_id": run_id, "status": "not_found", "served_from": None, "cached_at": None}
+                gone = {
+                    "run_id": run_id,
+                    "status": "not_found",
+                    "served_from": None,
+                    "cached_at": None,
+                }
                 yield f"event: status\ndata: {json.dumps(gone)}\n\n"
                 return
             # Background runs only: a node has begun but not yet written its entry.

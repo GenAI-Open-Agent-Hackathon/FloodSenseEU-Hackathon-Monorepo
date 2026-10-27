@@ -193,6 +193,9 @@ def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, t
 
 def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
     """(name, sql): each query must return >= 1 row for the check to pass."""
+    found = state.get("live_findings") or {}
+    if found.get("watch_hypothesis") == h.id:
+        return _watch_checks(settings.schema, found)
     if is_live(state):
         return _live_checks_for(h, state)
     es, ev = settings.schema, state["event"]

@@ -12,9 +12,10 @@ resolve_mode() decides, deterministically:
   question about now      live (EN, ES, DE time words below)
   anything else           event
 
-A question naming a Europe live-watch place (watch.py: a PEGELONLINE gauge
-off the Rhine/Mosel, or a GloFAS point in {schema}.eu_watch) with no past
-marker is live too: those places have no replay window.
+A question about a Europe live-watch place (events.watch_question: a
+PEGELONLINE gauge off the Rhine/Mosel or a GloFAS point in {schema}.eu_watch,
+no replay-event place named, and a present cue or a level word with no past
+cue) is live too, and runs as event LIVE-EU.
 
 A German event (EMSR517) in live mode is "the Rhine right now": the
 Investigator reads {schema}.gauge_levels (PEGELONLINE) and says plainly when
@@ -29,9 +30,15 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from floodsense_agents.events import AHR_POINT_IDS, VALENCIA_POINT_IDS
+from floodsense_agents.events import (
+    AHR_POINT_IDS,
+    VALENCIA_POINT_IDS,
+    WATCH_EVENT,
+    watch_question,
+)
+from floodsense_agents.watch import EU_POINT_IDS
 from floodsense_agents.settings import settings
-from floodsense_agents.watch import is_watch_only, sql_list, watch_target
+from floodsense_agents.watch import sql_list
 
 LIVE_DISABLED = (
     "live data disabled (FF_LIVE_DATA off): floodsense_seed.hazard_now holds the frozen "
@@ -94,9 +101,9 @@ def classify(question: str) -> tuple[str, str]:
         return LIVE, f"question asks about the present ('{m.group(0)}')"
     # The Europe watch places (Budapest, the Elbe at Dresden) have no replay
     # window: only their live views hold them.
-    target = watch_target(question or "")
-    if is_watch_only(target):
-        return LIVE, f"question names a live-watch place with no replay window ('{target['word']}')"
+    target = watch_question(question or "")
+    if target:
+        return LIVE, f"question asks about a live-watch place ('{target['word']}')"
     return EVENT, "question names no present-time window"
 
 
@@ -131,6 +138,8 @@ def live_points(event: dict) -> tuple[str, ...]:
     """Every warehouse point of the event's region. hazard_now holds all of them."""
     if str(event.get("event_id")) == "EMSR517":
         return AHR_POINT_IDS
+    if str(event.get("event_id")) == WATCH_EVENT:
+        return EU_POINT_IDS
     return VALENCIA_POINT_IDS
 
 
@@ -196,7 +205,9 @@ def has_gauges(event: dict) -> bool:
     return bool(event.get("gauges"))
 
 
-def gauge_latest_sql(schema: str, waters: tuple[str, ...] = (), stations: tuple[str, ...] = ()) -> str:
+def gauge_latest_sql(
+    schema: str, waters: tuple[str, ...] = (), stations: tuple[str, ...] = ()
+) -> str:
     """Latest live reading per station plus a trend baseline, every column kept.
 
     `g.*` so an optional threshold column comes along when the view has one.

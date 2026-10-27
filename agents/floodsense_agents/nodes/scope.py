@@ -25,11 +25,10 @@ from __future__ import annotations
 import re
 import time
 
-from floodsense_agents.events import EVENTS, spec
+from floodsense_agents.events import EVENTS, WATCH_EVENT, spec
 from floodsense_agents.governance import CONTRACT_VIEWS
 from floodsense_agents.live import resolve_mode
 from floodsense_agents.state import FloodState, trace
-from floodsense_agents.watch import is_watch_only, watch_target
 
 # Words that look like places but are ours, or are grammar.
 _GENERIC = {
@@ -270,13 +269,12 @@ def make():
         # Event replay or live hazard_now. Decided once, here, so every node
         # and the run body read the same answer.
         mode = resolve_mode(request)
-        # Live: a Europe watch place (Budapest, the Elbe at Dresden) is held by
-        # gauge_levels / eu_watch whatever the event, so it is not declined.
-        target = watch_target(question, request.get("context"))
-        if not verdict["in_scope"] and mode["mode"] == "live" and is_watch_only(target):
-            verdict = {
-                "in_scope": True,
-                "reason": f"question names {target['word']}, which the Europe live watch covers",
+        # The Europe live watch has no replay window: its views are live only.
+        if state["event_id"] == WATCH_EVENT and mode["mode"] != "live":
+            mode = {
+                "mode": "live",
+                "explicit": mode.get("explicit"),
+                "reason": f"{WATCH_EVENT} reads live views only ({mode['reason']})",
             }
         note = f"; mode {mode['mode']}: {mode['reason']}"
         if state.get("event_route"):

@@ -143,7 +143,7 @@ export function fromModel(r: EuWatchRow): WatchSource {
     value:
       r.forecast_max_m3s === null
         ? "no model reading"
-        : `7-day max ${Math.round(r.forecast_max_m3s)} m³/s${ratio === null ? "" : ` · ${ratio.toFixed(1)}× median`}`,
+        : `7-day max ${Math.round(r.forecast_max_m3s)} m³/s${ratio === null ? "" : ` · ${ratio.toFixed(1)}× 30-day median`}`,
     live: r.forecast_max_m3s !== null && !r.source.toLowerCase().includes("seed"),
     question: questionFor(r.river, r.name),
   };
