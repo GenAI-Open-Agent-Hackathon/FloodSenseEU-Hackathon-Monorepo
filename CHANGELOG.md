@@ -9,6 +9,12 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- UI: live agent pipeline in Ask FloodSense (`POST /runs?wait=false` + SSE events), with per-node duration, model and summary, visible Skeptic revise / Judge repair loops, elapsed timer, rotating tips, 429 countdown, cached/replay label and intent-reply handling.
+- UI: per-sentence source chips (Zetaris query, Document, Provenance) and a run-level "Memories used" panel from `memory_used`.
+- UI: mock-style approval cards on Approvals for live runs (action type, region, site count, Judge badge, editable draft sent as `draft_messages`, inline 422s). Nothing is sent.
+
 ### Fixed
 
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."

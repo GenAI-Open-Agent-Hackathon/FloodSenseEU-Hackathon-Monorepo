@@ -1,0 +1,189 @@
+import type { ReplayCitation } from "../api/replay";
+
+/* ---------- Source badges per sentence ---------- */
+
+export interface SourceChip {
+  kind: "zetaris" | "document" | "provenance" | "other";
+  text: string;
+}
+
+/** Pure: one chip per distinct source of a claim, from citations[].layer (a = Zetaris query, b = provenance, c = document). */
+export function sourceChips(citations: readonly ReplayCitation[]): SourceChip[] {
+  const out: SourceChip[] = [];
+  const seen = new Set<string>();
+  for (const c of citations) {
+    let chip: SourceChip;
+    if (c.layer === "a") chip = { kind: "zetaris", text: c.queryId ? `Zetaris · query ${c.queryId.slice(0, 8)}` : "Zetaris · query" };
+    else if (c.layer === "b") chip = { kind: "provenance", text: "Provenance" };
+    else if (c.layer === "c") chip = { kind: "document", text: `Document · ${c.title}` };
+    else chip = { kind: "other", text: c.title };
+    if (seen.has(chip.text)) continue;
+    seen.add(chip.text);
+    out.push(chip);
+  }
+  return out;
+}
+
+/* ---------- Memories used (run level, never per claim) ---------- */
+
+export interface MemoryUsed {
+  memoryId: string;
+  runId: string | null;
+  claimId: string | null;
+  approvedAt: string | null;
+  text: string;
+  relevance: number | null;
+}
+
+const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+const str = (v: unknown): string | null => (typeof v === "string" && v.trim().length > 0 ? v : null);
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+export function adoptMemoryUsed(value: unknown): MemoryUsed[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw, i) => {
+    const m = rec(raw);
+    const text = m && str(m.text);
+    if (!m || !text) return [];
+    return [
+      {
+        memoryId: str(m.memory_id) ?? `m${i}`,
+        runId: str(m.run_id),
+        claimId: str(m.claim_id),
+        approvedAt: str(m.approved_at),
+        text,
+        relevance: num(m.relevance),
+      },
+    ];
+  });
+}
+
+/** "27 Oct 2026", or the raw value when it does not parse. */
+export function shortDate(iso: string | null): string {
+  if (!iso) return "an unknown date";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+export const NO_MEMORIES = "No approved memories matched — this run starts fresh.";
+
+export function memoryLine(m: MemoryUsed): string {
+  return `Recalled from approved run ${m.runId ?? "unknown"} on ${shortDate(m.approvedAt)}: ${m.text}`;
+}
+
+/* ---------- Approval card ---------- */
+
+export type ActionType = "notify-policyholders" | "dispatch-loss-adjuster" | "flag-underwriting-review" | "inform-public";
+
+export const ACTION_LABELS: Record<ActionType, string> = {
+  "notify-policyholders": "Notify policyholders",
+  "dispatch-loss-adjuster": "Dispatch loss adjuster",
+  "flag-underwriting-review": "Underwriting review",
+  "inform-public": "Inform public",
+};
+
+export interface PlaybookItem {
+  actionId: string;
+  horizonH: number | null;
+  text: string;
+  claimIds: string[];
+  outbound: boolean;
+  released: boolean;
+  actionType: ActionType | null;
+  title: string;
+  targetRegion: string | null;
+  affectedSiteCount: number | null;
+  draftMessage: string | null;
+}
+
+export function adoptPlaybook(value: unknown): PlaybookItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw) => {
+    const a = rec(raw);
+    const actionId = a && str(a.action_id);
+    if (!a || !actionId) return [];
+    const type = str(a.action_type);
+    const text = str(a.text) ?? "";
+    return [
+      {
+        actionId,
+        horizonH: num(a.horizon_h),
+        text,
+        claimIds: Array.isArray(a.claim_ids) ? a.claim_ids.filter((c): c is string => typeof c === "string") : [],
+        outbound: a.outbound === true,
+        released: a.released === true,
+        actionType: type && type in ACTION_LABELS ? (type as ActionType) : null,
+        title: str(a.title) ?? (text || actionId),
+        targetRegion: str(a.target_region),
+        affectedSiteCount: typeof a.affected_site_count === "number" && Number.isInteger(a.affected_site_count) ? a.affected_site_count : null,
+        draftMessage: str(a.draft_message),
+      },
+    ];
+  });
+}
+
+export function actionChip(type: ActionType | null): string {
+  return type ? ACTION_LABELS[type] : "Playbook action";
+}
+
+export function sitesLine(count: number | null): string {
+  if (count === null) return "sites not counted";
+  return `${count} site${count === 1 ? "" : "s"} affected`;
+}
+
+export type CardStatus = "pending" | "approved" | "edited" | "rejected";
+
+export function decisionStatusLine(status: CardStatus): string | null {
+  if (status === "approved" || status === "edited") return "Approved — finding saved to H-MEM memory; nothing was sent (demo).";
+  if (status === "rejected") return "Rejected — the run ends without sending anything.";
+  return null;
+}
+
+/** Pure: map a run's approval.status (or run status) to the card status. */
+export function cardStatus(runStatus: string | null, approvalStatus: string | null): CardStatus {
+  const s = approvalStatus ?? runStatus ?? "";
+  if (s === "approved" || s === "edited" || s === "rejected") return s;
+  if (runStatus === "approved" || runStatus === "rejected") return runStatus;
+  return "pending";
+}
+
+export interface ApprovalBody {
+  action: "approve" | "edit" | "reject";
+  reviewer_note?: string;
+  reviewer?: string;
+  draft_messages?: Record<string, string>;
+}
+
+/**
+ * Pure: the POST /runs/{id}/approval body, or a message the card shows inline instead of a 422.
+ * Only changed, non-empty drafts of outbound actions are sent.
+ */
+export function buildApprovalBody(
+  action: ApprovalBody["action"],
+  note: string,
+  drafts: Record<string, string>,
+  playbook: readonly PlaybookItem[],
+): { ok: true; body: ApprovalBody } | { ok: false; message: string } {
+  const body: ApprovalBody = { action, reviewer: "insurer-desk" };
+  if (note.trim()) body.reviewer_note = note.trim();
+  if (action !== "edit") return { ok: true, body };
+  const changed: Record<string, string> = {};
+  for (const [id, text] of Object.entries(drafts)) {
+    const item = playbook.find((p) => p.actionId === id);
+    if (!item || !item.outbound) return { ok: false, message: `${id} is not an outbound action; only outbound drafts can be edited.` };
+    if (!text.trim()) return { ok: false, message: "The draft message cannot be empty." };
+    if (text.trim() !== (item.draftMessage ?? "").trim()) changed[id] = text;
+  }
+  if (Object.keys(changed).length === 0) return { ok: false, message: "Nothing changed. Edit the draft before saving, or approve it as it is." };
+  body.draft_messages = changed;
+  return { ok: true, body };
+}
+
+/** Pure: a FastAPI error body as one line. */
+export function errorDetail(body: unknown): string | null {
+  const d = rec(body)?.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) return d.map((x) => rec(x)?.msg).filter((m): m is string => typeof m === "string").join("; ") || null;
+  return null;
+}
