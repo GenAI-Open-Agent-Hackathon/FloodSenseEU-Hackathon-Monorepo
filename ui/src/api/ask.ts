@@ -17,6 +17,8 @@ export interface AskInput {
   mode?: AskMode;
   /** Screen context (role, page, point, replay moment). Sent as `context` only through withAskContext. */
   context?: AskContext | null;
+  /** The replay "now" (ISO, e.g. 2021-07-14T00:00:00Z) for a rehearsal of a past event. Sent as replay_ts. */
+  replayTs?: string | null;
 }
 
 export type AskMode = "live" | "event";
@@ -64,6 +66,7 @@ export function buildRunRequest(input: AskInput): Record<string, unknown> {
   if (input.allowedProviders.includes(input.provider)) body.llm_provider = input.provider;
   if (input.threadId) body.thread_id = input.threadId;
   if (input.mode) body.mode = input.mode;
+  if (input.replayTs) body.replay_ts = input.replayTs;
   return withAskContext(body, input.context);
 }
 

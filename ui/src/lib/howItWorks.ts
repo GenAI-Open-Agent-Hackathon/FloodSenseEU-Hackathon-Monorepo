@@ -60,6 +60,16 @@ export function boxStatuses(config: ConfigProbe, system: SystemStatus | null): R
   };
 }
 
+/** The approval box, by desk: insurers approve outbound alerts; a citizen's answers are not held back. */
+export function humanBox(role: "citizen" | "insurer"): { title: string; line: string } {
+  return role === "citizen"
+    ? {
+        title: "A person checks insurer alerts",
+        line: "Insurer alerts are checked by a person before they're sent. Your answers aren't held back.",
+      }
+    : { title: "Human approval", line: "A person approves, edits or rejects the advice. Nothing is sent before that." };
+}
+
 /** "live feeds" or "seed data" for the data box, from FF_LIVE_DATA. */
 export function feedsMode(config: ConfigProbe): "live feeds" | "seed data" | null {
   const cfg = configBody(config);

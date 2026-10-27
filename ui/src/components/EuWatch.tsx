@@ -6,6 +6,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { EU_WATCH_BOUNDS, sortSources, type SortKey, type WatchSource } from "../lib/euWatch";
 import { escapeHtml, type GaugeStatus } from "../lib/gauges";
 import { TILE_ATTRIBUTION, TILE_URL } from "./GaugeMap";
+import { basisLabel, statusView } from "../lib/places";
 
 const STATUS_TEXT: Record<GaugeStatus, string> = { ok: "below", near: "near", over: "above", unknown: "unknown" };
 const SORTS: { key: SortKey; label: string }[] = [
@@ -19,36 +20,49 @@ function ask(openAsk: ReturnType<typeof useConsole>["openAsk"], s: WatchSource) 
   openAsk(s.question, { page: "now", place: s.name });
 }
 
-/** Legend in two groups, so an official threshold band is never read as a model band. */
+/** One legend row: a shape in each tone the group uses, with its word. */
+function LegendRow({ kind, statuses }: { kind: WatchSource["kind"]; statuses: GaugeStatus[] }) {
+  return (
+    <ul className="map-legend">
+      {statuses.map((st) => {
+        const v = statusView(kind, st);
+        return (
+          <li key={st}>
+            <span className={`eu-shape eu-shape--${kind} eu-tone--${v.tone}`} aria-hidden="true" />
+            {v.word}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * Legend in three groups, so a gauge band is never read as a model band. Red is used only for a gauge at or
+ * above its long-term mean high water; model bands are amber, the Valencia demo line neutral or amber.
+ */
 export function EuWatchLegend() {
-  const dots: { status: GaugeStatus; label: string }[] = [
-    { status: "ok", label: "below" },
-    { status: "near", label: "near" },
-    { status: "over", label: "above" },
-    { status: "unknown", label: "no reading" },
-  ];
   return (
     <div className="eu-legend" aria-label="Map legend">
       <div className="eu-legend__group">
-        <span className="eu-legend__title">
-          <span className="eu-shape eu-shape--gauge" aria-hidden="true" /> Official gauge thresholds (PEGELONLINE)
+        <span className="eu-legend__title">Circles · river gauges (PEGELONLINE, measured)</span>
+        <span className="muted small">
+          Level vs the station's MHW, the long-term mean high water (not a warning level). Watch: within 25 % of the
+          MW..MHW span below MHW.
         </span>
-        <span className="muted small">Level vs the station's MHW (mean high water), measured</span>
+        <LegendRow kind="gauge" statuses={["ok", "near", "over", "unknown"]} />
       </div>
       <div className="eu-legend__group">
-        <span className="eu-legend__title">
-          <span className="eu-shape eu-shape--model" aria-hidden="true" /> Model band (GloFAS)
-        </span>
-        <span className="muted small">7-day forecast max vs 2× past-30-day median. Model, not an official warning</span>
+        <span className="eu-legend__title">Diamonds · GloFAS model points</span>
+        <span className="muted small">7-day forecast max vs the past-30-day median (Elevated: at least 2×). Model, not an official warning</span>
+        <LegendRow kind="model" statuses={["ok", "near", "over"]} />
       </div>
-      <ul className="map-legend">
-        {dots.map((d) => (
-          <li key={d.status}>
-            <span className={`map-legend__dot map-legend__dot--${d.status}`} aria-hidden="true" />
-            {d.label}
-          </li>
-        ))}
-      </ul>
+      <div className="eu-legend__group">
+        <span className="eu-legend__title">Squares · Valencia model points (GloFAS)</span>
+        <span className="muted small">Now and next 48 h vs FloodSense demo lines (20 / 80 m³/s). Not official</span>
+        <LegendRow kind="valencia" statuses={["ok", "near", "over"]} />
+      </div>
+      <p className="muted small">Dashed or faded marker: not a fresh live reading (stale or seed).</p>
     </div>
   );
 }
@@ -107,12 +121,16 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
         s.kind === "gauge"
           ? L.circleMarker([s.lat, s.lon], { radius: 6, className: cls, bubblingMouseEvents: false })
           : L.marker([s.lat, s.lon], {
-              icon: L.divIcon({ className: `eu-model-icon eu-model-icon--${s.status}${s.live ? "" : " eu-model-icon--sample"}`, iconSize: [14, 14] }),
+              icon: L.divIcon({
+                className: `eu-model-icon eu-model-icon--${s.kind} eu-tone--${statusView(s.kind, s.status).tone}${s.live ? "" : " eu-model-icon--sample"}`,
+                iconSize: [14, 14],
+              }),
               keyboard: true,
-              title: `${s.river} at ${s.name}`,
+              title: s.river ? `${s.river} at ${s.name}` : s.name,
             });
       const kind = s.kind === "gauge" ? "PEGELONLINE gauge" : "GloFAS model";
-      const tip = `${s.river} · ${s.name} (${s.country}) · ${kind}: ${s.value} · ${STATUS_TEXT[s.status]} · click to ask`;
+      const where = s.river ? `${s.river} · ${s.name}` : s.name;
+      const tip = `${where} (${s.country}) · ${statusView(s.kind, s.status).word} · ${kind}, ${basisLabel(s.kind)}${s.live ? "" : " · not live"} · click to ask`;
       marker.bindTooltip(escapeHtml(tip), { direction: "top", offset: [0, -6] });
       marker.on("click", () => ask(askRef.current, s));
       layer.addLayer(marker);
@@ -121,7 +139,7 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
 
   return (
     <div className="gauge-map__frame">
-      <div ref={containerRef} className="leaflet-map" role="region" aria-label="Europe live watch map" />
+      <div ref={containerRef} className="leaflet-map" role="region" aria-label={`Europe live watch map, ${sources.length} sources. The same places are listed below.`} />
     </div>
   );
 }
@@ -151,13 +169,20 @@ export function EuWatchList({ sources }: { sources: WatchSource[] }) {
         {sorted.map((s) => (
           <li key={s.id}>
             <button type="button" className={`eu-row eu-row--${s.status}`} onClick={() => ask(openAsk, s)} title={s.question}>
-              <span className={`eu-shape eu-shape--${s.kind} eu-shape--${s.status}`} aria-hidden="true" />
+              <span className={`eu-shape eu-shape--${s.kind} eu-tone--${statusView(s.kind, s.status).tone}`} aria-hidden="true" />
               <span className="eu-row__place">
-                <strong>{s.river}</strong> · {s.name} <span className="muted small">{s.country}</span>
+                {s.river ? (
+                  <>
+                    <strong>{s.river}</strong> · {s.name}
+                  </>
+                ) : (
+                  <strong>{s.name}</strong>
+                )}{" "}
+                <span className="muted small">{s.country}</span>
               </span>
               <span className="eu-row__value muted small">{s.value}</span>
               <span className="eu-row__band small">
-                {s.kind === "gauge" ? "official" : "model"}: {STATUS_TEXT[s.status]}
+                {s.kind === "gauge" ? "gauge vs MHW" : "model"}: {STATUS_TEXT[s.status]}
                 {s.live ? "" : " · not live"}
               </span>
             </button>
@@ -183,7 +208,7 @@ export function EuWatchSection({ sources, model }: { sources: WatchSource[]; mod
         </span>
       </div>
       <p className="now-note">
-        Circles are measured water levels against official PEGELONLINE characteristic values. Diamonds are GloFAS model
+        Circles are measured water levels against each station's long-term mean high water (MHW, not a warning level). Diamonds are GloFAS model
         discharge banded against each point's own recent series: a model, not an official warning. Click any source to ask
         about it.
       </p>

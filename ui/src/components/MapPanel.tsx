@@ -19,6 +19,7 @@ import {
   type MapPoint,
 } from "../lib/events";
 import type { ExposureJoinRow } from "../types/views";
+import { LiveSitesPanel } from "./LiveSitesMap";
 
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
@@ -30,10 +31,48 @@ const AHR_POINTS = ahrMapPoints();
 const NO_EXPOSURE: ExposureJoinRow[] = [];
 
 /**
- * Leaflet + OpenStreetMap map of the selected event's points, with the replay date slider.
- * `fixedEvent` pins the map to one event (the citizen My area page reads the Valencia views only).
+ * Insurer Sites / map opens on the live Europe view (every live watch source plus the insured sites layer); the event
+ * chips switch to a replay of a past flood. `fixedEvent` pins the map to one event (the citizen My area page reads the
+ * Valencia views only) and never shows the live view.
  */
 export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boolean; fixedEvent?: EventId }) {
+  const desk = useConsole();
+  if (!fixedEvent && desk.sitesView === "live") return <LiveSitesPanel chips={<ViewChips />} />;
+  return <EventMapPanel exposureDefault={exposureDefault} fixedEvent={fixedEvent} />;
+}
+
+/** Live Europe first, then the replays. One group, so the current view is always one pressed chip. */
+function ViewChips() {
+  const desk = useConsole();
+  const live = desk.sitesView === "live";
+  return (
+    <div className="dr-events" role="group" aria-label="Map view">
+      <button type="button" className={`dr-chip${live ? " is-on" : ""}`} aria-pressed={live} onClick={() => desk.setSitesView("live")}>
+        Live · Europe
+      </button>
+      {REPLAY_EVENTS.map((e) => {
+        const on = !live && e.eventId === desk.eventId;
+        return (
+          <button
+            key={e.eventId}
+            type="button"
+            className={`dr-chip${on ? " is-on" : ""}`}
+            aria-pressed={on}
+            onClick={() => {
+              desk.setEventId(e.eventId);
+              desk.setSitesView("replay");
+            }}
+          >
+            Replay · {EVENT_META[e.eventId].short} · {e.eventId}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Leaflet + OpenStreetMap map of the selected event's points, with the replay date slider. */
+function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boolean; fixedEvent?: EventId }) {
   const desk = useConsole();
   const eventId = fixedEvent ?? desk.eventId;
   const ahr = eventId === "EMSR517";
@@ -94,21 +133,7 @@ export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boo
           Exposed sites are off: no insured book is loaded for EMSR517.
         </p>
       )}
-      {!fixedEvent && (
-        <div className="dr-events" role="group" aria-label="Event">
-          {REPLAY_EVENTS.map((e) => (
-            <button
-              key={e.eventId}
-              type="button"
-              className={`dr-chip${e.eventId === eventId ? " is-on" : ""}`}
-              aria-pressed={e.eventId === eventId}
-              onClick={() => desk.setEventId(e.eventId)}
-            >
-              {EVENT_META[e.eventId].short} · {e.eventId}
-            </button>
-          ))}
-        </div>
-      )}
+      {!fixedEvent && <ViewChips />}
       <div className="toolbar">
         <label className="field">
           Point
