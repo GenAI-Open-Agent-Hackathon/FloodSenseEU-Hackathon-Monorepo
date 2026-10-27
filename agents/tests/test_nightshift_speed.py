@@ -99,6 +99,15 @@ class RetryPolicy(unittest.TestCase):
         self.assertEqual(len(post.calls), 2)
         self.assertEqual(sleeps, [1.5])  # no sleep after the last attempt
 
+    def test_slow_gateway_error_is_not_retried(self) -> None:
+        err = httpx.Response(502, text="bad gateway", request=httpx.Request("POST", URL))
+        c, post, sleeps = client([err, ok_response()])
+        with Knobs(llm_max_attempts=3, llm_slow_fail_s=0.0):
+            with self.assertRaisesRegex(RuntimeError, "unavailable"):
+                c.complete("fast", "TASK: x", "u")
+        self.assertEqual(len(post.calls), 1)
+        self.assertEqual(sleeps, [])
+
     def test_json_mode_downgrade_is_not_an_attempt(self) -> None:
         bad = httpx.Response(
             400, text="unknown field response_format", request=httpx.Request("POST", URL)
@@ -198,7 +207,9 @@ class JudgeConcurrency(unittest.TestCase):
                 claim_id=f"C{i}",
                 text=f"value 5 at {i}",
                 numbers=[5.0],
-                citations=[Citation(citation_id=f"X{i}", claim_id=f"C{i}", layer="a", query_id=f"q{i}")],
+                citations=[
+                    Citation(citation_id=f"X{i}", claim_id=f"C{i}", layer="a", query_id=f"q{i}")
+                ],
             )
             for i in range(1, 6)
         ]

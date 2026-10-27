@@ -48,6 +48,9 @@ class Settings:
     # A read timeout is never retried: it already cost llm_timeout_s, and the
     # node falls back to its deterministic path instead of waiting again.
     llm_max_attempts: int = int(_env("LLM_MAX_ATTEMPTS", "2"))
+    # An error that arrives after this many seconds is not retried either
+    # (Nightshift's gateway answers 502 at ~45 s on long generations).
+    llm_slow_fail_s: float = float(_env("LLM_SLOW_FAIL_S", "20"))
     # Upper bound on completion tokens per lane. Nemotron on Nightshift counts
     # its hidden reasoning here (2-4k tokens measured), so the cap is a
     # runaway guard, not a length budget. 0 = send no max_tokens.

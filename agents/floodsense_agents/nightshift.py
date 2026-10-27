@@ -156,6 +156,18 @@ class NightshiftClient:
             except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
                 last = e
                 attempt += 1
+                took = time.time() - t0
+                if took >= settings.llm_slow_fail_s:
+                    # A 502/504 after a long wait is the gateway cutting a long
+                    # generation (measured ~45 s each): the same prompt will be
+                    # cut again, so the node falls back instead of waiting 3x.
+                    log.warning(
+                        "nightshift lane=%s failed after %.0fs; not retried: %s",
+                        lane,
+                        took,
+                        str(e)[:160],
+                    )
+                    break
                 log.warning("nightshift attempt %d failed: %s", attempt, str(e)[:160])
                 if attempt < attempts:
                     self._sleep(1.5 * attempt)

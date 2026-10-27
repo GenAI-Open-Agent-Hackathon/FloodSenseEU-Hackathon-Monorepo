@@ -120,7 +120,9 @@ def main() -> int:
         "total_s": round(total, 1),
         "nodes": nodes,
         "calls": timed.rows,
-        "judge": {k: summary.get(k) for k in ("overall", "passes", "n_claims", "flagged_claim_ids")},
+        "judge": {
+            k: summary.get(k) for k in ("overall", "passes", "n_claims", "flagged_claim_ids")
+        },
         "repair_rounds": out.get("repair_rounds"),
         "revise_rounds": out.get("revise_rounds"),
     }
