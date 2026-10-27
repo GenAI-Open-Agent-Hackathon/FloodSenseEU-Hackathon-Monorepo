@@ -261,6 +261,8 @@ class ViewsCacheTest(unittest.TestCase):
         self.assertTrue(all(n == 5.0 for n in naps))
         self.assertEqual(run(vc.get("gauge_levels", {}, Upstream(ok(4)))).cache, "hit")
         self.assertIn("429", vc.stats()["views"]["hazard_now"]["last_upstream_error"]["detail"])
+        self.assertIsNone(vc.stats()["views"]["hazard_now"]["last_ok_at"])
+        self.assertIsNotNone(vc.stats()["views"]["gauge_levels"]["last_ok_at"])
 
 
 class ViewsRouteTest(unittest.TestCase):

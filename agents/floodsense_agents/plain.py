@@ -420,6 +420,8 @@ def memory_context(memory: dict[str, Any], seeded: bool) -> str | None:
         return None
     doc = _DOC_ID.search(content)
     source = humanize_doc(doc.group(1)) if doc else "an earlier approved run"
+    if memory.get("run_id") and not seeded:
+        source += f" (run {memory['run_id']})"
     return _context(finding, source, seeded)
 
 

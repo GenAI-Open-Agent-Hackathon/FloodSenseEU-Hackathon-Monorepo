@@ -365,11 +365,6 @@ export function completedFullRuns(rows: readonly QueueRow[], mode: "live" | "pas
   return [...done].sort((a, b) => t(b.createdAt) - t(a.createdAt));
 }
 
-/** Pure: the newest finished full-lane run for the mode's event (Live: live-data runs), from the /runs/past rows. */
-export function newestCompletedFullRun(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow | null {
-  return completedFullRuns(rows, mode, eventId)[0] ?? null;
-}
-
 /**
  * Pure: which of the candidate runs (newest first) Review shows: the newest that passed the Judge, else the newest.
  * `passes` is the Judge verdict of each loaded run (undefined: not looked at).

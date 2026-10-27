@@ -366,7 +366,8 @@ class MemoryTest(FlagCase):
         (stored,) = fake.bodies("/hmem/store")
         self.assertEqual(stored["run_id"], "e1")
         self.assertEqual(stored["approval"], {"status": "approved", "reviewer": "ayush"})
-        self.assertEqual(stored["claims"], out["claims"])
+        self.assertEqual([{k: v for k, v in c.items() if k != "entities"} for c in stored["claims"]], out["claims"])
+        self.assertEqual(stored["event_id"], out["event_id"])
         last = out["trace"][-1]
         self.assertEqual(last["node"], "learn")
         self.assertIn(f"{len(out['claims'])} claim(s) stored in H-MEM", last["summary"])

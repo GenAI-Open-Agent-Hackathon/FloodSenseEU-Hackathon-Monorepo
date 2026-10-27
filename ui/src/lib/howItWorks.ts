@@ -47,7 +47,14 @@ export function zetarisHealth(
   now: number = Date.now(),
 ): { state: DotState; note: string | null } {
   const entries = Object.entries(views ?? {});
-  const failing = entries.filter(([, v]) => v.lastError !== null && !(now - Date.parse(v.lastError.at) >= VIEW_WINDOW_MS));
+  // Failing: an error inside the window and newer than the last success. A bad timestamp counts as old.
+  const failing = entries.filter(([, v]) => {
+    if (v.lastError === null) return false;
+    const err = Date.parse(v.lastError.at);
+    if (!(now - err < VIEW_WINDOW_MS)) return false;
+    const ok = v.lastOkAt ? Date.parse(v.lastOkAt) : NaN;
+    return !(ok >= err);
+  });
   const working = entries.filter(([name, v]) => v.hits + v.misses - v.staleServes > 0 && !failing.some(([n]) => n === name));
   const limited = failing.some(([, v]) => /\b429\b/.test(v.lastError?.detail ?? ""));
   const limitedNote = "feed rate-limited by Open-Meteo";

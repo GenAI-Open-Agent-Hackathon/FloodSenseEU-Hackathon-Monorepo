@@ -36,6 +36,8 @@ export interface ViewReads {
   misses: number;
   staleServes: number;
   lastError: { at: string; detail: string } | null;
+  /** Last successful upstream read (ISO); null when none yet. */
+  lastOkAt: string | null;
 }
 
 type Obj = Record<string, unknown>;
@@ -123,6 +125,7 @@ export function parseSystem(body: unknown): SystemStatus | null {
                 misses: num(v.misses) ?? 0,
                 staleServes: num(v.stale_serves) ?? 0,
                 lastError: str(e.at) ? { at: str(e.at) as string, detail: str(e.detail) ?? "" } : null,
+                lastOkAt: str(v.last_ok_at),
               },
             ];
           }),

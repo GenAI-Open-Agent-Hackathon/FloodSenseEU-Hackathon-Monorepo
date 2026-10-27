@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from floodsense_agents import router  # noqa: E402
-from floodsense_agents.models import RunRequest  # noqa: E402
+from floodsense_agents.models import ApprovalDecision, RunRequest  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.nodes import forecast  # noqa: E402
 from floodsense_agents.retrieve_docs import RetrieveResult  # noqa: E402
@@ -406,6 +406,61 @@ class RoutingNegativeTest(unittest.TestCase):
     def test_a_forecast_cue_without_a_place_is_not_forecast(self) -> None:
         for q in ("Will it flood tomorrow?", "What is the forecast?", "next 48 hours"):
             self.assertNotEqual(router.rules(q)[0], "forecast", q)
+
+
+class StoringMemory:
+    """Engines in miniature: keeps what store() gets, recalls it like the real client."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict] = []
+
+    def store(self, run_id, request, claims, approval):
+        self.stored = (request, claims)
+        for c in claims:
+            tags = [f"run:{run_id}", *(f"entity:{e.lower()}" for e in c.get("entities") or [])]
+            if request.get("event_id"):
+                tags.append(f"event:{request['event_id']}")
+            self.rows.append(
+                {
+                    "memory_id": f"m-{c['claim_id']}",
+                    "run_id": run_id,
+                    "content": c["text"],
+                    "tags": tags,
+                    "provenance": {"label": f"run {run_id} approved by ana"},
+                }
+            )
+        return {"stored": [{"claim_id": c["claim_id"]} for c in claims], "already_stored": []}
+
+    def recall(self, request):
+        return list(self.rows)
+
+
+@mock.patch.object(settings, "live_data", True)
+@mock.patch.object(settings, "ff_hmem", True)
+class ApprovedLiveMemoryTest(unittest.TestCase):
+    def test_approved_live_run_is_recalled_for_the_same_place(self) -> None:
+        mem = StoringMemory()
+        deps = Deps(zetaris=_zetaris(), llm=FakeNightshift(), memory=mem)
+        rt = Runtime(deps=deps)
+        run = rt.start(RunRequest(question="Assess the flood risk on the Loire at Orléans", mode="live"))
+        self.assertEqual(run["event_id"], "LIVE-EU")
+        rt.resume(run["run_id"], ApprovalDecision(action="approve", reviewer="ana"))
+        request, claims = mem.stored
+        self.assertEqual(request["event_id"], "LIVE-EU")
+        self.assertIn("Loire", claims[0]["entities"])
+        snap = Runtime(deps=deps).start(
+            RunRequest(question="Do the next 48 hours look safe at Orléans today?")
+        )
+        self.assertEqual(snap["lane"], "forecast")
+        used = {m["memory_id"]: m for m in snap["memory_used"]}
+        self.assertTrue(any(m["run_id"] == run["run_id"] and not m["seeded"] for m in used.values()))
+        self.assertIn(run["run_id"], snap["plain"]["context"])
+        self.assertNotIn("demo seed", snap["plain"]["context"])
+
+    def test_untagged_older_memory_matches_by_place_name_with_accent(self) -> None:
+        eu03 = next(p for p in FORECAST_POINTS if p[0] == "EU03")
+        old = {"memory_id": "old", "run_id": "r0", "content": "Orléans peaked.", "tags": []}
+        self.assertEqual([r["memory_id"] for r in forecast._memory_rows([old], eu03)], ["old"])
 
 
 if __name__ == "__main__":
