@@ -1,3 +1,4 @@
+import { LatestRunTechTrace, TechTrace } from "./TechTrace";
 import { useEffect, useState } from "react";
 import { runBadge } from "../api/ask";
 import { fetchPastRuns } from "../api/pastRuns";
@@ -84,8 +85,10 @@ export function useReviewRun(): { run: RecordedRun | null; source: Source } {
 export function ReviewPage() {
   const { run, source } = useReviewRun();
   const real = source.kind === "newest" || source.kind === "configured";
+  const { mode, eventId } = useConsole();
   return (
     <div className="page-stack">
+      {run && real ? <TechTrace run={run} /> : <LatestRunTechTrace mode={mode} eventId={eventId} />}
       <CausalChainHeader run={run} source={source} />
       {run && real ? (
         <RunReviewSummary run={run} />

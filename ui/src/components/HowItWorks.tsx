@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchAgentsConfig } from "../api/config";
 import { fetchSystem } from "../api/system";
+import { TechTraceOverview } from "./TechTrace";
 import { useConsole } from "../context/ConsoleContext";
 import { boxStatuses, DOT_TEXT, feedsMode, humanBox, type BoxId, type ConfigProbe, type DotState } from "../lib/howItWorks";
 import type { SystemStatus } from "../lib/system";
@@ -80,6 +81,7 @@ export function HowItWorks() {
         {probes && !probes.system && " · component health (GET /system) is not available, so some dots are unknown"}
       </p>
 
+      <TechTraceOverview status={status} />
       <div className="hiw-flow">
         <p className="hiw-start">Your question</p>
         <Arrow />
