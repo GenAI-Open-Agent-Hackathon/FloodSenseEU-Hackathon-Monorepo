@@ -156,8 +156,10 @@ class ServiceTest(unittest.TestCase):
             self.assertEqual(body["kind"], "reply")
             self.assertNotIn("run_id", body)
             self.assertEqual(
-                set(body), {"kind", "intent", "answer", "suggestions", "model_id", "latency_ms"}
+                set(body),
+                {"kind", "lane", "intent", "answer", "suggestions", "model_id", "latency_ms"},
             )
+            self.assertEqual(body["lane"], "reply")
         self.rt.start.assert_not_called()
         self.rt.start_async.assert_not_called()
 

@@ -74,6 +74,8 @@ export interface ReplyResponse {
   suggestions: string[];
   model_id: string;
   latency_ms: number;
+  /** Router lane: always "reply" for a front-door reply. */
+  lane?: "reply";
 }
 
 const REPLY_INTENTS = new Set(["greeting", "help", "thanks", "off_topic"]);

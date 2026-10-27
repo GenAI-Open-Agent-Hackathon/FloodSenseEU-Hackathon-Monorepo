@@ -1,4 +1,4 @@
-import { NODE_LABELS, PIPELINE_ORDER, type PipelineNodeId } from "./pipeline";
+import { NODE_LABELS, PIPELINE_ORDER, QUICK_ORDER, statusText, type PipelineNodeId } from "./pipeline";
 
 /**
  * Pure state for a live run streamed from GET /runs/{id}/events.
@@ -37,6 +37,10 @@ export interface LiveRunState {
   announce: string;
   seen: number[];
   error: string | null;
+  /** Router lane once the router step lands: quick or full; null before. */
+  lane?: "quick" | "full" | null;
+  /** "escalated: ..." when the quick lane handed the run to the full lane. */
+  escalated?: string | null;
 }
 
 export type LiveEvent =
@@ -47,7 +51,12 @@ export type LiveEvent =
 
 /** Graph node names in the trace, mapped to the pipeline the UI draws. world_model is not a node here. */
 const NODE_ALIASES: Record<string, PipelineNodeId> = {
+  router: "router",
+  escalate: "router",
   scope: "scope",
+  live_watch: "live_watch",
+  quick_answer: "quick_answer",
+  quick_judge: "judge",
   watchers: "watchers",
   memory: "memory",
   recall: "memory",
@@ -65,19 +74,34 @@ export function liveNodeId(node: unknown): PipelineNodeId | null {
   return typeof node === "string" ? NODE_ALIASES[node.toLowerCase()] ?? null : null;
 }
 
+const QUICK_ONLY: readonly PipelineNodeId[] = ["live_watch", "quick_answer"];
+
+function blankNode(id: PipelineNodeId): LiveNode {
+  return {
+    id,
+    label: id === "approval" ? "Human review" : NODE_LABELS[id],
+    state: "idle",
+    durationMs: null,
+    modelId: null,
+    lane: null,
+    summary: "",
+    runs: 0,
+  };
+}
+
+/** The nodes a lane draws, keeping what has already landed. Quick: no Human review. */
+export function laneNodes(nodes: LiveNode[], lane: "quick" | "full" | null, escalated = false): LiveNode[] {
+  const ids: readonly PipelineNodeId[] =
+    lane === "quick"
+      ? QUICK_ORDER
+      : PIPELINE_ORDER.filter((id) => escalated || !QUICK_ONLY.includes(id));
+  return ids.map((id) => nodes.find((n) => n.id === id) ?? blankNode(id));
+}
+
 export function initialLiveState(runId: string): LiveRunState {
   return {
     runId,
-    nodes: PIPELINE_ORDER.map((id) => ({
-      id,
-      label: id === "approval" ? "Human review" : NODE_LABELS[id],
-      state: "idle",
-      durationMs: null,
-      modelId: null,
-      lane: null,
-      summary: "",
-      runs: 0,
-    })),
+    nodes: laneNodes([], null),
     reviseRounds: 0,
     repairRounds: 0,
     loops: [],
@@ -87,6 +111,8 @@ export function initialLiveState(runId: string): LiveRunState {
     announce: "Run started.",
     seen: [],
     error: null,
+    lane: null,
+    escalated: null,
   };
 }
 
@@ -161,6 +187,24 @@ export function liveReducer(state: LiveRunState, event: LiveEvent): LiveRunState
     loops.push(n !== null ? `Skeptic sent back ${n} unsupported hypothes${n === 1 ? "is" : "es"} · revise round ${reviseRounds}` : `Skeptic sent the chain back to the Investigator (round ${reviseRounds})`);
     return { ...state, seen, reviseRounds, loops, announce: loops[loops.length - 1] };
   }
+  if (id === "router") {
+    const prev = state.nodes.find((n) => n.id === "router");
+    const routed = patch(state, "router", (n) => ({
+      ...n,
+      state: "done",
+      durationMs: num(d.duration_ms) ?? num(d.latency_ms) ?? n.durationMs,
+      modelId: str(d.model_id) ?? n.modelId,
+      lane: str(d.lane) ?? n.lane,
+      summary: summary || n.summary,
+      runs: (prev?.runs ?? 0) + 1,
+    }));
+    if (/^escalated:/i.test(summary)) {
+      loops.push(`Escalated to the full investigation: ${summary.replace(/^escalated:\s*/i, "")}`);
+      return { ...state, seen, loops, lane: "full", escalated: summary, nodes: laneNodes(routed, "full", true), announce: loops[loops.length - 1] };
+    }
+    const lane = /^chose quick/i.test(summary) ? "quick" : /^chose full/i.test(summary) ? "full" : state.lane ?? null;
+    return { ...state, seen, lane, nodes: laneNodes(routed, lane, false), announce: summary ? `Router: ${summary}` : "Router finished." };
+  }
   const repair = /^repair round\s*(\d+)?/i.exec(summary);
   if (repair) {
     repairRounds += 1;
@@ -183,6 +227,8 @@ export function statusAnnounce(status: string): string {
   switch (status) {
     case "awaiting_approval":
       return "Run reached human review.";
+    case "answered":
+      return `${statusText(status)}.`;
     case "failed":
       return "The run failed.";
     case "not_found":

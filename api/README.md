@@ -40,6 +40,8 @@ The cache lives in this process (`CACHE_MAX_ENTRIES`, 256), with optional Redis 
 
 Chat front door: after the bucket and before the cache or a slot, `POST /runs` asks the agents' `POST /front-door` (short lookup timeout). Small talk (greeting, help, thanks, off-topic) comes back as `200 {"kind": "reply", ...}` with no `run_id`, on sync and `?wait=false` alike. A reply takes a bucket token but no concurrency slot, and is never cached or replayed as a run. Anything else, or a front door that is unreachable or slow, goes on to the run as before; the API then forwards `POST /runs?front_door=false` so the agents do not classify twice.
 
+Router lanes: a reply carries `lane: "reply"`; a run snapshot carries `lane` (`quick` or `full`) and `router_reason`, and the schema projection (`contract.answer`) copies both. Repeated identical small talk spends one bucket token each (a burst ends in 429). A quick-lane answer ends `status: "answered"` with no approval; when its Judge passed and `FF_SEMANTIC_CACHE` is on, the API caches it with `CACHE_TTL_LIVE_S` (sync: on the response; `?wait=false`: when the slot holder sees the run leave `running`). A repeat is `200` with `served_from: "cache"`, `cached_at` = the time it was stored, `label.text` "Cached answer · not live · original run …" and `cache.expires_in_s`. Full-lane runs are still cached only after a person approves them.
+
 ## System status (`GET /system`)
 
 `app/system.py`. Read-only, safe to poll (the UI System page polls every 5 s), `Cache-Control: no-store`. It returns no URL, key, token or `.env` value, and every dependency degrades on its own (`ok: false` plus an `error` line), so the route answers 200 while the agents or engines are down.

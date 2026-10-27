@@ -25,6 +25,8 @@ const body = {
       ],
     },
   ],
+  lane: "full",
+  router_reason: "chose full: explicit event_id, replay_ts or doc_query",
   judge_summary: { overall: 0.9, passes: false, hallucination_rate: 0.1667, flagged_claim_ids: ["C2", 7] },
   trace: [{ seq: 1, node: "scope", summary: "in scope" }],
 };
@@ -41,6 +43,9 @@ describe("adoptReplay", () => {
     expect(run?.claims[0].citations[1].attribution).toBe("(c) European Union, JRC");
     expect(run?.flaggedClaimIds).toEqual(["C2"]);
     expect(run?.hallucinationRate).toBe(0.1667);
+    expect(run?.lane).toBe("full");
+    expect(run?.routerReason).toContain("chose full");
+    expect(adoptReplay({ ...body, lane: "sideways" }, "x")?.lane).toBeNull();
   });
 
   it("refuses a body not served as a replay", () => {

@@ -463,6 +463,11 @@ def project_run(body: dict[str, Any]) -> dict[str, Any] | None:
         answer["playbook_actions"] = actions
     if judge is not None:
         answer["judge"] = judge
+    # Router lane (agents/floodsense_agents/router.py). Older runs carry none.
+    if body.get("lane") in ("quick", "full"):
+        answer["lane"] = body["lane"]
+    if isinstance(body.get("router_reason"), str) and body["router_reason"].strip():
+        answer["router_reason"] = body["router_reason"].strip()
     return {
         "answer": answer,
         "approvals": _project_approvals(body, run_id, actions, judge),
