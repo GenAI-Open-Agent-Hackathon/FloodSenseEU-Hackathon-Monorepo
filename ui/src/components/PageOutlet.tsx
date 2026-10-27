@@ -3,6 +3,7 @@ import { InsurerView } from "./InsurerView";
 import { OperatorView } from "./OperatorView";
 import { NowPage } from "./NowPage";
 import { DisasterReplay } from "./DisasterReplay";
+import { ControlTower } from "./ControlTower";
 import { HowItWorks } from "./HowItWorks";
 import { pageLabel, type CitizenPage } from "../lib/route";
 import { useConsole } from "../context/ConsoleContext";
@@ -45,6 +46,8 @@ function CitizenBody({ page }: { page: CitizenPage }) {
       return <CitizenActions />;
     case "evidence":
       return <CitizenEvidence />;
+    case "tower":
+      return <ControlTower />;
     case "how":
       return <HowItWorks />;
   }

@@ -6,6 +6,7 @@ import { Drilldown } from "./Drilldown";
 import { MapPanel } from "./MapPanel";
 import { NowPage } from "./NowPage";
 import { Portfolio } from "./Portfolio";
+import { ControlTower } from "./ControlTower";
 import { HowItWorks } from "./HowItWorks";
 import { SystemPanel } from "./SystemPanel";
 import { useConsole } from "../context/ConsoleContext";
@@ -44,6 +45,8 @@ export function InsurerView({ page }: { page: InsurerPage }) {
       return <SystemPanel />;
     case "review":
       return <ReviewPage />;
+    case "tower":
+      return <ControlTower />;
     case "how":
       return <HowItWorks />;
   }

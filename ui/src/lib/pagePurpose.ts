@@ -55,6 +55,12 @@ export const CITIZEN_PURPOSE: Record<CitizenPage, PagePurpose> = {
     live: "Router, agents, data and human approval, with status dots",
     past: "Same",
   },
+  tower: {
+    purpose: "How does FloodSense keep watch, and is it running?",
+    data: "/watch/status, /watch/events (read only)",
+    live: "The watch loop, its feed and the sources it scans, read only",
+    past: "Switch to Live to see this",
+  },
 };
 
 export const INSURER_PURPOSE: Record<InsurerPage, PagePurpose> = {
@@ -111,6 +117,12 @@ export const INSURER_PURPOSE: Record<InsurerPage, PagePurpose> = {
     data: "/config, /system",
     live: "Router, agents, data and human approval, with status dots",
     past: "Same",
+  },
+  tower: {
+    purpose: "Is the watch loop running, and what did it find?",
+    data: "/watch/status, /watch/events, live watch",
+    live: "Loop state, event feed, scan now, auto-assess switch",
+    past: "Switch to Live to see this",
   },
 };
 

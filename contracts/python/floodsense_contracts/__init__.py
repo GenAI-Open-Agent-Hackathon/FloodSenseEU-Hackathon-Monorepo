@@ -18,6 +18,9 @@ from .models import (
     Plain,
     ReplyResponse,
     RunResponse,
+    WatchEvent,
+    WatchSource,
+    WatchStatus,
 )
 
 __all__ = [
@@ -34,4 +37,7 @@ __all__ = [
     "Plain",
     "ReplyResponse",
     "RunResponse",
+    "WatchEvent",
+    "WatchSource",
+    "WatchStatus",
 ]

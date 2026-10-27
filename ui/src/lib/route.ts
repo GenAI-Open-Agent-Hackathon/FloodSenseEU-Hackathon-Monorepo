@@ -3,8 +3,8 @@ import type { RouteId } from "../types/ui";
 /** Desk in the hash: the three roles the header switches. */
 export type RoleId = RouteId;
 
-export const CITIZEN_PAGES = ["now", "replay", "overview", "area", "actions", "evidence", "how"] as const;
-export const INSURER_PAGES = ["now", "replay", "approvals", "portfolio", "sites", "alerts", "review", "system", "how"] as const;
+export const CITIZEN_PAGES = ["now", "replay", "overview", "area", "actions", "evidence", "how", "tower"] as const;
+export const INSURER_PAGES = ["tower", "now", "replay", "approvals", "portfolio", "sites", "alerts", "review", "system", "how"] as const;
 
 /** Civil protection desk. Situation board first; its own approval queue; the shared how-it-works page. */
 export const OPERATOR_PAGES = ["situation", "approvals", "how"] as const;
@@ -34,6 +34,7 @@ export const DESK_NAV: {
     { page: "how", label: "How it works" },
   ],
   insurer: [
+    { page: "tower", label: "Control tower" },
     { page: "now", label: "Now" },
     { page: "replay", label: "Replay" },
     { page: "approvals", label: "Approvals" },
@@ -124,6 +125,7 @@ export function routeHref(role: RoleId, page: PageId): string {
 }
 
 export function pageLabel(route: DeskRoute): string {
+  if (route.page === "tower") return route.role === "citizen" ? "How we watch" : "Control tower";
   const items: readonly { page: PageId; label: string }[] = DESK_NAV[route.role];
   return items.find((item) => item.page === route.page)?.label ?? route.page;
 }
