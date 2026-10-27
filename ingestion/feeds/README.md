@@ -54,3 +54,15 @@ Each point is a 0.05° GloFAS cell near the city. Check: the cell's 2013-2022 da
 | EU10 | Meuse / Liège | 50.675, 5.625 | 229 m³/s | no published reference checked | – | – | en.wikipedia.org/wiki/Meuse gives only a whole-river average (350 m³/s, no location) | moved from 50.675, 5.575 (largest mean of the 3x3 cells) |
 | EU11 | Vltava / Prague | 50.125, 14.375 | 139 m³/s | 149.9 m³/s | near the mouth (Mělník), not Prague | not stated | en.wikipedia.org/wiki/Vltava (infobox) | kept. Today's ~17-27 m³/s is autumn low flow, not an off-channel cell |
 | – | Guadalquivir / Seville | best cell 37.325, -6.075 | 17 m³/s | no published reference checked | – | – | – | dropped: no cell near the city carries a main-channel flow |
+
+### Weather forecast for the 45 watched places (forecast lane)
+
+`floodsense.weather_forecast` (migrations 070-072) is not a feed in this folder: like `eu_watch` it is a Lightning REST table that Zetaris re-fetches on every query, so there is nothing to poll or stage. One Open-Meteo forecast API request covers all 45 places of `agents/floodsense_agents/watch.py` `FORECAST_POINTS` (a test keeps the migration and that tuple equal):
+
+| Ids | Places | Position from |
+| --- | --- | --- |
+| PEG01-PEG26 | The 26 PEGELONLINE stations of `pegel_poll.py`, in its order | `floodsense.gauge_levels` lat/lon (PEGELONLINE station metadata), 4 decimals |
+| EU01-EU11 | The EU watch points | The GloFAS cells of migration 063 (table above) |
+| VAL01-VAL08 | The Valencia points | `ingestion/prep/valencia_points.csv` |
+
+Request: `hourly=precipitation&models=icon_seamless&forecast_hours=72&timezone=GMT`. `icon_seamless` is the DWD ICON family blended by Open-Meteo (ICON-D2 ~2 km over Germany, ICON-EU ~7 km over Europe). `forecast_hours=72` starts at the current hour, so `lead_h < 48` is "the next 48 hours" with no clock in the SQL. The value is the hourly precipitation sum (rain, showers and snow water equivalent). Model output, not an observation and not a warning. Licence and attribution: `docs/legal/sources.md` row 19 (`Weather data by Open-Meteo.com, model DWD ICON`). Each question costs about 45 Open-Meteo calls against the free 10,000/day.

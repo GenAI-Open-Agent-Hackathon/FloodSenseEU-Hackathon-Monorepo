@@ -21,7 +21,7 @@ Layer = Literal["a", "b", "c"]
 Storage = Literal["full_text", "pointer"]
 Grounding = Literal["supported", "partial", "unsupported"]
 ServedFrom = Literal["live", "cache", "replay"]
-Lane = Literal["quick", "full"]  # run lanes; a front-door reply is lane "reply"
+Lane = Literal["quick", "forecast", "full"]  # run lanes; a front-door reply is lane "reply"
 ApprovalStatus = Literal["pending", "approved", "edited", "rejected"]
 ActionType = Literal[
     "notify-policyholders", "dispatch-loss-adjuster", "flag-underwriting-review", "inform-public"
@@ -158,6 +158,21 @@ class MemoryUsed(ContractModel):
     seeded: bool
 
 
+class Forecast(ContractModel):
+    """Forecast lane only: a screening status and a model-written outlook, never official."""
+
+    status: Literal["Normal", "Watch", "Warning"]
+    status_reason: str | None = None
+    places: list[str] = Field(default_factory=list)
+    horizon_h: int | None = Field(default=None, ge=1)
+    outlook: str | None = None
+    outlook_label: str | None = None
+    outlook_model_id: str | None = None
+    gaps: list[str] = Field(default_factory=list)
+    disclaimer: str = Field(min_length=1)
+    attribution: str | None = None
+
+
 class Answer(ContractModel):
     run_id: str
     question: str
@@ -170,6 +185,7 @@ class Answer(ContractModel):
     judge: Judge | None = None
     lane: Lane | None = None
     router_reason: str | None = None
+    forecast: Forecast | None = None
     memory_used: list[MemoryUsed] = Field(default_factory=list)
 
     @model_validator(mode="after")

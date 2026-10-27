@@ -10,8 +10,23 @@ export type CitationLayer = "a" | "b" | "c";
 export type Storage = "full_text" | "pointer";
 export type Grounding = "supported" | "partial" | "unsupported";
 export type ServedFrom = "live" | "cache" | "replay";
-/** Router lane. reply: front-door reply; quick: live watcher + one fast call; full: deep run. */
-export type Lane = "reply" | "quick" | "full";
+/** Router lane. reply: front-door reply; quick: live watcher, template claims; forecast: forecast data, history, one model outlook; full: deep run. */
+export type Lane = "reply" | "quick" | "forecast" | "full";
+
+/** Forecast lane only: a FloodSense screening status and a model-written outlook, never an official warning. */
+export interface Forecast {
+  status: "Normal" | "Watch" | "Warning";
+  status_reason?: string;
+  places?: string[];
+  horizon_h?: number;
+  /** Two sentences by the fast lane, shown as "Outlook (model-written)"; null when dropped. */
+  outlook?: string | null;
+  outlook_label?: string | null;
+  outlook_model_id?: string | null;
+  gaps?: string[];
+  disclaimer: string;
+  attribution?: string;
+}
 export type ApprovalStatus = "pending" | "approved" | "edited" | "rejected";
 export type ModelId =
   | "meterless/fast"
@@ -162,6 +177,8 @@ export interface Answer {
   lane?: Exclude<Lane, "reply">;
   /** Why the router chose the lane, including any "escalated: ..." note. */
   router_reason?: string;
+  /** Forecast lane only. */
+  forecast?: Forecast;
   memory_used?: MemoryUsed[];
 }
 

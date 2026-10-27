@@ -301,9 +301,10 @@
         },
         "judge": { "$ref": "#/$defs/judge" },
         "lane": {
-          "enum": ["quick", "full"],
-          "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
+          "enum": ["quick", "forecast", "full"],
+          "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL), forecast (weather_forecast, the GloFAS discharge forecast, the gauge, past patterns, H-MEM; deterministic claims, one model-written outlook, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
         },
+        "forecast": { "$ref": "#/$defs/forecast" },
         "router_reason": {
           "type": "string",
           "description": "Why the router chose the lane, and any escalation (\"escalated: ...\")."
@@ -325,6 +326,23 @@
       "else": {
         "required": ["cached_at"],
         "properties": { "cached_at": { "$ref": "#/$defs/date_time" } }
+      }
+    },
+    "forecast": {
+      "type": "object",
+      "description": "Forecast lane only. A FloodSense screening status and a model-written outlook; never an official warning.",
+      "required": ["status", "disclaimer"],
+      "properties": {
+        "status": { "enum": ["Normal", "Watch", "Warning"] },
+        "status_reason": { "type": "string" },
+        "places": { "type": "array", "items": { "type": "string" } },
+        "horizon_h": { "type": "integer", "minimum": 1 },
+        "outlook": { "type": ["string", "null"], "description": "Two sentences by the fast lane; dropped when it names a number or place the claims do not." },
+        "outlook_label": { "type": ["string", "null"] },
+        "outlook_model_id": { "type": ["string", "null"] },
+        "gaps": { "type": "array", "items": { "type": "string" } },
+        "disclaimer": { "type": "string", "minLength": 1 },
+        "attribution": { "type": "string" }
       }
     },
     "answer": {

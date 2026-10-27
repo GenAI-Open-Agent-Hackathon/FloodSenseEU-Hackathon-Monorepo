@@ -464,8 +464,11 @@ def project_run(body: dict[str, Any]) -> dict[str, Any] | None:
     if judge is not None:
         answer["judge"] = judge
     # Router lane (agents/floodsense_agents/router.py). Older runs carry none.
-    if body.get("lane") in ("quick", "full"):
+    if body.get("lane") in ("quick", "forecast", "full"):
         answer["lane"] = body["lane"]
+    fc = body.get("forecast")
+    if body.get("lane") == "forecast" and isinstance(fc, dict) and fc.get("status") and fc.get("disclaimer"):
+        answer["forecast"] = fc
     if isinstance(body.get("router_reason"), str) and body["router_reason"].strip():
         answer["router_reason"] = body["router_reason"].strip()
     return {

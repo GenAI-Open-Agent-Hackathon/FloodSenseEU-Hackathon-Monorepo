@@ -346,6 +346,8 @@ def config():
                 "FF_RAG_DOCS": settings.ff_rag_docs,
                 # Router quick lane: part of the API cache fingerprint (app/cache.py).
                 "FF_QUICK_LANE": router.enabled(),
+                # Router forecast lane (nodes/forecast.py): also part of the fingerprint.
+                "FF_FORECAST_LANE": router.forecast_enabled(),
             },
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "engines_url": settings.engines_url,

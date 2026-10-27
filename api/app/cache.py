@@ -424,8 +424,11 @@ def approved_by_a_person(run: dict[str, Any]) -> bool:
 
 
 def quick_answered(run: dict[str, Any]) -> bool:
-    """A quick-lane answer: no playbook, no HITL, ends ``answered`` (router.py)."""
-    return run.get("lane") == "quick" and run.get("status") == "answered"
+    """A quick- or forecast-lane answer: no playbook, no HITL, ends ``answered`` (router.py).
+
+    Both read the live views, so both are cached with the live TTL.
+    """
+    return run.get("lane") in ("quick", "forecast") and run.get("status") == "answered"
 
 
 def finished_well(run: dict[str, Any]) -> bool:

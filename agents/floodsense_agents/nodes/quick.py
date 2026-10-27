@@ -66,6 +66,8 @@ def route_after_scope(state: FloodState) -> str:
     """scope's router with the quick lane. A decline always ends the run."""
     if not (state.get("scope") or {}).get("in_scope", True):
         return "declined"
+    if state.get("lane") == "forecast":
+        return "forecast_data"
     return "live_watch" if state.get("lane") == QUICK else "watchers"
 
 
@@ -415,6 +417,7 @@ def escalate(state: FloodState) -> dict:
         "judge": [],
         "judge_summary": {},
         "summary": "",
+        "forecast": {},
         "status": "running",
         "trace": trace(state, "router", f"escalated: {why}; running the full lane", lane="none"),
     }

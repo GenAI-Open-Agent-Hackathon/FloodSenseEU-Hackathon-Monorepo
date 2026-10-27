@@ -79,12 +79,14 @@ class FloodState(TypedDict, total=False):
     live_findings: dict[str, Any]  # live mode: what the Investigator found crossing
     mode: dict[str, Any]  # live.resolve_mode: {mode event|live, explicit, reason}
     scope: dict[str, Any]  # the gate's verdict: can this run honestly answer
-    status: str  # running | awaiting_approval | approved | rejected | failed | answered (quick lane)
+    status: str  # running | awaiting_approval | approved | rejected | failed | answered (quick / forecast lane)
     served_from: str  # live | cache | replay. live only for a fresh live-schema read
     cached_at: str | None
     model_ids: list[str]
     error: str
-    # router.py: which agent path runs (quick | full), why, and a pending escalation
+    # forecast lane (nodes/forecast.py): status, model outlook, disclaimer
+    forecast: dict[str, Any]
+    # router.py: which agent path runs (quick | forecast | full), why, and a pending escalation
     lane: str
     router_reason: str
     escalate: str | None
