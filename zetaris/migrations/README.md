@@ -43,6 +43,10 @@ Owner: Mihir (takeover 2026-10-25). File authors below are unchanged.
 | `063_create_rest_table_eu_watch_live_v2.sql` | EU watch REST table with cells checked against long-term mean flow (4 moved, Seville dropped). Replaces 060's table in 064 | Mihir |
 | `064_view_eu_watch_v2_exact_median.sql` | `floodsense.eu_watch` replaces 061: the 11 points of 063, exact past-30-day median | Mihir |
 | `065_seed_view_eu_watch_v2.sql` | `floodsense_seed.eu_watch` replaces 062: the 11 points of 063 | Mihir |
+| `070_create_rest_table_weather_forecast_live.sql` | Forecast lane: Open-Meteo forecast REST table, DWD ICON (`models=icon_seamless`), hourly precipitation for the next 72 h at all 45 watched places (26 PEGELONLINE gauges, 11 EU watch points, 8 Valencia points) in one request. In the 031 database. No view | Mihir |
+| `071_create_view_weather_forecast.sql` | `floodsense.weather_forecast`: one row per place and forecast hour (`lead_h` 0 = the current GMT hour), 3,240 rows | Mihir |
+| `072_create_seed_view_weather_forecast.sql` | `floodsense_seed.weather_forecast`: the 45 places and positions, no invented forecast | Mihir |
+| `073_provenance_weather_forecast.sql` | Both provenance views replace 041: the same rows plus one inline row for the DWD ICON forecast. Cleared count 9 | Mihir |
 
 Rules (see [../README.md](../README.md)):
 
