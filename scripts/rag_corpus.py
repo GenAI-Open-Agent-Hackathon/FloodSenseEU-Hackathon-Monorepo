@@ -34,6 +34,10 @@ FIELDS = (
     "path",
     "placement",
 )
+# Optional metadata: who the document is for, its language, and its year.
+OPTIONAL_FIELDS = ("audience", "language", "year")
+AUDIENCES = ("insurer", "citizen", "authority")
+_LANGUAGE = re.compile(r"^[a-z]{2}$")
 _DOC_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SHA = re.compile(r"^[a-f0-9]{64}$")
 _ITEM = re.compile(r"^- ([a-z0-9_]+): (.*)$")
@@ -94,7 +98,7 @@ def parse_manifest(text: str) -> list[dict[str, object]]:
                 raise CorpusError(f"line {number}: expected '- doc_id: ...'")
             raise CorpusError(f"line {number}: expected 'key: value'")
         key, raw = match.group(1), match.group(2)
-        if key not in FIELDS:
+        if key not in FIELDS and key not in OPTIONAL_FIELDS:
             raise CorpusError(f"line {number}: unknown field {key}")
         try:
             value = _scalar(raw)
@@ -161,6 +165,16 @@ def _check(entry: dict[str, object], index: int) -> dict[str, object]:
         or any(part in ("", ".", "..") for part in parts)
     ):
         raise CorpusError(f"{doc_id}: path must stay under corpus/{prefix}/")
+    if "audience" in entry and entry["audience"] not in AUDIENCES:
+        raise CorpusError(f"{doc_id}: audience must be insurer, citizen, or authority")
+    if "language" in entry:
+        language = entry["language"]
+        if not isinstance(language, str) or not _LANGUAGE.fullmatch(language):
+            raise CorpusError(f"{doc_id}: language must be a two-letter ISO 639-1 code")
+    if "year" in entry:
+        year = entry["year"]
+        if isinstance(year, bool) or not isinstance(year, int) or not 1900 <= year <= 2100:
+            raise CorpusError(f"{doc_id}: year must be a four-digit year")
     return entry
 
 

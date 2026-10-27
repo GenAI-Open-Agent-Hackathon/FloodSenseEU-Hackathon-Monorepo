@@ -9,6 +9,16 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- RAG corpus: four insurer and authority documents, all stored under licences that allow it (docs/legal/sources.md rows 15-18): EEA briefings on economic losses and the insurance protection gap (2025 and 2022, CC BY 4.0), EIOPA Staff Discussion Paper EIOPA-19/485 on the natural catastrophe protection gap (EIOPA legal notice), and the EU Floods Directive 2007/60/EC (Commission reuse policy). Tier 3, `event_id: null`. Not yet embedded: run `python scripts/rag_ingest.py` against pgvector.
+- Corpus manifest: optional `audience` (insurer, citizen, authority), `language` and `year` per document, checked by `fetch-rag-corpus`. Every entry now has them.
+- Evals: `val-11` to `val-13` need the new documents. `run_evals.py` passes an item's `doc_query` and reports `source_cited` against its `expect_source`. Existing items are unchanged.
+
+### Changed
+
+- `retrieve_docs`: inside an event run, the pgvector search also returns event-agnostic chunks (`event_id IS NULL`), so the Tier 3 insurer and authority documents can be cited. There is no audience filter: `rag.chunks` has no audience column.
+
 ### Fixed
 
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."

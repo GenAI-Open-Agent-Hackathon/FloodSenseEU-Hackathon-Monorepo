@@ -120,6 +120,11 @@ class RetrieveDocsTest(unittest.TestCase):
         )
         self.assertEqual([c["chunk_id"] for c in result.citations], ["kept"])
 
+    def test_event_filter_keeps_event_agnostic_documents(self) -> None:
+        """Tier 3 documents (event_id NULL) stay visible inside an event run."""
+        for statement in (retrieve_mod._HALFVEC_SQL, retrieve_mod._EXACT_SQL):
+            self.assertIn("($2::text IS NULL OR event_id = $2 OR event_id IS NULL)", statement)
+
     def test_search_binds_each_reused_placeholder(self) -> None:
         """Halfvec and the exact fallback reuse $1 and $2. Each use must be bound."""
 

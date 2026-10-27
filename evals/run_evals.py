@@ -53,6 +53,8 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
         event_id=spec["event_id"],
         customer_id=spec.get("customer_id", "demo-insurer"),
         replay_ts=item.get("replay_ts"),
+        # layer (c): an item that needs a document names the search text; others leave it unset.
+        **({"doc_query": item["doc_query"]} if item.get("doc_query") else {}),
         # None keeps the deployment default (Nightshift); a test provider needs LLM_PROVIDER_SWITCH.
         **({"llm_provider": provider} if provider else {}),
     )
@@ -99,7 +101,12 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
     expect, forbid = item.get("expect", []), item.get("forbid", [])
     hits = [e for e in expect if mentions(text, e)]
     viol = [f for f in forbid if mentions(text, f)]
+    # expect_source: the corpus URL a cited claim should carry (layer (c) items only).
+    source = item.get("expect_source")
+    cited = {c.get("source_url") for cl in s["claims"] for c in (cl.get("citations") or [])}
     return {
+        "expect_source": source,
+        "source_cited": (source in cited) if source else None,
         "id": item["id"],
         "question": item["question"],
         "status": s["status"],

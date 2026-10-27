@@ -1,6 +1,6 @@
 # Source terms (Day-1 check)
 
-Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, data-use rules). Scope started at five sources; PEGELONLINE and DWD rain were added on 24 Oct with the live feeds. On 26 Oct 2026 the layer (c) corpus added EMSR517, two CC BY papers, and EasyxLab S19. A source we cannot clear stays pointer-only. Full text is stored only when this file says so.
+Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, data-use rules). Scope started at five sources; PEGELONLINE and DWD rain were added on 24 Oct with the live feeds. On 26 Oct 2026 the layer (c) corpus added EMSR517, two CC BY papers, and EasyxLab S19. On 27 Oct 2026 it added two EEA briefings, EIOPA-19/485 and the Floods Directive (rows 15-18). A source we cannot clear stays pointer-only. Full text is stored only when this file says so.
 
 | # | Source | Licence | Attribution we show | TDM opt-out | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -18,6 +18,10 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 | 12 | NHESS, Mohr and co-authors, Nat. Hazards Earth Syst. Sci., 23, 525-551, 2023 (July 2021 flood, Part 1). PDF in `corpus/pdf/nhess-23-525-2023.pdf` | CC BY 4.0. https://doi.org/10.5194/nhess-23-525-2023 | `Mohr, Ehret, Kunz, Ludwig, and co-authors (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-525-2023` | None found on the article page | OK to store the full text. Checked 27 Oct 2026. Event EMSR517 |
 | 13 | NHESS, Thieken and co-authors, Nat. Hazards Earth Syst. Sci., 23, 973-990, 2023 (flood warning system in Germany, July 2021). PDF in `corpus/pdf/nhess-23-973-2023.pdf` | CC BY 4.0. https://doi.org/10.5194/nhess-23-973-2023 | `Thieken, Bubeck, Heidenreich, von Keyserlingk, Dillenardt, and Otto (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-973-2023` | None found on the article page | OK to store the full text. Checked 27 Oct 2026. Event EMSR517 |
 | 14 | BOE-A-2004-18910, RDL 7/2004, Estatuto Legal del Consorcio de Compensacion de Seguros, original 2004 text. PDF in `corpus/pdf/boe-a-2004-18910-original.pdf` | BOE reuse conditions (aviso legal): commercial and non-commercial reuse, copy and distribution allowed | `Fuente de los datos: Agencia Estatal Boletín Oficial del Estado` with a link to boe.es | n/a | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Not the consolidated text |
+| 15 | EEA briefing, "Economic losses and fatalities from weather- and climate-related extremes" (published 2 Jul 2025). Snapshot `corpus/pdf/eea-briefing-economic-losses-2025.html` | CC BY 4.0 under the EEA re-use policy (https://www.eea.europa.eu/en/legal-notice): re-use, reproduction, adaptation and distribution allowed, commercial or non-commercial, with the EEA acknowledged and meaning not distorted | `European Environment Agency (2025), Economic losses and fatalities from weather- and climate-related extremes, CC BY 4.0` with the page link | None found | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Audience insurer |
+| 16 | EEA briefing, "Economic losses and fatalities from weather- and climate-related events in Europe" (published 3 Feb 2022, modified 7 Aug 2026). Snapshot `corpus/pdf/eea-briefing-economic-losses-2022.html` | CC BY 4.0, same EEA re-use policy as row 15 | `European Environment Agency (2022), Economic losses and fatalities from weather- and climate-related events in Europe, CC BY 4.0` with the page link | None found | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Audience insurer. The briefing's figures rest on Munich Re NatCatSERVICE and CATDAT data; we store only the EEA text, not those datasets |
+| 17 | EIOPA Staff Discussion Paper, "Protection gap for natural catastrophes", EIOPA-19/485, September 2019. PDF in `corpus/pdf/eiopa-19-485-protection-gap.pdf` | EIOPA legal notice (https://www.eiopa.europa.eu/legal-notice_en): reproduction of information and documents is authorised without prior permission, with EIOPA credited. The PDF carries no other copyright notice | `Source: EIOPA - European Insurance and Occupational Pensions Authority` | None found | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Audience insurer |
+| 18 | Directive 2007/60/EC (EU Floods Directive), OJ L 288, 6.11.2007, p. 27-34. PDF in `corpus/pdf/eu-floods-directive-2007-60-ec.pdf` | Commission reuse policy, Decision 2011/833/EU: reuse allowed with the source acknowledged. EU legal texts in the Official Journal | `© European Union, https://eur-lex.europa.eu` | n/a | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Audience authority. Only the OJ text is authentic |
 
 ## Notes per source
 
@@ -101,9 +105,31 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 - The stored file is the 2004 text as published, not the consolidated version. Article 6 lists "inundaciones extraordinarias" as an extraordinary risk. Answers must say the text may since have been amended and is not the official consolidated text.
 - Full text may be stored. Tier 3, `event_id: null` (Spain-wide insurance rule, relevant to EMSR773).
 
+### 15-16. EEA briefings on economic losses and the insurance protection gap
+- 2025: https://www.eea.europa.eu/en/analysis/publications/economic-losses-from-climate-extremes (accessed 27 Oct 2026).
+- 2022: https://www.eea.europa.eu/en/analysis/publications/economic-losses-and-fatalities-from-weather-and-climate-related-events-in-europe (accessed 27 Oct 2026).
+- Legal notice: https://www.eea.europa.eu/en/legal-notice. "EEA materials are published under the CC-BY license"; re-use is free for commercial or non-commercial purposes if the EEA is acknowledged in each copy and the meaning is not distorted.
+- The snapshots are the HTML served on 27 Oct 2026 with `<script>`, `<style>` and `<link>` elements removed (site scripts and stylesheets). The text and headings are unchanged. `rag_ingest` reads h1/h2 sections and `<p>` paragraphs.
+- Full text may be stored.
+
+### 17. EIOPA-19/485 Staff Discussion Paper, protection gap for natural catastrophes
+- PDF: https://register.eiopa.europa.eu/Publications/EIOPA-19-485_EIOPA%20Staff_Discussion_Paper_Protection_Gap.pdf (accessed 27 Oct 2026, 11 pages).
+- Legal notice read 27 Oct 2026. Exceptions there (EIOPA-developed tools, logo, third-party material) do not apply to this text. If we summarise or translate it, the legal notice asks for its twofold disclaimer; citations quote the stored text verbatim.
+- Full text may be stored. A staff paper, not an official EIOPA position.
+
+### 18. Directive 2007/60/EC (Floods Directive)
+- Act: https://eur-lex.europa.eu/eli/dir/2007/60/oj (CELEX 32007L0060).
+- The PDF was taken on 27 Oct 2026 from the Publications Office resource URL https://publications.europa.eu/resource/celex/32007L0060 (content negotiation, `Accept: application/pdf`). The EUR-Lex page and its legal notice did not load from our host on 27 Oct 2026 (bot check); the reuse basis is Decision 2011/833/EU on the reuse of Commission documents, as the brief states. Re-read the EUR-Lex legal notice from a browser before the demo.
+- This is the original 2007 text, not a consolidated version. Full text may be stored.
+
 ### Rejected for the corpus (26-27 Oct 2026)
 - Umweltbundesamt indicator BAU-R-4, "Versicherungsdichte der erweiterten Elementarschadenversicherung für Wohngebäude" (Elementarschaden insurance density). BAU-R-4 is the code in the page title; the page is served at https://www.umweltbundesamt.de/monitoring-zur-das/handlungsfelder/bauwesen/bau-r-5/indikator, whose path says bau-r-5 (checked 27 Oct 2026): no open licence on the page; the site imprint says "Alle Rechte vorbehalten". Not stored. The manifest has no pointer-only placement, so it is not listed there.
 - BOE consolidated PDF of RDL 7/2004 / BOE-A-2004-18911: 18911 is the motor-insurance RDL 8/2004 (wrong document), and consolidated PDFs change on each amendment, which breaks sha256.
+- ECB/EIOPA, "Policy options to reduce the climate insurance protection gap" (Dec 2023) and "Towards a European system for natural catastrophe risk management" (Dec 2024), https://www.ecb.europa.eu/pub/pdf/other/ecb.policyoptions_EIOPA~c0adae58b7.en.pdf and https://www.ecb.europa.eu/pub/pdf/other/ecb.climateinsuranceprotectiongap_EIOPA202412~6403e0de2b.en.pdf (both reachable 27 Oct 2026): the PDFs say "Reproduction for educational and non-commercial purposes is permitted provided that the source is acknowledged". Non-commercial only, which the manifest rule rejects. Not stored.
+- EIOPA dashboard on the natural catastrophe protection gap (EIOPA-BOS-23/418 "in a nutshell", EIOPA-BOS-23/419 technical description, on eiopa.europa.eu/system/files/2023-11/): the EIOPA legal notice would allow reuse, but the files returned "Access denied" to a scripted download on 27 Oct 2026. Not stored. Can be added later from a browser download with its sha256.
+- Consorcio de Compensación de Seguros (consorseguros.es) public material, e.g. DANA 2024 claims figures: the aviso legal (read 27 Oct 2026) allows download and copy only with source and date and without alteration, says no licence is granted, forbids marketing by third parties and forbids deep links. Chunking for retrieval is an alteration under that wording. Not stored.
+- BBK Ratgeber für Notfallvorsorge (bbk.bund.de, PDF reachable 27 Oct 2026): the BBK Impressum says texts, graphics and tables may not be reproduced, distributed or displayed without prior BBK consent. Not stored.
+- GDV Naturgefahrenreport / Elementarschaden pages: not checked in this round, not added.
 
 ## Deferred (out of scope for now)
 Bavarian LfU / hnd.bayern.de (CC BY 4.0, `Datenquelle: Bayerisches Landesamt für Umwelt, www.lfu.bayern.de`; site was online on 23 Oct), hochwasserzentralen.de API (CC BY 4.0, `Datenquelle: www.hochwasserzentralen.de`, `Stand: TT.MM.JJJJ hh:mm`), LANUK NRW (Datenlizenz Deutschland Zero 2.0 on the checked discharge series), Rhineland-Palatinate Ahr gauges (terms not found), SAIH Júcar (terms not found). Revisit when the Ahr 2021 eval set needs them.

@@ -45,3 +45,28 @@ items:
     expect_declined: true
     expect: []
     forbid: ["786"]
+  # Layer (c) insurer and authority documents (event-agnostic, tier 3). Each item passes doc_query so the
+  # Investigator calls retrieve_docs; expect_source is the corpus URL a cited claim should carry. The facts
+  # below are quoted from the stored copies under corpus/pdf/ (key messages of the EEA briefings, Art. 6-7 of
+  # Directive 2007/60/EC). They need FF_RAG_DOCS on and the four new documents ingested.
+  - id: val-11
+    question: What share of weather- and climate-related losses in EEA member countries was insured between 1980 and 2020?
+    doc_query: share of economic losses from weather- and climate-related events that were insured 1980-2020
+    expect_source: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-and-fatalities-from-weather-and-climate-related-events-in-europe"
+    # EEA (2022) key message: between only one quarter and one third of these losses were insured.
+    reference: "EUR 450-520 billion (2020 euros) in EEA-32, 1980-2020; between one quarter and one third insured"
+    expect: ["quarter", "third"]
+  - id: val-12
+    question: How large is the insurance protection gap for weather- and climate-related losses across EEA-38 countries since 1980?
+    doc_query: insurance protection gap uninsured share of losses EEA-38 1980-2023
+    expect_source: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-from-climate-extremes"
+    # EEA (2025) key messages: losses exceeded EUR 790 billion 1980-2023; most countries reported over 50% uninsured.
+    reference: "Over EUR 790 billion of losses in EEA-38, 1980-2023; most countries over 50% uninsured, often over 90%"
+    expect: ["790"]
+  - id: val-13
+    question: Under the EU Floods Directive, what must Member States prepare for areas with significant flood risk?
+    doc_query: Floods Directive flood hazard maps flood risk maps flood risk management plans
+    expect_source: "https://eur-lex.europa.eu/eli/dir/2007/60/oj"
+    # Directive 2007/60/EC, Art. 6 (flood hazard maps and flood risk maps) and Art. 7 (flood risk management plans).
+    reference: "Flood hazard maps and flood risk maps (Art. 6) and flood risk management plans (Art. 7)"
+    expect: ["flood hazard maps", "flood risk management plans"]

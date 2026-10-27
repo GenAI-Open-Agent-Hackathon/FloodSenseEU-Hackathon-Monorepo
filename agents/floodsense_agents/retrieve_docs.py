@@ -25,7 +25,7 @@ SELECT chunk_id, (embedding::halfvec(2048) <=> $1::halfvec(2048)) AS distance
 FROM rag.chunks
 WHERE level = 'paragraph'
   AND embedding IS NOT NULL
-  AND ($2::text IS NULL OR event_id = $2)
+  AND ($2::text IS NULL OR event_id = $2 OR event_id IS NULL)
 ORDER BY embedding::halfvec(2048) <=> $1::halfvec(2048)
 LIMIT $3
 """.strip()
@@ -34,7 +34,7 @@ SELECT chunk_id, (embedding <=> $1::vector) AS distance
 FROM rag.chunks
 WHERE level = 'paragraph'
   AND embedding IS NOT NULL
-  AND ($2::text IS NULL OR event_id = $2)
+  AND ($2::text IS NULL OR event_id = $2 OR event_id IS NULL)
 ORDER BY embedding <=> $1::vector
 LIMIT $3
 """.strip()
