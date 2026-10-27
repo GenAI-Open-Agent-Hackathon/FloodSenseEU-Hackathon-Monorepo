@@ -87,11 +87,25 @@ describe("parseHash", () => {
   });
 });
 
+describe("Replay page", () => {
+  it("parses on both desks, sits right after Now, and is never a home", () => {
+    expect(parseHash("#/citizen/replay")).toEqual({ role: "citizen", page: "replay" });
+    expect(parseHash("#/insurer/replay", false)).toEqual({ role: "insurer", page: "replay" });
+    expect(routeHref("citizen", "replay")).toBe("#/citizen/replay");
+    expect(routeHref("insurer", "replay")).toBe("#/insurer/replay");
+    expect(DESK_NAV.citizen[1]).toEqual({ page: "replay", label: "Replay" });
+    expect(DESK_NAV.insurer[1]).toEqual({ page: "replay", label: "Replay" });
+    expect(pageLabel({ role: "insurer", page: "replay" })).toBe("Replay");
+    expect(parseHash("#/replay")).toEqual({ role: "insurer", page: "approvals" });
+  });
+});
+
 describe("DESK_NAV", () => {
   it("matches the approved IA", () => {
-    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Now", "Overview", "My area", "What to do", "Evidence"]);
+    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Now", "Replay", "Overview", "My area", "What to do", "Evidence"]);
     expect(DESK_NAV.insurer.map((item) => item.label)).toEqual([
       "Now",
+      "Replay",
       "Approvals",
       "Portfolio",
       "Sites / map",

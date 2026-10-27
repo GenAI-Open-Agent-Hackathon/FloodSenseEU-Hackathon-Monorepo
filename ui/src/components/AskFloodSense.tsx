@@ -1,4 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { AgentPipeline } from "./AgentPipeline";
+import { RetrievalPanel } from "./RetrievalPanel";
+import { mergeContext } from "../lib/askContext";
 import { askFloodSense, capTurns, followUpThreadId, modeForPage, modeLabel, runBadge } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
@@ -25,6 +28,8 @@ interface Turn {
 export function AskFloodSense() {
   const desk = useConsole();
   const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page } = desk;
+  // agents-visual: screen context (and a replay moment, when the popup was opened from Replay).
+  const { askContext, screenContext } = desk;
   const panelId = useId();
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
@@ -114,6 +119,8 @@ export function AskFloodSense() {
         allowedProviders: llmProviders,
         threadId: followUpThreadId(previous),
         mode: modeForPage(page),
+        context: mergeContext(screenContext(), askContext),
+        ...(askContext?.event_id ? { eventId: askContext.event_id } : {}),
       },
       controller.signal,
     );
@@ -403,14 +410,9 @@ function RecordedAnswer({ run, badge }: { run: RecordedRun; badge: string }) {
       )}
       <details className="disclosure">
         <summary>How I got this</summary>
-        <ol className="ask-trace">
-          {run.trace.map((step, i) => (
-            <li key={`${step.seq}-${i}`}>
-              <p className="menu-title">{step.node}</p>
-              <p className="note">{step.summary}</p>
-            </li>
-          ))}
-        </ol>
+        {/* agents-visual: the node graph and the layer (c) retrieval, from the same run body. */}
+        <AgentPipeline run={run} compact />
+        <RetrievalPanel run={run} />
         <p className="note">Trace recorded with run {run.runId}.</p>
       </details>
     </>
