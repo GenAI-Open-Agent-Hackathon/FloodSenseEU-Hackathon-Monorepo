@@ -17,7 +17,14 @@ export interface QueueRow {
   createdAt: string | null;
   eventId: string | null;
   lane: string | null;
+  /** "live" or "event" (GET /runs/past `mode`). */
+  mode?: string | null;
   judgeOverall: number | null;
+  /** Set by curateQueue: every action of the run is internal, so there is nothing to send, only notes to review. */
+  internalOnly?: boolean;
+  /** Duplicates of the same question and event folded into this (newest) run. Set by curateQueue. */
+  earlier?: number;
+  earlierIds?: string[];
   /** True when the row came only from the handoff id (the past list did not carry it yet). */
   handoffOnly: boolean;
 }
@@ -51,6 +58,7 @@ export function adoptPastRuns(body: unknown): QueueRow[] {
         createdAt: str(r.created_at),
         eventId: str(r.event_id),
         lane: str(r.lane),
+        mode: str(r.mode),
         judgeOverall: num(r.judge_overall),
         handoffOnly: false,
       },
@@ -191,7 +199,7 @@ export function approvalHeader(input: {
     { label: "Model", value: model ?? "rules only (no model call recorded)" },
     { label: "Judge", value: judge },
   ];
-  if (eventId) facts.push({ label: "Event", value: eventId });
+  if (eventId) facts.push({ label: "Event", value: eventLabel(eventId) });
   const missing = [!started && "start time", !lane && "lane"].filter(Boolean);
   return {
     title: `Live run ${input.runId}`,
@@ -201,9 +209,140 @@ export function approvalHeader(input: {
   };
 }
 
-/** Pure: the left-pane row's secondary line. */
+const EVENT_LABELS: Record<string, string> = { EMSR517: "Ahr 2021", EMSR773: "Valencia 2024", "LIVE-EU": "Live" };
+
+/** Plain event name for a run: "Ahr 2021", "Valencia 2024", "Live"; an unknown id is shown as given. */
+export function eventLabel(eventId: string | null | undefined): string {
+  if (!eventId) return "";
+  return EVENT_LABELS[eventId] ?? eventId;
+}
+
+function hhmmUtc(iso: string | null): string | null {
+  const v = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(v)) return null;
+  const d = new Date(v);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
+}
+
+/** Pure: the left-pane row's secondary line: "Ahr 2021 · 12:28 UTC · Judge 1.00" (no run id, no raw event id). */
 export function queueRowLine(row: QueueRow): string {
-  const when = utcStamp(row.createdAt);
-  const state = row.state === "running" ? "Agents working" : "Awaiting your decision";
-  return [state, when, row.eventId].filter(Boolean).join(" · ");
+  const parts = [
+    row.state === "running" ? "Agents working" : null,
+    row.internalOnly ? "Internal notes" : null,
+    (row.mode === "live" ? "Live" : eventLabel(row.eventId)) || null,
+    hhmmUtc(row.createdAt),
+    row.judgeOverall !== null ? `Judge ${row.judgeOverall.toFixed(2)}` : null,
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** Pure: a greeting or small talk. The agents may still draft actions for it; nobody should be asked to approve them. */
+export function isSmallTalk(question: string | null): boolean {
+  const q = (question ?? "").trim().toLowerCase();
+  if (!q) return false;
+  return /^(hi|hello|hey|hallo|hola|good (morning|afternoon|evening))\b/.test(q) || /\bhow are you\b/.test(q) || /^(thanks|thank you)\b/.test(q);
+}
+
+/** A run the API still reports as running after this long was abandoned, not worked on. */
+export const STALE_RUNNING_MS = 20 * 60_000;
+
+export interface CurateInput {
+  /** Wall clock (ms) for the stale-running rule. Defaults to now. */
+  now?: number;
+  mode: "live" | "past";
+  eventId: string;
+  hidden: ReadonlySet<string>;
+  showHidden: boolean;
+  /** Actions per run, from GET /runs/{id}/approval. Absent: not looked up yet. */
+  actionCounts: Readonly<Record<string, { outbound: number; total: number }>>;
+}
+
+export interface CuratedQueue {
+  rows: QueueRow[];
+  /** Runs the reviewer hid (listed only with "Show hidden"). */
+  hiddenCount: number;
+  /** Candidate run ids whose actions still have to be looked up. */
+  pendingIds: string[];
+}
+
+const dupKey = (r: QueueRow): string => `${(r.question ?? r.runId).trim().toLowerCase().replace(/\s+/g, " ")}|${r.eventId ?? ""}`;
+
+/**
+ * Pure: what the Approvals list actually shows. Scoped to the global mode (Live: live-data runs; Past flood: the
+ * chosen event's runs), full-lane runs only (quick, forecast and reply runs have nothing to approve), runs with at
+ * at least one action (internal-only runs are listed as "Internal notes"), duplicates (same question and event) folded into the newest with `earlier`, and
+ * hidden runs held back. Runs started in this tab are kept while the agents work or until they reach review.
+ */
+export function curateQueue(queue: readonly QueueRow[], input: CurateInput): CuratedQueue {
+  const inScope = (r: QueueRow): boolean => {
+    if (r.handoffOnly) return input.mode === "live" || r.eventId === input.eventId;
+    if (input.mode === "live") return r.mode === "live" || r.eventId === "LIVE-EU";
+    return r.eventId === input.eventId && r.mode !== "live";
+  };
+  const now = input.now ?? Date.now();
+  const working = queue.filter((r) => r.state === "running" && inScope(r) && (r.handoffOnly || now - t(r.createdAt) < STALE_RUNNING_MS));
+  const candidates = queue.filter((r) => r.state === "awaiting" && inScope(r) && (r.handoffOnly || (r.lane === "full" && !isSmallTalk(r.question))));
+  const seen = new Map<string, QueueRow>();
+  for (const r of candidates) {
+    if (r.handoffOnly) {
+      seen.set(`h:${r.runId}`, r);
+      continue;
+    }
+    const key = dupKey(r);
+    const kept = seen.get(key);
+    if (!kept) seen.set(key, { ...r, earlier: 0, earlierIds: [] });
+    else {
+      kept.earlier = (kept.earlier ?? 0) + 1;
+      kept.earlierIds = [...(kept.earlierIds ?? []), r.runId];
+    }
+  }
+  const pendingIds: string[] = [];
+  const decidable: QueueRow[] = [];
+  for (const r of seen.values()) {
+    if (r.handoffOnly) decidable.push(r);
+    else if (input.actionCounts[r.runId] === undefined) pendingIds.push(r.runId);
+    else {
+      const c = input.actionCounts[r.runId];
+      if (c.outbound > 0) decidable.push(r);
+      else if (c.total > 0) decidable.push({ ...r, internalOnly: true });
+    }
+  }
+  const isHidden = (r: QueueRow) => input.hidden.has(r.runId);
+  const visible = decidable.filter((r) => input.showHidden || !isHidden(r));
+  return { rows: [...visible, ...working], hiddenCount: decidable.filter(isHidden).length, pendingIds };
+}
+
+/** "+2 earlier runs" / "+1 earlier run", or null. */
+export function earlierText(row: Pick<QueueRow, "earlier">): string | null {
+  const n = row.earlier ?? 0;
+  return n > 0 ? `+${n} earlier ${n === 1 ? "run" : "runs"}` : null;
+}
+
+export const HIDDEN_RUNS_KEY = "floodsense-hidden-runs";
+
+export function readHidden(storage: Pick<Storage, "getItem"> | null): Set<string> {
+  try {
+    const raw = storage?.getItem(HIDDEN_RUNS_KEY);
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function writeHidden(storage: Pick<Storage, "setItem"> | null, ids: ReadonlySet<string>): void {
+  try {
+    storage?.setItem(HIDDEN_RUNS_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* private window: hiding lasts for this tab only */
+  }
+}
+
+/** Pure: the newest finished full-lane run for the mode's event (Live: live-data runs), from the /runs/past rows. */
+export function newestCompletedFullRun(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow | null {
+  const done = rows.filter((r) => {
+    if (r.lane !== "full" || isSmallTalk(r.question) || r.state === "running" || r.status === "out_of_scope" || r.status === "running") return false;
+    return mode === "live" ? r.mode === "live" || r.eventId === "LIVE-EU" : r.eventId === eventId && r.mode !== "live";
+  });
+  return [...done].sort((a, b) => t(b.createdAt) - t(a.createdAt))[0] ?? null;
 }

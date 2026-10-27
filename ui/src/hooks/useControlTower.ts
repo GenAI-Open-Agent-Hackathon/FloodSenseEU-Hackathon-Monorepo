@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchWatchEvents, fetchWatchStatus, postAutoAssess, postScan, subscribeWatch } from "../api/watch";
 import demo from "../fixtures/watchDemo.json";
-import { announcement, appMode, asWatchStatus, mergeEvents, parseEvents, type WatchEvent, type WatchStatus } from "../lib/controlTower";
+import { useConsole } from "../context/ConsoleContext";
+import { announcement, asWatchStatus, mergeEvents, parseEvents, type WatchEvent, type WatchStatus } from "../lib/controlTower";
 
 const STATUS_POLL_MS = 10_000;
 const EVENTS_POLL_MS = 8_000;
@@ -51,7 +52,9 @@ export function useControlTower(): ControlTowerState {
   const known = useRef<Set<string>>(new Set());
   const latest = useRef<string | null>(null);
   const lastAnnounce = useRef(0);
-  const mode = typeof window === "undefined" ? "live" : appMode(window.location.search, window.location.hash);
+  // The global Demo data switch decides; the page no longer reads its own ?mode=demo.
+  const { demo: demoOn } = useConsole();
+  const mode: "demo" | "live" = demoOn ? "demo" : "live";
 
   const take = useCallback((incoming: WatchEvent[]) => {
     if (!incoming.length) return;
@@ -75,6 +78,7 @@ export function useControlTower(): ControlTowerState {
 
   // First load: status and the newest events.
   useEffect(() => {
+    if (demoOn) return undefined;
     const ctrl = new AbortController();
     void (async () => {
       const [s, ev] = await Promise.all([fetchWatchStatus(ctrl.signal), fetchWatchEvents(null, 200, ctrl.signal)]);
@@ -92,7 +96,7 @@ export function useControlTower(): ControlTowerState {
       loaded.current = true;
     })();
     return () => ctrl.abort();
-  }, [take, tick]);
+  }, [take, tick, demoOn]);
 
   // The agents came back after being down: load the feed again.
   const wasDown = useRef(false);
@@ -113,12 +117,12 @@ export function useControlTower(): ControlTowerState {
 
   // Live stream; polling stands in while it is not open.
   useEffect(() => {
-    if (reachable !== true) return undefined;
+    if (reachable !== true || demoOn) return undefined;
     return subscribeWatch(latest.current, (e) => take([e]), setStreaming);
-  }, [reachable, take]);
+  }, [reachable, take, demoOn]);
 
   useEffect(() => {
-    if (reachable === null) return undefined;
+    if (reachable === null || demoOn) return undefined;
     const ctrl = new AbortController();
     const poll = async () => {
       const s = await fetchWatchStatus(ctrl.signal);
@@ -135,10 +139,10 @@ export function useControlTower(): ControlTowerState {
       ctrl.abort();
       window.clearInterval(timer);
     };
-  }, [reachable]);
+  }, [reachable, demoOn]);
 
   useEffect(() => {
-    if (reachable !== true || streaming) return undefined;
+    if (reachable !== true || streaming || demoOn) return undefined;
     const ctrl = new AbortController();
     const timer = window.setInterval(async () => {
       const ev = await fetchWatchEvents(latest.current, 100, ctrl.signal);
@@ -148,7 +152,7 @@ export function useControlTower(): ControlTowerState {
       ctrl.abort();
       window.clearInterval(timer);
     };
-  }, [reachable, streaming, take]);
+  }, [reachable, streaming, take, demoOn]);
 
   const scanNow = useCallback(() => {
     setScanning(true);
@@ -202,6 +206,27 @@ export function useControlTower(): ControlTowerState {
     setStatus(asWatchStatus(recorded.status));
     setDemoFeed({ recordedAt: recorded.recorded_at, note: recorded.note });
   }, []);
+
+  // Demo data on: show the recorded feed (the agents are not asked); off again: start from nothing and load live.
+  const wasDemo = useRef(false);
+  useEffect(() => {
+    if (demoOn) {
+      wasDemo.current = true;
+      setReachable(false);
+      showDemo();
+    } else if (wasDemo.current) {
+      wasDemo.current = false;
+      known.current = new Set();
+      latest.current = null;
+      loaded.current = false;
+      setEvents([]);
+      setFresh(new Set());
+      setDemoFeed(null);
+      setStatus(null);
+      setReachable(null);
+      setTick((t) => t + 1);
+    }
+  }, [demoOn, showDemo]);
 
   return {
     reachable,

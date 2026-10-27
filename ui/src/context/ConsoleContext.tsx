@@ -30,8 +30,9 @@ import {
   storeProvider,
   type LlmProvider,
 } from "../lib/llmProvider";
-import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { AskContext } from "../lib/askContext";
+import { setDemoFlag } from "../lib/demo";
+import { parseModeSearch, writeModeToUrl, type LiveHealth, type Mode, type ModeState } from "../lib/mode";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
 import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
@@ -71,17 +72,31 @@ export interface ConsoleValue {
   setDate: (date: string) => void;
   pointId: string;
   setPointId: (pointId: string) => void;
-  /** Selected event (Replay, Sites / map, Portfolio, header). One value for the whole console. */
+  /** The global mode: "live" (the live watch) or "past" (the replay of `eventId`). Every page obeys it. */
+  mode: Mode;
+  /** The past flood chosen for Past mode (header picker). Kept in Live so switching back remembers it. */
   eventId: EventId;
+  /** Choose the past flood; in Live this also switches to Past mode. */
   setEventId: (eventId: EventId) => void;
+  setMode: (mode: Mode) => void;
+  /** mode + eventId + demo, as written to the URL query. */
+  modeState: ModeState;
+  /** Demo data: the live fetchers read the bundled snapshot instead. A "DEMO DATA" chip shows wherever it is on. */
+  demo: boolean;
+  setDemo: (on: boolean) => void;
+  /** True once the API health probe answered or failed (not while it is still running). */
+  healthChecked: boolean;
+  /** Oldest fetch time of the live views on screen (ms), for "Live data · checked HH:MM". Null until loaded. */
+  liveCheckedAt: number | null;
+  reportChecked: (ms: number) => void;
+  /** How much of the live watch loaded, and which views failed. Drives the strip, the partial-outage note and the demo offer. */
+  liveHealth: LiveHealth | null;
+  reportLiveHealth: (health: LiveHealth) => void;
   /** Ahr (EMSR517) map date and point, kept here so they survive a remount of Sites / map. */
   ahrDate: string;
   setAhrDate: (date: string) => void;
   ahrPointId: string;
   setAhrPointId: (pointId: string) => void;
-  /** Insurer Sites / map: the live Europe view (default) or a replayed event. The replay strip shows only for a replay. */
-  sitesView: "live" | "replay";
-  setSitesView: (view: "live" | "replay") => void;
   evidenceOpen: boolean;
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
@@ -185,10 +200,19 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const dates = useMemo(() => datesOf(discharge.rows), [discharge.rows]);
   const [date, setDateState] = useState(DEFAULT_DATE);
   const [pointId, setPointId] = useState(DEFAULT_POINT_ID);
-  const [eventId, setEventId] = useState<EventId>(DEFAULT_EVENT_ID);
+  const [modeInit] = useState(() => {
+    const initial = parseModeSearch(window.location.search);
+    setDemoFlag(initial.demo);
+    return initial;
+  });
+  const [mode, setModeState] = useState<Mode>(modeInit.mode);
+  const [demo, setDemoState] = useState(modeInit.demo);
+  const [eventId, setEventIdState] = useState<EventId>(modeInit.eventId ?? DEFAULT_EVENT_ID);
+  const [healthChecked, setHealthChecked] = useState(false);
+  const [liveCheckedAt, setLiveCheckedAt] = useState<number | null>(null);
+  const [liveHealth, setLiveHealth] = useState<LiveHealth | null>(null);
   const [ahrDate, setAhrDate] = useState(AHR_DEFAULT_DATE);
   const [ahrPointId, setAhrPointId] = useState("AHR01");
-  const [sitesView, setSitesView] = useState<"live" | "replay">("live");
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [evidenceSource, setEvidenceSource] = useState<Reference | null>(null);
@@ -199,10 +223,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
   const approvalPendingRef = useRef(true);
   approvalPendingRef.current = approval.status === "pending";
-  const [notices, setNotices] = useState<Notice[]>(() => [
-    replayNotice(bundle.answer),
-    fixtureDischargeNotice(bundle.discharge),
-  ]);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
   playingRef.current = playing;
@@ -233,11 +254,49 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     setDateState(next);
   }, []);
 
+  const setMode = useCallback((next: Mode) => {
+    setModeState(next);
+    setPlaceId(null);
+  }, []);
+  const setEventId = useCallback((next: EventId) => {
+    setEventIdState(next);
+    setModeState("past");
+    setPlaceId(null);
+  }, []);
+  const setDemo = useCallback((on: boolean) => {
+    // The module flag flips first, so the fetchers that run after this render already read the snapshot.
+    setDemoFlag(on);
+    setDemoState(on);
+    setLiveCheckedAt(null);
+  }, []);
+  const reportChecked = useCallback((ms: number) => setLiveCheckedAt((prev) => (prev === ms ? prev : ms)), []);
+  const reportLiveHealth = useCallback((h: LiveHealth) => setLiveHealth(h), []);
+  const modeState = useMemo<ModeState>(() => ({ mode, eventId, demo }), [mode, eventId, demo]);
+  useEffect(() => {
+    writeModeToUrl(modeState);
+  }, [modeState]);
+
   useEffect(() => {
     const onHash = () => setDeskRoute(readRoute(approvalPendingRef.current));
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Back / Forward: an entry can differ in the query (mode) as well as the hash (page), and Chrome fires only
+  // popstate for that, so re-read both from the URL.
+  useEffect(() => {
+    const onPop = () => {
+      const m = parseModeSearch(window.location.search);
+      setDemoFlag(m.demo);
+      setDemoState(m.demo);
+      setModeState(m.mode);
+      setEventIdState(m.eventId);
+      setPlaceId(null);
+      setDeskRoute(readRoute(approvalPendingRef.current));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   useEffect(() => {
@@ -250,8 +309,23 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   useEffect(() => {
     let cancelled = false;
+    if (demo) {
+      // Demo data: the replay views stay on the bundled fixtures too, so nothing is read from the API.
+      setHealthOk(false);
+      setHealthChecked(true);
+      setHealthDetail("Demo data is on. Rows on screen are bundled fixtures.");
+      setDischarge(slice(bundle.discharge, FIXTURE_DETAILS.discharge_daily));
+      setHazard(slice(bundle.hazard, FIXTURE_DETAILS.hazard_timeline));
+      setExposure(slice(bundle.exposure, FIXTURE_DETAILS.exposure_join));
+      setProvenance(slice(bundle.provenance, FIXTURE_DETAILS.provenance));
+      return () => {
+        cancelled = true;
+      };
+    }
+    setHealthChecked(false);
     loadLiveViews().then((live) => {
       if (cancelled) return;
+      setHealthChecked(true);
       setHealthOk(live.health.ok);
       setHealthDetail(live.health.detail);
       const take = <T,>(parsed: T[] | null, miss: string, fixtureRows: T[], fixtureDetail: string) =>
@@ -291,19 +365,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    setNotices((list) => {
-      const rest = list.filter((notice) => notice.id !== "seed-loaded" && notice.id !== "fixture-loaded");
-      if (discharge.origin === "live") return rest;
-      const notice =
-        discharge.origin === "seed" ? seedRowsNotice(discharge.rows) : fixtureDischargeNotice(discharge.rows);
-      const current = list.find((item) => item.id === notice.id);
-      if (current && current.title === notice.title && current.body === notice.body) return list;
-      return [notice, ...rest];
-    });
-  }, [discharge.origin, discharge.rows]);
+  }, [demo]);
 
   useEffect(() => {
     if (!playing) return;
@@ -382,11 +444,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
   const screenContext = useCallback((): AskContext => {
-    // The live Europe view of Sites shows no replayed event, so its context names none.
-    const route: DeskRoute = deskRoute.role === "insurer" && deskRoute.page === "sites" && sitesView === "live" ? { role: "insurer", page: "alerts" } : deskRoute;
-    const ctx = screenContextFor(route, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
-    return route === deskRoute ? ctx : { ...ctx, page: deskRoute.page };
-  }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId, sitesView]);
+    return screenContextFor(deskRoute, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId }, mode);
+  }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId, mode]);
 
   const decide = useCallback((status: ApprovalStatus, note: string) => {
     setApproval((current) => ({ ...current, status, note }));
@@ -435,14 +494,22 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       setDate,
       pointId,
       setPointId,
+      mode,
       eventId,
       setEventId,
+      setMode,
+      modeState,
+      demo,
+      setDemo,
+      healthChecked,
+      liveCheckedAt,
+      reportChecked,
+      liveHealth,
+      reportLiveHealth,
       ahrDate,
       setAhrDate,
       ahrPointId,
       setAhrPointId,
-      sitesView,
-      setSitesView,
       evidenceOpen,
       evidenceTopic,
       openEvidence,
@@ -486,10 +553,20 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       date,
       setDate,
       pointId,
+      mode,
       eventId,
+      setEventId,
+      setMode,
+      modeState,
+      demo,
+      setDemo,
+      healthChecked,
+      liveCheckedAt,
+      reportChecked,
+      liveHealth,
+      reportLiveHealth,
       ahrDate,
       ahrPointId,
-      sitesView,
       evidenceOpen,
       evidenceTopic,
       openEvidence,

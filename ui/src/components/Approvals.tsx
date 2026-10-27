@@ -1,3 +1,4 @@
+import { EVENT_META } from "../lib/events";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { fetchApproval, postApproval } from "../api/liveRun";
@@ -8,7 +9,17 @@ import { plainLanguage } from "../lib/plain";
 import { routeHref } from "../lib/route";
 import { getAwaitingRunId, onAwaitingRunId, setAwaitingRunId } from "../lib/lastRun";
 import { onTrackedRuns, trackedRuns, type TrackedRun } from "../lib/assessRuns";
-import { approvalHeader, buildQueue, pickSelection, queueRowLine, type QueueRow } from "../lib/approvalQueue";
+import {
+  approvalHeader,
+  buildQueue,
+  curateQueue,
+  earlierText,
+  pickSelection,
+  queueRowLine,
+  readHidden,
+  writeHidden,
+  type QueueRow,
+} from "../lib/approvalQueue";
 import { numberAnswerReferences, numberRunReferences, type ReferenceSet } from "../lib/references";
 import { answerEventId } from "../lib/sources";
 import {
@@ -110,11 +121,54 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
     };
   }, [handoff, tracked, refreshKey]);
 
-  const queue = useMemo(() => {
+  const [hidden, setHidden] = useState<Set<string>>(() => readHidden(safeStorage()));
+  const [showHidden, setShowHidden] = useState(false);
+  const [counts, setCounts] = useState<Record<string, { outbound: number; total: number }>>({});
+  const base = useMemo(() => {
     const rows = past && past.ok ? past.rows : [];
     const own = operator ? rows.filter((row) => tracked.some((r) => r.runId === row.runId)) : rows;
     return buildQueue(own, handoff, tracked);
   }, [past, handoff, tracked, operator]);
+  const curated = useMemo(
+    () => curateQueue(base, { mode: operator ? "live" : desk.mode, eventId: desk.eventId, hidden, showHidden, actionCounts: counts }),
+    [base, operator, desk.mode, desk.eventId, hidden, showHidden, counts],
+  );
+  const queue = curated.rows;
+  // Only runs with an outbound action can be decided; the list endpoint does not say, so look each candidate up once.
+  const pendingKey = curated.pendingIds.join(",");
+  useEffect(() => {
+    const ids = pendingKey ? pendingKey.split(",") : [];
+    if (ids.length === 0) return;
+    let gone = false;
+    for (const id of ids) {
+      void fetchApproval(id)
+        .then(({ status, body }) => {
+          if (gone) return;
+          const items = status === 200 && body ? queueFromApproval(id, body).items : [];
+          const n = { outbound: items.filter((i) => i.outbound).length, total: items.length };
+          setCounts((m) => (m[id] === undefined ? { ...m, [id]: n } : m));
+        })
+        .catch(() => {
+          if (!gone) setCounts((m) => (m[id] === undefined ? { ...m, [id]: { outbound: 0, total: 0 } } : m));
+        });
+    }
+    return () => {
+      gone = true;
+    };
+  }, [pendingKey]);
+  const hideRun = (id: string) =>
+    setHidden((cur) => {
+      const next = new Set(cur).add(id);
+      writeHidden(safeStorage(), next);
+      return next;
+    });
+  const unhideRun = (id: string) =>
+    setHidden((cur) => {
+      const next = new Set(cur);
+      next.delete(id);
+      writeHidden(safeStorage(), next);
+      return next;
+    });
   const auto = pickSelection(queue, picked === EXAMPLE ? null : picked, handoff);
   // A run decided here stays on screen with its outcome, even after it leaves the awaiting list.
   const pickedDecided = !!picked && picked !== EXAMPLE && (() => {
@@ -255,18 +309,41 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
           </span>
         </div>
         {past && !past.ok && <p className="note">Run list unavailable ({past.detail}). Only runs started in this tab are listed.</p>}
-        {queue.length === 0 ? (
+        {curated.pendingIds.length > 0 && (
+          <p className="note" role="status">
+            Checking {curated.pendingIds.length} {curated.pendingIds.length === 1 ? "run" : "runs"} for actions to approve…
+          </p>
+        )}
+        {queue.length === 0 && curated.pendingIds.length === 0 ? (
           <p className="apv-empty note">
             {operator
               ? "No run from the Civil protection desk is waiting for a decision. Use Escalate to agents on the Situation board; the run lands here once the agents finish."
-              : "No live run is waiting for a decision. Runs started from Alerts or Ask FloodSense land here once the agents finish."}
+              : desk.mode === "past"
+                ? `No ${EVENT_META[desk.eventId].short} run has actions or notes waiting for a decision.`
+                : "No live run has actions or notes waiting for a decision."}{" "}
+            {operator ? "" : "Runs started from Alerts or Ask FloodSense land here once the agents finish."}
           </p>
         ) : (
           <ul className="apv-queue__list">
             {queue.map((row) => (
-              <QueueItem key={row.runId} row={row} selected={row.runId === selectedId} onSelect={() => setPicked(row.runId)} />
+              <QueueItem
+                key={row.runId}
+                row={row}
+                selected={row.runId === selectedId}
+                onSelect={() => setPicked(row.runId)}
+                hidden={hidden.has(row.runId)}
+                onHide={() => hideRun(row.runId)}
+                onUnhide={() => unhideRun(row.runId)}
+              />
             ))}
           </ul>
+        )}
+        {(curated.hiddenCount > 0 || showHidden) && (
+          <p className="note">
+            <button type="button" className="link-button" aria-pressed={showHidden} onClick={() => setShowHidden((v) => !v)}>
+              {showHidden ? "Hide hidden runs again" : `Show hidden (${curated.hiddenCount})`}
+            </button>
+          </p>
         )}
         {!operator && (
           <ul className="apv-queue__list apv-queue__list--example">
@@ -413,10 +490,25 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
   );
 }
 
-function QueueItem({ row, selected, onSelect }: { row: QueueRow; selected: boolean; onSelect: () => void }) {
+function QueueItem({
+  row,
+  selected,
+  onSelect,
+  hidden,
+  onHide,
+  onUnhide,
+}: {
+  row: QueueRow;
+  selected: boolean;
+  onSelect: () => void;
+  hidden: boolean;
+  onHide: () => void;
+  onUnhide: () => void;
+}) {
   const running = row.state === "running";
+  const earlier = earlierText(row);
   return (
-    <li>
+    <li className={hidden ? "apv-item-wrap is-hidden" : "apv-item-wrap"}>
       <button
         type="button"
         className={`apv-item apv-item--${row.state}${selected ? " is-selected" : ""}`}
@@ -425,17 +517,32 @@ function QueueItem({ row, selected, onSelect }: { row: QueueRow; selected: boole
         onClick={onSelect}
         title={running ? "The agents are still working on this run. It can be decided once it reaches review." : undefined}
       >
-        <span className="apv-item__title">{row.question ? shortTitle(row.question, 70) : `Run ${row.runId}`}</span>
+        <span className="apv-item__title">{row.question ? shortTitle(row.question, 70) : "Run waiting for review"}</span>
         <span className="apv-item__line">
           {running && <span className="agp-pulse" aria-hidden="true" />} {queueRowLine(row)}
-        </span>
-        <span className="apv-item__id">
-          {row.runId}
-          {row.judgeOverall !== null ? ` · Judge ${row.judgeOverall.toFixed(2)}` : ""}
+          {earlier ? ` · ${earlier}` : ""}
         </span>
       </button>
+      {!running && (
+        <button
+          type="button"
+          className="link-button apv-hide"
+          aria-label={`${hidden ? "Unhide" : "Hide"} this run: ${row.question ?? "run waiting for review"}`}
+          onClick={hidden ? onUnhide : onHide}
+        >
+          {hidden ? "Unhide this run" : "Hide this run"}
+        </button>
+      )}
     </li>
   );
+}
+
+function safeStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function JudgeBadge({ score, passes }: { score: number | null; passes: boolean | null }) {

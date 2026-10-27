@@ -7,7 +7,9 @@ import { statusView } from "./places";
 /** The control tower (agents tower.py) reads the same file, so a plain status means one thing in both. */
 describe("status parity with the control tower (contracts/examples/status_cases.json)", () => {
   it("words, tones and ranks", () => {
-    for (const c of cases.words) {
+    // Valencia is excluded on purpose: the UI measures those points against their own recent flow (#90 review H2,
+    // `valenciaCuts`), while agents tower.py still uses the 20 / 80 m³/s demo lines. Align tower.py and the contract file next.
+    for (const c of cases.words.filter((w) => w.kind !== "valencia")) {
       const v = statusView(c.kind as "gauge" | "model" | "valencia", c.status as "ok" | "near" | "over" | "unknown");
       expect({ word: v.word, tone: v.tone, rank: v.rank }).toEqual({ word: c.word, tone: c.tone, rank: c.rank });
     }
@@ -31,17 +33,13 @@ describe("status parity with the control tower (contracts/examples/status_cases.
     }
   });
 
-  it("a Valencia point: the higher of now and the 48 h forecast against the 20 / 80 lines", () => {
-    for (const c of cases.valencia) {
-      const s = fromValencia(
+  it("a Valencia point keeps its status against its own cuts (the contract's 20 / 80 lines are not used here)", () => {
+    const at = (q: number) =>
+      fromValencia(
         { point_id: "VAL01", name: "Paiporta", lat: 39.4, lon: -0.4 },
-        {
-          latest: c.now === null ? null : { discharge_m3s: c.now, ts_utc: "2026-10-27T12:00:00Z" },
-          forecastMax: c.forecast_max === null ? null : { discharge_m3s: c.forecast_max },
-        },
-        { watch: 20, warning: 80 },
-      );
-      expect(s.status, c.name).toBe(c.status);
-    }
+        { latest: { discharge_m3s: q, ts_utc: "2026-10-27T12:00:00Z" }, forecastMax: null },
+        { watch: 60, warning: 120 },
+      ).status;
+    expect([at(30), at(60), at(120)]).toEqual(["ok", "near", "over"]);
   });
 });

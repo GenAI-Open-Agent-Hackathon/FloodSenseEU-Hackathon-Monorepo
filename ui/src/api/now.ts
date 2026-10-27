@@ -1,4 +1,5 @@
 import { asGaugeLevelRow, asHazardNowRow, parseList, type GaugeLevelRow, type HazardNowRow } from "../lib/now";
+import { demoFetch, isDemo } from "../lib/demo";
 import { apiBaseUrl, apiTimeoutMs } from "./config";
 
 export interface HazardNowResult {
@@ -25,7 +26,7 @@ function signalFor(signal: AbortSignal): AbortSignal {
 }
 
 async function getJson(path: string, signal: AbortSignal): Promise<{ body: unknown; headers: Headers }> {
-  const response = await fetch(`${apiBaseUrl()}${path}`, { credentials: "omit", signal: signalFor(signal) });
+  const response = await (isDemo() ? demoFetch : fetch)(`${apiBaseUrl()}${path}`, { credentials: "omit", signal: signalFor(signal) });
   if (!response.ok) throw new Error(`GET ${path} returned ${response.status}`);
   return { body: await response.json(), headers: response.headers };
 }

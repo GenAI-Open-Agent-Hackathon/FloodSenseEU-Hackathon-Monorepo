@@ -30,6 +30,7 @@ import { headlineCounts } from "../lib/places";
 import { setAwaitingRunId } from "../lib/lastRun";
 import { EuWatchLegend, EuWatchMap } from "./EuWatch";
 import { LiveSourceBadge } from "./LiveSources";
+import { SwitchToLive } from "./ModeSwitch";
 
 const ICONS: Record<WatchAgent, string> = {
   Watch: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm10-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
@@ -66,7 +67,18 @@ function useNow(on: boolean): number {
  * same page read-only ("How we watch").
  */
 export function ControlTower() {
-  const { route, openAsk } = useConsole();
+  const { mode } = useConsole();
+  if (mode === "past")
+    return (
+      <SwitchToLive title="The Control tower watches live data">
+        The watch loop scans the live sources and has no past form. Switch to Live to see it, or open Replay for the past flood.
+      </SwitchToLive>
+    );
+  return <ControlTowerBody />;
+}
+
+function ControlTowerBody() {
+  const { route, openAsk, setDemo } = useConsole();
   const readOnly = route === "citizen";
   const live = useLiveWatch();
   const ct = useControlTower();
@@ -149,9 +161,9 @@ export function ControlTower() {
             <button type="button" className="now-refresh" onClick={ct.reload}>
               Try again
             </button>
-            {ct.mode === "demo" && !showingDemo && (
-              <button type="button" className="now-refresh" onClick={ct.showDemo}>
-                Show recorded demo data
+            {!showingDemo && (
+              <button type="button" className="now-refresh" onClick={() => setDemo(true)}>
+                Show demo data
               </button>
             )}
           </div>

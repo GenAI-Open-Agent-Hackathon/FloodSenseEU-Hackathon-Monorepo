@@ -29,7 +29,12 @@ export function modeForPage(page: string | null | undefined): AskMode | undefine
 }
 
 /** The question the Now page pre-fills. Not sent until the reader presses Send. */
-export const NEXT_48H_QUESTION = "Is any Valencia point at risk in the next 48 hours?";
+export const NEXT_48H_QUESTION = "Do the next 48 hours look safe across our watch?";
+
+/** The one-click "Is the next 48 h safe here?" question for a named place (or the whole watch). Never sent on its own. */
+export function next48hQuestion(place?: string | null): string {
+  return place && place.trim() ? `Do the next 48 hours look safe at ${place.trim()}?` : NEXT_48H_QUESTION;
+}
 
 /** Pure: the answer header line for the run's effective mode. Null when the body does not say. */
 export function modeLabel(run: Pick<RecordedRun, "mode" | "eventId">): string | null {

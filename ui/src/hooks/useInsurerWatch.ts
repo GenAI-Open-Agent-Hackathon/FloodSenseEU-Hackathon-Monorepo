@@ -8,7 +8,7 @@ export interface InsurerWatch {
   points: EuWatchRow[];
   /** Every source of the shared live watch (gauges, GloFAS points, Valencia hazard_now points). */
   sources: WatchSource[];
-  /** Valencia hazard_now demo points (FloodSense demo lines, not official). */
+  /** Valencia hazard_now demo points (own recent flow, not official). */
   valencia: WatchSource[];
   gaugeQueryId: string | null;
   modelQueryId: string | null;

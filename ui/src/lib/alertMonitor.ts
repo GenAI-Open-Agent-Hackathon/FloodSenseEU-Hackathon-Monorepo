@@ -34,7 +34,7 @@ export interface AlertRow {
 export interface MonitorInput {
   gauges: readonly GaugeSummary[];
   points: readonly EuWatchRow[];
-  /** Valencia hazard_now points against the FloodSense demo lines (not official). */
+  /** Valencia hazard_now points against their own recent flow (not official). */
   valencia?: readonly WatchSource[];
   gaugeQueryId?: string | null;
   gaugeExecutedAt?: string | null;
@@ -110,7 +110,7 @@ export function elevatedSources(input: MonitorInput): { rows: AlertRow[]; notLiv
       source: s,
       level,
       status: statusView(s.kind, s.status),
-      basis: `${basisLabel(s.kind)} · FloodSense demo line, not official`,
+      basis: basisLabel(s.kind),
       at: s.measuredAt,
       evidence: evidenceForSource(s, { queryId: null }),
       station: null,

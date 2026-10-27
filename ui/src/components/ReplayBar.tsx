@@ -1,23 +1,18 @@
 import { useConsole } from "../context/ConsoleContext";
-import { replayBarView } from "../lib/events";
-import { replayEventOfPlace } from "../lib/places";
+import { modeStripText } from "../lib/mode";
+import { DemoChip } from "./ModeSwitch";
 
 /**
- * Context strip under the header. "Live data" on Now, a plain "Viewing: ... (replay of a past event)"
- * on pages that show a replayed event, nothing elsewhere. While the simulation plays, Stop stays
- * reachable on every page. A cached answer is labelled on the answer itself, never in this strip.
+ * Context strip under the header, on every page: the global mode in one sentence, "Live data · checked HH:MM" or
+ * "Past flood: Ahr 2021 (replay)", the DEMO DATA chip when demo data is on, and Stop while a simulation plays.
+ * A cached answer is labelled on the answer itself, never in this strip.
  */
 export function ReplayBar() {
-  const { date, playing, stopSimulation, deskRoute, eventId, ahrDate, placeId, sitesView } = useConsole();
-  const liveSites = deskRoute.role === "insurer" && deskRoute.page === "sites" && sitesView === "live";
-  const view = liveSites
-    ? ({ kind: "none", text: "" } as const)
-    : replayBarView(deskRoute, eventId, { date }, { date: ahrDate }, replayEventOfPlace(placeId));
-  if (view.kind === "none" && !playing) return null;
-
+  const { modeState, liveCheckedAt, liveHealth, deskRoute, playing, stopSimulation } = useConsole();
   return (
-    <div className="replay-bar" data-kind={view.kind}>
-      {view.kind !== "none" && <span className="context-text">{view.text}</span>}
+    <div className="replay-bar" data-kind={modeState.mode === "past" && deskRoute.role !== "operator" ? "replay" : "live"} role="status" aria-live="polite">
+      <span className="context-text">{modeStripText(deskRoute.role === "operator" ? { ...modeState, mode: "live" } : modeState, liveCheckedAt, liveHealth, deskRoute.page)}</span>
+      <DemoChip />
       {playing && (
         <>
           <span className="replay-state" data-playing="true">

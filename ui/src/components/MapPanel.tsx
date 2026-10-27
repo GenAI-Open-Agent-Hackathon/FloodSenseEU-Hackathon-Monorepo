@@ -7,7 +7,6 @@ import { formatDay } from "../lib/format";
 import { escapeHtml } from "../lib/gauges";
 import { statusLabel } from "../lib/origin";
 import { datesOf, dischargeBand, rowsOnDate } from "../lib/series";
-import { REPLAY_EVENTS } from "../lib/disasterReplay";
 import {
   ahrDischarge,
   ahrMapPoints,
@@ -31,44 +30,14 @@ const AHR_POINTS = ahrMapPoints();
 const NO_EXPOSURE: ExposureJoinRow[] = [];
 
 /**
- * Insurer Sites / map opens on the live Europe view (every live watch source plus the insured sites layer); the event
- * chips switch to a replay of a past flood. `fixedEvent` pins the map to one event (the citizen My area page reads the
+ * Insurer Sites / map follows the global mode: Live is the Europe view (every live watch source plus the insured sites
+ * layer); Past flood is the chosen event's replay map. `fixedEvent` pins the map to one event (the citizen My area page reads the
  * Valencia views only) and never shows the live view.
  */
 export function MapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boolean; fixedEvent?: EventId }) {
   const desk = useConsole();
-  if (!fixedEvent && desk.sitesView === "live") return <LiveSitesPanel chips={<ViewChips />} />;
+  if (!fixedEvent && desk.mode === "live") return <LiveSitesPanel />;
   return <EventMapPanel exposureDefault={exposureDefault} fixedEvent={fixedEvent} />;
-}
-
-/** Live Europe first, then the replays. One group, so the current view is always one pressed chip. */
-function ViewChips() {
-  const desk = useConsole();
-  const live = desk.sitesView === "live";
-  return (
-    <div className="dr-events" role="group" aria-label="Map view">
-      <button type="button" className={`dr-chip${live ? " is-on" : ""}`} aria-pressed={live} onClick={() => desk.setSitesView("live")}>
-        Live · Europe
-      </button>
-      {REPLAY_EVENTS.map((e) => {
-        const on = !live && e.eventId === desk.eventId;
-        return (
-          <button
-            key={e.eventId}
-            type="button"
-            className={`dr-chip${on ? " is-on" : ""}`}
-            aria-pressed={on}
-            onClick={() => {
-              desk.setEventId(e.eventId);
-              desk.setSitesView("replay");
-            }}
-          >
-            Replay · {EVENT_META[e.eventId].short} · {e.eventId}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 /** Leaflet + OpenStreetMap map of the selected event's points, with the replay date slider. */
@@ -90,7 +59,11 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
     () => (ahr || !showExposure ? NO_EXPOSURE : desk.exposure.rows.filter((row) => row.in_footprint)),
     [ahr, showExposure, desk.exposure.rows],
   );
-  const origin = ahr ? "seed rows (floodsense_seed, Open-Meteo GloFAS)" : statusLabel(desk.discharge.origin);
+  const origin = ahr
+    ? "seed rows (floodsense_seed, Open-Meteo GloFAS)"
+    : desk.discharge.origin === "live"
+      ? "Zetaris discharge_daily, replay rows"
+      : statusLabel(desk.discharge.origin);
 
   const rowsToday = useMemo(() => rowsOnDate(rows, date), [rows, date]);
   const byPoint = useMemo(() => new Map(rowsToday.map((row) => [row.point_id, row.discharge_m3s])), [rowsToday]);
@@ -113,7 +86,7 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
       <div className="card-head">
         <div>
           <p className="section-label">
-            Map · {EVENT_META[eventId].short} · {eventId}
+            Map · {EVENT_META[eventId].short}
           </p>
           <h2>Points on {formatDay(date)}</h2>
         </div>
@@ -130,10 +103,9 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
       </div>
       {ahr && (
         <p className="note" id={exposureNote}>
-          Exposed sites are off: no insured book is loaded for EMSR517.
+          Exposed sites are off: no insured book is loaded for Ahr 2021.
         </p>
       )}
-      {!fixedEvent && <ViewChips />}
       <div className="toolbar">
         <label className="field">
           Point
