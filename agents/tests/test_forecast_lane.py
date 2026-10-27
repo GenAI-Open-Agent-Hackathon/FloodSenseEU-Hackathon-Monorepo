@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from floodsense_agents import router  # noqa: E402
-from floodsense_agents.models import Claim, RunRequest  # noqa: E402
+from floodsense_agents.models import RunRequest  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.nodes import forecast  # noqa: E402
 from floodsense_agents.retrieve_docs import RetrieveResult  # noqa: E402
@@ -104,10 +104,6 @@ def _passage() -> dict:
         "text": text,
         "text_sha256": sha,
     }
-
-
-def _outlook(text: str) -> FakeNightshift:
-    return FakeNightshift({"forecast_outlook": lambda s, u: '{"outlook": "%s"}' % text})
 
 
 @mock.patch.object(settings, "live_data", True)
@@ -204,7 +200,7 @@ class PlacesTest(unittest.TestCase):
     @mock.patch.object(settings, "live_data", True)
     def test_every_place_reads_its_forecast_row(self) -> None:
         z = FakeZetaris()
-        deps = Deps(zetaris=z, llm=FakeNightshift(), memory=NoMemory())
+        deps = Deps(zetaris=z, llm=None, memory=NoMemory())
         node = forecast.make_forecast_data(deps)
         for p in FORECAST_POINTS:
             with mock.patch.object(forecast, "_asked", return_value=[p]):
@@ -219,7 +215,11 @@ class PlacesTest(unittest.TestCase):
         mems = [
             {"memory_id": "a", "content": "No supporting evidence was provided about KÖLN."},
             {"memory_id": "b", "content": "Paiporta flooded."},
-            {"memory_id": "c", "content": "KÖLN read 412 cm.", "provenance": {"label": "run r by ana"}},
+            {
+                "memory_id": "c",
+                "content": "KÖLN read 412 cm.",
+                "provenance": {"label": "run r by ana"},
+            },
         ]
         rows = forecast._memory_rows(mems, koeln)
         self.assertEqual([r["memory_id"] for r in rows], ["c"])
@@ -241,14 +241,14 @@ class ForecastLaneTest(unittest.TestCase):
     def _run(self, question=KOELN, z=None, llm=None, memory=None, docs=None):
         deps = Deps(
             zetaris=z or _zetaris(),
-            llm=llm or _outlook("The next two days look calm at KÖLN. Rain stays light."),
+            llm=llm or FakeNightshift(),
             memory=memory or NoMemory(),
             retrieve_docs=docs,
         )
         return Runtime(deps=deps).start(RunRequest(question=question))
 
     @mock.patch.object(settings, "ff_rag_docs", True)
-    def test_koeln_claims_history_memory_passage_and_outlook(self) -> None:
+    def test_koeln_claims_history_memory_passage_and_template_lead(self) -> None:
         mem = FakeMemory()
         docs = mock.Mock(return_value=RetrieveResult([_passage()], None))
         snap = self._run(memory=mem, docs=docs)
@@ -268,7 +268,7 @@ class ForecastLaneTest(unittest.TestCase):
         self.assertTrue(any("level 412 cm" in t for t in texts))
         past = next(t for t in texts if t.startswith("Past pattern"))
         self.assertIn("reached 78 mm at Altenahr", past)
-        self.assertIn("at KÖLN is 4.8 mm", past)
+        self.assertIn("at KÖLN is 4.8 mm (a comparison, not a prediction for KÖLN)", past)
         memory = next(t for t in texts if t.startswith("Approved memory"))
         self.assertIn("demo seed", memory)
         self.assertNotIn("Paiporta", memory)  # only the memory that names the place
@@ -292,79 +292,38 @@ class ForecastLaneTest(unittest.TestCase):
         self.assertIn({"PGVECTOR_RAG.chunks"}, views.values())
         fc = snap["forecast"]
         self.assertEqual(fc["status"], "Normal")
-        self.assertEqual(fc["outlook_label"], "Outlook (model-written)")
-        self.assertIn(
-            "Outlook (model-written): The next two days look calm at KÖLN.", snap["summary"]
-        )
+        self.assertTrue(snap["summary"].startswith(fc["lead"]))
+        self.assertIn("Status: Normal for KÖLN", fc["lead"])
+        self.assertNotIn("utlook", snap["summary"])
         self.assertIn("not an official warning; follow DWD", fc["disclaimer"])
         self.assertTrue(snap["summary"].endswith(fc["disclaimer"]))
+        # no model call anywhere in the lane
+        self.assertNotIn("fast", {e.get("lane") for e in snap["trace"]})
+        self.assertEqual(
+            {e.get("model_id") for e in snap["trace"] if e["node"] == "forecast_answer"},
+            {"deterministic"},
+        )
 
     def test_budapest_reads_eu_watch_and_names_the_national_service(self) -> None:
-        snap = self._run(BUDAPEST, llm=FakeNightshift())
+        snap = self._run(BUDAPEST, llm=None)
         self.assertEqual(
             (snap["lane"], snap["status"]), ("forecast", "answered"), snap["router_reason"]
         )
         self.assertIn("forecast maximum 2600 m3/s", " ".join(c["text"] for c in snap["claims"]))
         self.assertIn("HungaroMet", snap["forecast"]["disclaimer"])
-        self.assertIsNone(snap["forecast"]["outlook"])
-        self.assertIn("no outlook in the reply", snap["forecast"]["outlook_note"])
 
     def test_chiva_rain_is_a_warning(self) -> None:
-        snap = self._run("Will Chiva flood in the next 48 hours?", llm=FakeNightshift())
+        snap = self._run("Will Chiva flood in the next 48 hours?", llm=None)
         self.assertEqual(snap["forecast"]["status"], "Warning")
         self.assertIn("Past pattern: before the October 2024 Valencia DANA flood", snap["summary"])
         self.assertIn("AEMET", snap["forecast"]["disclaimer"])
-
-    def test_outlook_with_a_number_the_claims_lack_is_dropped(self) -> None:
-        snap = self._run(llm=_outlook("Up to 80 mm may fall at KÖLN. Stay alert."))
-        self.assertIsNone(snap["forecast"]["outlook"])
-        self.assertIn("names the number 80", snap["forecast"]["outlook_note"])
-        self.assertNotIn("Outlook (model-written)", snap["summary"])
-        self.assertEqual(snap["status"], "answered")
-
-    def test_outlook_with_a_place_the_claims_lack_is_dropped(self) -> None:
-        snap = self._run(llm=_outlook("Calm at KÖLN. Bonn looks calm too."))
-        self.assertIsNone(snap["forecast"]["outlook"])
-        self.assertIn("names 'Bonn'", snap["forecast"]["outlook_note"])
-
-    def test_outlook_guard_unit(self) -> None:
-        claims = [
-            Claim(
-                claim_id="F1", text="KÖLN: forecast precipitation for the next 48 hours is 4.8 mm."
-            )
-        ]
-        self.assertTrue(forecast.outlook_ok("About 4.8 mm at Köln in 48 hours. Calm.", claims)[0])
-        self.assertFalse(forecast.outlook_ok("About 5 mm at Köln.", claims)[0])
-        self.assertFalse(forecast.outlook_ok("Calm. Calm. Calm.", claims)[0])
-        self.assertFalse(forecast.outlook_ok("This is an official warning for Köln.", claims)[0])
-        self.assertFalse(forecast.outlook_ok("", claims)[0])
-
-    def test_outlook_numbers_are_all_claim_numbers(self) -> None:
-        snap = self._run(
-            llm=_outlook("Rain at KÖLN stays near 4.8 mm over 48 hours. The level is 412 cm.")
-        )
-        outlook = snap["forecast"]["outlook"]
-        self.assertTrue(outlook)
-        from floodsense_agents.nodes.investigator import numbers_in
-
-        stated = set(numbers_in(" ".join(c["text"] for c in snap["claims"])))
-        self.assertTrue(set(numbers_in(outlook)) <= stated)
-
-    def test_outlook_failure_keeps_the_answer(self) -> None:
-        class Boom:
-            def complete(self, *a, **k):
-                raise RuntimeError("502")
-
-        snap = self._run(llm=Boom())
-        self.assertEqual(snap["status"], "answered")
-        self.assertIn("fast lane failed", snap["forecast"]["outlook_note"])
 
     def test_no_forecast_rows_escalates(self) -> None:
         z = _zetaris(koeln_level=None)
         with z._lock:
             z._conn.execute("DELETE FROM floodsense.weather_forecast WHERE point_id='PEG07'")
             z._conn.commit()
-        snap = self._run(z=z, llm=FakeNightshift())
+        snap = self._run(z=z, llm=None)
         self.assertEqual(snap["lane"], "full")
         self.assertIn("escalated: no forecast rows", snap["router_reason"])
         self.assertIn("watchers", [e["node"] for e in snap["trace"]])
@@ -374,10 +333,79 @@ class ForecastLaneTest(unittest.TestCase):
             return ("KÖLN: forecast precipitation 999 mm.", [999.0]), 999.0, None
 
         with mock.patch.object(forecast, "weather_claim", wrong):
-            snap = self._run(llm=FakeNightshift())
+            snap = self._run(llm=None)
         self.assertEqual(snap["lane"], "full")
         self.assertIn("escalated: judge flagged F1", snap["router_reason"])
         self.assertEqual(snap["forecast"], {})
+
+
+class NoModelAndStatusTest(unittest.TestCase):
+    @mock.patch.object(settings, "live_data", True)
+    def test_the_lane_makes_no_model_call(self) -> None:
+        llm = FakeNightshift()
+        deps = Deps(zetaris=_zetaris(), llm=llm, memory=NoMemory())
+        snap = Runtime(deps=deps).start(RunRequest(question=KOELN))
+        self.assertEqual(snap["status"], "answered")
+        self.assertEqual(llm.calls, [])
+
+    def test_status_uses_fixed_cuts_only(self) -> None:
+        self.assertEqual(forecast._rain_status(24.9, 19.9), "Normal")
+        self.assertEqual(forecast._rain_status(25.0, None), "Watch")
+        self.assertEqual(forecast._rain_status(10.0, 20.0), "Watch")
+        self.assertEqual(forecast._rain_status(50.0, None), "Warning")
+        self.assertEqual(forecast._rain_status(1.0, 30.0), "Warning")
+        import inspect
+
+        self.assertEqual(list(inspect.signature(forecast._rain_status).parameters), ["r48", "hour"])
+
+    @mock.patch.object(settings, "live_data", True)
+    def test_the_past_pattern_never_moves_the_status(self) -> None:
+        # Köln forecast 30 mm is above half the Altenahr 12 x 6.5 = 78 mm: still Watch only by the 25 mm cut.
+        z = _zetaris()
+        with z._lock:
+            z._conn.execute(
+                "UPDATE floodsense.weather_forecast SET precip_mm=0.5 WHERE point_id='PEG07' AND lead_h < 48"
+            )
+            z._conn.commit()  # 48 x 0.5 = 24 mm: under 25
+        deps = Deps(zetaris=z, llm=FakeNightshift(), memory=NoMemory())
+        snap = Runtime(deps=deps).start(RunRequest(question=KOELN))
+        self.assertIn("24 mm", snap["claims"][0]["text"])
+        self.assertEqual(snap["forecast"]["status"], "Normal")
+
+    @mock.patch.object(settings, "live_data", True)
+    def test_all_asked_places_share_one_weather_query(self) -> None:
+        deps = Deps(zetaris=_zetaris(), llm=FakeNightshift(), memory=NoMemory())
+        snap = Runtime(deps=deps).start(
+            RunRequest(question="Will Chiva and Paiporta flood in the next 48 hours?")
+        )
+        weather = [
+            e for e in snap["evidence"].values() if e["view"] == "floodsense.weather_forecast"
+        ]
+        self.assertEqual(len(weather), 1)
+        self.assertIn("point_id IN (", weather[0]["sql"])
+        self.assertEqual({r["point_id"] for r in weather[0]["rows_sample"]}, {"VAL01", "VAL07"})
+        self.assertEqual(snap["status"], "answered")
+
+
+@mock.patch.object(settings, "live_data", True)
+class RoutingNegativeTest(unittest.TestCase):
+    def test_non_forecast_phrases_with_a_place_are_not_forecast(self) -> None:
+        for q in (
+            "Das war die nächste Frage zu Köln",
+            "Die nächste Frage: wo liegt Köln?",
+            "Mi próxima pregunta es sobre Valencia",
+            "Guten Morgen, Köln",
+            "I will outline the Rhine at Köln",
+            "How high is the Rhine at Köln?",
+            "Is the Danube at Budapest rising?",
+            "Show the weekly report for Dresden",
+            "What is the forecasting model's name for Köln?",
+        ):
+            self.assertNotEqual(router.rules(q)[0], "forecast", q)
+
+    def test_a_forecast_cue_without_a_place_is_not_forecast(self) -> None:
+        for q in ("Will it flood tomorrow?", "What is the forecast?", "next 48 hours"):
+            self.assertNotEqual(router.rules(q)[0], "forecast", q)
 
 
 if __name__ == "__main__":

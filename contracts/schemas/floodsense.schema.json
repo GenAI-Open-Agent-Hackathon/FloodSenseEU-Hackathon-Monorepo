@@ -302,7 +302,7 @@
         "judge": { "$ref": "#/$defs/judge" },
         "lane": {
           "enum": ["quick", "forecast", "full"],
-          "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL), forecast (weather_forecast, the GloFAS discharge forecast, the gauge, past patterns, H-MEM; deterministic claims, one model-written outlook, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
+          "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL), forecast (weather_forecast, the GloFAS discharge forecast, the gauge, past patterns, H-MEM; deterministic claims and a template lead, no model call, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
         },
         "forecast": { "$ref": "#/$defs/forecast" },
         "router_reason": {
@@ -330,16 +330,15 @@
     },
     "forecast": {
       "type": "object",
-      "description": "Forecast lane only. A FloodSense screening status and a model-written outlook; never an official warning.",
+      "description": "Forecast lane only. A FloodSense screening status and a template lead; never an official warning.",
       "required": ["status", "disclaimer"],
       "properties": {
         "status": { "enum": ["Normal", "Watch", "Warning"] },
         "status_reason": { "type": "string" },
         "places": { "type": "array", "items": { "type": "string" } },
         "horizon_h": { "type": "integer", "minimum": 1 },
-        "outlook": { "type": ["string", "null"], "description": "Two sentences by the fast lane; dropped when it names a number or place the claims do not." },
-        "outlook_label": { "type": ["string", "null"] },
-        "outlook_model_id": { "type": ["string", "null"] },
+        "lead": { "type": "string", "description": "Template status line built from the claims; no model writes it." },
+        "screening": { "type": "string" },
         "gaps": { "type": "array", "items": { "type": "string" } },
         "disclaimer": { "type": "string", "minLength": 1 },
         "attribution": { "type": "string" }

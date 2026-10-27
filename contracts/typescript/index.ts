@@ -10,19 +10,18 @@ export type CitationLayer = "a" | "b" | "c";
 export type Storage = "full_text" | "pointer";
 export type Grounding = "supported" | "partial" | "unsupported";
 export type ServedFrom = "live" | "cache" | "replay";
-/** Router lane. reply: front-door reply; quick: live watcher, template claims; forecast: forecast data, history, one model outlook; full: deep run. */
+/** Router lane. reply: front-door reply; quick: live watcher, template claims; forecast: forecast data, history, template claims; full: deep run. */
 export type Lane = "reply" | "quick" | "forecast" | "full";
 
-/** Forecast lane only: a FloodSense screening status and a model-written outlook, never an official warning. */
+/** Forecast lane only: a FloodSense screening status and a template lead, never an official warning. */
 export interface Forecast {
   status: "Normal" | "Watch" | "Warning";
   status_reason?: string;
   places?: string[];
   horizon_h?: number;
-  /** Two sentences by the fast lane, shown as "Outlook (model-written)"; null when dropped. */
-  outlook?: string | null;
-  outlook_label?: string | null;
-  outlook_model_id?: string | null;
+  /** Template status line built from the claims; no model writes it. */
+  lead?: string;
+  screening?: string;
   gaps?: string[];
   disclaimer: string;
   attribution?: string;

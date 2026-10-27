@@ -9,7 +9,7 @@ Four lanes:
     forecast  "do the next 48 hours look safe at Köln?": Scope, forecast data
               (weather_forecast, the GloFAS discharge forecast, the gauge),
               history (replay seed, RAG passages, H-MEM), deterministic claims
-              plus one fast-lane outlook, the deterministic Judge (nodes/forecast.py).
+              plus a template lead (no model call), the deterministic Judge (nodes/forecast.py).
     full   the deep investigation (graph.py), for why / replay / exposure /
            insurer actions / documents, and every explicit event_id,
            replay_ts or doc_query (so the evals keep their path).
@@ -49,8 +49,8 @@ _FORECAST = re.compile(
     r"tomorrow|tonight\s+and\s+tomorrow|this\s+week(end)?|over\s+the\s+weekend|"
     r"forecasts?|outlook|will\b[^?.!]{0,40}\b(rise|rising|flood\w*|go\s+up|overflow|"
     r"burst|be\s+safe|be\s+ok|stay\s+safe|get\s+worse)|look(s)?\s+(safe|ok|okay|fine)|"
-    r"(?<!guten\s)morgen|übermorgen|nächsten?\s+\w*|vorhersage\w*|"
-    r"mañana|manana|próxim[oa]s?|proxim[oa]s?|pronóstico|pronostico|previsión|prevision)\b",
+    r"(?<!guten\s)morgen|übermorgen|nächsten?\s+(?:\d+\s*)?(?:stunden|std|tage|tagen|wochen?)|vorhersage\w*|"
+    r"mañana|manana|próxim[oa]s?\s+(?:\d+\s*)?(?:horas?|d[ií]as?|semanas?)|proxim[oa]s?\s+(?:\d+\s*)?(?:horas?|dias?|semanas?)|pronóstico|pronostico|previsión|prevision)\b",
     re.I,
 )
 

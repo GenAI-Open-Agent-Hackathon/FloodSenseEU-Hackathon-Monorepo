@@ -22,10 +22,10 @@ history         the past pattern for a place in Valencia (EMSR773) or the Rhine 
                 and H-MEM recall for that place (seeded memories labelled). The three
                 run in parallel; a slow or failed one becomes a trace note.
 forecast_answer deterministic claims, one per evidence item, each citing only its own
-                query, passage or memory. Then ONE fast-lane call writes a two-sentence
-                "Outlook (model-written)"; it is kept only when it states no number and
-                no place the data claims do not carry (outlook_ok), else dropped. Status
-                Normal / Watch / Warning is a FloodSense screening cut, never official.
+                query, passage or memory, and a template lead (the status line). No model call.
+                Status Normal / Watch / Warning uses fixed FloodSense cuts (25 / 50 mm in 48 h,
+                20 / 30 mm in an hour), never an official threshold and never the past pattern,
+                which is a comparison claim only.
 forecast_judge  judge.evaluate with no model (quick.quick_judge): a pass ends the run
                 as answered; any flag escalates to the full lane.
 """
@@ -46,7 +46,6 @@ from floodsense_agents.events import EVENTS, POINT_NAMES
 from floodsense_agents.governance import DEFINITIONS
 from floodsense_agents.live import GAUGE_STALE_H, gauge_latest_sql, gauge_threshold, hours_between
 from floodsense_agents.models import Citation, Claim, Evidence
-from floodsense_agents.nightshift import parse_json, submit_with_deadline
 from floodsense_agents.nodes import quick
 from floodsense_agents.nodes.investigator import (
     _DOC_SQL,
@@ -54,7 +53,6 @@ from floodsense_agents.nodes.investigator import (
     _doc_text,
     _verified_raw,
     cite,
-    numbers_in,
 )
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -62,7 +60,6 @@ from floodsense_agents.watch import (
     FORECAST_BY_ID,
     FORECAST_BY_REF,
     ForecastPoint,
-    place_words,
     sql_list,
     watch_target,
 )
@@ -116,12 +113,6 @@ OFFICIAL: dict[str, str] = {
     "BE": "the RMI/KMI and your regional hydrological service",
     "CZ": "the CHMI (ČHMÚ)",
 }
-
-OUTLOOK_SYSTEM = """TASK: forecast_outlook
-Write a plain-language outlook for a member of the public: EXACTLY two short sentences.
-Use only the STATUS and FACTS below. Do not add any number, date, place, river or source
-that the FACTS do not state. Do not call it an official warning and do not give orders.
-Answer with JSON only: {"outlook": "..."}"""
 
 _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="forecast")
 _VAL_RE = re.compile(
@@ -211,14 +202,15 @@ def pattern_event(p: ForecastPoint) -> str | None:
 # ----------------------------------------------------------------------- SQL
 
 
-def weather_sql(schema: str, point_id: str) -> str:
+def weather_sql(schema: str, point_ids: list[str] | tuple[str, ...]) -> str:
+    """One query for every asked place: the REST table is fetched once per query."""
     h = HORIZON_H
     return (
         f"SELECT point_id, name, river, ROUND(SUM(CASE WHEN lead_h < {h} THEN precip_mm END), 1) "
         f"AS rain_{h}h_mm, ROUND(SUM(precip_mm), 1) AS rain_72h_mm, MAX(CASE WHEN lead_h < {h} "
         f"THEN precip_mm END) AS max_hour_{h}h_mm, MIN(ts_utc) AS from_utc, MAX(ts_utc) AS to_utc, "
-        f"COUNT(precip_mm) AS hours FROM {schema}.weather_forecast WHERE point_id = "
-        f"{sql_list([point_id])} GROUP BY point_id, name, river"
+        f"COUNT(precip_mm) AS hours FROM {schema}.weather_forecast WHERE point_id IN "
+        f"({sql_list(point_ids)}) GROUP BY point_id, name, river"
     )
 
 
@@ -246,9 +238,11 @@ def make_forecast_data(deps: Deps):
         asked = _asked(state)
         jobs: list[tuple[str, tuple[str, ...] | None]] = []
         slots: list[tuple[str, str]] = []  # (point_id, role)
+        if asked:
+            # One query for every asked place: each query re-fetches the whole REST table,
+            # so a query per place would cost one Open-Meteo request of 45 locations each.
+            jobs.append((weather_sql(s, [p[0] for p in asked]), None))
         for p in asked:
-            jobs.append((weather_sql(s, p[0]), None))
-            slots.append((p[0], "weather"))
             if p[1] == "gauge":
                 jobs.append((gauge_latest_sql(s, stations=(p[2],)), None))
                 slots.append((p[0], "level"))
@@ -265,12 +259,22 @@ def make_forecast_data(deps: Deps):
                 None,
             )
         )
-        *reads, prov = run_sql_parallel(deps.zetaris, jobs)
+        weather, *reads, prov = run_sql_parallel(deps.zetaris, jobs) if asked else [None, None]
         used: list[Evidence] = []
         found: dict[str, dict[str, Any]] = {
             p[0]: {"id": p[0], "kind": p[1], "ref": p[2]} for p in asked
         }
         notes: list[str] = []
+        for p in asked:
+            if weather is None or weather.error:
+                notes.append(f"{p[0]} weather: floodsense.weather_forecast unavailable")
+            elif _row(p, "weather", weather) is None:
+                notes.append(f"{p[0]} weather: no row")
+            else:
+                found[p[0]]["weather"] = weather.query_id
+                if weather not in used:
+                    used.append(weather)
+                notes.append(f"{p[0]} weather: floodsense.weather_forecast 1 row")
         for (pid, role), ev in zip(slots, reads):
             p = FORECAST_BY_ID[pid]
             if ev.error:
@@ -599,89 +603,24 @@ def pattern_claim(p: ForecastPoint, ev_id: str, row: dict, rain48: float) -> Bui
         nums.append(peak)
     text += (
         f" (Open-Meteo historical weather and GloFAS, FloodSense replay seed); the forecast for "
-        f"the next {HORIZON_H} hours at {label(p)} is {quick._fmt(rain48)} mm."
+        f"the next {HORIZON_H} hours at {label(p)} is {quick._fmt(rain48)} mm (a comparison, "
+        f"not a prediction for {label(p)})."
     )
     nums.append(rain48)
     return text, nums
 
 
-def _rain_status(r48: float, hour: float | None, past: float | None) -> str:
+def _rain_status(r48: float, hour: float | None) -> str:
+    """FloodSense's own fixed screening cuts (25 / 50 mm in 48 h; 20 / 30 mm in one hour).
+
+    Not official thresholds. The past pattern is a comparison claim only and never
+    enters the status.
+    """
     if r48 >= RAIN_WARN_MM or (hour is not None and hour >= HOUR_WARN_MM):
-        return WARNING
-    if past and r48 >= past:
         return WARNING
     if r48 >= RAIN_WATCH_MM or (hour is not None and hour >= HOUR_WATCH_MM):
         return WATCH
-    if past and r48 >= 0.5 * past:
-        return WATCH
     return NORMAL
-
-
-def _ok_place_words() -> set[str]:
-    from floodsense_agents.router import PLACES
-    from floodsense_agents.watch import FORECAST_POINTS
-
-    words = {w.lower() for w in place_words()} | set(PLACES)
-    words |= {n.lower() for n in POINT_NAMES.values()}
-    for p in FORECAST_POINTS:
-        words |= {w.lower() for w in re.findall(r"[^\W\d_]{3,}", f"{p[2]} {p[3]} {p[4]}")}
-    words -= {"river", "the", "and", "bad", "gauge"}
-    return words
-
-
-def outlook_ok(outlook: str, claims: list[Claim]) -> tuple[bool, str]:
-    """(ok, why): no number and no place the claims do not carry; at most two sentences."""
-    text = " ".join((outlook or "").split())
-    if not text:
-        return False, "empty"
-    if len(text) > 400:
-        return False, "too long"
-    if len(re.findall(r"[.!?](?:\s|$)", text)) > 2:
-        return False, "more than two sentences"
-    body = " ".join(c.text for c in claims)
-    have = numbers_in(body)
-    for n in numbers_in(text):
-        if not any(abs(n - h) < 1e-9 for h in have):
-            return False, f"names the number {n:g}, which no claim states"
-    low = body.lower()
-    known = _ok_place_words()
-    for w in re.findall(r"[^\W\d_][\w'.-]*", text):
-        lw = w.lower().strip(".'")
-        if lw in known and lw not in low:
-            return False, f"names '{w}', which no claim names"
-    if re.search(r"\bofficial warning\b", text, re.I) and not re.search(
-        r"\bnot an official", text, re.I
-    ):
-        return False, "presents itself as an official warning"
-    return True, "kept"
-
-
-def _outlook(
-    deps: Deps, state: FloodState, status: str, claims: list[Claim]
-) -> tuple[str, str | None, str]:
-    question = str((state.get("request") or {}).get("question") or "")
-    facts = "\n".join(f"- {c.text}" for c in claims)
-    user = f"QUESTION: {question}\nSTATUS: {status}\nFACTS:\n{facts}"
-    budget = _timeout("FORECAST_OUTLOOK_TIMEOUT_S", 25)
-    fut = submit_with_deadline(_POOL, budget, deps.llm.complete, "fast", OUTLOOK_SYSTEM, user)
-    try:
-        text, model_id = fut.result(timeout=budget)
-    except FutureTimeout:
-        return "", None, "outlook dropped: fast lane over time"
-    except Exception as e:  # noqa: BLE001 - the claims stand without an outlook
-        return "", None, f"outlook dropped: fast lane failed ({type(e).__name__})"
-    try:
-        cand = str(parse_json(text).get("outlook") or "").strip()
-    except Exception:  # noqa: BLE001
-        cand = ""
-    ok, why = outlook_ok(cand, claims)
-    if not ok:
-        return (
-            "",
-            model_id,
-            f"outlook dropped: {why}" if cand else "outlook dropped: no outlook in the reply",
-        )
-    return " ".join(cand.split()), model_id, "outlook kept"
 
 
 def make_forecast_answer(deps: Deps):
@@ -736,7 +675,7 @@ def make_forecast_answer(deps: Deps):
                     statuses.append((st, label(p), "river forecast"))
             elif p[1] == "gauge":
                 gaps.append(
-                    f"FloodSense holds no river discharge forecast for the {p[2]} gauge; the outlook "
+                    f"FloodSense holds no river discharge forecast for the {p[2]} gauge; the answer "
                     f"rests on the rain forecast and the current level"
                 )
             lev = evidence.get(place.get("level") or "")
@@ -746,7 +685,6 @@ def make_forecast_answer(deps: Deps):
                     (text, nums), st = got
                     add(text, nums, [lev])
                     statuses.append((st, label(p), "current level"))
-            past = None
             ev_id = pattern_event(p)
             pat = (
                 next(
@@ -774,9 +712,8 @@ def make_forecast_answer(deps: Deps):
                 built = pattern_claim(p, ev_id, srow, rain48) if srow else None
                 if built:
                     add(built[0], built[1], [sev, wev])
-                    past = quick._num(srow.get("rain_48h_mm"))
             if rain48 is not None:
-                statuses.append((_rain_status(rain48, hour, past), label(p), "rain forecast"))
+                statuses.append((_rain_status(rain48, hour), label(p), "rain forecast"))
             for mem in hist.get("memories") or []:
                 if mem["point_id"] != p[0]:
                     continue
@@ -844,15 +781,13 @@ def make_forecast_answer(deps: Deps):
             "; ".join(OFFICIAL[c] for c in countries if c in OFFICIAL)
             or "your national weather and flood service"
         )
-        disclaimer = f"This is a model outlook, not an official warning; follow {follow}."
+        disclaimer = f"This is a model-based screening, not an official warning; follow {follow}."
         status_line = (
             f"Status: {worst} for {', '.join(places)} over the next {HORIZON_H} hours "
             f"(FloodSense screening{': ' + why if why else ''}; not an official warning)."
         )
-        outlook, model_id, note = _outlook(deps, state, worst, data_claims)
-        parts = [status_line]
-        if outlook:
-            parts.append(f"Outlook (model-written): {outlook}")
+        lead = status_line
+        parts = [lead]
         parts += [c.text for c in claims]
         parts += [g[0].upper() + g[1:] + "." for g in gaps]
         parts.append(disclaimer)
@@ -865,10 +800,12 @@ def make_forecast_answer(deps: Deps):
                 "status_reason": why or "no screening cut reached",
                 "places": places,
                 "horizon_h": HORIZON_H,
-                "outlook": outlook or None,
-                "outlook_label": "Outlook (model-written)" if outlook else None,
-                "outlook_model_id": model_id if outlook else None,
-                "outlook_note": note,
+                "lead": lead,
+                "screening": (
+                    f"FloodSense's own cuts, not official: Watch from {RAIN_WATCH_MM:g} mm in "
+                    f"{HORIZON_H} h or {HOUR_WATCH_MM:g} mm in an hour, Warning from "
+                    f"{RAIN_WARN_MM:g} mm or {HOUR_WARN_MM:g} mm"
+                ),
                 "gaps": gaps,
                 "disclaimer": disclaimer,
                 "attribution": "Weather data by Open-Meteo.com, model DWD ICON",
@@ -876,9 +813,9 @@ def make_forecast_answer(deps: Deps):
             "trace": trace(
                 state,
                 "forecast_answer",
-                f"{len(claims)} deterministic claims; status {worst}; {note}",
-                lane="fast" if model_id else "none",
-                model_id=model_id or "deterministic",
+                f"{len(claims)} template claims; status {worst}; template lead, no model call",
+                lane="none",
+                model_id="deterministic",
                 started=t,
                 evidence_ids=[q for c in claims for q in (x.query_id for x in c.citations) if q],
             ),

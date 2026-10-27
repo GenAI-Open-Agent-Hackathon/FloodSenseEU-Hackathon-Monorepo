@@ -567,6 +567,7 @@ VIEW_COLUMNS: dict[str, dict[str, str]] = {
     "eu_watch": {
         k: _NUM for k in ("lat", "lon", "discharge_m3s", "forecast_max_m3s", "past30_median_m3s")
     },
+    "weather_forecast": {k: _NUM for k in ("lat", "lon", "lead_h", "precip_mm")},
     "provenance": {},
 }
 # No contract view has an event_id column today; the filter applies only if one does.
@@ -616,6 +617,7 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
         "segment",
     ),
     "eu_watch": ("point_id", "name", "river", "lat", "lon", "band"),
+    "weather_forecast": ("point_id", "name", "lat", "lon", "lead_h", "ts_utc", "precip_mm"),
     "provenance": ("dataset", "source_url", "publisher", "licence", "attribution", "fetched_at"),
 }
 

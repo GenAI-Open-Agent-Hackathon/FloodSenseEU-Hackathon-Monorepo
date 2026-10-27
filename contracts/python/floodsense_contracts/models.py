@@ -159,15 +159,14 @@ class MemoryUsed(ContractModel):
 
 
 class Forecast(ContractModel):
-    """Forecast lane only: a screening status and a model-written outlook, never official."""
+    """Forecast lane only: a screening status and a template lead, never official."""
 
     status: Literal["Normal", "Watch", "Warning"]
     status_reason: str | None = None
     places: list[str] = Field(default_factory=list)
     horizon_h: int | None = Field(default=None, ge=1)
-    outlook: str | None = None
-    outlook_label: str | None = None
-    outlook_model_id: str | None = None
+    lead: str | None = None
+    screening: str | None = None
     gaps: list[str] = Field(default_factory=list)
     disclaimer: str = Field(min_length=1)
     attribution: str | None = None
