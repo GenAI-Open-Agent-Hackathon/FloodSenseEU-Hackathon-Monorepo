@@ -31,6 +31,7 @@ import {
   type LlmProvider,
 } from "../lib/llmProvider";
 import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
+import type { AskContext } from "../lib/askContext";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
@@ -74,7 +75,11 @@ export interface ConsoleValue {
   /** Ask FloodSense popup. Closed at start. A route change never opens it. */
   askOpen: boolean;
   /** Opens the popup. A string pre-fills the composer; it is never sent on its own. */
-  openAsk: (prefill?: unknown) => void;
+  openAsk: (prefill?: unknown, context?: AskContext) => void;
+  /** Page context the last openAsk carried (e.g. the disaster replay moment). Merged over screenContext(). */
+  askContext: AskContext | null;
+  /** Role, page and selected point, for the `context` of an Ask request. */
+  screenContext: () => AskContext;
   /** Text waiting to be put in the composer, then cleared by the popup. */
   askPrefill: string | null;
   clearAskPrefill: () => void;
@@ -321,13 +326,21 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const closeEvidence = useCallback(() => setEvidenceOpen(false), []);
 
   // onClick handlers pass the click event; only a string is a pre-fill.
-  const openAsk = useCallback((prefill?: unknown) => {
+  const [askContext, setAskContext] = useState<AskContext | null>(null);
+  const openAsk = useCallback((prefill?: unknown, context?: AskContext) => {
     if (typeof prefill === "string" && prefill.trim()) setAskPrefill(prefill);
+    // Only a call that names a context sets it; a plain open clears a stale replay moment.
+    setAskContext(context && typeof context === "object" && !("nativeEvent" in context) ? context : null);
     setAskOpen(true);
   }, []);
   const clearAskPrefill = useCallback(() => setAskPrefill(null), []);
 
   const closeAsk = useCallback(() => setAskOpen(false), []);
+
+  const screenContext = useCallback((): AskContext => {
+    const point = bundle.points.find((p) => p.point_id === pointId);
+    return { role: deskRoute.role, page: deskRoute.page, point_id: pointId, place: point?.name };
+  }, [bundle.points, pointId, deskRoute]);
 
   const decide = useCallback((status: ApprovalStatus, note: string) => {
     setApproval((current) => ({ ...current, status, note }));
@@ -382,6 +395,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       closeEvidence,
       askOpen,
       openAsk,
+      askContext,
+      screenContext,
       askPrefill,
       clearAskPrefill,
       closeAsk,
@@ -417,6 +432,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       closeEvidence,
       askOpen,
       openAsk,
+      askContext,
+      screenContext,
       askPrefill,
       clearAskPrefill,
       closeAsk,

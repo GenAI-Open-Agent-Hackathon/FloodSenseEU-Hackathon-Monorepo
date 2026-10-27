@@ -1,5 +1,7 @@
 import { Alerts } from "./Alerts";
 import { Approvals } from "./Approvals";
+import { CausalChainHeader } from "./CausalChainHeader";
+import { DisasterReplay } from "./DisasterReplay";
 import { ServingLine } from "./Banners";
 import { Drilldown } from "./Drilldown";
 import { MapPanel } from "./MapPanel";
@@ -13,6 +15,8 @@ export function InsurerView({ page }: { page: InsurerPage }) {
   switch (page) {
     case "now":
       return <NowPage />;
+    case "replay":
+      return <DisasterReplay />;
     case "approvals":
       return (
         <div className="page-stack">
@@ -35,6 +39,8 @@ export function InsurerView({ page }: { page: InsurerPage }) {
       return (
         <div className="page-stack">
           <ServingLine inline />
+          {/* agents-visual */}
+          <CausalChainHeader />
           <ReviewColumn />
         </div>
       );

@@ -2,6 +2,7 @@ import { Colophon } from "./Banners";
 import { CitizenActions, CitizenArea, CitizenEvidence, CitizenOverview } from "./CitizenView";
 import { InsurerView } from "./InsurerView";
 import { NowPage } from "./NowPage";
+import { DisasterReplay } from "./DisasterReplay";
 import { pageLabel, type CitizenPage } from "../lib/route";
 import { useConsole } from "../context/ConsoleContext";
 
@@ -31,6 +32,8 @@ function CitizenBody({ page }: { page: CitizenPage }) {
   switch (page) {
     case "now":
       return <NowPage />;
+    case "replay":
+      return <DisasterReplay />;
     case "overview":
       return <CitizenOverview />;
     case "area":
