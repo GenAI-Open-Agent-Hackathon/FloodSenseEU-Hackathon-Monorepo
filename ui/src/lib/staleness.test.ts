@@ -43,13 +43,13 @@ describe("stale notes", () => {
     expect(staleNote([])).toBeNull();
   });
   it("labels the strip with the age and never calls it plain live", () => {
-    expect(staleStripText(stale)).toBe("view eu_watch is 25 min old");
+    expect(staleStripText(stale, NOW)).toBe("view eu_watch is 25 min old");
     expect(modeStripText({ mode: "live", demo: false, eventId: "ahr2021" } as never, NOW, { loaded: 45, total: 45, failed: [], loading: false, stale }, "now", NOW)).toBe(
       "Live data · view eu_watch is 25 min old",
     );
   });
   it("names several views", () => {
     const two = [...stale, { view: "hazard_now", goodAt: NOW - 60_000 }];
-    expect(staleStripText(two)).toBe("views eu_watch, hazard_now are 25 min old");
+    expect(staleStripText(two, NOW)).toBe("views eu_watch, hazard_now are 25 min old");
   });
 });
