@@ -7,6 +7,8 @@ import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole, useConsoleMaybe } from "../context/ConsoleContext";
 import { citationsForClaim, numberedCitations } from "../lib/citations";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
+import { CalmAnswer } from "./CalmAnswer";
+import { calmApplies } from "../lib/calmAnswer";
 import { answerEventId, sourceFromCitation, sourceFromRun } from "../lib/sources";
 import { buildPipeline } from "../lib/pipeline";
 import { servingLabel, servingQualifier } from "../lib/format";
@@ -545,17 +547,18 @@ function RecordedAnswer({
 }) {
   const switchLabel = run.elsewhere ? switchEventLabel(run.elsewhere) : null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
+  const calm = calmApplies(run);
   return (
     <>
       <p className={`ask-badge ask-badge-${kind}`}>{badge}</p>
-      {modeLabel(run) && <p className="note ask-mode">{modeLabel(run)}</p>}
+      {modeLabel(run) && !calm && <p className="note ask-mode">{modeLabel(run)}</p>}
       {run.servedFrom !== "live" && run.label !== badge && <p className="note">{run.label}</p>}
       {run.status === "awaiting_approval" && (
         <p className="note ask-approval">
           Pending your approval on the <a href={routeHref("insurer", "approvals")}>Approvals page</a> · run {run.runId}
         </p>
       )}
-      <p className="ask-question">{run.summary}</p>
+      {calm && run.plain ? <CalmAnswer run={run} plain={run.plain} /> : <p className="ask-question">{run.summary}</p>}
       {onSwitch && run.elsewhere && switchLabel && (
         <div className="button-row">
           <button type="button" className="button" onClick={() => onSwitch(run.elsewhere as string)}>
@@ -563,8 +566,8 @@ function RecordedAnswer({
           </button>
         </div>
       )}
-      {run.claims.some((c) => c.citations.length > 0) && <SourceLegend />}
-      <ul className="ask-claims">
+      {!calm && run.claims.some((c) => c.citations.length > 0) && <SourceLegend />}
+      {!calm && <ul className="ask-claims">
         {(() => {
           // One number per distinct source across the answer, in first-seen order.
           const numbers = new Map<string, number>();
@@ -582,8 +585,8 @@ function RecordedAnswer({
             </li>
           ));
         })()}
-      </ul>
-      {(run.memoryUsed || buildPipeline(run).board) && <MemoriesPanel memories={run.memoryUsed ?? []} run={run} />}
+      </ul>}
+      {(run.memoryUsed?.length || (!calm && (run.memoryUsed || buildPipeline(run).board))) && <MemoriesPanel memories={run.memoryUsed ?? []} run={run} />}
       {run.judgeOverall !== null && (
         <p className="note" title="Score from our independent checker agent">
           Checked: {run.judgeOverall.toFixed(2)}

@@ -328,12 +328,14 @@ function FocusBrief({
         <p>
           <StatusChip view={view} large />
         </p>
-        <p>
-          {calmSentence(s.kind, s.status, s.river, s.name)} <LiveSourceBadge n={1} evidence={evidence} />
-        </p>
-        {!s.live && (
+        {s.live ? (
+          <p>
+            {calmSentence(s.kind, s.status, s.river, s.name)} <LiveSourceBadge n={1} evidence={evidence} />
+          </p>
+        ) : (
           <p className="op-partial note" role="alert">
-            This reading is from {readingTime(s.measuredAt)} and may be out of date. Do not read it out as the current situation.
+            This reading is from {readingTime(s.measuredAt)} and may be out of date. Do not read it out as the current situation.{" "}
+            <LiveSourceBadge n={1} evidence={evidence} />
           </p>
         )}
         <p className="note">

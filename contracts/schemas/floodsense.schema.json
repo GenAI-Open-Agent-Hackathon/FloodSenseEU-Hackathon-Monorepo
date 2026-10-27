@@ -305,6 +305,7 @@
           "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL), forecast (weather_forecast, the GloFAS discharge forecast, the gauge, past patterns, H-MEM; deterministic claims and a template lead, no model call, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
         },
         "forecast": { "$ref": "#/$defs/forecast" },
+        "plain": { "$ref": "#/$defs/plain" },
         "router_reason": {
           "type": "string",
           "description": "Why the router chose the lane, and any escalation (\"escalated: ...\")."
@@ -326,6 +327,27 @@
       "else": {
         "required": ["cached_at"],
         "properties": { "cached_at": { "$ref": "#/$defs/date_time" } }
+      }
+    },
+    "plain": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Quick and forecast lanes only. The calm, plain-language answer, built by fixed rules from the statuses the lane computed (no model call). The claims stay the cited detail. A calm headline only when every computed status is normal and the data is complete.",
+      "required": ["headline", "one_line", "horizon", "status", "next_step", "disclaimer", "details"],
+      "properties": {
+        "headline": { "type": "string", "minLength": 1, "description": "One short sentence: Nothing alarming expected at <place>. / Keep an eye on <place>: <reason>. / Water is high at <place>. Follow official warnings. / We can't fully check <place> right now." },
+        "one_line": { "type": "string", "minLength": 1, "description": "One plain sentence with the reason and the horizon. A number appears only when a cited claim states it." },
+        "horizon": { "enum": ["48h", "7d"], "description": "7d only when the question asked for the week and the 7-day river forecast (eu_watch) covers it." },
+        "status": { "enum": ["normal", "watch", "elevated", "unknown"] },
+        "basis": { "enum": ["gauge", "model"], "description": "What the status is measured against: a gauge level or a model." },
+        "places": { "type": "array", "items": { "type": "string" } },
+        "country": { "type": ["string", "null"], "description": "ISO alpha-2 of the first asked place; picks the official warning links." },
+        "countries": { "type": "array", "items": { "type": "string" }, "description": "ISO alpha-2 of every asked place's country, in order; the UI shows each country's official links." },
+        "service": { "type": "string", "description": "The official service to follow, named in words." },
+        "context": { "type": ["string", "null"], "description": "A history item framed as history (past flood, source, demo seed when seeded), cut at a sentence boundary. Never presented as current." },
+        "next_step": { "type": "string", "minLength": 1 },
+        "disclaimer": { "type": "string", "minLength": 1 },
+        "details": { "type": "array", "items": { "type": "string" }, "description": "claim_id of every claim that is the cited detail." }
       }
     },
     "forecast": {
