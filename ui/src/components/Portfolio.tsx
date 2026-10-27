@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { SIMULATED_ALERT_M3S } from "../config/scenario";
 import { useConsole } from "../context/ConsoleContext";
-import { useLiveWatch } from "../hooks/useLiveWatch";
+import { useInsurerWatch } from "../hooks/useInsurerWatch";
+import { statusView } from "../lib/places";
 import { formatDay, formatEur } from "../lib/format";
 import { exposureStats, rowsOnDate } from "../lib/series";
 import { EVENT_META } from "../lib/events";
@@ -11,13 +12,12 @@ import { statusLabel } from "../lib/origin";
 import { OriginList } from "./Banners";
 import "../styles/insurer.css";
 
-const STATUS_TEXT = { ok: "below watch level", near: "Watch", over: "Warning", unknown: "no threshold" } as const;
 const SITE_PAGE = 25;
 
 /** Live first: each insured site against its nearest watched source. Then the replay exposure, labelled as a replay. */
 export function Portfolio() {
   const desk = useConsole();
-  const watch = useLiveWatch();
+  const watch = useInsurerWatch();
   const sites = desk.exposure.rows;
   const nearest = useMemo(() => groupByNearest(sites, watch.sources), [sites, watch.sources]);
   const [shown, setShown] = useState(SITE_PAGE);
@@ -54,13 +54,11 @@ export function Portfolio() {
                   {nearest.groups.map((g) => (
                     <tr key={g.source.id}>
                       <td>
-                        {g.source.river} at {g.source.name} <span className="muted small">({g.source.kind === "gauge" ? "gauge" : "model"}, {g.source.country})</span>
+                        {g.source.river ? `${g.source.river} at ${g.source.name}` : g.source.name} <span className="muted small">({g.source.kind === "gauge" ? "gauge" : "model"}, {g.source.country})</span>
                       </td>
                       <td>
                         {g.near ? (
-                          <span className={`level-chip level-chip--${g.source.status === "over" ? "warning" : g.source.status === "near" ? "watch" : "calm"}`}>
-                            {STATUS_TEXT[g.source.status]}
-                          </span>
+                          <span className={`plain-chip plain-chip--${statusView(g.source.kind, g.source.status).tone}`}>{statusView(g.source.kind, g.source.status).word}</span>
                         ) : (
                           <span className="muted small">too far to describe these sites</span>
                         )}

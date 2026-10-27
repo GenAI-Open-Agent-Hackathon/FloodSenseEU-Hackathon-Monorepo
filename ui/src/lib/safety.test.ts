@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import livePy from "../../../agents/floodsense_agents/live.py?raw";
-import { CITIZEN_ADVICE, EMERGENCY_LINE, WARNING_LINKS, warningCountriesFor } from "./safety";
+import { CITIZEN_ADVICE, EMERGENCY_LINE, WARNING_LINKS, warningCountriesFor, warningCountriesForCountry } from "./safety";
 
 const ALLOWLIST = [
   "https://www.bbk.bund.de/DE/Warnung-Vorsorge/Warn-App-NINA/warn-app-nina_node.html",
@@ -10,6 +10,7 @@ const ALLOWLIST = [
   "https://www.proteccioncivil.es",
   "https://www.aemet.es/es/eltiempo/prediccion/avisos",
   "https://www.112cv.gva.es",
+  "https://meteoalarm.org/en/live/",
 ];
 
 describe("citizen safety guidance", () => {
@@ -20,10 +21,26 @@ describe("citizen safety guidance", () => {
   });
 
   it("links only the approved warning-service URLs, each once", () => {
-    const urls = [...WARNING_LINKS.de.links, ...WARNING_LINKS.es.links].map((l) => l.url);
+    const urls = [...WARNING_LINKS.de.links, ...WARNING_LINKS.es.links, ...WARNING_LINKS.eu.links].map((l) => l.url);
     expect([...urls].sort()).toEqual([...ALLOWLIST].sort());
     expect(WARNING_LINKS.de.links.map((l) => l.url)).toEqual(ALLOWLIST.slice(0, 4));
-    expect(WARNING_LINKS.es.links.map((l) => l.url)).toEqual(ALLOWLIST.slice(4));
+    expect(WARNING_LINKS.es.links.map((l) => l.url)).toEqual(ALLOWLIST.slice(4, 7));
+    expect(WARNING_LINKS.eu.links.map((l) => l.url)).toEqual(ALLOWLIST.slice(7));
+    expect(WARNING_LINKS.eu.links[0].label).toContain("Find your national warning service");
+  });
+});
+
+describe("warningCountriesForCountry", () => {
+  it("follows the place's country", () => {
+    expect(warningCountriesForCountry("DE")).toEqual(["de"]);
+    expect(warningCountriesForCountry("es")).toEqual(["es"]);
+  });
+  it("gives only the EU-wide link for other EU countries", () => {
+    for (const c of ["FR", "IT", "PL", "AT", "HU", "BE", "CZ"]) expect(warningCountriesForCountry(c)).toEqual(["eu"]);
+  });
+  it("falls back to the place names without a country", () => {
+    expect(warningCountriesForCountry(null, "Paiporta")).toEqual(["es"]);
+    expect(warningCountriesForCountry("", "XYZ")).toEqual(["de", "es"]);
   });
 
   it("says to call 112", () => {

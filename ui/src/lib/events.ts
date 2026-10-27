@@ -22,7 +22,7 @@ export function headerSubtitle(): string {
 }
 
 /** The Now page's own subtitle (#78 live-watch wording), shown in the context strip on Now. */
-export const NOW_SUBTITLE = "Live · Valencia model + Europe live watch";
+export const NOW_SUBTITLE = "Live · Europe live watch";
 
 /** One map point with real coordinates from the seed rows. */
 export interface MapPoint {
@@ -116,12 +116,15 @@ export function screenContextFor(
   return { role: route.role, page: route.page, point_id: valencia.pointId, place: point?.name };
 }
 
-/** Pages that show a replayed past event. Replay and Sites follow the selected event; citizen Overview and My area show Valencia 2024. */
+/** Pages that show a replayed past event: Replay on both desks and insurer Sites. Citizen pages are live-first. */
 export function pageShowsReplay(route: DeskRoute): boolean {
   if (route.page === "replay") return true;
-  if (route.role === "insurer") return route.page === "sites";
-  return route.page === "overview" || route.page === "area";
+  return route.role === "insurer" && route.page === "sites";
 }
+
+/** Citizen pages that follow the chosen place: "Live data", or the replay strip when the place is a past flood. */
+export const CITIZEN_LIVE_PAGES: readonly string[] = ["overview", "area", "actions", "evidence"];
+export const CITIZEN_LIVE_TEXT = "Live data";
 
 const EVENT_NAME: Record<EventId, string> = { EMSR517: "Ahr", EMSR773: "Valencia" };
 
@@ -146,10 +149,15 @@ export function replayBarView(
   eventId: EventId,
   valencia: { date: string },
   ahrSel: { date: string },
+  /** Citizen live pages: the replay event of the chosen place, or null for a live place (or none chosen). */
+  citizenReplay: EventId | null = null,
 ): ContextStrip {
   if (route.page === "now") return { kind: "live", text: NOW_SUBTITLE };
-  if (!pageShowsReplay(route)) return { kind: "none", text: "" };
-  const shown: EventId = route.page === "replay" || route.page === "sites" ? eventId : "EMSR773";
+  if (route.role === "citizen" && CITIZEN_LIVE_PAGES.includes(route.page)) {
+    if (!citizenReplay) return { kind: "live", text: CITIZEN_LIVE_TEXT };
+  } else if (!pageShowsReplay(route)) return { kind: "none", text: "" };
+  const shown: EventId =
+    route.role === "citizen" && route.page !== "replay" ? (citizenReplay ?? "EMSR773") : route.page === "replay" || route.page === "sites" ? eventId : "EMSR773";
   const date = shown === "EMSR517" ? ahrSel.date : valencia.date;
   return {
     kind: "replay",

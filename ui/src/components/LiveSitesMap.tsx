@@ -2,9 +2,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useConsole } from "../context/ConsoleContext";
-import { useLiveWatch } from "../hooks/useLiveWatch";
+import { useInsurerWatch } from "../hooks/useInsurerWatch";
 import { EU_WATCH_BOUNDS, type WatchSource } from "../lib/euWatch";
-import { escapeHtml, type GaugeStatus } from "../lib/gauges";
+import { escapeHtml } from "../lib/gauges";
+import { statusView } from "../lib/places";
 import { hhmm, monitorView } from "../lib/alertMonitor";
 import { statusLabel } from "../lib/origin";
 import { DEMO_BOOK_LINE } from "../lib/nearest";
@@ -14,12 +15,11 @@ import "../styles/insurer.css";
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
-const STATUS_TEXT: Record<GaugeStatus, string> = { ok: "below", near: "Watch", over: "Warning", unknown: "no threshold" };
 
 /** The Europe live view of Sites / map: every live watch source and the insured sites layer. */
 export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
   const desk = useConsole();
-  const watch = useLiveWatch();
+  const watch = useInsurerWatch();
   const [showSites, setShowSites] = useState(true);
   const note = useId();
   const sites = showSites ? desk.exposure.rows : NO_SITES;
@@ -48,16 +48,16 @@ export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
       <LiveMap sources={watch.sources} sites={sites} />
       <ul className="map-legend live-legend" aria-label="Map legend">
         <li>
-          <span className="map-legend__dot map-legend__dot--ok" aria-hidden="true" /> below
+          <span className="map-legend__dot map-legend__dot--ok" aria-hidden="true" /> Normal
         </li>
         <li>
-          <span className="map-legend__dot map-legend__dot--near" aria-hidden="true" /> Watch
+          <span className="map-legend__dot map-legend__dot--near" aria-hidden="true" /> Close to mean high water / Watch (model)
         </li>
         <li>
-          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Warning
+          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Above mean high water (gauge) · Elevated (model) is amber
         </li>
         <li>
-          <span className="map-legend__dot map-legend__dot--unknown" aria-hidden="true" /> no threshold
+          <span className="map-legend__dot map-legend__dot--unknown" aria-hidden="true" /> No reading
         </li>
         <li>
           <span className="live-legend__site" aria-hidden="true" /> insured site ({statusLabel(desk.exposure.origin)}, synthetic)
@@ -125,12 +125,12 @@ function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly E
         s.kind === "gauge"
           ? L.circleMarker([s.lat, s.lon], { radius: 6, className: cls, bubblingMouseEvents: false })
           : L.marker([s.lat, s.lon], {
-              icon: L.divIcon({ className: `eu-model-icon eu-model-icon--${s.status}${s.live ? "" : " eu-model-icon--sample"}`, iconSize: [14, 14] }),
+              icon: L.divIcon({ className: `eu-model-icon eu-model-icon--${s.kind} eu-tone--${statusView(s.kind, s.status).tone}${s.live ? "" : " eu-model-icon--sample"}`, iconSize: [14, 14] }),
               keyboard: true,
               title: `${s.river} at ${s.name}`,
             });
       const kind = s.kind === "gauge" ? "PEGELONLINE gauge" : "GloFAS model";
-      marker.bindTooltip(escapeHtml(`${s.river} · ${s.name} (${s.country}) · ${kind}: ${s.value} · ${STATUS_TEXT[s.status]}${s.live ? "" : " · not live"}`), {
+      marker.bindTooltip(escapeHtml(`${s.river} · ${s.name} (${s.country}) · ${kind}: ${s.value} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live"}`), {
         direction: "top",
         offset: [0, -6],
       });

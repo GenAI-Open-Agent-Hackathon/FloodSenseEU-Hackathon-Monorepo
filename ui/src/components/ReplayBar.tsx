@@ -1,5 +1,6 @@
 import { useConsole } from "../context/ConsoleContext";
 import { replayBarView } from "../lib/events";
+import { replayEventOfPlace } from "../lib/places";
 
 /**
  * Context strip under the header. "Live data" on Now, a plain "Viewing: ... (replay of a past event)"
@@ -7,9 +8,11 @@ import { replayBarView } from "../lib/events";
  * reachable on every page. A cached answer is labelled on the answer itself, never in this strip.
  */
 export function ReplayBar() {
-  const { date, playing, stopSimulation, deskRoute, eventId, ahrDate, sitesView } = useConsole();
+  const { date, playing, stopSimulation, deskRoute, eventId, ahrDate, placeId, sitesView } = useConsole();
   const liveSites = deskRoute.role === "insurer" && deskRoute.page === "sites" && sitesView === "live";
-  const view = liveSites ? ({ kind: "none", text: "" } as const) : replayBarView(deskRoute, eventId, { date }, { date: ahrDate });
+  const view = liveSites
+    ? ({ kind: "none", text: "" } as const)
+    : replayBarView(deskRoute, eventId, { date }, { date: ahrDate }, replayEventOfPlace(placeId));
   if (view.kind === "none" && !playing) return null;
 
   return (

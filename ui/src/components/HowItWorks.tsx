@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchAgentsConfig } from "../api/config";
 import { fetchSystem } from "../api/system";
-import { boxStatuses, DOT_TEXT, feedsMode, type BoxId, type ConfigProbe, type DotState } from "../lib/howItWorks";
+import { useConsole } from "../context/ConsoleContext";
+import { boxStatuses, DOT_TEXT, feedsMode, humanBox, type BoxId, type ConfigProbe, type DotState } from "../lib/howItWorks";
 import type { SystemStatus } from "../lib/system";
 
 const AGENTS = ["Scope", "Watchers", "Memory", "Investigator", "Skeptic", "Exposure", "Playbook", "Judge"];
@@ -58,16 +59,19 @@ export function HowItWorks() {
   }, []);
   const status = probes ? boxStatuses(probes.config, probes.system) : null;
   const mode = probes ? feedsMode(probes.config) : null;
+  const { route } = useConsole();
+  const human = humanBox(route);
+  const intro =
+    route === "citizen"
+      ? "A question goes through a router, a team of agents that read real data through Zetaris, and an independent checker. Dots show what is running right now."
+      : "A question goes through a router, a team of agents that read real data through Zetaris, an independent checker, and a person before anything is sent. Dots show what is running right now.";
 
   return (
     <div className="view hiw">
       <div className="view__intro">
         <div>
           <h2 className="view__title">How it works</h2>
-          <p className="muted">
-            A question goes through a router, a team of agents that read real data through Zetaris, an independent
-            checker, and a person before anything is sent. Dots show what is running right now.
-          </p>
+          <p className="muted">{intro}</p>
         </div>
       </div>
       <p className="hiw-legend note" aria-label="Status legend">
@@ -153,12 +157,7 @@ export function HowItWorks() {
         </div>
 
         <Arrow />
-        <Box
-          id="human"
-          title="Human approval"
-          line="A person approves, edits or rejects the advice. Nothing is sent before that."
-          status={status}
-        />
+        <Box id="human" title={human.title} line={human.line} status={status} />
       </div>
     </div>
   );

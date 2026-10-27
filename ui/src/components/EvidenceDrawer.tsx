@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { SafeLink } from "./SafeLink";
+import { LiveEvidenceView } from "./LiveSources";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
 import { numberedCitations } from "../lib/citations";
@@ -134,10 +135,10 @@ export function EvidenceDrawer() {
   }, [desk.evidenceOpen]);
 
   useEffect(() => {
-    if (!desk.evidenceOpen || desk.evidenceSource) return;
+    if (!desk.evidenceOpen || desk.evidenceSource || desk.liveEvidence) return;
     const target = document.getElementById(desk.evidenceTopic === "rain" ? "why-rain" : "why-discharge");
     target?.scrollIntoView({ block: "start" });
-  }, [desk.evidenceOpen, desk.evidenceTopic, desk.evidenceSource]);
+  }, [desk.evidenceOpen, desk.evidenceTopic, desk.evidenceSource, desk.liveEvidence]);
 
   if (!desk.evidenceOpen) return null;
 
@@ -147,7 +148,7 @@ export function EvidenceDrawer() {
         <div className="drawer-head">
           <div>
             <p className="section-label">Evidence</p>
-            <h2 id="evidence-title">{desk.evidenceSource ? `Source [${desk.evidenceSource.n}]` : "Why this source"}</h2>
+            <h2 id="evidence-title">{desk.evidenceSource ? `Source [${desk.evidenceSource.n}]` : desk.liveEvidence ? "Where this comes from" : "Why this source"}</h2>
           </div>
           <button ref={closeRef} type="button" className="button" onClick={desk.closeEvidence}>
             Close
@@ -156,6 +157,10 @@ export function EvidenceDrawer() {
         {desk.evidenceSource ? (
           <div className="drawer-body">
             <ReferenceDetail source={desk.evidenceSource} />
+          </div>
+        ) : desk.liveEvidence ? (
+          <div className="drawer-body">
+            <LiveEvidenceView evidence={desk.liveEvidence} />
           </div>
         ) : (
         <div className="drawer-body">

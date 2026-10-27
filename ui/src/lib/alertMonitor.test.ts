@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { assessContext, assessQuestion, elevatedSources, monitorView, watchedCount } from "./alertMonitor";
-import { drawerFields } from "./references";
 import type { EuWatchRow } from "./euWatch";
 import type { GaugeStatus, GaugeSummary } from "./gauges";
 
@@ -46,24 +45,23 @@ function model(point_id: string, band: GaugeStatus, over: Partial<EuWatchRow> = 
 const NOW = Date.UTC(2026, 9, 27, 11, 42);
 
 describe("live alert monitor filtering", () => {
-  it("lists only Watch and Warning, Warning first, and labels model bands as a model", () => {
+  it("lists only raised bands, worst first, in the shared status words (never Warning)", () => {
     const { rows } = elevatedSources({
       gauges: [gauge("KÖLN", "near"), gauge("BONN", "ok"), gauge("KAUB", "over"), gauge("MAINZ", "unknown")],
       points: [model("EU08", "near"), model("EU07", "ok")],
       gaugeQueryId: "q-gauge",
       modelQueryId: "q-model",
     });
-    expect(rows.map((r) => [r.source.name, r.level])).toEqual([
-      ["Kaub", "warning"],
-      ["Budapest", "watch"],
-      ["Köln", "watch"],
+    expect(rows.map((r) => [r.source.name, r.status.word, r.status.tone])).toEqual([
+      ["Kaub", "Above mean high water", "elevated"],
+      ["Köln", "Close to mean high water", "watch"],
+      ["Budapest", "Watch (model)", "watch"],
     ]);
+    expect(JSON.stringify(rows.map((r) => r.status))).not.toMatch(/Warning|warning/);
     expect(rows.find((r) => r.source.kind === "model")?.basis).toMatch(/model.*not an official warning/i);
-    const ref = rows[0].refs[0];
-    expect(ref.view).toBe("floodsense.gauge_levels");
-    expect(drawerFields(ref)).toContainEqual({ label: "Query id", value: "q-gauge" });
-    expect(ref.link?.href).toBe("https://www.pegelonline.wsv.de/");
-    expect(rows[1].refs[0].link?.href).toBe("https://open-meteo.com/en/docs/flood-api");
+    expect(rows[0].evidence).toMatchObject({ view: "floodsense.gauge_levels", queryId: "q-gauge" });
+    expect(rows[0].evidence.link?.href).toBe("https://www.pegelonline.wsv.de/");
+    expect(rows[2].evidence).toMatchObject({ view: "floodsense.eu_watch", queryId: "q-model" });
   });
 
   it("never raises a stale, seed or position-less reading", () => {
@@ -90,7 +88,7 @@ describe("live alert monitor filtering", () => {
 
   it("headlines the alert count and reports an unreadable view as unavailable, not calm", () => {
     const alerts = monitorView({ gauges: [gauge("KAUB", "over"), gauge("BONN", "ok")], points: [model("EU08", "near")], state: "rows", checkedAt: NOW });
-    expect(alerts).toMatchObject({ kind: "alerts", text: "1 at Warning, 1 at Watch of 3 watched sources · checked 11:42 UTC" });
+    expect(alerts).toMatchObject({ kind: "alerts", text: "1 Above mean high water, 1 Watch (model) of 3 watched sources · checked 11:42 UTC" });
     expect(monitorView({ gauges: [], points: [], state: "unavailable", checkedAt: NOW }).kind).toBe("unavailable");
     expect(monitorView({ gauges: [], points: [], state: "loading", checkedAt: null }).kind).toBe("loading");
     expect(monitorView({ gauges: [gauge("BONN", "ok")], points: [], missing: ["GloFAS points"], state: "rows", checkedAt: NOW }).text).toBe(

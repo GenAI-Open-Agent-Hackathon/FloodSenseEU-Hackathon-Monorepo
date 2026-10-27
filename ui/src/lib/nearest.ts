@@ -1,5 +1,5 @@
 import type { WatchSource } from "./euWatch";
-import type { GaugeStatus } from "./gauges";
+import { statusView } from "./places";
 
 /** The insured book this demo ships: synthetic, Valencia only. Said wherever sites are drawn or totalled. */
 export const DEMO_BOOK_LINE = "Demo book: synthetic Valencia portfolio · connect your own book";
@@ -31,15 +31,14 @@ export function nearestSource(site: { lat: number; lon: number }, sources: reado
   return best;
 }
 
-const STATUS_WORD: Record<GaugeStatus, string> = { ok: "below watch level", near: "at Watch", over: "at Warning", unknown: "no threshold" };
 
 /** Pure: the per-site line. Within NEAR_KM it gives the source's live status; farther it says the source is too far to describe the site. */
 export function siteWatchLine(n: { source: WatchSource; km: number } | null): string {
   if (!n) return "No usable lat/lon, or no watched source loaded";
-  const what = `${n.source.river} at ${n.source.name} (${n.source.kind === "gauge" ? "gauge" : "model"})`;
+  const what = `${n.source.river ? `${n.source.river} at ` : ""}${n.source.name} (${n.source.kind === "gauge" ? "gauge" : "model"})`;
   const km = `${Math.round(n.km)} km`;
   if (n.km > NEAR_KM) return `Nearest watched source: ${what}, ${km} away — too far to describe this site`;
-  return `${what}, ${km} away: ${STATUS_WORD[n.source.status]}${n.source.live ? "" : " · not live"}`;
+  return `${what}, ${km} away: ${statusView(n.source.kind, n.source.status).word}${n.source.live ? "" : " · not live"}`;
 }
 
 export interface NearestGroup {

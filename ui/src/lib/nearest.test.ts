@@ -17,6 +17,7 @@ const src = (id: string, lat: number, lon: number, status: WatchSource["status"]
   value: "",
   live: true,
   question: "",
+  measuredAt: null,
 });
 
 describe("nearest watched source per insured site", () => {
@@ -30,7 +31,7 @@ describe("nearest watched source per insured site", () => {
   it("describes a site only from a source within the radius; farther it is only the nearest", () => {
     const site = { lat: 39.464, lon: -0.433 };
     expect(siteWatchLine(nearestSource(site, [zaragoza]))).toMatch(/too far to describe this site/);
-    expect(siteWatchLine(nearestSource(site, [zaragoza, near]))).toMatch(/at Watch$/);
+    expect(siteWatchLine(nearestSource(site, [zaragoza, near]))).toMatch(/Watch \(model\)$/);
     expect(nearestSource({ lat: Number.NaN, lon: 0 }, [zaragoza])).toBeNull();
     expect(siteWatchLine(null)).toMatch(/No usable lat\/lon/);
   });

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
-import { useLiveWatch } from "../hooks/useLiveWatch";
-import { assessContext, assessQuestion, LEVEL_TEXT, monitorView, type AlertRow } from "../lib/alertMonitor";
+import { useInsurerWatch } from "../hooks/useInsurerWatch";
+import { assessContext, assessQuestion, monitorView, type AlertRow } from "../lib/alertMonitor";
 import { onTrackedRuns, runForKey, startAssessment, trackedLine, trackedRuns, type AssessOutcome, type TrackedRun } from "../lib/assessRuns";
 import { rehearsalAt, rehearsalQuestion } from "../lib/rehearsal";
 import { REPLAY_EVENTS, buildFrames, dayStarts, crossingText, isDailyDischarge, type DisasterEvent } from "../lib/disasterReplay";
 import { ahrFixture, loadAhrRows, type EventRows } from "../lib/replaySource";
 import { EVENT_META } from "../lib/events";
 import { routeHref } from "../lib/route";
-import { RefMarks } from "./RefMarks";
 import "../styles/insurer.css";
 
 function useTracked(): TrackedRun[] {
@@ -82,21 +81,20 @@ function AssessButton({
 }
 
 function AlertItem({ row }: { row: AlertRow }) {
-  const { llmProvider, llmProviders } = useConsole();
+  const { llmProvider, llmProviders, openLiveEvidence } = useConsole();
   const s = row.source;
   return (
-    <li className={`alert-row alert-row--${row.level}`}>
+    <li className={`alert-row alert-row--${row.status.tone}`}>
       <div className="alert-row__main">
-        <span className={`level-chip level-chip--${row.level}`}>
-          {LEVEL_TEXT[row.level]}
-          {s.kind === "model" ? " · model" : ""}
-        </span>
+        <span className={`plain-chip plain-chip--${row.status.tone}`}>{row.status.word}</span>
         <div className="alert-row__text">
           <p className="alert-row__place">
             <strong>
               {s.river} · {s.name}
             </strong>{" "}
-            <span className="muted small">{s.country}</span> <RefMarks nums={row.refs.map((r) => r.n)} refs={row.refs} />
+            <span className="muted small">{s.country}</span> <button type="button" className="ref-mark ref-mark--zetaris" aria-label={`Source 1: ${row.evidence.view}, where this comes from`} onClick={() => openLiveEvidence(row.evidence)}>
+              [1]
+            </button>
           </p>
           <p className="muted small">
             {s.value} · {row.basis} · {readingTime(row.at)}
@@ -118,10 +116,11 @@ function AlertItem({ row }: { row: AlertRow }) {
   );
 }
 
-/** Every live watched source at Watch or Warning, from gauge_levels (official MHW band) and eu_watch (model band). */
+/** Every live watched source at a raised band, from gauge_levels (official MHW band) and eu_watch (model band). */
 function LiveAlertMonitor() {
-  const watch = useLiveWatch();
+  const watch = useInsurerWatch();
   const view = monitorView({
+    gaugeExecutedAt: watch.gaugeExecutedAt,
     gauges: watch.gauges,
     points: watch.points,
     gaugeQueryId: watch.gaugeQueryId,
@@ -135,7 +134,7 @@ function LiveAlertMonitor() {
       <div className="card-head">
         <div>
           <p className="section-label">Live alert monitor</p>
-          <h2 id="monitor-title">Watched sources at Watch or Warning</h2>
+          <h2 id="monitor-title">Watched sources above normal</h2>
         </div>
         <span className={`chip ${view.kind === "alerts" ? "chip--stale" : view.kind === "calm" ? "chip--live" : ""}`}>
           {view.kind === "loading" ? "Checking" : view.kind === "unavailable" ? "No data" : "Live"}
@@ -159,7 +158,7 @@ function LiveAlertMonitor() {
       <p className="note">
         Gauges: PEGELONLINE water level against the station's official MHW (mean high water), via Zetaris gauge_levels. Model points:
         GloFAS 7-day forecast against each point's own past 30 days, via Zetaris eu_watch, a model and not an official warning. Re-read
-        every 5 minutes. Watch = near the line, Warning = above it.
+        every 5 minutes. Words match the Now page: MHW is the long-term mean high water, not a warning level.
       </p>
     </section>
   );
@@ -249,7 +248,7 @@ function Rehearsal() {
           {state?.crossed ? (
             <div className="rehearsal__crossed">
               <p>
-                <span className="level-chip level-chip--warning">Crossed</span> {state.crossed.name}: {crossingText(state.crossed.iso, daily)}.
+                <span className="plain-chip plain-chip--elevated">Crossed the line</span> {state.crossed.name}: {crossingText(state.crossed.iso, daily)}.
               </p>
               <AssessButton
                 runKey={`rehearsal:${event.eventId}:${state.crossed.iso}`}

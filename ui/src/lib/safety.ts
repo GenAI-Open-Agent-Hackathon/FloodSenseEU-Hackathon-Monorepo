@@ -4,7 +4,7 @@
  * citizen answer (agents/floodsense_agents/live.py, CITIZEN_ADVICE). safety.test.ts fails if the two drift.
  * WARNING_LINKS is the only place official warning-service URLs live (allowlist in safety.test.ts).
  */
-export type WarningCountry = "de" | "es";
+export type WarningCountry = "de" | "es" | "eu";
 
 export interface WarningLink {
   label: string;
@@ -29,7 +29,26 @@ export const WARNING_LINKS: Record<WarningCountry, { title: string; links: reado
       { label: "112 Comunitat Valenciana", url: "https://www.112cv.gva.es" },
     ],
   },
+  eu: {
+    title: "Europe",
+    links: [{ label: "Find your national warning service (Meteoalarm)", url: "https://meteoalarm.org/en/live/" }],
+  },
 };
+
+/**
+ * Pure: warning-service groups for a place's country (ISO alpha-2). DE gives Germany, ES gives Spain, any other
+ * country gives only the EU-wide Meteoalarm link. No country falls back to `warningCountriesFor` on the names.
+ */
+export function warningCountriesForCountry(
+  country: string | null | undefined,
+  ...names: (string | null | undefined)[]
+): WarningCountry[] {
+  const c = (country ?? "").trim().toUpperCase();
+  if (c === "DE") return ["de"];
+  if (c === "ES") return ["es"];
+  if (c) return ["eu"];
+  return warningCountriesFor(...names);
+}
 
 export const EMERGENCY_LINE = "In an emergency call 112.";
 
@@ -65,4 +84,6 @@ export const CITIZEN_ADVICE =
 
 export const CITIZEN_ADVICE_SOURCE = "Same advice the FloodSense agents give with every citizen answer";
 
-export const GATE_LINE = "Personalised advice from our agents is reviewed by a person before it's shown.";
+/** Same rule as How it works: answers are not held back; only the agent-written playbook step waits for a person. */
+export const GATE_LINE =
+  "Your answers aren't held back. Only the agent-written step for this past flood is checked by a person before it appears here.";

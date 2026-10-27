@@ -1,28 +1,32 @@
 import type { AskContext } from "./askContext";
 import { fromGauge, fromModel, type EuWatchRow, type WatchSource } from "./euWatch";
 import { isLiveGauge, type GaugeStatus, type GaugeSummary } from "./gauges";
-import { upstreamFor } from "./sources";
-import type { Reference } from "./references";
+import { evidenceForSource, type LiveEvidence } from "./liveEvidence";
+import { basisLabel, statusView, type StatusView } from "./places";
 
 /**
- * Live alert monitor (insurer Alerts). Every watched source at Watch or Warning, read from the same views as
- * the Now page: PEGELONLINE gauges banded against their official MHW (gauge_levels.band) and GloFAS model
- * points banded against their own recent series (eu_watch.band, a model). Nothing here starts a run.
+ * Live alert monitor (insurer Alerts). Every watched source at a raised band, read from the same views as the
+ * Now page: PEGELONLINE gauges against their long-term mean high water (gauge_levels.band) and GloFAS model points
+ * against their own recent series (eu_watch.band, a model). Status words and tones are the shared `statusView`
+ * ("Above mean high water", "Elevated (model)", ...): MHW is not a warning level, so nothing here says "Warning".
+ * Nothing here starts a run.
  */
-export type AlertLevel = "watch" | "warning";
+export type AlertLevel = "watch" | "raised";
 
-export const LEVEL_OF: Partial<Record<GaugeStatus, AlertLevel>> = { near: "watch", over: "warning" };
-export const LEVEL_TEXT: Record<AlertLevel, string> = { watch: "Watch", warning: "Warning" };
+export const LEVEL_OF: Partial<Record<GaugeStatus, AlertLevel>> = { near: "watch", over: "raised" };
 
 export interface AlertRow {
   id: string;
   source: WatchSource;
   level: AlertLevel;
-  /** "Official gauge vs MHW" or "Model band (GloFAS) · not an official warning". */
+  /** The shared status word and tone (lib/places.ts statusView). */
+  status: StatusView;
+  /** What the band is measured against (lib/places.ts basisLabel). */
   basis: string;
   /** ISO time of the reading (gauge) or the model's as-of date. */
   at: string | null;
-  refs: Reference[];
+  /** The drawer's "Where this comes from" for this source (lib/liveEvidence.ts). */
+  evidence: LiveEvidence;
   /** Gauge station shortname (PEGELONLINE), for the run context. */
   station: string | null;
 }
@@ -31,54 +35,10 @@ export interface MonitorInput {
   gauges: readonly GaugeSummary[];
   points: readonly EuWatchRow[];
   gaugeQueryId?: string | null;
+  gaugeExecutedAt?: string | null;
   modelQueryId?: string | null;
   /** Views that could not be read (e.g. "GloFAS points"); the headline never says "all" while one is missing. */
   missing?: readonly string[];
-}
-
-function gaugeRef(g: GaugeSummary, queryId: string | null): Reference {
-  return {
-    n: 1,
-    key: `gauge:${g.station}`,
-    anchor: "",
-    kind: "zetaris",
-    heading: "Data via Zetaris",
-    title: "floodsense.gauge_levels",
-    layer: "a",
-    publisher: "WSV, PEGELONLINE",
-    licence: "DL-DE-Zero-2.0",
-    attribution: "Quelle: WSV, PEGELONLINE",
-    page: null,
-    paragraph: null,
-    quote: `${g.station} (${g.water}): ${Math.round(g.levelCm)} cm${g.warningLevelCm ? ` against MHW ${Math.round(g.warningLevelCm)} cm` : ""} at ${g.measuredAt}.`,
-    queryId,
-    view: "floodsense.gauge_levels",
-    link: upstreamFor("gauge_levels"),
-  };
-}
-
-function modelRef(r: EuWatchRow, queryId: string | null): Reference {
-  return {
-    n: 1,
-    key: `model:${r.point_id}`,
-    anchor: "",
-    kind: "zetaris",
-    heading: "Data via Zetaris",
-    title: "floodsense.eu_watch",
-    layer: "a",
-    publisher: "Open-Meteo (GloFAS)",
-    licence: "CC BY 4.0",
-    attribution: "Weather data by Open-Meteo.com",
-    page: null,
-    paragraph: null,
-    quote:
-      r.forecast_max_m3s === null
-        ? `${r.name} (${r.river}): no model reading.`
-        : `${r.name} (${r.river}): 7-day forecast max ${Math.round(r.forecast_max_m3s)} m³/s${r.past30_median_m3s !== null ? ` vs past-30-day median ${Math.round(r.past30_median_m3s)} m³/s` : ""}${r.as_of_date ? `, as of ${r.as_of_date}` : ""}.`,
-    queryId,
-    view: "floodsense.eu_watch",
-    link: upstreamFor("eu_watch"),
-  };
 }
 
 /** Pure: total watched sources with a position (what the Now map draws). */
@@ -88,7 +48,7 @@ export function watchedCount(input: MonitorInput): number {
 
 /**
  * Pure: the alert rows. Only live sources count: a stale or seed gauge reading, or a seed model row, is never
- * raised as an alert (it is counted in `notLive` instead). Warning first, then by ratio, highest first.
+ * raised (it is counted in `notLive` instead). Worst first by the shared status rank, then by ratio.
  */
 export function elevatedSources(input: MonitorInput): { rows: AlertRow[]; notLive: number } {
   const rows: AlertRow[] = [];
@@ -105,9 +65,10 @@ export function elevatedSources(input: MonitorInput): { rows: AlertRow[]; notLiv
       id: s.id,
       source: s,
       level,
-      basis: "Official gauge vs MHW (PEGELONLINE)",
+      status: statusView(s.kind, s.status),
+      basis: basisLabel(s.kind),
       at: g.measuredAt,
-      refs: [gaugeRef(g, input.gaugeQueryId ?? null)],
+      evidence: evidenceForSource(s, { queryId: input.gaugeQueryId ?? null, executedAt: input.gaugeExecutedAt ?? null }),
       station: g.station,
     });
   }
@@ -123,17 +84,15 @@ export function elevatedSources(input: MonitorInput): { rows: AlertRow[]; notLiv
       id: s.id,
       source: s,
       level,
-      basis: "Model band (GloFAS) · not an official warning",
+      status: statusView(s.kind, s.status),
+      basis: basisLabel(s.kind),
       at: p.as_of_date,
-      refs: [modelRef(p, input.modelQueryId ?? null)],
+      evidence: evidenceForSource(s, { queryId: input.modelQueryId ?? null }),
       station: null,
     });
   }
   rows.sort(
-    (a, b) =>
-      (a.level === b.level ? 0 : a.level === "warning" ? -1 : 1) ||
-      (b.source.ratio ?? -1) - (a.source.ratio ?? -1) ||
-      a.source.name.localeCompare(b.source.name),
+    (a, b) => a.status.rank - b.status.rank || (b.source.ratio ?? -1) - (a.source.ratio ?? -1) || a.source.name.localeCompare(b.source.name),
   );
   return { rows, notLive };
 }
@@ -167,8 +126,9 @@ export function monitorView(
   const at = input.checkedAt !== null ? ` · checked ${hhmm(input.checkedAt)}` : "";
   const gap = input.missing?.length ? ` · ${input.missing.join(" and ")} could not be read` : "";
   if (rows.length > 0) {
-    const w = rows.filter((r) => r.level === "warning").length;
-    const parts = [w && `${w} at Warning`, rows.length - w && `${rows.length - w} at Watch`].filter(Boolean).join(", ");
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.status.word, (counts.get(r.status.word) ?? 0) + 1);
+    const parts = [...counts].map(([word, n]) => `${n} ${word}`).join(", ");
     return { kind: "alerts", text: `${parts} of ${total} watched sources${at}${gap}`, rows, total, notLive };
   }
   const banded = [
@@ -190,9 +150,9 @@ const STATION_OK = /^[A-Za-zÄÖÜäöüß .-]{2,40}$/;
 const PLACE_OK = /^[\p{L}\p{N}_ .,'()-]{1,64}$/u;
 
 /** Pure: the question for "Ask the agents to assess". Names insured sites, so the router takes the full lane. */
-export function assessQuestion(row: Pick<AlertRow, "source" | "level">): string {
+export function assessQuestion(row: Pick<AlertRow, "source" | "status">): string {
   const s = row.source;
-  const what = s.kind === "gauge" ? `the gauge at ${LEVEL_TEXT[row.level]} level (${s.value})` : `the GloFAS model at ${LEVEL_TEXT[row.level]} band (${s.value})`;
+  const what = s.kind === "gauge" ? `the gauge reads ${row.status.word.toLowerCase()} (${s.value})` : `the GloFAS model reads ${row.status.word} (${s.value})`;
   return `Assess the flood risk to our insured sites near ${s.name} on the ${s.river} right now: ${what}. What should the insurer do?`;
 }
 
