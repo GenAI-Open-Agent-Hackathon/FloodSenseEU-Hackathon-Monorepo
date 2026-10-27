@@ -7,7 +7,7 @@ import { GaugeList, GaugeMap } from "./GaugeMap";
 import { BAND_ELEVATED_M3S, BAND_TYPICAL_M3S, SIMULATED_ALERT_M3S } from "../config/scenario";
 import { citationsById, citationsForClaim, type NumberedCitation } from "../lib/citations";
 import { actionsVisibleToCitizen } from "../lib/decision";
-import { formatDay, formatHour, formatM3s, formatMm, servingLabel } from "../lib/format";
+import { formatDay, formatHour, formatM3s, formatMm } from "../lib/format";
 import { statusLabel } from "../lib/origin";
 import { routeHref } from "../lib/route";
 import {
@@ -20,6 +20,8 @@ import {
   warningCountriesFor,
 } from "../lib/safety";
 import { SafeLink } from "./SafeLink";
+import { SourceBadges, SourceLegend } from "./SourceBadges";
+import { answerEventId, sourceFromCitation } from "../lib/sources";
 import {
   dischargeBand,
   glofasDischargeNote,
@@ -46,6 +48,14 @@ const BAND_WORDS: Record<DischargeBand, { word: string; range: string }> = {
 };
 
 const WHY_CLAIMS = 3;
+
+/** Plain status line for the citizen card: the word, then what it means. */
+const BAND_PLAIN: Record<DischargeBand, string> = {
+  low: "Low — river flow below normal",
+  typical: "Typical — normal river flow",
+  elevated: "Elevated — higher than normal river flow",
+  peak: "Peak — very high river flow",
+};
 
 /** Marker band to the risk colour scale. Colour only; the word stays the band's own. */
 const BAND_TONE: Record<DischargeBand, "low" | "moderate" | "high" | "severe"> = {
@@ -93,22 +103,9 @@ function PlacePicker() {
 }
 
 function CiteChips({ items }: { items: NumberedCitation[] }) {
-  if (items.length === 0) return <span className="uncited">uncited</span>;
-  return (
-    <span className="citation-markers">
-      {items.map((item) => (
-        <a
-          key={item.citation.citation_id}
-          className="citation-marker"
-          href={routeHref("citizen", "evidence")}
-          title={`${item.citation.title} · ${item.citation.publisher}`}
-          aria-label={`Source ${item.n}: ${item.citation.title}`}
-        >
-          {item.n}
-        </a>
-      ))}
-    </span>
-  );
+  const { answer } = useConsole();
+  const eventId = answerEventId(answer);
+  return <SourceBadges items={items.map((item) => ({ n: item.n, detail: sourceFromCitation(item.citation, eventId) }))} />;
 }
 
 /** General, sourced guidance first (no gate), then the gated, agent-written step, and a way into the chat. */
@@ -154,7 +151,7 @@ function ReviewedSteps() {
   const actions = actionsVisibleToCitizen(status) ? (desk.answer.playbook_actions ?? []) : [];
   if (status === "pending")
     return (
-      <p className="status-note" role="status">
+      <p className="note gate-note" role="status">
         {GATE_LINE}
       </p>
     );
@@ -191,7 +188,6 @@ export function CitizenOverview() {
   const row = rowAt(desk.discharge.rows, desk.pointId, desk.date);
   const band = row ? dischargeBand(row.discharge_m3s) : null;
   const claims = desk.answer.claims.slice(0, WHY_CLAIMS);
-  const serving = servingLabel(desk.answer);
   const judge = desk.answer.judge?.overall_score;
   const gauges = useGaugeLevels();
   const summaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
@@ -215,42 +211,36 @@ export function CitizenOverview() {
           </header>
           <div className="card__body">
             <div className={`risk-summary risk-summary--${band ? BAND_TONE[band] : "low"}`}>
-              <div className="risk-summary__top">
-                <div>
-                  <p className="eyebrow">
-                    River flow · {formatDay(desk.date)} · {place}
-                  </p>
-                  {band ? (
-                    <div className="risk-summary__level">
-                      <span className={`risk-badge risk-badge--lg risk-badge--${BAND_TONE[band]}`} data-band={band}>
-                        {BAND_WORDS[band].word}
-                      </span>
-                      <span className="risk-summary__score" title="River discharge on this day">
-                        {formatM3s(row?.discharge_m3s ?? 0)}
-                        <small> m³/s</small>
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="note">No river-flow reading for this place on this date.</p>
-                  )}
-                </div>
-                <div className="risk-summary__meta">
-                  <span className={`cache-label cache-label--${serving.kind === "live" ? "live" : "cached"}`}>
-                    {serving.kind === "live" && <span className="dot" aria-hidden="true" />}
-                    {serving.kind === "cached" ? `${serving.text} UTC` : serving.text}
-                  </span>
-                  {typeof judge === "number" && (
-                    <span className="judge__pill" title="Judge overall score of the reviewed answer, 0 to 1">
-                      Judge {judge.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <p className="risk-summary__headline">
-                {band ? `${BAND_WORDS[band].word} river flow (${BAND_WORDS[band].range}).` : "No reading."} Replay of October
-                2024. Not an official warning.
+              <p className="eyebrow">
+                River flow · {formatDay(desk.date)} · {place}
               </p>
+              {band ? (
+                <>
+                  <p className="risk-summary__plain">
+                    <span className={`risk-badge risk-badge--lg risk-badge--${BAND_TONE[band]}`} data-band={band}>
+                      {BAND_WORDS[band].word}
+                    </span>{" "}
+                    <strong>{BAND_PLAIN[band].split(" — ")[1]}</strong>
+                  </p>
+                  <div className="risk-summary__level">
+                    <span className="risk-summary__score" title="River discharge on this day">
+                      {formatM3s(row?.discharge_m3s ?? 0)}
+                      <small> m³/s</small>
+                    </span>
+                    <span className="note">({BAND_WORDS[band].range})</span>
+                    {typeof judge === "number" && (
+                      <span className="judge__pill" title="Score from our independent checker agent">
+                        Checked: {judge.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="note">No river-flow reading for this place on this date.</p>
+              )}
+              <p className="note">Replay of October 2024. Not an official warning.</p>
               <h3 className="section-title">Why?</h3>
+              <SourceLegend />
               <ul className="claims">
                 {claims.map((claim) => (
                   <li key={claim.claim_id}>

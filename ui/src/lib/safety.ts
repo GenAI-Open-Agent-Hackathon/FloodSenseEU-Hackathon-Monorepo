@@ -65,4 +65,4 @@ export const CITIZEN_ADVICE =
 
 export const CITIZEN_ADVICE_SOURCE = "Same advice the FloodSense agents give with every citizen answer";
 
-export const GATE_LINE = "A tailored step from our agents appears here after a person checks it.";
+export const GATE_LINE = "Personalised advice from our agents is reviewed by a person before it's shown.";

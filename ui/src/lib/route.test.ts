@@ -102,7 +102,7 @@ describe("Replay page", () => {
 
 describe("DESK_NAV", () => {
   it("matches the approved IA", () => {
-    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Now", "Replay", "Overview", "My area", "What to do", "Evidence"]);
+    expect(DESK_NAV.citizen.map((item) => item.label)).toEqual(["Now", "Replay", "Overview", "My area", "What to do", "Evidence", "How it works"]);
     expect(DESK_NAV.insurer.map((item) => item.label)).toEqual([
       "Now",
       "Replay",
@@ -112,6 +112,7 @@ describe("DESK_NAV", () => {
       "Alerts",
       "Review",
       "System",
+      "How it works",
     ]);
     expect(parseHash("#/insurer/system")).toEqual({ role: "insurer", page: "system" });
     expect(parseHash("#/citizen/system")).toEqual({ role: "citizen", page: "overview" });

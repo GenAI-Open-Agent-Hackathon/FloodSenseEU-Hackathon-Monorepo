@@ -5,7 +5,10 @@ import { mergeContext } from "../lib/askContext";
 import { capTurns, followUpThreadId, modeForPage, modeLabel } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
-import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
+import { citationsForClaim, numberedCitations } from "../lib/citations";
+import { SourceBadges, SourceLegend } from "./SourceBadges";
+import { answerEventId, sourceFromCitation, sourceFromRun } from "../lib/sources";
+import { buildPipeline } from "../lib/pipeline";
 import { servingLabel, servingQualifier } from "../lib/format";
 import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
 import { shownEventId } from "../lib/events";
@@ -14,7 +17,7 @@ import { routeHref } from "../lib/route";
 import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
 import { turnBadge } from "../lib/turnBadge";
 import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
-import { memoryLine, NO_MEMORIES, SEEDED_MEMORY_CHIP, sourceChips, type MemoryUsed } from "../lib/hitl";
+import { memoryLine, NO_MEMORIES, SEEDED_MEMORY_CHIP, type MemoryUsed } from "../lib/hitl";
 import { setAwaitingRunId } from "../lib/lastRun";
 import { friendlyError, statusFromMessage } from "../lib/friendlyError";
 import "../styles/hitl.css";
@@ -355,10 +358,17 @@ export function AskFloodSense() {
                     Reviewed answer, {servingQualifier(serving)}, run {serving.runId}. Not live.
                   </p>
                   <p className="ask-question">{answer.question}</p>
+                  <SourceLegend />
                   <ul className="ask-claims">
                     {answer.claims.map((claim) => (
                       <li key={claim.claim_id}>
-                        {claim.text} <span className="cite-marks">{citationMarks(citationsForClaim(answer, claim.claim_id))}</span>
+                        {claim.text}{" "}
+                        <SourceBadges
+                          items={citationsForClaim(answer, claim.claim_id).map((c) => ({
+                            n: c.n,
+                            detail: sourceFromCitation(c.citation, answerEventId(answer)),
+                          }))}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -552,58 +562,43 @@ function RecordedAnswer({
           </button>
         </div>
       )}
+      {run.claims.some((c) => c.citations.length > 0) && <SourceLegend />}
       <ul className="ask-claims">
-        {run.claims.map((claim) => (
-          <li key={claim.id}>
-            {claim.text}{" "}
-            {run.flaggedClaimIds.includes(claim.id) && <strong className="note">[Flagged by Judge] </strong>}
-            {claim.citations.length > 0 && (
-              <span className="src-chips" aria-label="Sources for this sentence">
-                {sourceChips(claim.citations).map((chip) => (
-                  <span key={chip.text} className={`src-chip src-chip-${chip.kind}`}>
-                    {chip.text}
-                  </span>
-                ))}
-              </span>
-            )}
-            {claim.citations
-              .filter((citation) => citation.layer === "c" && citation.quote)
-              .map((citation) => (
-                <blockquote key={`${citation.id}-q`} className="note ask-quote">
-                  “{citation.quote}” {citation.publisher ?? ""}
-                  {citation.licence ? ` · ${citation.licence}` : ""}
-                </blockquote>
-              ))}
-            {/* One attribution line per source, not one per quote. */}
-            {[
-              ...new Set(
-                claim.citations
-                  .filter((citation) => citation.layer === "c" && citation.quote && citation.attribution)
-                  .map((citation) => citation.attribution as string),
-              ),
-            ].map((attribution) => (
-              <p key={attribution} className="note">
-                {attribution}
-              </p>
-            ))}
-          </li>
-        ))}
+        {(() => {
+          // One number per distinct source across the answer, in first-seen order.
+          const numbers = new Map<string, number>();
+          return run.claims.map((claim) => (
+            <li key={claim.id}>
+              {claim.text}{" "}
+              {run.flaggedClaimIds.includes(claim.id) && <strong className="note">[Flagged by Judge] </strong>}
+              <SourceBadges
+                items={claim.citations.map((citation) => {
+                  const key = `${citation.layer}|${citation.title}|${citation.queryId ?? ""}|${citation.page ?? ""}|${citation.paragraph ?? ""}`;
+                  if (!numbers.has(key)) numbers.set(key, numbers.size + 1);
+                  return { n: numbers.get(key) as number, detail: sourceFromRun(citation, run.eventId) };
+                }).filter((item, i, all) => all.findIndex((o) => o.n === item.n) === i)}
+              />
+            </li>
+          ));
+        })()}
       </ul>
-      {run.memoryUsed && <MemoriesPanel memories={run.memoryUsed} />}
+      {(run.memoryUsed || buildPipeline(run).board) && <MemoriesPanel memories={run.memoryUsed ?? []} run={run} />}
       {run.judgeOverall !== null && (
-        <p className="note">
-          Judge score {run.judgeOverall.toFixed(2)}
+        <p className="note" title="Score from our independent checker agent">
+          Checked: {run.judgeOverall.toFixed(2)}
           {run.judgePasses === null ? "" : run.judgePasses ? " · passes" : " · does not pass"}
           {run.hallucinationRate === null ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)} %`}
         </p>
       )}
-      <details className="disclosure">
-        <summary>How I got this</summary>
-        {/* agents-visual: the node graph and the layer (c) retrieval, from the same run body. */}
-        <AgentPipeline run={run} compact />
-        <RetrievalPanel run={run} />
-        <p className="note">Trace recorded with run {run.runId}.</p>
-      </details>
+      {/* agents-visual: the pipeline folds to one line once the answer is here. */}
+      <AgentPipeline run={run} />
+      {run.claims.some((c) => c.citations.some((ci) => ci.layer === "c")) && (
+        <details className="disclosure">
+          <summary>Document retrieval</summary>
+          <RetrievalPanel run={run} />
+          <p className="note">Trace recorded with run {run.runId}.</p>
+        </details>
+      )}
     </>
   );
 }
@@ -622,7 +617,7 @@ function ErrorTurn({
   recorded: RecordedRun | null;
   onRetry?: () => void;
 }) {
-  const info = friendlyError(statusFromMessage(raw), raw, role);
+  const info = friendlyError(statusFromMessage(raw), raw, role, recorded !== null);
   return (
     <>
       <p className="ask-error">{info.text}</p>
@@ -638,7 +633,7 @@ function ErrorTurn({
           <RecordedAnswer run={recorded} badge={`Latest recorded answer · not live · run ${recorded.runId}`} />
         </div>
       )}
-      {live && <LiveAgentPipeline state={live} />}
+      {live && <LiveAgentPipeline state={live} collapsed />}
       {info.technical && (
         <details className="disclosure">
           <summary>Technical detail</summary>
@@ -650,7 +645,8 @@ function ErrorTurn({
 }
 
 /** Run-level H-MEM recall. Memories are prompt context, never cited, so no sentence is marked as using one. */
-export function MemoriesPanel({ memories }: { memories: MemoryUsed[] }) {
+export function MemoriesPanel({ memories, run }: { memories: MemoryUsed[]; run?: RecordedRun }) {
+  const board = run ? buildPipeline(run).board : null;
   return (
     <section className="mem-panel" aria-label="Memories used">
       <p className="mem-title">Memories used</p>
@@ -660,10 +656,21 @@ export function MemoriesPanel({ memories }: { memories: MemoryUsed[] }) {
         <ul className="mem-list">
           {memories.map((m) => (
             <li key={m.memoryId}>
-              {m.seeded && <span className="chip chip--sample">{SEEDED_MEMORY_CHIP}</span>} {memoryLine(m)}
+              {m.seeded ? (
+                <span className="chip chip--sample">{SEEDED_MEMORY_CHIP}</span>
+              ) : (
+                <span className="src-chip src-chip-memory">H-MEM</span>
+              )}{" "}
+              {memoryLine(m)}
             </li>
           ))}
         </ul>
+      )}
+      {board && (
+        <p className="note">
+          <span className="src-chip src-chip-world">World Model</span>{" "}
+          {board.states.map((s) => `${s.id} ${s.state.replace(/_/g, " ")}`).join(" · ")}
+        </p>
       )}
       {memories.length > 0 && <p className="note">Context for the whole run; not linked to any one sentence.</p>}
     </section>
