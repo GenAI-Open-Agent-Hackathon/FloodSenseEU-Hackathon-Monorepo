@@ -9,6 +9,7 @@ import sampleRun from "../fixtures/run_f16733274f1c.json";
 import { AgentPipeline } from "./AgentPipeline";
 import { RetrievalPanel } from "./RetrievalPanel";
 import { ReviewColumn } from "./ReviewColumn";
+import { RunWalkthrough } from "./RunWalkthrough";
 import { plainLanguage } from "../lib/plain";
 import { routeHref } from "../lib/route";
 
@@ -46,6 +47,7 @@ export function causalChainNote(source: Source): string | null {
 export function useReviewRun(): { run: RecordedRun | null; source: Source } {
   const { mode, eventId } = useConsole();
   const [run, setRun] = useState<RecordedRun | null>(() => sampleRecordedRun());
+  const [walking, setWalking] = useState(false);
   const [source, setSource] = useState<Source>(() => {
     const id = replayRunId();
     return id ? { kind: "loading", id } : { kind: "bundled" };
@@ -171,6 +173,16 @@ export function CausalChainHeader({ run, source }: { run: RecordedRun | null; so
         </p>
       )}
       <AgentPipeline run={run} collapsed={false} title="How the agents reached this answer" />
+      <div className="wt-open">
+        <button type="button" className="button primary" onClick={() => setWalking(true)}>
+          Walk through this run
+        </button>
+        <p className="note">
+          {run.trace.length} recorded steps in the order they happened: the hypotheses, the loops back, the Judge, the
+          human gate.
+        </p>
+      </div>
+      {walking && <RunWalkthrough run={run} onClose={() => setWalking(false)} />}
       <details className="disclosure">
         <summary>Document retrieval and Judge verdicts</summary>
         <RetrievalPanel run={run} />
