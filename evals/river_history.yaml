@@ -4,7 +4,7 @@
 # so the Investigator calls retrieve_docs; expect_source is the corpus URL a cited claim should carry.
 # The answers are quoted from the CC BY-SA 4.0 Wikipedia snapshots under corpus/pdf/wiki-*.html
 # (section and paragraph as rag_ingest numbers them). They need FF_RAG_DOCS on and the wiki-* documents
-# ingested. run_evals.py does not list this block yet: add "river_history": "river_history.yaml" to SETS.
+# ingested. Run with --set river_history.
 event_id: LIVE-EU
 customer_id: demo-insurer
 items:

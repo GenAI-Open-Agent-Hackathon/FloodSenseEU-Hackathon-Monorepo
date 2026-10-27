@@ -138,7 +138,7 @@ def retrieve_docs(
         return RetrieveResult([], "embedder returned no vector")
     if event_id == WATCH_EVENT:
         allowed = watch_doc_ids(
-            load_scope() if scope is None else scope, (filters or {}).get("country")
+            load_watch_scope() if scope is None else scope, (filters or {}).get("country")
         )
         if search_generic is None or not allowed:
             return RetrieveResult([], None)
@@ -218,15 +218,28 @@ def watch_doc_ids(scope: dict[str, str], country: object = None) -> list[str]:
 _SCOPE_CACHE: dict[str, str] | None = None
 
 
+_WATCH_CACHE: dict[str, str] | None = None
+
+
+def load_watch_scope() -> dict[str, str]:
+    """doc_id -> country of every event-agnostic document (the LIVE-EU run's scope)."""
+    global _WATCH_CACHE
+    if _WATCH_CACHE is None:
+        load_scope()
+    return _WATCH_CACHE or {}
+
+
 def load_scope() -> dict[str, str]:
-    """doc_id -> country of the event-agnostic documents. Read once per process."""
-    global _SCOPE_CACHE
+    """doc_id -> country of the event-agnostic insurer/authority documents (the event-run
+    add-on). Citizen-audience river history is only in the watch scope. Read once."""
+    global _SCOPE_CACHE, _WATCH_CACHE
     if _SCOPE_CACHE is None:
         import json
 
         try:
             data = json.loads(_SCOPE_FILE.read_text(encoding="utf-8"))
             _SCOPE_CACHE = {str(k): str(v) for k, v in data.get("generic", {}).items()}
+            _WATCH_CACHE = {str(k): str(v) for k, v in data.get("watch", {}).items()}
         except (OSError, ValueError, AttributeError) as exc:
             import logging
 
@@ -235,6 +248,7 @@ def load_scope() -> dict[str, str]:
                 exc.__class__.__name__,
             )
             _SCOPE_CACHE = {}
+            _WATCH_CACHE = {}
     return _SCOPE_CACHE
 
 
