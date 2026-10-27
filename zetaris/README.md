@@ -58,7 +58,7 @@ This folder does not start Zetaris. Zetaris is a separate Docker Compose project
 water level, trend (cm/h over about an hour), characteristic values (MNW, MW, MHW, HHW, HSW) and a
 `band` (below / near / above against MHW) for Mainz, Kaub, Koblenz, Andernach, Bonn, Koeln,
 Duesseldorf, Trier UP and Cochem, writes the CSV and copies it into `zetaris-driver-1`.
-`python tasks.py pegel-poll --interval 600` repeats every 10 minutes. Run it once before applying
+`python tasks.py pegel-poll --interval 600` repeats every 10 minutes on the host; the compose service `pegel-poller` (started by `tasks.py up`) does the same without a host process. Run it once before applying
 045 (inferSchema reads the header at CREATE). The Ahr is not on PEGELONLINE (state gauges), so it
 stays replay only. Data: PEGELONLINE, DL-DE->Zero-2.0, "Quelle: WSV, PEGELONLINE".
 A REST table straight on the PEGELONLINE API was not used: one request has no trend, nested
