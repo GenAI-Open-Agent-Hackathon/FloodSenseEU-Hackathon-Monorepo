@@ -1,5 +1,4 @@
 import type { WatchSource } from "../lib/euWatch";
-import { DEFAULT_PROVIDER } from "../lib/llmProvider";
 import { forecastBriefFrom, forecastLaneEnabled, forecastQuestion, operatorContext, outlookBlocked, type ForecastBrief } from "../lib/operatorDesk";
 import { fetchAgentsConfig } from "./config";
 import type { RecordedRun } from "./replay";
@@ -29,7 +28,7 @@ export async function loadForecast(source: WatchSource, signal?: AbortSignal): P
     return { state: "unavailable", message: "Outlook not available: the forecast lane or live data is switched off on this deployment." };
   }
   const start = await startLiveRun(
-    { question: forecastQuestion(source), provider: DEFAULT_PROVIDER, allowedProviders: [], context: operatorContext(source) },
+    { question: forecastQuestion(source), context: operatorContext(source) },
     signal,
   );
   if (start.kind === "aborted") return { state: "unavailable", message: "Cancelled." };

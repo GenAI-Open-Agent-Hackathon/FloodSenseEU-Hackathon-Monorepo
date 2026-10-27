@@ -38,7 +38,7 @@ export interface Tile {
 export interface TechTraceModel {
   /** "Router → quick lane (live level question about KÖLN)", or null when the run states no lane or reason. */
   routerLine: string | null;
-  /** "Checked 1.00 · hallucination 0%", or null without a judge score. */
+  /** "Checked 1.00", or null without a judge score. */
   judgeLine: string | null;
   tiles: Tile[];
 }
@@ -109,7 +109,7 @@ function zetarisTile(run: RecordedRun): Tile {
 export interface ModelUse {
   id: string;
   name: string;
-  /** "Nightshift", "Anthropic (test switch)" or another stated provider; null when the id does not say. */
+  /** "Nightshift" or another stated provider; null when the id does not say. */
   provider: string | null;
   /** True only for a Nemotron id served through the Nightshift gateway. */
   nightshift: boolean;
@@ -324,10 +324,9 @@ export function routerLine(run: Pick<RecordedRun, "lane" | "routerReason" | "ser
   return line;
 }
 
-export function judgeLine(run: Pick<RecordedRun, "judgeOverall" | "hallucinationRate">): string | null {
+export function judgeLine(run: Pick<RecordedRun, "judgeOverall">): string | null {
   if (run.judgeOverall === null || run.judgeOverall === undefined) return null;
-  const halluc = run.hallucinationRate === null || run.hallucinationRate === undefined ? "" : ` · hallucination ${Math.round(run.hallucinationRate * 100)}%`;
-  return `Checked ${run.judgeOverall.toFixed(2)}${halluc}`;
+  return `Checked ${run.judgeOverall.toFixed(2)}`;
 }
 
 /** Pure: the Control tower tile's dot and line from GET /watch/status; unknown when the status could not be read. */

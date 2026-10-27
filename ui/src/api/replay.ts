@@ -55,7 +55,6 @@ export interface RecordedRun {
   claims: ReplayClaim[];
   judgeOverall: number | null;
   judgePasses: boolean | null;
-  hallucinationRate: number | null;
   flaggedClaimIds: string[];
   trace: ReplayStep[];
   /** live, cache or replay, from the body's own served_from. */
@@ -173,7 +172,6 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     claims,
     judgeOverall: num(judge?.overall),
     judgePasses: typeof judge?.passes === "boolean" ? judge.passes : null,
-    hallucinationRate: num(judge?.hallucination_rate),
     flaggedClaimIds: Array.isArray(judge?.flagged_claim_ids)
       ? judge.flagged_claim_ids.filter((id): id is string => typeof id === "string")
       : [],

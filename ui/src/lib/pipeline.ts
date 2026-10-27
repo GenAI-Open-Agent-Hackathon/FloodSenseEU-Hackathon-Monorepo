@@ -135,7 +135,7 @@ function llmIds(modelId: string | null | undefined): string[] {
     .filter((m) => m && m !== "deterministic");
 }
 
-/** Badge for an LLM id, by the shared provider rule (`providerOf`): Nemotron ids are Nightshift, anthropic/ ids the test switch. */
+/** Badge for an LLM id, by the shared provider rule (`providerOf`): Nemotron ids are Nightshift. */
 export function modelBadge(modelId: string, provider?: string | null): PipelineBadge {
   const label = laneLabel(modelId);
   const p = providerOf(modelId, provider);

@@ -155,22 +155,9 @@ The quick and forecast lanes add a `plain` object next to their claims and summa
 
 `status` (`normal`/`watch`/`elevated`/`unknown`) and `basis` (`gauge`/`model`) let the UI pick the existing status chip. Contract: `plain` in `contracts/schemas/floodsense.schema.json`. Tests: `agents/tests/test_plain.py`.
 
-## LLM provider switch (local benchmarking only)
-
-Every model call goes to Nightshift (NVIDIA Nemotron). That is the default, and
-the demo and the submission run on it. For local speed and quality comparisons
-only, set `LLM_PROVIDER_SWITCH=true` and `ANTHROPIC_API_KEY` in `agents/.env`.
-`GET /config` then lists `llm_providers: ["nightshift", "anthropic"]`, the
-operator console shows an LLM select next to Run, and `POST /runs` accepts
-`"llm_provider": "anthropic"`. The choice is per run. Trace steps record
-`model_id` as `anthropic/<model>` (fast lane `ANTHROPIC_MODEL_FAST`, default
-`claude-haiku-5-5`; deep lane `ANTHROPIC_MODEL_DEEP`, default
-`claude-sonnet-5-5`). With the gate off, any value other than `nightshift` is
-rejected with 422. The API cache keeps each provider's answers apart.
-
 ## Nightshift speed and retries
 
-Measured on Nightshift: both lanes answer with Nemotron 3.5 Lightning 30B A3B at about 60 to 70 completion tokens/s, and most completion tokens are hidden reasoning even with `enable_thinking=false`, so latency follows token count. Long generations get a **502 from the gateway at about 45 s**.
+Measured on Nightshift with Nemotron 3.5 Lightning 30B A3B (the model behind both lanes in every call recorded on 27 Oct) at about 60 to 70 completion tokens/s, and most completion tokens are hidden reasoning even with `enable_thinking=false`, so latency follows token count. Long generations get a **502 from the gateway at about 45 s**.
 
 - Retry policy (`nightshift.py`): a reply with `finish_reason: length` is an error and is not retried, so a truncated reply never reaches a parser or the Judge. A 429 waits `Retry-After` seconds (at most 10). A timeout (`LLM_TIMEOUT_S`, 180) or an error that arrives after `LLM_SLOW_FAIL_S` (20 s) is final, and the node falls back to its deterministic path. Other errors (fast 5xx, connection, a 200 with no `choices`) get `LLM_MAX_ATTEMPTS` (2) tries in total.
 - Rate limits and backoff. NVIDIA's free tier allows 40 requests/min per key, and Nightshift reports a hit as a 502 `provider_error` with `nvidia_429` in the body. Every Nightshift call (nodes, front door, router) passes one process-wide gate: at most `NIGHTSHIFT_MAX_CONCURRENCY` (3) calls in flight, and call starts paced to `NIGHTSHIFT_RPM` (35) per minute (evenly spaced, about 1.7 s apart; `0` turns pacing off). Errors are classified from status and body: `rate_limited` (429, `nvidia_429`, "Too Many Requests") and `empty_response` are retried with exponential backoff, 2 s × 2^n plus up to 25 % jitter, or the `Retry-After` (at most 10 s), at most 3 retries and 20 s of extra wait per call, never past the call's deadline (`LLM_TIMEOUT_S` from the first try, or the router/front door's short budget, where waiting for a slot counts too and the router falls back to rules). `provider_deadline` (the ~45 s cut) is never retried; other errors keep the policy above. The log line of a successful call ends with a note such as "retried 2× after rate limit". `LLM_TIMEOUT_S` is a **total per-call budget**: the gate wait, every attempt and every backoff sleep come out of it (each attempt's timeout is what is left), and a timeout error says "total budget".
@@ -191,8 +178,6 @@ docker exec -w /tmp -e PYTHONPATH=/tmp/bench floodsense-app-agents-1 python /tmp
 ```
 
 `PYTHONPATH=/app` measures the image's code instead. It prints per-node trace latency and per-call lane, seconds, prompt size and answering model (`--json` for one object). It reads the container env and prints no secret.
-
-`AnthropicClient` (the test-only provider switch) keeps its own `max_tokens` (16000) and its own retry policy (3 attempts). None of the `LLM_*` settings above apply to it, so bench numbers for the two providers are not like-for-like.
 
 ## Human-in-the-loop
 
@@ -254,7 +239,7 @@ Only needed for layer (c) (`FF_RAG_DOCS`, `scripts/rag_ingest.py`). Generate you
 
 The ingest command on the host reads the same variable from its environment. Why NIM and why this model: [ADR 0009](../docs/adr/0009-vector-search-next-to-zetaris.md).
 
-Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Super VL answers both lanes today, so the fast lane is not by itself a large wall-time cut. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning.
+Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Both lanes use Nemotron models; Lightning 30B A3B answered every call recorded on 27 Oct.
 
 Independent Zetaris reads in one node run together, up to `ZETARIS_MAX_PARALLEL` (default 8). Set it to 1 to run them one after another, in call order. A query that raises is recorded as `Evidence.error`. The other queries in that batch still come back. That overlap is the guaranteed gain while both Nightshift lanes are answered by the same model.
 

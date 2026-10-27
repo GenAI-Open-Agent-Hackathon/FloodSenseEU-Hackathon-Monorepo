@@ -1,6 +1,5 @@
 import { startLiveRun, subscribeRunEvents } from "../api/liveRun";
 import type { AskContext } from "./askContext";
-import type { LlmProvider } from "./llmProvider";
 import { setAwaitingRunId } from "./lastRun";
 import type { StartedRun } from "./approvalQueue";
 
@@ -115,15 +114,11 @@ export async function startAssessment(input: {
   key: string;
   question: string;
   context: AskContext;
-  provider: LlmProvider;
-  allowedProviders: readonly string[];
   eventId?: string | null;
   replayTs?: string | null;
 }): Promise<AssessOutcome> {
   const result = await startLiveRun({
     question: input.question,
-    provider: input.provider,
-    allowedProviders: input.allowedProviders,
     context: input.context,
     ...(input.eventId ? { eventId: input.eventId } : {}),
     ...(input.replayTs ? { replayTs: input.replayTs } : {}),

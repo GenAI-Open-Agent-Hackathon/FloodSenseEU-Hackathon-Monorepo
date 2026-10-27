@@ -126,7 +126,6 @@ def _models(config: dict[str, Any] | None, latest: dict[str, Any] | None) -> dic
     return {
         "ok": True,
         "lanes": {k: str(v) for k, v in (config.get("lanes") or {}).items()},
-        "llm_providers": [str(p) for p in (config.get("llm_providers") or [])],
         "flags": {k: bool(v) for k, v in flags.items()},
         "latest_model_ids": (latest or {}).get("model_ids") or [],
     }

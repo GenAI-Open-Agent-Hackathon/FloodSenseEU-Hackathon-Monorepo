@@ -1,14 +1,14 @@
 """Evaluation runner.
 
-The headline number is the hallucination rate: the share of claims their own
-citations do not support, as scored by the Judge. Also reports citation
+Scores the share of claims their own citations do not support (as judged by
+the Judge; kept in the JSON for CI gating, not printed). Also reports citation
 coverage, numeric accuracy, Judge pass rate, Skeptic rejections, and which
 expected and forbidden tokens were found.
 
     python evals/run_evals.py                          # both events, current env (fakes when no credentials)
     python evals/run_evals.py --event EMSR773 --strict --out reports/evals.md
 
-Targets (proposal): hallucination <= 5 %, citation coverage 100 %, numeric
+Targets (proposal): unsupported claims <= 5 %, citation coverage 100 %, numeric
 accuracy 100 %.
 --strict exits 1 when a target is missed, for CI.
 """
@@ -64,7 +64,7 @@ def mentions(text: str, token: str) -> bool:
     return re.search(rf"(?<![\w.,]){re.escape(token.lower())}(?![\w])", text.lower()) is not None
 
 
-def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -> dict:
+def run_item(rt: Runtime, spec: dict, item: dict) -> dict:
     t0 = time.time()
     req = RunRequest(
         question=item["question"],
@@ -75,8 +75,6 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
         **({"doc_query": item["doc_query"]} if item.get("doc_query") else {}),
         # a block may set the screen context (e.g. role: insurer) for all its items
         **({"context": spec["context"]} if spec.get("context") else {}),
-        # None keeps the deployment default (Nightshift); a test provider needs LLM_PROVIDER_SWITCH.
-        **({"llm_provider": provider} if provider else {}),
     )
     s = rt.start(req)
     # An item may declare that the right answer is no answer. Scoring a
@@ -188,7 +186,7 @@ def markdown(results: dict) -> str:
     out = [
         f"# FloodSense evals — {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}",
         "",
-        f"LLM `{results['llm']}` (provider `{results.get('provider', 'default')}`) · Zetaris `{results['zetaris']}` · H-MEM off · targets: hallucination ≤ 5 %, "
+        f"LLM `{results['llm']}` · Zetaris `{results['zetaris']}` · H-MEM off · targets: "
         f"coverage 100 %, numeric 100 %",
         "",
     ]
@@ -200,7 +198,6 @@ def markdown(results: dict) -> str:
         out += [
             f"## {ev}",
             "",
-            f"**hallucination {a['hallucination_rate']:.1%}** {mark('hallucination_rate')} · "
             f"**coverage {a['citation_coverage']:.0%}** {mark('citation_coverage')} · "
             f"**numeric {a['numeric_accuracy']:.0%}** {mark('numeric_accuracy')} · judge pass "
             f"{a['judge_pass_rate']:.0%} (overall {a['judge_overall']:.2f}) · "
@@ -210,13 +207,13 @@ def markdown(results: dict) -> str:
             f"{a['mean_elapsed_s']} s/item"
             + (f" · source cited {a['source_cited']}" if a.get("source_cited") else ""),
             "",
-            "| id | halluc. | coverage | numeric | claims | repairs | expected | forbidden | "
+            "| id | coverage | numeric | claims | repairs | expected | forbidden | "
             "source cited | status |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
         for r in block["rows"]:
             out.append(
-                f"| {r['id']} | {r['hallucination_rate']:.0%} | {r['citation_coverage']:.0%} | "
+                f"| {r['id']} | {r['citation_coverage']:.0%} | "
                 f"{r['numeric_accuracy']:.0%} | {r['n_claims']} | {r['repair_rounds']} | "
                 f"{r['expect_hits']} | {', '.join(r['forbid_violations']) or '—'} | "
                 f"{_cited(r.get('source_cited'))} | {r['status']} |"
@@ -235,25 +232,18 @@ def main(argv=None) -> int:
     ap.add_argument("--set", dest="sets", choices=list(SETS), action="append")
     ap.add_argument("--out", help="markdown report path (a .json twin is written beside it)")
     ap.add_argument("--strict", action="store_true", help="exit 1 when a target is missed")
-    ap.add_argument(
-        "--provider", help="llm_provider for every run (default: the deployment default)"
-    )
     ap.add_argument("--items", help="comma-separated item ids to run (default: all)")
     args = ap.parse_args(argv)
     deps = isolated_deps()
     rt = Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps)
     results = {
         "llm": type(deps.llm).__name__,
-        "provider": args.provider or "default",
         "zetaris": type(deps.zetaris).__name__,
         "memory": "off (evals never recall H-MEM)",
         "events": {},
     }
     blocks = [*(args.event or []), *(args.sets or [])] or list(BLOCKS)
     wanted = {i.strip() for i in args.items.split(",")} if args.items else None
-    if args.provider:
-        # Fail once, before any run, rather than with a traceback at the first item.
-        RunRequest(question="provider check", llm_provider=args.provider)
     if wanted:
         known = {
             item["id"]
@@ -269,13 +259,11 @@ def main(argv=None) -> int:
         items = [i for i in spec["items"] if wanted is None or i["id"] in wanted]
         if not items:
             continue
-        rows = [run_item(rt, spec, item, args.provider) for item in items]
-        for row in rows:
-            row["provider"] = args.provider or "default"
+        rows = [run_item(rt, spec, item) for item in items]
         results["events"][ev] = {"rows": rows, "aggregate": aggregate(rows)}
         a = results["events"][ev]["aggregate"]
         print(
-            f"{ev}: hallucination={a['hallucination_rate']:.1%} "
+            f"{ev}: "
             f"coverage={a['citation_coverage']:.0%} numeric={a['numeric_accuracy']:.0%} "
             f"judge_pass={a['judge_pass_rate']:.0%} expect_hit={a['expect_hit_rate']} "
             f"forbid={a['forbid_violations']} repairs={a['repair_rounds']}"

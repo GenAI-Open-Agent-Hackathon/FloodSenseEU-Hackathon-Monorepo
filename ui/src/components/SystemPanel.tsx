@@ -8,7 +8,6 @@ import {
   laneLabel,
   liveSummary,
   modelName,
-  providersLabel,
   shortUtc,
   type SystemStatus,
 } from "../lib/system";
@@ -183,7 +182,7 @@ function ModelsCard({ status }: { status: SystemStatus | null }) {
   return (
     <section className="card system-card" aria-label="Models and engines">
       <p className="section-label">Models &amp; engines</p>
-      <h2>{mo?.ok ? providersLabel(mo.providers) : "Models"}</h2>
+      <h2>{mo?.ok ? "Nightshift" : "Models"}</h2>
       <p className="note">Which language models answer, and whether the memory and World Model engines are up.</p>
       {mo?.ok ? (
         <ul className="system-list">

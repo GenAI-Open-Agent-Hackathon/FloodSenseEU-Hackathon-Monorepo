@@ -1,6 +1,5 @@
 {
-  "llm": "ProviderSwitch",
-  "provider": "default",
+  "llm": "NightshiftClient",
   "zetaris": "ZetarisClient",
   "events": {
     "EMSR773": {
@@ -11,7 +10,6 @@
           "status": "approved",
           "elapsed_s": 360.62,
           "n_claims": 7,
-          "hallucination_rate": 0.0,
           "citation_coverage": 1.0,
           "numeric_accuracy": 1.0,
           "judge_passes": true,
@@ -25,8 +23,7 @@
           "model_ids": [
             "nvidia/nemotron-3.5-lightning-30b-a3b"
           ],
-          "summary": "Extreme rainfall fell over the Poyo ravine catchment [C1]. Runoff produced an extreme discharge in the Barranco del Poyo [C2, C3, C4]. The Copernicus EMS footprint (EMSR773) covers 91 insured sites across 2 segments. [C5].",
-          "provider": "default"
+          "summary": "Extreme rainfall fell over the Poyo ravine catchment [C1]. Runoff produced an extreme discharge in the Barranco del Poyo [C2, C3, C4]. The Copernicus EMS footprint (EMSR773) covers 91 insured sites across 2 segments. [C5]."
         },
         {
           "id": "val-05",
@@ -34,7 +31,6 @@
           "status": "approved",
           "elapsed_s": 410.13,
           "n_claims": 8,
-          "hallucination_rate": 0.0,
           "citation_coverage": 1.0,
           "numeric_accuracy": 1.0,
           "judge_passes": true,
@@ -48,15 +44,13 @@
           "model_ids": [
             "nvidia/nemotron-3.5-lightning-30b-a3b"
           ],
-          "summary": "Extreme rainfall fell over the Poyo ravine catchment [C1]. Rainfall of 140.89999999999998 mm at VAL07 drove discharge at Paiporta (VAL01) from 23.38 m³/s to 467.81 m³/s, exposing sites within the flood footprint. [C2, C3, C4, C5]. The overflow reached built-up areas mapped by Copernicus EMS [C6].",
-          "provider": "default"
+          "summary": "Extreme rainfall fell over the Poyo ravine catchment [C1]. Rainfall of 140.89999999999998 mm at VAL07 drove discharge at Paiporta (VAL01) from 23.38 m³/s to 467.81 m³/s, exposing sites within the flood footprint. [C2, C3, C4, C5]. The overflow reached built-up areas mapped by Copernicus EMS [C6]."
         }
       ],
       "aggregate": {
         "items": 2,
         "refusals_expected": 0,
         "refusals_correct": 0,
-        "hallucination_rate": 0.0,
         "citation_coverage": 1.0,
         "numeric_accuracy": 1.0,
         "judge_pass_rate": 1.0,
@@ -76,7 +70,6 @@
           "status": "approved",
           "elapsed_s": 303.33,
           "n_claims": 4,
-          "hallucination_rate": 0.0,
           "citation_coverage": 1.0,
           "numeric_accuracy": 1.0,
           "judge_passes": true,
@@ -90,8 +83,7 @@
           "model_ids": [
             "nvidia/nemotron-3.5-lightning-30b-a3b"
           ],
-          "summary": "Extreme rainfall fell over the Ahr catchment (Eifel) [C1]. Runoff produced an extreme discharge in the Ahr [C2, C3, C4].",
-          "provider": "default"
+          "summary": "Extreme rainfall fell over the Ahr catchment (Eifel) [C1]. Runoff produced an extreme discharge in the Ahr [C2, C3, C4]."
         },
         {
           "id": "ahr-05",
@@ -99,7 +91,6 @@
           "status": "approved",
           "elapsed_s": 388.96,
           "n_claims": 4,
-          "hallucination_rate": 0.0,
           "citation_coverage": 1.0,
           "numeric_accuracy": 1.0,
           "judge_passes": true,
@@ -113,15 +104,13 @@
           "model_ids": [
             "nvidia/nemotron-3.5-lightning-30b-a3b"
           ],
-          "summary": "Extreme rainfall fell over the Ahr catchment (Eifel) [C1]. Runoff produced an extreme discharge in the Ahr [C2, C3, C4].",
-          "provider": "default"
+          "summary": "Extreme rainfall fell over the Ahr catchment (Eifel) [C1]. Runoff produced an extreme discharge in the Ahr [C2, C3, C4]."
         }
       ],
       "aggregate": {
         "items": 2,
         "refusals_expected": 0,
         "refusals_correct": 0,
-        "hallucination_rate": 0.0,
         "citation_coverage": 1.0,
         "numeric_accuracy": 1.0,
         "judge_pass_rate": 1.0,

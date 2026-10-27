@@ -24,7 +24,6 @@ Sponsor tech 10 (Zetaris, Meterless Nightshift / H-MEM / World Model, NVIDIA Nem
   `weather_forecast`, `exposure_join`, replay seeds). Migrations in `zetaris/migrations` (applied with
   `py tasks.py zetaris-sync`). 45 sources = 26 PEGELONLINE gauges + 11 GloFAS points + 8 Valencia demo points.
 - **LLM**: only through the **Nightshift** gateway (`:8088`, `meterless/fast` and `meterless/deep`), Nemotron models.
-  `LLM_PROVIDER_SWITCH=true` enables a test-only Anthropic path. **Keep it false for recording and submission.**
   NVIDIA rate-limits (429): `agents/floodsense_agents/nightshift.py` has backoff, a concurrency cap (3) and a pacer (35 rpm).
 - **Memory**: H-MEM and World Model in `engines/` (`:8300`). Written only on approval. Demo seeds are labelled `demo-seed`.
 - **RAG**: pgvector + NVIDIA NIM `nemotron-3.5-embed-1b`. 25 documents / 1,859 passages (`corpus/`, `scripts/rag_ingest.py`).
@@ -69,7 +68,7 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 
 ### Verified on the live stack
 - The approve-and-remember loop: approving run `f6cc4adbc438` took the H-MEM count from 212 to 214 and the next Orléans forecast recalled the new memory (`mem-213`); this was observed on the demo machine on 27 Oct and is not stored as an artifact.
-- Last end-to-end run on Nightshift: 0% hallucination and 100% coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day). Quick lane about 1 s, forecast lane 1 to 4 s (no model writes the answer), full lane 5 to 6 minutes on Nemotron.
+- Last end-to-end run on Nightshift: every claim cited and judged, 100% coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day). Quick lane about 1 s, forecast lane 1 to 4 s (no model writes the answer), full lane 5 to 6 minutes on Nemotron.
 - 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 
 ### Known bugs and weak spots

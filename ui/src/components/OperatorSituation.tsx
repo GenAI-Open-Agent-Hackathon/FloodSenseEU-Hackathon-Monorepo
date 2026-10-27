@@ -590,7 +590,6 @@ function CallScriptCard({
 }
 
 function EscalateCard({ s, status }: { s: WatchSource; status: string }) {
-  const { llmProvider, llmProviders } = useConsole();
   const runs = useTracked();
   const key = operatorRunKey(s);
   const run = runForKey(runs, key);
@@ -606,8 +605,6 @@ function EscalateCard({ s, status }: { s: WatchSource; status: string }) {
           key,
           question: escalationQuestion(s, plainOf(s)),
           context: operatorContext(s),
-          provider: llmProvider,
-          allowedProviders: llmProviders,
         }),
       );
     } finally {

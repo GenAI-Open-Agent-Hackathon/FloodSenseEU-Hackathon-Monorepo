@@ -1,6 +1,5 @@
 import { apiBaseUrl } from "./config";
 import { adoptRunBody, type RecordedRun } from "./replay";
-import type { LlmProvider } from "../lib/llmProvider";
 import { withAskContext, type AskContext } from "../lib/askContext";
 import { modelChip } from "../lib/modelChip";
 
@@ -9,9 +8,6 @@ export const DEFAULT_EVENT_ID = "EMSR773";
 export interface AskInput {
   question: string;
   eventId?: string;
-  provider: LlmProvider;
-  /** Providers GET /config listed. The provider is sent only when it is one of them. */
-  allowedProviders: readonly string[];
   threadId?: string | null;
   /** "live" reads hazard_now (past days and the next 48 h). Unset lets the agents classify the question. */
   mode?: AskMode;
@@ -68,7 +64,6 @@ export function buildRunRequest(input: AskInput): Record<string, unknown> {
   // No event_id unless the page has one: the agents route an unset event by the
   // question (Rhine, Köln, Ahr -> EMSR517) and default to EMSR773 otherwise.
   if (input.eventId) body.event_id = input.eventId;
-  if (input.allowedProviders.includes(input.provider)) body.llm_provider = input.provider;
   if (input.threadId) body.thread_id = input.threadId;
   if (input.mode) body.mode = input.mode;
   if (input.replayTs) body.replay_ts = input.replayTs;
@@ -133,7 +128,7 @@ export function mapRunResponse(status: number, body: unknown, retryAfter: string
     };
   }
   if (status === 422) {
-    return { ok: false, kind: "provider", message: `Request refused: ${detailOf(body) ?? "this model provider is not allowed here."}` };
+    return { ok: false, kind: "provider", message: `Request refused: ${detailOf(body) ?? "the service did not accept it."}` };
   }
   if (status >= 500) {
     return { ok: false, kind: "server", message: `The service failed (${status})${detailOf(body) ? `: ${detailOf(body)}` : ""}.` };

@@ -25,7 +25,7 @@ export interface SystemStatus {
   rateLimit: { perMin: number; maxConcurrent: number; inFlight: number; recent429: number; total429: number };
   engines: { configured: boolean; ok: boolean; error: string | null; wmEvents: number | null };
   world: { runId: string | null; hypotheses: number; byStatus: Record<string, number> };
-  models: { ok: boolean; lanes: Record<string, string>; providers: string[]; modelIds: string[] };
+  models: { ok: boolean; lanes: Record<string, string>; modelIds: string[] };
   rag: { enabled: boolean | null; documents: number | null; passages: number | null };
   /** GET /system views_cache.views: per view reads and its last upstream error. null when the API does not report it. */
   viewsCache: Record<string, ViewReads> | null;
@@ -105,7 +105,6 @@ export function parseSystem(body: unknown): SystemStatus | null {
     models: {
       ok: models.ok === true,
       lanes,
-      providers: strs(models.llm_providers),
       modelIds: strs(models.latest_model_ids),
     },
     rag: {
@@ -155,14 +154,6 @@ export function modelName(id: string): string {
     .split("-")
     .map((part) => (/^\d+b$/i.test(part) || /^a\d+b$/i.test(part) ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)))
     .join(" ");
-}
-
-/** "Nightshift", or "Nightshift + Anthropic (test)" when the test switch is on. */
-export function providersLabel(providers: string[]): string {
-  const names = (providers.length ? providers : ["nightshift"]).map((p) =>
-    p === "nightshift" ? "Nightshift" : p === "anthropic" ? "Anthropic (test)" : p,
-  );
-  return [...new Set(names)].join(" + ");
 }
 
 /**

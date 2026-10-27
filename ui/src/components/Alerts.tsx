@@ -81,7 +81,7 @@ function AssessButton({
 }
 
 function AlertItem({ row }: { row: AlertRow }) {
-  const { llmProvider, llmProviders, openLiveEvidence } = useConsole();
+  const { openLiveEvidence } = useConsole();
   const s = row.source;
   return (
     <li className={`alert-row alert-row--${row.status.tone}`}>
@@ -108,8 +108,6 @@ function AlertItem({ row }: { row: AlertRow }) {
           key: `alert:${row.id}`,
           question: assessQuestion(row),
           context: assessContext(row),
-          provider: llmProvider,
-          allowedProviders: llmProviders,
         })}
       />
     </li>
@@ -199,7 +197,6 @@ function Rehearsal() {
   useEffect(() => setDayIndex(0), [eventId]);
   const day = days[Math.min(dayIndex, Math.max(days.length - 1, 0))];
   const state = useMemo(() => (day ? rehearsalAt(data.rows, frames, event.thresholdM3s, day.index, data.points) : null), [data, frames, event, day]);
-  const { llmProvider, llmProviders } = desk;
 
   return (
     <section className="card rehearsal" aria-labelledby="rehearsal-title">
@@ -255,8 +252,6 @@ function Rehearsal() {
                     place: state.crossed!.name,
                     replay_date: state.crossed!.iso.slice(0, 10),
                   },
-                  provider: llmProvider,
-                  allowedProviders: llmProviders,
                 })}
               />
             </div>

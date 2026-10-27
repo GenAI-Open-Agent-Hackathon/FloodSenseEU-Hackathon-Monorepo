@@ -17,7 +17,7 @@ const system = parseSystem({
   rate_limit: { runs_per_min_per_client: 6, max_concurrent_runs: 2, in_flight: 0 },
   engines: { configured: true, ok: true },
   world_model: { run_id: "r1", hypotheses: 2, by_status: { supported: 2 } },
-  models: { ok: true, lanes: { fast: "nvidia/x", deep: "nvidia/y" }, llm_providers: ["nightshift"] },
+  models: { ok: true, lanes: { fast: "nvidia/x", deep: "nvidia/y" } },
   rag: { enabled: true, documents: null, passages: null },
 });
 

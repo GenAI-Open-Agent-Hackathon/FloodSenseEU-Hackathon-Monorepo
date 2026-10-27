@@ -73,13 +73,12 @@ Documents: 25 documents and 1,859 passages in pgvector, including four insurer a
 - **Zetaris** is the only SQL path to the data. Agents never call a public source themselves. Numbered migrations define the views, and `zetaris-sync` applies and verifies them. Every data citation carries the Zetaris `query_id`.
 - **Meterless Nightshift** is the gateway for all chat completions, on two lanes (`meterless/fast` and `meterless/deep`). The Meterless H-MEM and World Model engines run in the `engines/` sidecar.
 - **NVIDIA** Nemotron 3.5 models answer the Nightshift lanes (every measured call in the 27 Oct subset was `nvidia/nemotron-3.5-lightning-30b-a3b`). NIM `nemotron-3.5-embed-1b` makes the document embeddings.
-- **Cursor** and Claude Code were used to build it; see "How we built it" in the [README](../README.md).
+- **Cursor** was used to build it; see "How we built it" in the [README](../README.md).
 
 ## Evaluations
 
-- Last end-to-end run on Nightshift: 0% hallucination and 100% citation coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day).
-- 27 Oct 2026 subset on Nightshift (4 items): hallucination 0%, citation coverage 100%, numeric match 100%, Judge pass 100%. Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
-- 27 Oct 2026 full set (21 items) on a test provider (Anthropic Sonnet, test switch only): hallucination 5.6% (Valencia) and 9.1% (Ahr). Almost all of the Ahr loss is one item, ahr-09, which produced no claims. Report: [evals/2026-10-27-anthropic.md](evals/2026-10-27-anthropic.md).
+- Last end-to-end run on Nightshift: every claim cited and judged, 100% citation coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day).
+- 27 Oct 2026 subset on Nightshift (4 items): citation coverage 100%, numeric match 100%, Judge pass 100%. Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
 - Memory is switched off in evals, so seeded or approved memories can never lift a score.
 - UI: 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 

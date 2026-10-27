@@ -42,7 +42,7 @@ function body(over: Record<string, unknown>): RecordedRun {
 const QUICK = body({
   lane: "quick",
   router_reason: "chose quick: live level question about KÖLN",
-  judge_summary: { overall: 1.0, hallucination_rate: 0, passes: true },
+  judge_summary: { overall: 1.0, passes: true },
   claims: [
     { claim_id: "C1", text: "Köln is below MHW", citations: [cite("a", "floodsense.gauge_levels", "q-1"), cite("b", "PEGELONLINE Rhine water levels", null, { publisher: "WSV" })] },
   ],
@@ -59,7 +59,7 @@ const FULL = body({
   status: "awaiting_approval",
   router_reason: "chose full: asks 'insured', which needs the full investigation",
   model_ids: ["nvidia/nemotron-3.5-super-vl-120b-a12b"],
-  judge_summary: { overall: 1.0, hallucination_rate: 0, passes: true },
+  judge_summary: { overall: 1.0, passes: true },
   claims: [
     {
       claim_id: "C1",
@@ -92,7 +92,7 @@ const FULL = body({
 const FORECAST = body({
   lane: "forecast",
   router_reason: "chose forecast: forecast question ('next 48 hours') about KÖLN",
-  judge_summary: { overall: 1.0, hallucination_rate: 0, passes: true },
+  judge_summary: { overall: 1.0, passes: true },
   claims: [
     {
       claim_id: "C1",
@@ -124,7 +124,7 @@ describe("techTrace: quick lane (no model call)", () => {
   const m = buildTechTrace(QUICK);
   it("states the router choice and the judge result", () => {
     expect(m.routerLine).toBe("Router → quick lane (live level question about KÖLN)");
-    expect(m.judgeLine).toBe("Checked 1.00 · hallucination 0%");
+    expect(m.judgeLine).toBe("Checked 1.00");
   });
   it("never claims Nightshift without a model call", () => {
     const n = tile(QUICK, "nightshift");
@@ -236,10 +236,10 @@ describe("techTrace: router-LLM quick run and non-Nemotron models", () => {
     expect(n.details.at(-1)?.label).toBe("Time in model-assisted steps (includes data queries)");
   });
   it("never labels a non-Nemotron model as Nightshift", () => {
-    const test = body({ lane: "full", trace: [step(1, "skeptic", "deep", "anthropic/claude-sonnet-5-5", 3000, "checked")] });
+    const test = body({ lane: "full", trace: [step(1, "skeptic", "deep", "acme/model-x", 3000, "checked")] });
     const n = tile(test, "nightshift");
     expect(n.used).toBe(false);
-    expect(n.headline).toBe("Test provider · claude-sonnet-5-5");
+    expect(n.headline).toBe("Test provider · model-x");
     expect(n.details.some((d) => d.value.includes("not to Nightshift"))).toBe(true);
   });
 });
