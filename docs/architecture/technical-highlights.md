@@ -72,12 +72,12 @@ flowchart LR
 
 - `served_from` is `live`, `cache` or `replay`. `cached_at` keeps the original time. A cached or replayed answer is never shown as live: `api/app/cache.py`, `api/app/main.py` ([ADR 0006](../adr/0006-labelled-cache-and-replay.md)).
 - `{"fresh": true}` skips the cache. Flags `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY`.
-- Redis backend: branch `feat/api-redis-cache`. Status: in integration, not on `main`.
+- Redis backend (merged, PR #56): with `REDIS_URL` set and reachable, cache entries and recordings live in Redis (`cache` compose profile). If Redis is unset, fails or is slow, the API falls back to the local store and retries after `REDIS_RETRY_S`; a Redis problem never fails a request: `api/app/cache.py`.
 
 ## Rate limits
 
 - Per-client token bucket on `POST /runs` and a cap on live runs in flight. Both answer 429 with `Retry-After`. A cache hit does not take a slot. GET routes are not limited: `api/app/ratelimit.py`.
-- TODO: verify that a labelled replay is served before a 429. The module docstring does not say so.
+- When the live-run cap is full and `FF_CACHED_REPLAY` is on, `POST /runs` first looks for a labelled replay of the same question and returns it with 200. Only if there is none does it answer 429. The per-client token bucket is checked first and always answers 429: `start_run` in `api/app/main.py`.
 
 ## Contracts
 
@@ -95,15 +95,14 @@ flowchart LR
 
 ## Test counts
 
-Run on 27 Oct 2026 on branch `docs/submission` at `1e2b960`, Windows, Python 3.12.
+Run on 27 Oct 2026 on branch `docs/submission` after merging `main` at `698776a`, Windows, Python 3.12.
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| agents | `python -I -m unittest discover -s tests` in `agents/` | 269 passed |
-| api | `python -I -m unittest discover -s tests` in `api/` | 84 passed |
-| scripts | `python -I -m unittest discover -s scripts/tests` | 102 passed |
+| agents | `python -I -m unittest discover -s tests` in `agents/` | 309 passed |
+| api | `python -I -m unittest discover -s tests` in `api/` | 140 passed |
+| scripts | `python -I -m unittest discover -s scripts/tests` | 115 passed |
 | contracts | `python -I -m unittest discover -s contracts/tests` | 10 passed |
-| root (`tests/`) | `python -I -m unittest discover -s tests` | 26 passed, 2 errors (see below) |
-| ui | `npx vitest run` in `ui/` | 96 passed (16 files) |
+| ui | `npx vitest run` in `ui/` | 126 passed (19 files) |
 
-The 2 root errors are `test_engines_test_*` in `tests/test_tasks.py`. They fail on this Windows machine with `WinError 193` when the test starts a fake Node script. They are environment errors, not product failures. TODO: confirm they pass on the Linux CI runner.
+CI runs the same suites with `python tasks.py test` on every pull request.

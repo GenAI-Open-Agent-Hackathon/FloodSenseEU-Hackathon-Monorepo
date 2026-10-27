@@ -13,7 +13,7 @@ What it does. Agents read hazard, exposure, gauge, provenance and document metad
 Where in the code:
 
 - Client: `agents/floodsense_agents/zetaris.py`. Views the agents may read: `contracts/views.yaml`.
-- Migrations: `zetaris/migrations/*.sql` (numbered, `001` to `041`). Examples: `010_seed_sources.sql` (FILESTORE CSV tables), `003_create_rest_table_glofas_discharge.sql` (REST table), `034_create_view_hazard_now.sql` (live view), `015_create_view_provenance.sql`.
+- Migrations: `zetaris/migrations/*.sql` (numbered, `001` to `052`). Examples: `010_seed_sources.sql` (FILESTORE CSV tables), `003_create_rest_table_glofas_discharge.sql` (REST table), `034_create_view_hazard_now.sql` (live view), `015_create_view_provenance.sql`.
 - Sync and verify: `scripts/zetaris_sync.py` (applies pending migrations, then runs `DESCRIBE` and a row count for each declared view). `py tasks.py zetaris-sync`.
 - CI dry run: `.github/workflows/ci.yml`, step "Zetaris migrations (dry run)".
 - Document passages: `agents/floodsense_agents/retrieve_docs.py` ranks in Postgres, then reads text and licence through Zetaris ([ADR 0009](adr/0009-vector-search-next-to-zetaris.md)).
@@ -37,6 +37,7 @@ How a judge can see it.
 
 - `GET /runs/{id}` and the SSE trace `GET /runs/{id}/events`: each trace event has `node`, `lane` and `model_id`.
 - The H-MEM recall step appears as a trace event before the Investigator builds its chain (with `FF_HMEM=true` and `ENGINES_URL` set).
+- World Model in the UI: the agent pipeline panel (`ui/src/components/AgentPipeline.tsx`) marks the steps that write to it with a "World Model" badge.
 - World Model board: `GET http://127.0.0.1:8300/wm/board?run_id=<id>`.
 
 ### NVIDIA: Nemotron models and NIM embeddings
@@ -84,8 +85,9 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 - The insurer portfolio is synthetic. It is labelled as synthetic in the data (`zetaris/migrations/018_label_exposure_synthetic.sql`) and in the UI.
 - Discharge comes from Open-Meteo (GloFAS-based model output). It is modelled data, not an official warning.
 - EFAS real-time data is for partner organisations only. We do not use it.
-- The Ahr gauges are not on PEGELONLINE. Our live gauges are the Rhine at Bonn, Köln and Koblenz.
-- A live run takes about 15 minutes on Nightshift today. A test-only provider switch (`LLM_PROVIDER_SWITCH`, `agents/floodsense_agents/nightshift.py`) runs the same graph in about 50 seconds on a faster provider. The demo and the submission do not use that switch.
+- The Ahr gauges are not on PEGELONLINE. They belong to the Rhineland-Palatinate state service, so the Ahr is replay only. Live gauges are WSV stations on PEGELONLINE (`ingestion/feeds/pegel_poll.py`).
+- Ahr 2021 replay data is reanalysis: ERA5 rain (Open-Meteo Historical Weather API) and GloFAS discharge (Open-Meteo Flood API). Both are far below the published figures for this storm (for example about 1000 m3/s reconstructed at Altenahr). We do not quote literature figures as values of these views (`zetaris/migrations/051_seed_discharge_daily_ahr.sql`, `052_seed_hazard_timeline_ahr.sql`).
+- A full live run on Nightshift takes about 225 s (EMSR773 run, down from 864 s after PR #63: fewer retries on gateway 502s, token caps, Skeptic and Judge calls in parallel; see CHANGELOG.md). A test-only provider switch (`LLM_PROVIDER_SWITCH`, `agents/floodsense_agents/nightshift.py`) runs the graph in about 50 seconds on a faster provider. The demo and the submission do not use that switch.
 - The demo uses recorded runs, shown as labelled replays. A replay or cache answer is never shown as live.
 
 ## Evaluation
@@ -114,20 +116,22 @@ py tasks.py down
 
 Compose profiles: `rag` starts pgvector, `cache` starts Redis (`docker compose --profile rag --profile cache up`).
 
-Live gauges and rain (poll every 15 minutes and stage for Zetaris):
+Live PEGELONLINE gauges (fetch, write the CSV, copy it into the Zetaris driver; repeat every 15 minutes):
 
 ```powershell
-python ingestion/feeds/feeds.py pull --stage --interval 900
+py tasks.py pegel-poll --interval 900
 ```
+
+Other feeds (rain, archive pulls): `python ingestion/feeds/feeds.py pull --stage --interval 900`.
 
 Document corpus for layer (c):
 
-```powershell
-py tasks.py fetch-rag-corpus
-python scripts/rag_ingest.py   # needs the rag profile and NVIDIA_NIM_API_KEY
-```
-
-TODO: confirm the exact `rag_ingest.py` arguments before the demo.
+1. `py tasks.py up-all` starts pgvector on `127.0.0.1:15432` (`rag` profile; copy `pgvector/.env` first with `init-env`).
+2. Apply `pgvector/migrations/001_rag_chunks.sql`, then `002_rag_embed_model_nemotron35.sql`, with `psql` (see `pgvector/README.md`).
+3. `py tasks.py fetch-rag-corpus` checks the corpus sha256 and fetches into `corpus/fetched/`.
+4. Set `PGVECTOR_DSN` and `NVIDIA_NIM_API_KEY` in the environment, then run `python scripts/rag_ingest.py`. It takes no arguments and does not print either value.
+5. Register the table in Zetaris: `zetaris/migrations/044_register_pgvector_rag_chunks.sql` (applied by `py tasks.py zetaris-sync`).
+6. Set `FF_RAG_DOCS=true` for the agents.
 
 ## 30-second judge tour
 
@@ -135,6 +139,6 @@ TODO: confirm the exact `rag_ingest.py` arguments before the demo.
 2. Look at the answer: each claim has citations. Each data citation shows a Zetaris `query_id`. The banner says replay or cache when the answer is not live.
 3. Switch to the insurer desk, page Approvals. Approve or edit the proposed action. Nothing goes out without this step.
 4. Open `http://127.0.0.1:18000/runs/<run_id>` to see the trace with `node`, `lane` and `model_id` per step.
-5. Open `http://127.0.0.1:8300/wm/board?run_id=<run_id>` to see the World Model hypothesis board.
+5. In the agent pipeline panel, the World Model badges show which steps wrote hypotheses. The full board is at `http://127.0.0.1:8300/wm/board?run_id=<run_id>`.
 
 TODO: add the hosted demo URL and a recorded run id, if we publish one.
