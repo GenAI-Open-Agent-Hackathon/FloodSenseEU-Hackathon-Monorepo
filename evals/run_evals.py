@@ -46,13 +46,15 @@ def mentions(text: str, token: str) -> bool:
     return re.search(rf"(?<![\w.,]){re.escape(token.lower())}(?![\w])", text.lower()) is not None
 
 
-def run_item(rt: Runtime, spec: dict, item: dict) -> dict:
+def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -> dict:
     t0 = time.time()
     req = RunRequest(
         question=item["question"],
         event_id=spec["event_id"],
         customer_id=spec.get("customer_id", "demo-insurer"),
         replay_ts=item.get("replay_ts"),
+        # None keeps the deployment default (Nightshift); a test provider needs LLM_PROVIDER_SWITCH.
+        **({"llm_provider": provider} if provider else {}),
     )
     s = rt.start(req)
     # An item may declare that the right answer is no answer. Scoring a
@@ -152,7 +154,7 @@ def markdown(results: dict) -> str:
     out = [
         f"# FloodSense evals — {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}",
         "",
-        f"LLM `{results['llm']}` · Zetaris `{results['zetaris']}` · targets: hallucination ≤ 5 %, "
+        f"LLM `{results['llm']}` (provider `{results.get('provider', 'default')}`) · Zetaris `{results['zetaris']}` · targets: hallucination ≤ 5 %, "
         f"coverage 100 %, numeric 100 %",
         "",
     ]
@@ -192,13 +194,24 @@ def main(argv=None) -> int:
     ap.add_argument("--event", choices=list(EVENTS), action="append")
     ap.add_argument("--out", help="markdown report path (a .json twin is written beside it)")
     ap.add_argument("--strict", action="store_true", help="exit 1 when a target is missed")
+    ap.add_argument("--provider", help="llm_provider for every run (default: the deployment default)")
+    ap.add_argument("--items", help="comma-separated item ids to run (default: all)")
     args = ap.parse_args(argv)
     deps = build_deps()
     rt = Runtime(graph=build_graph(deps, MemorySaver(), ff_judge=True), deps=deps)
-    results = {"llm": type(deps.llm).__name__, "zetaris": type(deps.zetaris).__name__, "events": {}}
+    results = {
+        "llm": type(deps.llm).__name__,
+        "provider": args.provider or "default",
+        "zetaris": type(deps.zetaris).__name__,
+        "events": {},
+    }
+    wanted = {i.strip() for i in args.items.split(",")} if args.items else None
     for ev in args.event or list(EVENTS):
         spec = yaml.safe_load((HERE / EVENTS[ev]).read_text(encoding="utf-8"))
-        rows = [run_item(rt, spec, item) for item in spec["items"]]
+        items = [i for i in spec["items"] if wanted is None or i["id"] in wanted]
+        if not items:
+            continue
+        rows = [run_item(rt, spec, item, args.provider) for item in items]
         results["events"][ev] = {"rows": rows, "aggregate": aggregate(rows)}
         a = results["events"][ev]["aggregate"]
         print(
