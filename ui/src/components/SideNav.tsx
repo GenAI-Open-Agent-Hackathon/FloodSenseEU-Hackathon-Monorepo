@@ -1,7 +1,15 @@
 import { DESK_NAV, routeHref } from "../lib/route";
 import { useConsole } from "../context/ConsoleContext";
 
-export function SideNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function SideNav({
+  collapsed,
+  onToggle,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  onNavigate: () => void;
+}) {
   const { route, page } = useConsole();
   const desk = route === "citizen" ? "Citizen" : "Insurer";
   const items = DESK_NAV[route];
@@ -25,7 +33,7 @@ export function SideNav({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             const href = routeHref(route, item.page);
             return (
               <li key={item.page}>
-                <a href={href} aria-current={page === item.page ? "page" : undefined}>
+                <a href={href} aria-current={page === item.page ? "page" : undefined} onClick={onNavigate}>
                   {item.label}
                 </a>
               </li>
