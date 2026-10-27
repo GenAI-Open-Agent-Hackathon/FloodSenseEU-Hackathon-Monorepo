@@ -27,6 +27,9 @@ POST /runs                        start a run; returns when the graph pauses for
                                   200 + served_from cache: a repeat of a finished question (FF_SEMANTIC_CACHE)
                                   200 + served_from replay: the live run failed (FF_CACHED_REPLAY)
                                   {"fresh": true} skips the cache
+POST /runs (small talk)           200 {kind: reply, intent, answer, suggestions, model_id, latency_ms}:
+                                  the agents' front door answered; no run_id, no slot, never cached.
+                                  Counts against the per-client bucket.
 POST /runs?wait=false             202 {run_id, thread_id, status: running} at once; follow /runs/{id}/events.
                                   Same bucket and in-flight cap; the slot is held until the run
                                   leaves `running`. A cache hit or a replay fallback still answers 200.
@@ -391,7 +394,9 @@ async def _start_async(body: Any) -> Response:
     """POST /runs?wait=false. The caller already holds a slot; it moves to a holder task."""
     settings = cache.settings
     try:
-        r = await _agents_request("POST", "/runs", body=body, params={"wait": "false"})
+        r = await _agents_request(
+            "POST", "/runs", body=body, params={"wait": "false", "front_door": "false"}
+        )
     except httpx.HTTPError as e:
         limiter.slots.release()
         if settings.cached_replay and isinstance(body, dict):
@@ -421,6 +426,23 @@ async def _start_async(body: Any) -> Response:
     )
 
 
+async def _front_door(body: Any) -> dict | None:
+    """The agents' front-door reply for this body, or None for the full run.
+
+    Unreachable, slow or odd answers mean None: the run path decides as before.
+    """
+    if not isinstance(body, dict):
+        return None
+    try:
+        r = await _agents_request("POST", "/front-door", body=body, timeout=_lookup_timeout())
+        data = r.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    if r.status_code == 200 and isinstance(data, dict) and data.get("kind") == "reply":
+        return data
+    return None
+
+
 @app.post("/runs", status_code=201)
 async def start_run(request: Request) -> Response:
     refused = _bucket_refusal(request)
@@ -428,6 +450,11 @@ async def start_run(request: Request) -> Response:
         return refused
     body = await request.json()
     fresh = bool(body.pop("fresh", False)) if isinstance(body, dict) else False
+    # Front door: small talk gets a 200 reply. It took a bucket token above,
+    # but takes no slot and is never cached or replayed as a run.
+    reply = await _front_door(body)
+    if reply is not None:
+        return JSONResponse(reply, status_code=200)
     settings = cache.settings
     if settings.semantic_cache and not fresh and isinstance(body, dict):
         hit = await _from_cache(body)
@@ -445,7 +472,7 @@ async def start_run(request: Request) -> Response:
     if _wants_async(request):
         return await _start_async(body)
     try:
-        resp = await _forward("POST", "/runs", body=body)
+        resp = await _forward("POST", "/runs", body=body, params={"front_door": "false"})
     except HTTPException as e:
         if settings.cached_replay and isinstance(body, dict):
             replay = await _replay_for(

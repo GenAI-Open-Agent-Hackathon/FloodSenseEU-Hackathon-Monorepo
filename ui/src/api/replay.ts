@@ -1,4 +1,5 @@
 import { apiBaseUrl, apiTimeoutMs } from "./config";
+import { adoptMemoryUsed, adoptPlaybook, type MemoryUsed, type PlaybookItem } from "../lib/hitl";
 
 /** One citation from a recorded run. Layer (c) carries a document passage. */
 export interface ReplayCitation {
@@ -70,6 +71,9 @@ export interface RecordedRun {
   provider?: string | null;
   /** A declined run's scope.elsewhere: the event that does hold the question, when the gate named one. */
   elsewhere?: string | null;
+  /** H-MEM recall for this run (run level; never linked to a claim). */
+  memoryUsed?: MemoryUsed[];
+  playbook?: PlaybookItem[];
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -179,6 +183,8 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     docQuery: str(rec(run.request)?.doc_query),
     memoryCount: Array.isArray(run.memories) ? run.memories.length : 0,
     provider: str(run.llm_provider) ?? str(run.provider) ?? str(rec(run.request)?.llm_provider),
+    memoryUsed: Array.isArray(run.memory_used) ? adoptMemoryUsed(run.memory_used) : undefined,
+    playbook: adoptPlaybook(run.playbook),
   };
 }
 

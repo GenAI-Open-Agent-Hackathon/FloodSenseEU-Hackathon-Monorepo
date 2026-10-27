@@ -30,6 +30,7 @@ from floodsense_contracts.models import (  # noqa: E402
     MemoryUsed,
     ModelId,
     PlaybookAction,
+    ReplyResponse,
 )
 
 SCHEMA = json.loads((CONTRACTS / "schemas" / "floodsense.schema.json").read_text(encoding="utf-8"))
@@ -47,6 +48,7 @@ MODELS = {
     "approval": Approval,
     "memory_used": MemoryUsed,
     "answer_fields": Answer,
+    "reply_response": ReplyResponse,
 }
 
 EXAMPLES = {
@@ -57,6 +59,7 @@ EXAMPLES = {
     "playbook_action": ("playbook_action.json", PlaybookAction),
     "approval": ("approval.json", Approval),
     "answer": ("answer_live.json", Answer),
+    "reply_response": ("reply.json", ReplyResponse),
 }
 
 
@@ -288,6 +291,19 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(
             Citation.model_validate(section_and_page).locator.page, 1
         )
+
+    def test_run_response_is_answer_or_reply(self) -> None:
+        validator_for("run_response").validate(example("answer_live.json"))
+        validator_for("run_response").validate(example("reply.json"))
+        reply = example("reply.json")
+        for bad in (
+            {**reply, "intent": "flood_question"},  # a flood question is never a reply
+            {**reply, "run_id": "r1"},
+            {**reply, "suggestions": ["a", "b", "c", "d"]},
+        ):
+            assert_invalid(self, "reply_response", bad)
+            with self.assertRaises(PydanticError):
+                ReplyResponse.model_validate(bad)
 
 
 if __name__ == "__main__":

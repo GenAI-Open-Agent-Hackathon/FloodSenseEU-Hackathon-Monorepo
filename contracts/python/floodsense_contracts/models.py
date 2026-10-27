@@ -177,3 +177,21 @@ class Answer(ContractModel):
         elif self.cached_at is None:
             raise ValueError("cached_at is required when served_from is not live")
         return self
+
+
+ReplyIntent = Literal["greeting", "help", "thanks", "off_topic"]
+
+
+class ReplyResponse(ContractModel):
+    """Front-door reply to POST /runs. No run_id; never a flood fact."""
+
+    kind: Literal["reply"]
+    intent: ReplyIntent
+    answer: str = Field(min_length=1)
+    suggestions: list[str] = Field(max_length=3)
+    model_id: str = Field(min_length=1)
+    latency_ms: int = Field(ge=0)
+
+
+# What POST /runs returns.
+RunResponse = Answer | ReplyResponse

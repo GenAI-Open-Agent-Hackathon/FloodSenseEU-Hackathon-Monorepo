@@ -15,6 +15,8 @@ from .models import (
     Locator,
     MemoryUsed,
     PlaybookAction,
+    ReplyResponse,
+    RunResponse,
 )
 
 __all__ = [
@@ -28,4 +30,6 @@ __all__ = [
     "Locator",
     "MemoryUsed",
     "PlaybookAction",
+    "ReplyResponse",
+    "RunResponse",
 ]

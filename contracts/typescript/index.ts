@@ -158,3 +158,20 @@ export interface Answer {
   judge?: Judge;
   memory_used?: MemoryUsed[];
 }
+
+export type ReplyIntent = "greeting" | "help" | "thanks" | "off_topic";
+
+/** Front-door reply to POST /runs: no run_id, never a flood fact, never cached as a run. */
+export interface ReplyResponse {
+  kind: "reply";
+  intent: ReplyIntent;
+  answer: string;
+  /** Up to three example questions. */
+  suggestions: string[];
+  /** The fast-lane model that classified the message, or "rules". */
+  model_id: string;
+  latency_ms: number;
+}
+
+/** What POST /runs returns. */
+export type RunResponse = Answer | ReplyResponse;

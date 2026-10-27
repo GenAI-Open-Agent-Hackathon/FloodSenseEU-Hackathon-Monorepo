@@ -29,7 +29,7 @@ class AsyncRunTest(unittest.TestCase):
         async def fake_request(method, path, body=None, params=None, timeout=None):
             self.calls.append((method, path, params))
             if path == "/runs" and method == "POST":
-                if params == {"wait": "false"}:
+                if params == {"wait": "false", "front_door": "false"}:
                     return httpx.Response(202, json={"run_id": "r1", "status": "running"})
                 return httpx.Response(201, json={"run_id": "r9", "status": "awaiting_approval"})
             if path.startswith("/runs/"):
@@ -61,7 +61,7 @@ class AsyncRunTest(unittest.TestCase):
             r = c.post("/runs?wait=false", json={"question": "q"})
             self.assertEqual(r.status_code, 202)
             self.assertEqual(r.json(), {"run_id": "r1", "status": "running"})
-            self.assertIn(("POST", "/runs", {"wait": "false"}), self.calls)
+            self.assertIn(("POST", "/runs", {"wait": "false", "front_door": "false"}), self.calls)
             # The run is still going: the one slot is taken, a second run is refused.
             self.assertEqual(self.limiter.slots.in_flight, 1)
             busy = c.post("/runs?wait=false", json={"question": "q2"})
