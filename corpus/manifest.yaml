@@ -56,3 +56,36 @@
   event_id: "EMSR773"
   path: "pdf/easyxlab-s19.html"
   placement: "git"
+- doc_id: nhess-23-525-2023
+  title: "A multi-disciplinary analysis of the exceptional flood event of July 2021 in central Europe - Part 1: Event description and analysis"
+  publisher: "Copernicus Publications"
+  url: "https://nhess.copernicus.org/articles/23/525/2023/nhess-23-525-2023.pdf"
+  licence: "CC-BY-4.0"
+  attribution: "Mohr, Ehret, Kunz, Ludwig, and co-authors (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-525-2023"
+  sha256: "96ebce09c40b535445cd93a307b8ee239ea1b51790a931c86caf9928eddd4b56"
+  tier: 2
+  event_id: "EMSR517"
+  path: "pdf/nhess-23-525-2023.pdf"
+  placement: "git"
+- doc_id: nhess-23-973-2023
+  title: "Performance of the flood warning system in Germany in July 2021 - insights from affected residents"
+  publisher: "Copernicus Publications"
+  url: "https://nhess.copernicus.org/articles/23/973/2023/nhess-23-973-2023.pdf"
+  licence: "CC-BY-4.0"
+  attribution: "Thieken, Bubeck, Heidenreich, von Keyserlingk, Dillenardt, and Otto (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-973-2023"
+  sha256: "e5a431845655d21ea746b4f8a75cfce05288c661617cd78dadf175ba4f11db26"
+  tier: 2
+  event_id: "EMSR517"
+  path: "pdf/nhess-23-973-2023.pdf"
+  placement: "git"
+- doc_id: boe-a-2004-18910
+  title: "Real Decreto Legislativo 7/2004, de 29 de octubre, por el que se aprueba el texto refundido del Estatuto Legal del Consorcio de Compensacion de Seguros (original 2004 text, not consolidated)"
+  publisher: "Agencia Estatal Boletin Oficial del Estado"
+  url: "https://www.boe.es/boe/dias/2004/11/05/pdfs/A36653-36661.pdf"
+  licence: "BOE reuse conditions (aviso legal), commercial and non-commercial reuse"
+  attribution: "Fuente de los datos: Agencia Estatal Boletin Oficial del Estado, BOE num. 267, 5 Nov 2004, BOE-A-2004-18910, https://www.boe.es. Original text as published; not the official consolidated version"
+  sha256: "157633b780cbcb84c9933976bf17aa48a20c9d1ce52b7c481cbaad63dd7b9330"
+  tier: 3
+  event_id: null
+  path: "pdf/boe-a-2004-18910-original.pdf"
+  placement: "git"

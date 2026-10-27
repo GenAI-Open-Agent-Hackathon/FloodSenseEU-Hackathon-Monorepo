@@ -15,6 +15,9 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 | 9 | HESS, Rombeek, Hrachowitz, and Uijlenhoet, Hydrol. Earth Syst. Sci., 29, 6715–6733, 2025. PDF in `corpus/pdf/hess-29-6715-2025.pdf` | CC BY 4.0. https://doi.org/10.5194/hess-29-6715-2025 | `Rombeek, Hrachowitz, and Uijlenhoet (2025), CC BY 4.0, https://doi.org/10.5194/hess-29-6715-2025` | None found on the article page | OK to store the full text. Checked 26 Oct 2026 |
 | 10 | NHESS, Ludwig, Mohr, and co-authors, Nat. Hazards Earth Syst. Sci., 23, 1287–1311, 2023. PDF in `corpus/pdf/nhess-23-1287-2023.pdf` | CC BY 4.0. https://doi.org/10.5194/nhess-23-1287-2023 | `Ludwig, Mohr, and co-authors (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-1287-2023` | None found on the article page | OK to store the full text. Checked 26 Oct 2026. Event for the corpus is EMSR517 (July 2021) |
 | 11 | EasyxLab S19, "What the maps did not show". Snapshot `corpus/pdf/easyxlab-s19.html` from https://easybyte.es/lab/studies/s19/paper/ | CC BY 4.0 for EasyxLab's own text and data. Code on that study is Apache-2.0 and is not in the corpus | `EasyxLab (2026), Study S19, CC BY 4.0, https://easybyte.es/lab/studies/s19/paper/` | None found on the paper page | OK to store EasyxLab's text. Checked 26 Oct 2026. The Generalitat Valenciana DANA geometry (CC BY-NC-ND 4.0) is not stored |
+| 12 | NHESS, Mohr and co-authors, Nat. Hazards Earth Syst. Sci., 23, 525-551, 2023 (July 2021 flood, Part 1). PDF in `corpus/pdf/nhess-23-525-2023.pdf` | CC BY 4.0. https://doi.org/10.5194/nhess-23-525-2023 | `Mohr, Ehret, Kunz, Ludwig, and co-authors (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-525-2023` | None found on the article page | OK to store the full text. Checked 27 Oct 2026. Event EMSR517 |
+| 13 | NHESS, Thieken and co-authors, Nat. Hazards Earth Syst. Sci., 23, 973-990, 2023 (flood warning system in Germany, July 2021). PDF in `corpus/pdf/nhess-23-973-2023.pdf` | CC BY 4.0. https://doi.org/10.5194/nhess-23-973-2023 | `Thieken, Bubeck, Heidenreich, von Keyserlingk, Dillenardt, and Otto (2023), CC BY 4.0, https://doi.org/10.5194/nhess-23-973-2023` | None found on the article page | OK to store the full text. Checked 27 Oct 2026. Event EMSR517 |
+| 14 | BOE-A-2004-18910, RDL 7/2004, Estatuto Legal del Consorcio de Compensacion de Seguros, original 2004 text. PDF in `corpus/pdf/boe-a-2004-18910-original.pdf` | BOE reuse conditions (aviso legal): commercial and non-commercial reuse, copy and distribution allowed | `Fuente de los datos: Agencia Estatal Boletin Oficial del Estado` with a link to boe.es | n/a | OK to store the full text. Checked 27 Oct 2026. Tier 3, no event. Not the consolidated text |
 
 ## Notes per source
 
@@ -77,6 +80,29 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 - The page says the Generalitat Valenciana / Institut Cartogràfic Valencià layer "Zona inundada por la DANA del 29 de octubre de 2024" (CC BY-NC-ND 4.0) is used only for counts, and that no geometry or derived geometry is published. We do not add that geometry.
 - Code linked from the page (Apache-2.0, https://github.com/easybytehub/easyxlab) is not part of the corpus.
 - Full text of the snapshot may be stored. Event `EMSR773`.
+
+### 12. NHESS July 2021 flood, Part 1
+- Article: https://nhess.copernicus.org/articles/23/525/2023/
+- PDF: https://nhess.copernicus.org/articles/23/525/2023/nhess-23-525-2023.pdf
+- Licence: the article page states "This work is distributed under the Creative Commons Attribution 4.0 License" (https://creativecommons.org/licenses/by/4.0/).
+- Full text may be stored. The corpus file is the publisher PDF (10 MB). Event `EMSR517`.
+
+### 13. NHESS German flood warning system, July 2021
+- Article: https://nhess.copernicus.org/articles/23/973/2023/ (Thieken et al. 2023). Covers the warning chain (DWD, state flood centres, BBK/NINA and warning apps) as seen by affected residents.
+- PDF: https://nhess.copernicus.org/articles/23/973/2023/nhess-23-973-2023.pdf
+- Licence: CC BY 4.0, stated on the article page (https://creativecommons.org/licenses/by/4.0/).
+- Full text may be stored. The corpus file is the publisher PDF. Event `EMSR517`.
+
+### 14. BOE, Estatuto Legal del Consorcio de Compensacion de Seguros (RDL 7/2004)
+- Record: https://www.boe.es/buscar/doc.php?id=BOE-A-2004-18910
+- PDF (original publication, BOE num. 267, 5 Nov 2004, pp. 36653-36661): https://www.boe.es/boe/dias/2004/11/05/pdfs/A36653-36661.pdf
+- Licence: BOE reuse conditions, https://www.boe.es/informacion/aviso_legal/index.php. Commercial and non-commercial reuse, including copy and distribution, is allowed. Cite `Fuente de los datos: Agencia Estatal Boletin Oficial del Estado` and link boe.es. Do not imply BOE endorsement. Do not distort meaning.
+- The stored file is the 2004 text as published, not the consolidated version. Article 6 lists "inundaciones extraordinarias" as an extraordinary risk. Answers must say the text may since have been amended and is not the official consolidated text.
+- Full text may be stored. Tier 3, `event_id: null` (Spain-wide insurance rule, relevant to EMSR773).
+
+### Rejected for the corpus (26-27 Oct 2026)
+- Umweltbundesamt indicator BAU-R-4 (Elementarschaden insurance density, https://www.umweltbundesamt.de/monitoring-zur-das/handlungsfelder/bauwesen/bau-r-5/indikator): no open licence on the page; the site imprint says "Alle Rechte vorbehalten". Not stored. The manifest has no pointer-only placement, so it is not listed there.
+- BOE consolidated PDF of RDL 7/2004 / BOE-A-2004-18911: 18911 is the motor-insurance RDL 8/2004 (wrong document), and consolidated PDFs change on each amendment, which breaks sha256.
 
 ## Deferred (out of scope for now)
 Bavarian LfU / hnd.bayern.de (CC BY 4.0, `Datenquelle: Bayerisches Landesamt für Umwelt, www.lfu.bayern.de`; site was online on 23 Oct), hochwasserzentralen.de API (CC BY 4.0, `Datenquelle: www.hochwasserzentralen.de`, `Stand: TT.MM.JJJJ hh:mm`), LANUK NRW (Datenlizenz Deutschland Zero 2.0 on the checked discharge series), Rhineland-Palatinate Ahr gauges (terms not found), SAIH Júcar (terms not found). Revisit when the Ahr 2021 eval set needs them.
