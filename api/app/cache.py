@@ -60,6 +60,9 @@ REPLAY_PREFIX = "floodsense:replay:v1:"
 # Written only by `python tasks.py demo-seed` (app/demo_seed.py), so /system can say what was seeded.
 DEMO_PREFIX = "floodsense:demo:v1:"
 DEMO_SEED_KEY = DEMO_PREFIX + "seeded"
+# Layer (c) corpus and retrieval version. Bump it when corpus/manifest.yaml or the
+# retrieve_docs ranking changes, so answers cached before an ingest stop being served.
+CORPUS_VERSION = "rag-2026-10-27"
 REDIS_RETRY_S = 30.0
 REDIS_SOCKET_TIMEOUT_S = 0.5
 
@@ -238,6 +241,7 @@ def key_of(request: dict[str, Any], flags: str) -> tuple:
         _provider_of(request),
         _context_of(request),
         flags,
+        CORPUS_VERSION,
     )
 
 

@@ -16,7 +16,9 @@ sys.path.insert(0, str(HERE / "tests"))
 import httpx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app import cache as cache_mod  # noqa: E402
 from app import demo_seed  # noqa: E402
+from app.cache import fingerprint  # noqa: E402
 from app import main as api  # noqa: E402
 from app.cache import CACHE_PREFIX, DEMO_SEED_KEY, REPLAY_PREFIX, AnswerCache, CacheSettings  # noqa: E402
 from app.metrics import Counters  # noqa: E402
@@ -305,6 +307,18 @@ class DemoSeedTest(unittest.TestCase):
         keys = cache.key_counts()
         self.assertEqual(keys, {"cache": 2, "replay": 2, "demo": 1})
         self.assertEqual(cache.demo_seeded_live(), ["a", "c"])
+        # A fresh API process (same Redis, no in-process entries) finds the warmed
+        # run with the normal lookup, whose key includes CORPUS_VERSION.
+        api_cache = AnswerCache(CacheSettings(semantic_cache=True), redis_client=stub)
+        flags = fingerprint(CONFIG)
+        for rid in ("a", "c"):
+            found = api_cache.lookup(runs[rid]["request"], flags)
+            self.assertIsNotNone(found)
+            self.assertEqual(found.run_id, rid)
+            self.assertEqual(found.ttl_s, cache.settings.recording_ttl_s)
+        self.assertIsNone(api_cache.lookup(runs["b"]["request"], flags))
+        with mock.patch.object(cache_mod, "CORPUS_VERSION", "rag-next"):
+            self.assertIsNone(api_cache.lookup(runs["a"]["request"], flags))
         for entry in marker["entries"]:
             stored = json.loads(stub.get(entry["cache_key"]))
             self.assertEqual(stored["ttl_s"], cache.settings.recording_ttl_s)

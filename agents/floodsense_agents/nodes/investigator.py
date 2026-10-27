@@ -1244,52 +1244,69 @@ def _doc_text(raw: dict, limit: int = 220) -> str:
     return f'{title}{", " + where if where else ""}: "{excerpt.strip()}"'
 
 
-def _attach_documents(claims, raws, request, query):
-    """Append layer (c) citations to the named claim, or to a new fact claim C-doc."""
-    target_id = request.get("doc_claim_id")
-    target = next(
-        (item for item in claims if isinstance(target_id, str) and item.claim_id == target_id),
-        None,
-    )
-    if target is None:
-        # A document-only claim asserts what the top verified passage says, never
-        # the search query. No verifiable passage: no C-doc.
-        top = next((r for r in raws if _verified_raw(r)), None)
-        if top is None:
-            return claims, []
-        target = Claim(claim_id="C-doc", text=_doc_text(top), kind="fact")
-        claims = [*claims, target]
-    start = 1 + sum(1 for item in target.citations if item.layer == "c")
-    rows_for_q: dict[str, list[dict]] = {}
-    for offset, raw in enumerate(raws, start=start):
-        qid = raw.get("query_id") if isinstance(raw.get("query_id"), str) else None
-        chunk_id = raw.get("chunk_id") if isinstance(raw.get("chunk_id"), str) else None
-        target.citations.append(
-            Citation(
-                citation_id=f"{target.claim_id}-c{offset}",
-                claim_id=target.claim_id,
-                layer="c",
-                source_url=_text(raw, "source_url"),
-                title=_text(raw, "title"),
-                publisher=_text(raw, "publisher"),
-                licence=_text(raw, "licence"),
-                attribution=_text(raw, "attribution"),
-                locator=_doc_locator(raw),
-                quote=_text(raw, "quote"),
-                content_sha256=_text(raw, "content_sha256"),
-                storage="full_text",
-                query_id=qid,
-                chunk_id=chunk_id if chunk_id and len(chunk_id) <= 128 else None,
-                accessed_at=now_utc(),
-            )
+def _cite_passage(target, raw: dict, offset: int, rows_for_q: dict[str, list[dict]]) -> None:
+    """One layer (c) citation of `raw` on `target`, plus its evidence row sample."""
+    qid = raw.get("query_id") if isinstance(raw.get("query_id"), str) else None
+    chunk_id = raw.get("chunk_id") if isinstance(raw.get("chunk_id"), str) else None
+    target.citations.append(
+        Citation(
+            citation_id=f"{target.claim_id}-c{offset}",
+            claim_id=target.claim_id,
+            layer="c",
+            source_url=_text(raw, "source_url"),
+            title=_text(raw, "title"),
+            publisher=_text(raw, "publisher"),
+            licence=_text(raw, "licence"),
+            attribution=_text(raw, "attribution"),
+            locator=_doc_locator(raw),
+            quote=_text(raw, "quote"),
+            content_sha256=_text(raw, "content_sha256"),
+            storage="full_text",
+            query_id=qid,
+            chunk_id=chunk_id if chunk_id and len(chunk_id) <= 128 else None,
+            accessed_at=now_utc(),
         )
-        text = raw.get("text")
-        digest = raw.get("text_sha256")
-        if qid and isinstance(text, str) and isinstance(digest, str):
-            sample = {"text": text, "text_sha256": digest}
-            if chunk_id and len(chunk_id) <= 128:
-                sample["chunk_id"] = chunk_id
-            rows_for_q.setdefault(qid, []).append(sample)
+    )
+    text = raw.get("text")
+    digest = raw.get("text_sha256")
+    if qid and isinstance(text, str) and isinstance(digest, str):
+        sample = {"text": text, "text_sha256": digest}
+        if chunk_id and len(chunk_id) <= 128:
+            sample["chunk_id"] = chunk_id
+        rows_for_q.setdefault(qid, []).append(sample)
+
+
+def _attach_documents(claims, raws, request, query):
+    """Append layer (c) citations to the named claim, or to a new fact claim C-doc.
+
+    Event-agnostic passages (`generic`, e.g. EEA or EIOPA) never sit on a claim built
+    from an event passage: each verified one gets its own claim C-doc-g<n>, whose text
+    comes from that same passage. An unverifiable generic passage is dropped.
+    """
+    event_raws = [r for r in raws if not r.get("generic")]
+    generic_raws = [r for r in raws if r.get("generic") and _verified_raw(r)]
+    rows_for_q: dict[str, list[dict]] = {}
+    if event_raws:
+        target_id = request.get("doc_claim_id")
+        target = next(
+            (item for item in claims if isinstance(target_id, str) and item.claim_id == target_id),
+            None,
+        )
+        if target is None:
+            # A document-only claim asserts what the top verified passage says, never
+            # the search query. No verifiable passage: no C-doc.
+            top = next((r for r in event_raws if _verified_raw(r)), None)
+            if top is not None:
+                target = Claim(claim_id="C-doc", text=_doc_text(top), kind="fact")
+                claims = [*claims, target]
+        if target is not None:
+            start = 1 + sum(1 for item in target.citations if item.layer == "c")
+            for offset, raw in enumerate(event_raws, start=start):
+                _cite_passage(target, raw, offset, rows_for_q)
+    for number, raw in enumerate(generic_raws, start=1):
+        own = Claim(claim_id=f"C-doc-g{number}", text=_doc_text(raw), kind="fact")
+        _cite_passage(own, raw, 1, rows_for_q)
+        claims = [*claims, own]
     evidence = [
         Evidence(
             query_id=qid,
@@ -1374,7 +1391,11 @@ def make(deps: Deps):
                     result = deps.retrieve_docs(
                         doc_query,
                         request.get("doc_k", 4),
-                        {"event_id": state.get("event_id")},
+                        {
+                            "event_id": state.get("event_id"),
+                            # an insurer role lets retrieve_docs add generic insurer passages
+                            "role": (request.get("context") or {}).get("role"),
+                        },
                     )
                 except Exception as exc:
                     doc_note += f" retrieve_docs error: {str(exc)[:200]}"

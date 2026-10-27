@@ -42,6 +42,9 @@ from floodsense_agents.state import NoMemory  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 EVENTS = {"EMSR773": "valencia_2024.yaml", "EMSR517": "ahr_2021.yaml"}
+# Extra blocks with their own aggregate, so they do not move the event numbers.
+SETS = {"insurer_docs": "insurer_docs.yaml"}
+BLOCKS = {**EVENTS, **SETS}
 TARGETS = {
     "hallucination_rate": ("<=", 0.05),
     "citation_coverage": (">=", 1.0),
@@ -68,6 +71,10 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
         event_id=spec["event_id"],
         customer_id=spec.get("customer_id", "demo-insurer"),
         replay_ts=item.get("replay_ts"),
+        # layer (c): an item that needs a document names the search text; others leave it unset.
+        **({"doc_query": item["doc_query"]} if item.get("doc_query") else {}),
+        # a block may set the screen context (e.g. role: insurer) for all its items
+        **({"context": spec["context"]} if spec.get("context") else {}),
         # None keeps the deployment default (Nightshift); a test provider needs LLM_PROVIDER_SWITCH.
         **({"llm_provider": provider} if provider else {}),
     )
@@ -93,6 +100,9 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
             "judge_overall": 0.0,
             "n_claims": 0,
             "status": "out_of_scope" if declined else s["status"],
+            "expect_source": item.get("expect_source"),
+            # a refusal cites nothing; with an expected source that is a miss
+            "source_cited": False if item.get("expect_source") else None,
             "expect_hits": "0/0",
             "expect_hit_rate": None,
             "forbid_violations": [
@@ -114,7 +124,12 @@ def run_item(rt: Runtime, spec: dict, item: dict, provider: str | None = None) -
     expect, forbid = item.get("expect", []), item.get("forbid", [])
     hits = [e for e in expect if mentions(text, e)]
     viol = [f for f in forbid if mentions(text, f)]
+    # expect_source: the corpus URL a cited claim should carry (layer (c) items only).
+    source = item.get("expect_source")
+    cited = {c.get("source_url") for cl in s["claims"] for c in (cl.get("citations") or [])}
     return {
+        "expect_source": source,
+        "source_cited": (source in cited) if source else None,
         "id": item["id"],
         "question": item["question"],
         "status": s["status"],
@@ -143,6 +158,7 @@ def aggregate(rows: list[dict]) -> dict:
     answered = [r for r in rows if not r.get("expected_declined")] or rows
     n = len(answered) or 1
     rated = [r["expect_hit_rate"] for r in answered if r["expect_hit_rate"] is not None]
+    sourced = [r for r in rows if r.get("source_cited") is not None]
     rows = answered
     return {
         "items": len(rows),
@@ -158,6 +174,9 @@ def aggregate(rows: list[dict]) -> dict:
         "repair_rounds": sum(r["repair_rounds"] for r in rows),
         "skeptic_rejections": sum(r["skeptic_rejections"] for r in rows),
         "mean_elapsed_s": round(sum(r["elapsed_s"] for r in rows) / n, 2),
+        "source_cited": f"{sum(1 for r in sourced if r['source_cited'])}/{len(sourced)}"
+        if sourced
+        else None,
     }
 
 
@@ -188,25 +207,32 @@ def markdown(results: dict) -> str:
             f"expected tokens {expect} · "
             f"forbidden figures {a['forbid_violations']} · "
             f"repairs {a['repair_rounds']} · skeptic rejections {a['skeptic_rejections']} · "
-            f"{a['mean_elapsed_s']} s/item",
+            f"{a['mean_elapsed_s']} s/item"
+            + (f" · source cited {a['source_cited']}" if a.get("source_cited") else ""),
             "",
             "| id | halluc. | coverage | numeric | claims | repairs | expected | forbidden | "
-            "status |",
-            "|---|---|---|---|---|---|---|---|---|",
+            "source cited | status |",
+            "|---|---|---|---|---|---|---|---|---|---|",
         ]
         for r in block["rows"]:
             out.append(
                 f"| {r['id']} | {r['hallucination_rate']:.0%} | {r['citation_coverage']:.0%} | "
                 f"{r['numeric_accuracy']:.0%} | {r['n_claims']} | {r['repair_rounds']} | "
-                f"{r['expect_hits']} | {', '.join(r['forbid_violations']) or '—'} | {r['status']} |"
+                f"{r['expect_hits']} | {', '.join(r['forbid_violations']) or '—'} | "
+                f"{_cited(r.get('source_cited'))} | {r['status']} |"
             )
         out.append("")
     return "\n".join(out)
 
 
+def _cited(value: bool | None) -> str:
+    return "—" if value is None else ("yes" if value else "no")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--event", choices=list(EVENTS), action="append")
+    ap.add_argument("--set", dest="sets", choices=list(SETS), action="append")
     ap.add_argument("--out", help="markdown report path (a .json twin is written beside it)")
     ap.add_argument("--strict", action="store_true", help="exit 1 when a target is missed")
     ap.add_argument(
@@ -223,6 +249,7 @@ def main(argv=None) -> int:
         "memory": "off (evals never recall H-MEM)",
         "events": {},
     }
+    blocks = [*(args.event or []), *(args.sets or [])] or list(BLOCKS)
     wanted = {i.strip() for i in args.items.split(",")} if args.items else None
     if args.provider:
         # Fail once, before any run, rather than with a traceback at the first item.
@@ -230,15 +257,15 @@ def main(argv=None) -> int:
     if wanted:
         known = {
             item["id"]
-            for ev in args.event or list(EVENTS)
-            for item in yaml.safe_load((HERE / EVENTS[ev]).read_text(encoding="utf-8"))["items"]
+            for ev in blocks
+            for item in yaml.safe_load((HERE / BLOCKS[ev]).read_text(encoding="utf-8"))["items"]
         }
         unknown = sorted(wanted - known)
         if unknown:
             print(f"error: unknown eval item id(s): {', '.join(unknown)}", file=sys.stderr)
             return 2
-    for ev in args.event or list(EVENTS):
-        spec = yaml.safe_load((HERE / EVENTS[ev]).read_text(encoding="utf-8"))
+    for ev in blocks:
+        spec = yaml.safe_load((HERE / BLOCKS[ev]).read_text(encoding="utf-8"))
         items = [i for i in spec["items"] if wanted is None or i["id"] in wanted]
         if not items:
             continue
