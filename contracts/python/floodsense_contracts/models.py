@@ -22,6 +22,9 @@ Storage = Literal["full_text", "pointer"]
 Grounding = Literal["supported", "partial", "unsupported"]
 ServedFrom = Literal["live", "cache", "replay"]
 ApprovalStatus = Literal["pending", "approved", "edited", "rejected"]
+ActionType = Literal[
+    "notify-policyholders", "dispatch-loss-adjuster", "flag-underwriting-review", "inform-public"
+]
 ModelId = Literal[
     "meterless/fast",
     "meterless/deep",
@@ -125,6 +128,13 @@ class PlaybookAction(ContractModel):
     title: str
     detail: str
     citation_ids: list[str] = Field(min_length=1)
+    # Optional approval-card fields (v0.13).
+    action_type: ActionType | None = None
+    target_region: str | None = None
+    affected_site_count: int | None = Field(default=None, ge=0)
+    draft_message: str | None = None
+    outbound: bool | None = None
+    released: bool | None = None
 
 
 class Approval(ContractModel):

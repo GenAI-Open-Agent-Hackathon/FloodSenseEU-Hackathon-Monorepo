@@ -102,7 +102,22 @@ export interface PlaybookAction {
   title: string;
   detail: string;
   citation_ids: string[];
+  /** Optional approval-card fields (v0.13). */
+  action_type?: ActionType | null;
+  target_region?: string | null;
+  /** Distinct exposed sites; null when not knowable. */
+  affected_site_count?: number | null;
+  /** Exact text an outbound action would send, only after approval. */
+  draft_message?: string | null;
+  outbound?: boolean;
+  released?: boolean;
 }
+
+export type ActionType =
+  | "notify-policyholders"
+  | "dispatch-loss-adjuster"
+  | "flag-underwriting-review"
+  | "inform-public";
 
 export interface Approval {
   approval_id: string;

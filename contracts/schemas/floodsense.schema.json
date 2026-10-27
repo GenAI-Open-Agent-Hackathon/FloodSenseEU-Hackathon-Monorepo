@@ -216,7 +216,23 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1, "maxLength": 128 }
-        }
+        },
+        "action_type": {
+          "enum": ["notify-policyholders", "dispatch-loss-adjuster", "flag-underwriting-review", "inform-public", null],
+          "description": "Optional (v0.13). What kind of step this is, for the approval card."
+        },
+        "target_region": { "type": ["string", "null"], "description": "Optional. The event's region." },
+        "affected_site_count": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Optional. Distinct exposed sites from the Exposure query. Null when not knowable."
+        },
+        "draft_message": {
+          "type": ["string", "null"],
+          "description": "Optional. Exact text an outbound action would send. Sent only after approval; states only cited facts."
+        },
+        "outbound": { "type": "boolean", "description": "Optional. Contacts a person or authority: waits for approval." },
+        "released": { "type": "boolean", "description": "Optional. True once a reviewer approved or edited." }
       }
     },
     "approval": {
