@@ -296,7 +296,7 @@ Two routing modes, no `meterless/auto` in the demo. Nightshift model ids are rou
 - Fast: `meterless/fast`
 - Deep: `meterless/deep`
 
-Today Nemotron 3.5 Super VL 120B A12B (`nvidia/nemotron-3.5-super-vl-120b-a12b`) answers both. Nightshift picks the faster lane, and Super VL beats Nemotron 3.5 Lightning 30B A3B on speed (about 0.5 s against 2.6 s) as well as quality; Lightning stays configured as a second lane. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
+The two lanes are routing modes, so Nightshift picks the model. As measured on 27 Oct 2026 (agents logs, bench runs, eval `model_ids`), Nemotron 3.5 Lightning 30B A3B (`nvidia/nemotron-3.5-lightning-30b-a3b`) answers both. NVIDIA deprecated the `nvidia/nemotron-3-super-120b-a12b` endpoint. `python scripts/nightshift_check.py` shows which model answered each tier, and `--probe` shows what every routing id reaches.
 
 Every chat completion goes through one Nightshift client (`METERLESS_BASE_URL`, timeout 180 s) with `Authorization: Bearer`, `meterless-app`, and `meterless-scope: user`. The model id that answered is logged on the trace. Document embeddings are the ADR 0009 exception and are not this client.
 
