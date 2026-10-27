@@ -304,6 +304,35 @@
         { "$ref": "#/$defs/answer_fields" },
         { "$ref": "#/$defs/answer_cache_rule" }
       ]
+    },
+    "reply_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Front-door reply to POST /runs: a greeting, help, thanks or off-topic message answered without a graph run. No run_id, never cached as a run, never carries a flood fact.",
+      "required": ["kind", "intent", "answer", "suggestions", "model_id", "latency_ms"],
+      "properties": {
+        "kind": { "const": "reply" },
+        "intent": { "enum": ["greeting", "help", "thanks", "off_topic"] },
+        "answer": { "type": "string", "minLength": 1 },
+        "suggestions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The fast-lane model that classified the message, or \"rules\"."
+        },
+        "latency_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "run_response": {
+      "description": "What POST /runs returns: a run snapshot (answer) or a front-door reply.",
+      "oneOf": [
+        { "$ref": "#/$defs/answer" },
+        { "$ref": "#/$defs/reply_response" }
+      ]
     }
   }
 }

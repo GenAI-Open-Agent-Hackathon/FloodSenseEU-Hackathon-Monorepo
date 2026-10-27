@@ -753,7 +753,7 @@ class ApiFlowTest(unittest.TestCase):
             self.assertIsNotNone(timeout)
             self.assertEqual(timeout.read, 3.0)
             self.assertNotEqual(timeout.read, 600.0)
-        posts = [timeout for method, path, timeout in self.agents.calls if method == "POST"]
+        posts = [t for method, path, t in self.agents.calls if method == "POST" and path == "/runs"]
         self.assertTrue(posts)
         self.assertTrue(all(timeout is None for timeout in posts))
 
