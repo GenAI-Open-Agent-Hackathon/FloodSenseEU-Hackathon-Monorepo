@@ -326,7 +326,7 @@ Live calls are slow and can fail during the demo. The API grows three behaviours
 
 | Feature | Behaviour | Owner |
 | --- | --- | --- |
-| Semantic cache | A previous successful answer for the same or a very similar query (event, customer, replay time, flags). Only answers that finished and passed the Judge are cached. TTL is shorter for live data than for historical replays. | Ayush |
+| Semantic cache | A previous successful answer for the same or a very similar query (event, customer, replay time, flags). Only answers that finished and passed the Judge are cached. TTL is shorter for live data than for historical replays. In process by default; with `REDIS_URL` set (Redis `cache` profile), entries and replay recordings are also kept in Redis with native TTLs (recordings 30 days), and an unreachable Redis falls back to the in-process store without failing a request. | Ayush |
 | Clear labelling | Every response carries `served_from` of `live`, `cache`, or `replay`, and `cached_at` when it is not live. The UI shows a banner such as `cached at HH:MM` (for example "Cached answer from 14:32 · not live · original run R-123"). | Ayush (API), Zain (UI) |
 | Rate limiting | Per-client HTTP 429 with `Retry-After`, plus a global cap on concurrent Nightshift calls. | Mihir |
 | Past runs | `GET /runs/past` lists earlier runs. Replaying one is labelled replay. | Ayush |
