@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 import time
 
-from floodsense_agents.events import EVENTS, spec
+from floodsense_agents.events import EVENTS, WATCH_EVENT, spec
 from floodsense_agents.governance import CONTRACT_VIEWS
 from floodsense_agents.live import resolve_mode
 from floodsense_agents.state import FloodState, trace
@@ -269,6 +269,13 @@ def make():
         # Event replay or live hazard_now. Decided once, here, so every node
         # and the run body read the same answer.
         mode = resolve_mode(request)
+        # The Europe live watch has no replay window: its views are live only.
+        if state["event_id"] == WATCH_EVENT and mode["mode"] != "live":
+            mode = {
+                "mode": "live",
+                "explicit": mode.get("explicit"),
+                "reason": f"{WATCH_EVENT} reads live views only ({mode['reason']})",
+            }
         note = f"; mode {mode['mode']}: {mode['reason']}"
         if state.get("event_route"):
             note += f"; event {state['event_id']}: {state['event_route']}"

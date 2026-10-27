@@ -159,7 +159,9 @@ class FetchCorpusTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def _write(self, entries: list[dict[str, object]], files: dict[str, bytes] | None = None) -> None:
+    def _write(
+        self, entries: list[dict[str, object]], files: dict[str, bytes] | None = None
+    ) -> None:
         corpus = self.root / "corpus"
         corpus.mkdir()
         (corpus / "manifest.yaml").write_text(_yaml(entries), encoding="utf-8")
@@ -283,7 +285,9 @@ class CommittedCorpusTest(unittest.TestCase):
         with redirect_stdout(out):
             code = rag_corpus.fetch_rag_corpus(ROOT, opener=opener)
         self.assertEqual(code, 0, out.getvalue())
-        manifest = rag_corpus.parse_manifest((ROOT / "corpus" / "manifest.yaml").read_text(encoding="utf-8"))
+        manifest = rag_corpus.parse_manifest(
+            (ROOT / "corpus" / "manifest.yaml").read_text(encoding="utf-8")
+        )
         self.assertEqual(
             [row["doc_id"] for row in manifest],
             [
