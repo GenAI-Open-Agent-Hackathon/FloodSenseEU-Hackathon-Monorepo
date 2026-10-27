@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- UI replay strip follows the event the page shows: with Ahr 2021 selected, Insurer Sites / map and Replay show the Ahr date and point ("14 Jul 2021 · AHR01 Altenahr") instead of Valencia. Simulate playback only steps the Valencia date, so on Ahr pages the strip no longer says Playing/Paused; it labels a running run "Valencia simulation playing" and keeps Stop. Other pages are unchanged.
+
 ### Added
 
 - Submission docs: `docs/SUBMISSION.md` evaluation results (Anthropic test-provider full set of 21 items and a Nightshift / Nemotron Lightning subset), with reports in `docs/evals/`. `docs/architecture/c4.md` and `docs/GAMEPLAN.md` now say Lightning answers both Nightshift lanes, as measured on 27 Oct.

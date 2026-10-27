@@ -106,3 +106,25 @@ export function screenContextFor(
   const point = valencia.points.find((p) => p.point_id === valencia.pointId);
   return { role: route.role, page: route.page, point_id: valencia.pointId, place: point?.name };
 }
+
+/**
+ * Pure: what the replay strip shows. On a page that shows the selected event it follows that event
+ * (Ahr date and point on Ahr). The Simulate playback steps only the Valencia discharge date, so on an
+ * Ahr page the strip does not claim Playing/Paused for Ahr; while the Valencia simulation runs it says so
+ * and keeps Stop. Pages that show no event keep the Valencia date, point and playback state.
+ */
+export function replayBarView(
+  route: DeskRoute,
+  eventId: EventId,
+  valencia: { date: string; pointId: string; points: readonly { point_id: string; name: string }[] },
+  ahrSel: { date: string; pointId: string },
+  playing: boolean,
+): { date: string; place: string; playback: "valencia" | "valencia-elsewhere" | "none" } {
+  const sel = pageShowsEvent(route, eventId)
+    ? activeEventSelection(eventId, valencia, ahrSel)
+    : activeEventSelection("EMSR773", valencia, ahrSel);
+  const place = sel.place ? `${sel.point_id} ${sel.place}` : sel.point_id;
+  const followsAhr = pageShowsEvent(route, eventId) && eventId === "EMSR517";
+  const playback = !followsAhr ? "valencia" : playing ? "valencia-elsewhere" : "none";
+  return { date: sel.replay_date, place, playback };
+}
