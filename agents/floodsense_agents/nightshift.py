@@ -18,6 +18,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar, copy_context
+from json import loads as _loads
 from typing import Callable, Iterable, Protocol, TypeVar
 
 import httpx
@@ -70,6 +71,56 @@ def map_ordered(fn: Callable[[T], R], items: Iterable[T]) -> list[R]:
         return [f.result() for f in futs]
 
 
+def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx.Response:
+    """``httpx.post`` for chat completions, sent as a stream (SSE).
+
+    Returns an ``httpx.Response`` shaped like the non-streamed reply
+    (``choices[0].message.content``, ``finish_reason``, ``model``, ``usage``),
+    so the retry policy in ``_send`` is unchanged. A non-200 comes back as
+    is; a stream that closes with no answer raises ValueError (transient).
+    The gateway's ~45 s 502 cuts non-streamed requests only.
+    """
+    payload = {**json, "stream": True, "stream_options": {"include_usage": True}}
+    req = httpx.Request("POST", url)
+    with httpx.stream("POST", url, json=payload, headers=headers, timeout=timeout) as r:
+        if r.status_code != 200:
+            r.read()
+            return httpx.Response(
+                r.status_code, content=r.content, headers=r.headers, request=req
+            )
+        parts: list[str] = []
+        finish = model = usage = None
+        stray: list[str] = []  # error events or non-SSE lines, for the error message
+        for line in r.iter_lines():
+            if not line.startswith("data:"):
+                if line.strip() and not line.startswith((":", "event:", "id:", "retry:")):
+                    stray.append(line.strip()[:160])
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            chunk = _loads(data)
+            if chunk.get("error"):
+                stray.append(str(chunk["error"])[:160])
+            model = chunk.get("model") or model
+            usage = chunk.get("usage") or usage
+            for ch in chunk.get("choices") or []:
+                piece = (ch.get("delta") or {}).get("content")
+                if piece:
+                    parts.append(piece)
+                finish = ch.get("finish_reason") or finish
+    if not (parts or finish):
+        # The stream closed before any answer (seen at ~45 s on Nightshift).
+        # ValueError: _send's transient-error path decides on a retry.
+        raise ValueError(f"stream ended without an answer: {' | '.join(stray[-2:]) or 'no data'}")
+    out = {
+        "model": model,
+        "usage": usage,
+        "choices": [{"message": {"content": "".join(parts)}, "finish_reason": finish}],
+    }
+    return httpx.Response(200, json=out, request=req)
+
+
 class NightshiftClient:
     def __init__(
         self,
@@ -77,7 +128,7 @@ class NightshiftClient:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.base_url = (settings.meterless_base_url or "").rstrip("/")
-        self._post = post or httpx.post
+        self._post = post or (stream_post if settings.llm_stream else httpx.post)
         self._sleep = sleep
 
     def models(self) -> list[str]:
@@ -161,7 +212,10 @@ class NightshiftClient:
                 last = e
                 attempt += 1
                 took = time.time() - t0
-                if took >= settings.llm_slow_fail_s:
+                # A stream that ended in a provider error (empty_response) is
+                # a failed upstream, not a long generation: one more try.
+                provider_glitch = "provider_error" in str(e) or "empty_response" in str(e)
+                if took >= settings.llm_slow_fail_s and not provider_glitch:
                     # A 502/504 after a long wait is the gateway cutting a long
                     # generation (measured ~45 s each): the same prompt will be
                     # cut again, so the node falls back instead of waiting 3x.

@@ -111,7 +111,7 @@ class LaneChoiceTest(unittest.TestCase):
     def test_investigator_draft_uses_the_fast_lane(self) -> None:
         llm = FakeNightshift({"investigator": _draft})
         out = make_investigator(_deps(llm))(_state())
-        self.assertEqual([lane for lane, _task, _user in llm.calls], ["fast"])
+        self.assertEqual([lane for lane, _task, _user in llm.calls], ["fast"] * 3)
         self.assertEqual(out["trace"][-1]["lane"], "fast")
 
     def test_skeptic_rationale_uses_the_fast_lane(self) -> None:

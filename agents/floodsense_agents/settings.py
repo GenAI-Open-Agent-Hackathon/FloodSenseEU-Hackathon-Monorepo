@@ -51,6 +51,10 @@ class Settings:
     # An error that arrives after this many seconds is not retried either
     # (Nightshift's gateway answers 502 at ~45 s on long generations).
     llm_slow_fail_s: float = float(_env("LLM_SLOW_FAIL_S", "20"))
+    # Stream chat completions (SSE) and assemble the reply. The gateway's
+    # 502 at ~45 s cuts a non-streamed request only: a stream gets its first
+    # bytes at once and runs to the end (measured 74-84 s, no 502).
+    llm_stream: bool = _flag("LLM_STREAM", True)
     # Upper bound on completion tokens per lane. Nemotron on Nightshift counts
     # its hidden reasoning here (2-4k tokens measured), so the cap is a
     # runaway guard, not a length budget. 0 = send no max_tokens.

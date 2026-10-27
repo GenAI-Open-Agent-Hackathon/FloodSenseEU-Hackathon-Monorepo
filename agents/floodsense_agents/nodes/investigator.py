@@ -35,9 +35,9 @@ from floodsense_agents.live import (
     relative,
 )
 from floodsense_agents.models import Citation, Claim, Evidence, Hypothesis, Locator
-from floodsense_agents.nightshift import parse_json
+from floodsense_agents.nightshift import map_ordered, parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
-from floodsense_agents.prompts import INVESTIGATOR, rows_block
+from floodsense_agents.prompts import INVESTIGATOR_LINK, compact_rows
 from floodsense_agents.provenance import rows_for as provenance_rows
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -786,64 +786,140 @@ def _rhine_live(
     return hyps, claims, summary, [count, gauges, readings, *extra], findings
 
 
-LIVE_PROMPT = (
-    "MODE: live. The evidence is {schema}.hazard_now, a rolling window: horizon 'past' rows are "
-    "Open-Meteo / GloFAS model output for the last days (not station readings), horizon "
-    "'forecast' rows are the next ~48 h. NOW is {now}. Phrase every time in absolute UTC and "
-    "relative to NOW (e.g. 'in 17 h', '5 h ago'), say whether each value is past or forecast, "
-    "and do not describe any historical event window as current.\n"
-)
+LINK_ROWS = 8  # evidence rows per table in a per-link prompt
+LINK_CLAIMS = 4  # claims kept from one per-link answer
+
+
+def _link_prompt(
+    state: FloodState, h: Hypothesis, drafts: list[Claim], evs: list[Evidence]
+) -> str:
+    nums = [n for c in drafts for n in c.numbers]
+    return (
+        f"EVENT: {state['event']['name']} ({state['event_id']}); river "
+        f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
+        f"{thread_block(state.get('thread'))}{memory_block(state.get('memories'))}"
+        f"LINK: {h.id} {h.link}\nDRAFT:\n"
+        + "\n".join(f"- {c.text}" for c in drafts)
+        + "\n\nEVIDENCE:\n"
+        + "\n\n".join(compact_rows(e, nums, LINK_ROWS) for e in evs)
+    )
+
+
+def _link_reply(
+    deps: Deps, system: str, prompt: str, link: str
+) -> tuple[str, list[dict], str] | None:
+    """(statement, raw claims, model_id) for one link, or None: that link keeps its draft."""
+    try:
+        text, model_id = deps.llm.complete("fast", system, prompt)
+        js = parse_json(text)
+    except Exception as e:  # one 502 loses this link's wording, not the chain
+        log.warning("investigator: %s model step skipped (%s)", link, str(e)[:140])
+        return None
+    raw = [c for c in js.get("claims") or [] if isinstance(c, dict) and c.get("text")]
+    if not raw:
+        return None
+    statement = js.get("statement")
+    if not statement:  # tolerate the older whole-chain shape
+        statement = next(
+            (h.get("statement") for h in js.get("hypotheses") or [] if isinstance(h, dict)), ""
+        )
+    return str(statement or ""), raw[:LINK_CLAIMS], model_id
 
 
 def _model(
-    state: FloodState, deps: Deps, extra: list[Evidence]
-) -> tuple[list[Hypothesis], list[Claim], str, str] | None:
-    evidence = [Evidence(**e) for e in state["evidence"].values()] + extra
-    live = (
-        LIVE_PROMPT.format(schema=settings.schema, now=now_utc()) if is_live(state) else ""
+    state: FloodState,
+    deps: Deps,
+    hyps: list[Hypothesis],
+    claims: list[Claim],
+    extra: list[Evidence],
+) -> tuple[list[Hypothesis], list[Claim], str, str, int] | None:
+    """Reword the deterministic chain, one model call per link, in parallel.
+
+    Each call sees only that link's draft claims and the evidence they cite
+    (compact, <= LINK_ROWS rows per table) and answers a small JSON object, so
+    it fits the Nightshift gateway's ~45 s. Links merge in chain order and
+    claims are renumbered C1.. in that order. A link whose call fails keeps
+    its deterministic claims. A model claim may cite only its link's
+    queries; one that cites none stays, and the Skeptic rejects its link.
+    Returns None when no link was answered.
+    """
+    evidence = {
+        e.query_id: e for e in [Evidence(**e) for e in state["evidence"].values()] + extra
+    }
+    by_id = {c.claim_id: c for c in claims}
+    jobs = []
+    for h in hyps:
+        drafts = [by_id[i] for i in h.citations if i in by_id]
+        qids = dict.fromkeys(
+            x.query_id
+            for c in drafts
+            for x in c.citations
+            if x.layer == "a" and x.query_id in evidence
+        )
+        jobs.append((h, drafts, [evidence[q] for q in qids]))
+    system = INVESTIGATOR_LINK.replace("{lang}", state["request"].get("lang", "en"))
+    replies = map_ordered(
+        lambda j: _link_reply(deps, system, _link_prompt(state, *j), j[0].link) if j[2] else None,
+        jobs,
     )
-    user = live + (
-        f"EVENT: {state['event']['name']} ({state['event_id']}); river "
-        f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
-        f"ANOMALIES: {state.get('anomalies')}\n{thread_block(state.get('thread'))}"
-        f"{memory_block(state.get('memories'))}"
-        f"\nEVIDENCE:\n{rows_block(evidence)}"
-    )
-    text, model_id = deps.llm.complete(
-        "fast", INVESTIGATOR.replace("{lang}", state["request"].get("lang", "en")), user
-    )
-    js = parse_json(text)
-    if not js.get("claims"):
+    if not any(replies):
         return None
-    known = {e.query_id: e for e in evidence}
     prov = state.get("provenance", [])
-    claims = []
-    for c in js["claims"]:
-        evs = [known[q] for q in c.get("query_ids", []) if q in known]
-        cid = str(c["claim_id"])
-        claims.append(
-            Claim(
-                claim_id=cid,
-                text=str(c["text"]),
-                kind=c.get("kind") if c.get("kind") in ("fact", "number", "cause") else "fact",
-                numbers=[float(x) for x in c.get("numbers", []) if isinstance(x, (int, float))]
-                or numbers_in(str(c["text"])),
-                citations=[x for i, e in enumerate(evs, 1) for x in cite(cid, e, prov, i)],
-                hypothesis_id=c.get("hypothesis_id"),
+    out_h: list[Hypothesis] = []
+    out_c: list[Claim] = []
+    model_id = ""
+    for (h, drafts, evs), reply in zip(jobs, replies):
+        if reply:
+            statement, raw, mid = reply
+            model_id = model_id or mid
+            known = {e.query_id: e for e in evs}
+            items = [
+                (
+                    str(c["text"]),
+                    c.get("kind") if c.get("kind") in ("fact", "number", "cause") else "fact",
+                    [float(x) for x in c.get("numbers") or [] if isinstance(x, (int, float))]
+                    or numbers_in(str(c["text"])),
+                    [known[q] for q in c.get("query_ids") or [] if q in known],
+                )
+                for c in raw
+            ]
+        else:
+            statement = h.statement
+            items = [
+                (
+                    c.text,
+                    c.kind,
+                    c.numbers,
+                    [
+                        evidence[x.query_id]
+                        for x in c.citations
+                        if x.layer == "a" and x.query_id in evidence
+                    ],
+                )
+                for c in drafts
+            ]
+        ids = []
+        for text, kind, numbers, cited in items:
+            cid = f"C{len(out_c) + 1}"
+            out_c.append(
+                Claim(
+                    claim_id=cid,
+                    text=text,
+                    kind=kind,
+                    numbers=numbers,
+                    hypothesis_id=h.id,
+                    citations=[x for i, e in enumerate(cited, 1) for x in cite(cid, e, prov, i)],
+                )
             )
+            ids.append(cid)
+        out_h.append(
+            h.model_copy(update={"statement": statement or h.statement, "citations": ids})
         )
-    ids = {c.claim_id for c in claims}
-    hyps = [
-        Hypothesis(
-            id=str(h["id"]),
-            link=h["link"],
-            statement=str(h["statement"]),
-            citations=[i for i in h.get("claim_ids", []) if i in ids],
-        )
-        for h in js.get("hypotheses", [])
-        if h.get("link") in LINKS
-    ]
-    return hyps, claims, str(js.get("summary", "")), model_id
+    summary = " ".join(
+        f"{h.statement} [{', '.join(h.citations)}]." if h.citations else f"{h.statement}."
+        for h in out_h
+    )
+    return out_h, out_c, summary, model_id, sum(1 for r in replies if r)
 
 
 _DOC_SQL = (
@@ -973,15 +1049,16 @@ def make(deps: Deps):
             hyps, claims, summary, extra = _deterministic(state, deps)
         model_id = "deterministic"
         lane = "sql"
+        link_note = ""
         try:
             # Live: the deterministic hazard_now chain stands. A model-written
             # chain cited the empty threshold queries and lost the "nothing
             # crosses" answer; its numbers and past/forecast labels are not ours.
-            got = None if findings is not None else _model(state, deps, extra)
+            got = None if findings is not None else _model(state, deps, hyps, claims, extra)
             if got:
-                m_hyps, m_claims, m_summary, model_id = got
-                if m_hyps and m_claims:
-                    hyps, claims, summary, lane = m_hyps, m_claims, m_summary or summary, "fast"
+                hyps, claims, summary, model_id, n_model = got
+                lane = "fast"
+                link_note = f"; {n_model}/{len(hyps)} links worded by the model"
         except Exception as e:  # the deterministic chain is complete; the model only refines it
             log.warning("investigator: model step skipped (%s)", str(e)[:140])
         doc_note = ""
@@ -1017,7 +1094,7 @@ def make(deps: Deps):
             "trace": trace(
                 state,
                 "investigator",
-                f"{len(hyps)} hypotheses, {len(claims)} cited claims{doc_note}"
+                f"{len(hyps)} hypotheses, {len(claims)} cited claims{link_note}{doc_note}"
                 + (" (STALE live data)" if (findings or {}).get("stale") else ""),
                 lane=lane,
                 model_id=model_id,

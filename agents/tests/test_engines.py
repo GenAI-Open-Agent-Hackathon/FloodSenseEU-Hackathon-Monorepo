@@ -173,46 +173,18 @@ def start(graph, rid="e1", question="Why are our Valencia sites at risk?"):
 
 
 def planted_investigator(system, user):
-    """One real claim and one planted hypothesis backed by no rows (as in test_graph)."""
-    blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
-    rain = next(q for q, v, n in blocks if v.endswith("hazard_timeline") and int(n) > 0)
-    return json.dumps(
-        {
-            "hypotheses": [
-                {
-                    "id": "H1",
-                    "link": "rain->catchment",
-                    "statement": "Extreme rain",
-                    "claim_ids": ["C1"],
-                },
-                {
-                    "id": "H9",
-                    "link": "river->site",
-                    "statement": "City office flooded",
-                    "claim_ids": ["C2"],
-                },
-            ],
-            "claims": [
-                {
-                    "claim_id": "C1",
-                    "text": "Point chiva recorded a peak hour of 96 mm.",
-                    "kind": "number",
-                    "numbers": [96],
-                    "query_ids": [rain],
-                    "hypothesis_id": "H1",
-                },
-                {
-                    "claim_id": "C2",
-                    "text": "Flood water reached the Valencia city office.",
-                    "kind": "fact",
-                    "numbers": [],
-                    "query_ids": [],
-                    "hypothesis_id": "H9",
-                },
-            ],
-            "summary": "Rain [C1]. City office flooded [C2].",
-        }
-    )
+    """Per-link answers: one real rain claim, and a planted river->site link backed
+    by no rows (as in test_graph)."""
+    link = re.search(r"LINK: (\S+) (\S+)", user).group(2)
+    if link == "rain->catchment":
+        blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
+        rain = next(q for q, v, n in blocks if v.endswith("hazard_timeline") and int(n) > 0)
+        claim = {"text": "Point chiva recorded a peak hour of 96 mm.", "query_ids": [rain]}
+        return json.dumps({"statement": "Extreme rain", "claims": [claim]})
+    if link == "river->site":
+        claim = {"text": "Flood water reached the Valencia city office.", "query_ids": []}
+        return json.dumps({"statement": "City office flooded", "claims": [claim]})
+    return "{}"
 
 
 def nodes(trace: list[dict]) -> list[str]:
@@ -416,7 +388,7 @@ class MemoryTest(FlagCase):
         _, cfg = start(g)
         state = g.get_state(cfg).values
         self.assertGreaterEqual(state["revise_rounds"], 1)
-        self.assertNotIn("H9", {h["id"] for h in state["hypotheses"]})
+        self.assertNotIn("H3", {h["id"] for h in state["hypotheses"]})
         self.assertEqual(fake.paths().count("/hmem/recall"), 1)
         verdicts = {
             h["id"]: h["status"]
@@ -424,7 +396,7 @@ class MemoryTest(FlagCase):
             if w["by"] == "floodsense-skeptic"
             for h in w["hypotheses"]
         }
-        self.assertEqual(verdicts.get("H9"), "not_supported")
+        self.assertEqual(verdicts.get("H3"), "not_supported")
 
     def test_memory_down_keeps_the_run_and_the_approval(self) -> None:
         d, _ = engines_deps(refuse)
