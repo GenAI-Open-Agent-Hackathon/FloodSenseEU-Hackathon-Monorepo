@@ -124,11 +124,29 @@ export function buildQueue(past: readonly QueueRow[], handoffRunId: string | nul
  * Pure: which run the right pane shows. The current pick while it is still awaiting; else the handoff run;
  * else the newest awaiting run; else null (the right pane shows the packed example, labelled as such).
  */
-export function pickSelection(queue: readonly QueueRow[], current: string | null, handoff: string | null): string | null {
+export function pickSelection(
+  queue: readonly QueueRow[],
+  current: string | null,
+  handoff: string | null,
+  quality: Readonly<Record<string, RunQuality>> = {},
+): string | null {
   const awaiting = queue.filter((r) => r.state === "awaiting");
   if (current && awaiting.some((r) => r.runId === current)) return current;
   if (handoff && awaiting.some((r) => r.runId === handoff)) return handoff;
-  return awaiting[0]?.runId ?? null;
+  // Default: the newest run with something to send, a Judge pass and fresh data; else the newest. (The queue is newest first.)
+  const good = awaiting.find((r) => {
+    const q = quality[r.runId];
+    return !!q && q.outbound > 0 && q.passes === true && q.stale !== true;
+  });
+  return good?.runId ?? awaiting[0]?.runId ?? null;
+}
+
+/** What the run's approval body says about it; filled in per run by the page. `passes` is the Judge verdict, `stale` the run's own STALE note. */
+export interface RunQuality {
+  outbound: number;
+  total: number;
+  passes?: boolean | null;
+  stale?: boolean;
 }
 
 /** "27 Oct 2026, 11:42 UTC", or null. */
@@ -254,7 +272,7 @@ export interface CurateInput {
   hidden: ReadonlySet<string>;
   showHidden: boolean;
   /** Actions per run, from GET /runs/{id}/approval. Absent: not looked up yet. */
-  actionCounts: Readonly<Record<string, { outbound: number; total: number }>>;
+  actionCounts: Readonly<Record<string, RunQuality>>;
 }
 
 export interface CuratedQueue {
@@ -338,11 +356,24 @@ export function writeHidden(storage: Pick<Storage, "setItem"> | null, ids: Reado
   }
 }
 
-/** Pure: the newest finished full-lane run for the mode's event (Live: live-data runs), from the /runs/past rows. */
-export function newestCompletedFullRun(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow | null {
+/** Pure: finished full-lane runs for the mode's event (Live: live-data runs), newest first, from the /runs/past rows. */
+export function completedFullRuns(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow[] {
   const done = rows.filter((r) => {
     if (r.lane !== "full" || isSmallTalk(r.question) || r.state === "running" || r.status === "out_of_scope" || r.status === "running") return false;
     return mode === "live" ? r.mode === "live" || r.eventId === "LIVE-EU" : r.eventId === eventId && r.mode !== "live";
   });
-  return [...done].sort((a, b) => t(b.createdAt) - t(a.createdAt))[0] ?? null;
+  return [...done].sort((a, b) => t(b.createdAt) - t(a.createdAt));
+}
+
+/** Pure: the newest finished full-lane run for the mode's event (Live: live-data runs), from the /runs/past rows. */
+export function newestCompletedFullRun(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow | null {
+  return completedFullRuns(rows, mode, eventId)[0] ?? null;
+}
+
+/**
+ * Pure: which of the candidate runs (newest first) Review shows: the newest that passed the Judge, else the newest.
+ * `passes` is the Judge verdict of each loaded run (undefined: not looked at).
+ */
+export function preferJudgePass<T extends { runId: string }>(candidates: readonly T[], passes: Readonly<Record<string, boolean | null | undefined>>): T | null {
+  return candidates.find((c) => passes[c.runId] === true) ?? candidates[0] ?? null;
 }

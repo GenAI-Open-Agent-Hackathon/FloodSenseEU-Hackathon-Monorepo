@@ -244,7 +244,9 @@ export function capsText(a: WatchStatus["auto_assess"] | null): string {
 /** Why the page cannot show a live feed: loop off, not yet scanned, or running the first scan. */
 export type LoopState = "down" | "loading" | "off" | "first" | "running";
 
-export function loopState(opts: { reachable: boolean | null; status: WatchStatus | null }): LoopState {
+export function loopState(opts: { reachable: boolean | null; status: WatchStatus | null; demo?: boolean }): LoopState {
+  // Demo data: the recorded feed is the page, so an unreachable live service is never the main state.
+  if (opts.demo) return opts.status?.last_cycle ? "running" : "loading";
   if (opts.reachable === false) return "down";
   if (!opts.status) return "loading";
   if (opts.status.last_cycle) return "running";
@@ -258,6 +260,9 @@ export function appMode(search: string, hash: string): "demo" | "live" {
   const hashQuery = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
   return q(search) === "demo" || q(hashQuery) === "demo" ? "demo" : "live";
 }
+
+/** Demo mode: a small hint (never the main message) when the live agents service does not answer either. */
+export const DEMO_LIVE_DOWN_HINT = "The live agents service is not reachable right now; the recorded feed below does not need it.";
 
 export function unreachableText(mode: "demo" | "live"): string {
   return mode === "demo"

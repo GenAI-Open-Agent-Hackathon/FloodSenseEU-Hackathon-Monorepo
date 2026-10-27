@@ -27,6 +27,15 @@ export interface SystemStatus {
   world: { runId: string | null; hypotheses: number; byStatus: Record<string, number> };
   models: { ok: boolean; lanes: Record<string, string>; providers: string[]; modelIds: string[] };
   rag: { enabled: boolean | null; documents: number | null; passages: number | null };
+  /** GET /system views_cache.views: per view reads and its last upstream error. null when the API does not report it. */
+  viewsCache: Record<string, ViewReads> | null;
+}
+
+export interface ViewReads {
+  hits: number;
+  misses: number;
+  staleServes: number;
+  lastError: { at: string; detail: string } | null;
 }
 
 type Obj = Record<string, unknown>;
@@ -47,6 +56,7 @@ export function parseSystem(body: unknown): SystemStatus | null {
   const wm = obj(b.world_model);
   const models = obj(b.models);
   const rag = obj(b.rag);
+  const viewStats = b.views_cache === undefined ? null : obj(obj(b.views_cache).views);
   const latest = (Array.isArray(mem.latest) ? mem.latest : []).map(obj).map((m) => ({
     id: str(m.id) ?? "",
     runId: str(m.run_id),
@@ -101,6 +111,23 @@ export function parseSystem(body: unknown): SystemStatus | null {
       documents: num(rag.documents),
       passages: num(rag.passages),
     },
+    viewsCache: viewStats
+      ? Object.fromEntries(
+          Object.entries(viewStats).map(([name, raw]) => {
+            const v = obj(raw);
+            const e = obj(v.last_upstream_error);
+            return [
+              name,
+              {
+                hits: num(v.hits) ?? 0,
+                misses: num(v.misses) ?? 0,
+                staleServes: num(v.stale_serves) ?? 0,
+                lastError: str(e.at) ? { at: str(e.at) as string, detail: str(e.detail) ?? "" } : null,
+              },
+            ];
+          }),
+        )
+      : null,
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptPastRuns, approvalHeader, buildQueue, curateQueue, earlierText, isSmallTalk, pickSelection, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
+import { adoptPastRuns, approvalHeader, buildQueue, completedFullRuns, curateQueue, earlierText, isSmallTalk, pickSelection, preferJudgePass, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
 
 const PAST = {
   runs: [
@@ -50,6 +50,19 @@ describe("approval queue layout", () => {
     expect(pickSelection(queue, "busy", null)).toBe("new");
     expect(pickSelection(queue, "gone", "gone")).toBe("new");
     expect(pickSelection([], null, null)).toBeNull();
+  });
+
+  it("by default prefers the newest run with outbound actions, a Judge pass and fresh data; else the newest", () => {
+    const queue = buildQueue(adoptPastRuns(PAST), null);
+    // "new" is the newest; make it weak (stale, no pass) so the older, good run wins.
+    const q = {
+      new: { outbound: 2, total: 2, passes: false, stale: true },
+      old: { outbound: 1, total: 1, passes: true, stale: false },
+    };
+    expect(pickSelection(queue, null, null, q)).toBe("old");
+    expect(pickSelection(queue, "new", null, q)).toBe("new"); // manual pick kept
+    expect(pickSelection(queue, null, null, { new: { outbound: 0, total: 1, passes: true }, old: { outbound: 1, total: 1, passes: true, stale: true } })).toBe("new");
+    expect(pickSelection(queue, null, null, {})).toBe("new");
   });
 
   it("writes the row line from the run's own state and time", () => {
@@ -187,5 +200,25 @@ describe("curateQueue", () => {
     writeHidden(storage, new Set(["a", "b"]));
     expect([...readHidden(storage)].sort()).toEqual(["a", "b"]);
     expect(readHidden(null).size).toBe(0);
+  });
+});
+
+describe("Review run choice", () => {
+  const rows = adoptPastRuns({
+    runs: [
+      { run_id: "a", status: "approved", lane: "full", mode: "live", question: "q1", created_at: "2026-10-27T10:00:00Z" },
+      { run_id: "b", status: "awaiting_approval", lane: "full", mode: "live", question: "q2", created_at: "2026-10-27T09:00:00Z" },
+      { run_id: "c", status: "awaiting_approval", lane: "quick", mode: "live", question: "q3", created_at: "2026-10-27T11:00:00Z" },
+    ],
+  });
+  it("lists finished full-lane runs newest first", () => {
+    expect(completedFullRuns(rows, "live", "LIVE-EU").map((r) => r.runId)).toEqual(["a", "b"]);
+  });
+  it("prefers the newest run that passed the Judge, else the newest", () => {
+    const c = completedFullRuns(rows, "live", "LIVE-EU");
+    expect(preferJudgePass(c, { a: false, b: true })?.runId).toBe("b");
+    expect(preferJudgePass(c, { a: true, b: true })?.runId).toBe("a");
+    expect(preferJudgePass(c, { a: false, b: false })?.runId).toBe("a");
+    expect(preferJudgePass([], {})).toBeNull();
   });
 });

@@ -75,6 +75,13 @@ export function shortDate(iso: string | null): string {
   return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+export const DEATH_TOLL_NOTE = "[source text, verify before quoting]";
+
+/** Pure: the note shown beside a seeded memory whose text states a death toll ("died", "deaths", "killed"); null otherwise. */
+export function seededMemoryNote(m: { text: string; seeded?: boolean }): string | null {
+  return m.seeded && /\b(died|deaths?|killed)\b/i.test(m.text) ? DEATH_TOLL_NOTE : null;
+}
+
 export const NO_MEMORIES = "No approved memories matched — this run starts fresh.";
 
 export function memoryLine(m: MemoryUsed): string {

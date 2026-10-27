@@ -22,7 +22,7 @@ import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRu
 import { turnBadge } from "../lib/turnBadge";
 import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
 import { evidenceForMemories } from "../lib/liveEvidence";
-import { memoryLine, NO_MEMORIES, SEEDED_MEMORY_CHIP, type MemoryUsed } from "../lib/hitl";
+import { memoryLine, NO_MEMORIES, SEEDED_MEMORY_CHIP, seededMemoryNote, type MemoryUsed } from "../lib/hitl";
 import { setAwaitingRunId } from "../lib/lastRun";
 import { friendlyError, statusFromMessage } from "../lib/friendlyError";
 import "../styles/hitl.css";
@@ -673,6 +673,7 @@ export function MemoriesPanel({ memories, run }: { memories: MemoryUsed[]; run?:
                 <span className="src-chip src-chip-memory">H-MEM</span>
               )}{" "}
               {memoryLine(m)}
+              {seededMemoryNote(m) && <span className="note"> {seededMemoryNote(m)}</span>}
             </li>
           ))}
         </ul>

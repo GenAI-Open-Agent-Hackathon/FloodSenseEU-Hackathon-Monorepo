@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- UI final polish. Control tower in Demo data mode renders the recorded feed, tiles and map with the labelled note and no alert (a small hint only if the live agents service is also down). Approvals defaults to the newest run with outbound actions, a Judge pass and no STALE note, else the newest; manual selection kept. Review prefers the newest completed full-lane run that passed the Judge (looks at the latest six), else the newest; the recorded example stays a labelled fallback. How it works: the Zetaris dot comes from the views cache stats in `/system` and the gauge read (running, amber partly unavailable, not reachable; a 429 reads "feed rate-limited by Open-Meteo" and is never red). Seeded memories that state a death toll show the demo seed label and "[source text, verify before quoting]" (stored text unchanged).
+
 ### Added
 
 - Server-side views cache for `GET /views/{name}` (`api/app/views_cache.py`): TTL 600 s for the live REST views and 120 s for `gauge_levels`, single flight, stale-if-error up to 24 h (`x-views-cache: miss|hit|stale`, `x-views-age-s`, original `x-query-id`/`x-executed-at` kept), Redis persistence with memory fallback, startup warm-up in the background, and `views_cache` stats in `GET /system`. Stops the 429s from Open-Meteo that made `eu_watch`/`hazard_now` return 502. The UI says "Last good reading from HH:MM UTC (live source temporarily unavailable)" and "view eu_watch is N min old" for a stale view.
