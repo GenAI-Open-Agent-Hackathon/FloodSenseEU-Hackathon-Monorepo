@@ -5,6 +5,12 @@ import { SafeLink } from "./SafeLink";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
 import "../styles/calm.css";
 
+/** The context sentence without its "For context, from the past:" lead-in (the card title says it). */
+function contextBody(text: string): string {
+  const body = text.replace(/^For context,?\s*(from the past:?)?\s*/i, "");
+  return body.charAt(0).toUpperCase() + body.slice(1);
+}
+
 /** Put the cursor back in the question box of the Ask panel. */
 function askAnother() {
   document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your question"]')?.focus();
@@ -53,8 +59,8 @@ export function CalmAnswer({ run, plain }: { run: RecordedRun; plain: PlainAnswe
       )}
       {plain.context && (
         <aside className="calm-context" aria-label="For context">
-          <p className="calm-context-title">For context</p>
-          <p>{plain.context.replace(/^For context,?\s*/i, "")}</p>
+          <p className="calm-context-title">For context · from the past</p>
+          <p>{contextBody(plain.context)}</p>
         </aside>
       )}
       <div className="calm-next">

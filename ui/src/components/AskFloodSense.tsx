@@ -551,7 +551,7 @@ function RecordedAnswer({
   return (
     <>
       <p className={`ask-badge ask-badge-${kind}`}>{badge}</p>
-      {modeLabel(run) && <p className="note ask-mode">{modeLabel(run)}</p>}
+      {modeLabel(run) && !calm && <p className="note ask-mode">{modeLabel(run)}</p>}
       {run.servedFrom !== "live" && run.label !== badge && <p className="note">{run.label}</p>}
       {run.status === "awaiting_approval" && (
         <p className="note ask-approval">
