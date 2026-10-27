@@ -1,5 +1,6 @@
 import { apiBaseUrl, apiTimeoutMs } from "./config";
 import { adoptMemoryUsed, adoptPlaybook, type MemoryUsed, type PlaybookItem } from "../lib/hitl";
+import { adoptPlain, type PlainAnswer } from "../lib/calmAnswer";
 
 /** One citation from a recorded run. Layer (c) carries a document passage. */
 export interface ReplayCitation {
@@ -82,6 +83,8 @@ export interface RecordedRun {
   /** H-MEM recall for this run (run level; never linked to a claim). */
   memoryUsed?: MemoryUsed[];
   playbook?: PlaybookItem[];
+  /** Quick and forecast lanes: the calm, plain-language answer (see lib/calmAnswer.ts). Absent on other runs. */
+  plain?: PlainAnswer | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -198,6 +201,7 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     provider: str(run.llm_provider) ?? str(run.provider) ?? str(rec(run.request)?.llm_provider),
     memoryUsed: Array.isArray(run.memory_used) ? adoptMemoryUsed(run.memory_used) : undefined,
     playbook: adoptPlaybook(run.playbook),
+    plain: adoptPlain(run.plain),
   };
 }
 

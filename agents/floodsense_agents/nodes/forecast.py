@@ -41,6 +41,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
+from floodsense_agents import plain as plain_mod
 from floodsense_agents.engines import memory_origin, short
 from floodsense_agents.events import EVENTS, POINT_NAMES
 from floodsense_agents.governance import DEFINITIONS
@@ -468,7 +469,17 @@ def make_history(deps: Deps):
                 source="engines",
             )
             extra.append(ev)
-            found["memories"].append({"point_id": p[0], "query_id": ev.query_id})
+            raw = next(
+                (
+                    m
+                    for m in mems or []
+                    if isinstance(m, dict)
+                    and m.get("memory_id") == rows[0]["memory_id"]
+                    and m.get("run_id") == rows[0]["run_id"]
+                ),
+                None,
+            )
+            found["memories"].append({"point_id": p[0], "query_id": ev.query_id, "memory": raw})
             seeded = " (demo seed)" if rows[0]["seeded"] else ""
             notes.append(f"{p[0]} H-MEM: 1 approved memory{seeded}")
         lf = dict(state.get("live_findings") or {})
@@ -623,6 +634,53 @@ def _rain_status(r48: float, hour: float | None) -> str:
     return NORMAL
 
 
+_PLAIN_STATUS = {NORMAL: plain_mod.NORMAL, WATCH: plain_mod.WATCH, WARNING: plain_mod.ELEVATED}
+
+
+def _plain_check(p: ForecastPoint, asked_h: str) -> plain_mod.Check:
+    """What plain.py needs to know about one asked place."""
+    week = asked_h == plain_mod.D7
+    needs = {
+        "gauge": ("rain", "level"),
+        "eu": ("river",) if week else ("rain", "river"),
+        "valencia": ("rain", "river"),
+    }[p[1]]
+    name = plain_mod.nice_name(label(p))
+    c = plain_mod.Check(
+        name=name,
+        river=plain_mod.nice_river(p[4]) if p[1] != "valencia" else None,
+        country=country(p) or None,
+        kind="gauge" if p[1] == "gauge" else "model",
+        needs=needs,
+        covers_week=p[1] == "eu",
+    )
+    if p[1] == "gauge":
+        c.week_note = (
+            f"We only have a two-day outlook for {c.where}: FloodSense holds no river "
+            f"forecast for a full week there."
+        )
+    return c
+
+
+def _level_signal(check: plain_mod.Check, row: dict, st: str) -> None:
+    """The gauge's level as a plain signal: unknown without a threshold, none when stale."""
+    age = hours_between(now_utc(), str(row.get("ts_utc") or ""))
+    if age is not None and age > GAUGE_STALE_H:
+        check.stale = True
+        return
+    th = gauge_threshold(row)
+    trend = quick._num(row.get("trend_cm_h"))
+    word = None if trend is None else "rising" if trend > 0 else "falling" if trend < 0 else "steady"
+    check.signals.append(
+        plain_mod.Signal(
+            "level",
+            _PLAIN_STATUS[st] if th else plain_mod.UNKNOWN,
+            above_mhw=st == WARNING and th is not None,
+            trend=word,
+        )
+    )
+
+
 def make_forecast_answer(deps: Deps):
     def forecast_answer(state: FloodState) -> dict:
         t = time.time()
@@ -635,6 +693,11 @@ def make_forecast_answer(deps: Deps):
         extra: list[Evidence] = []
         statuses: list[tuple[str, str, str]] = []  # (status, place, reason)
         gaps: list[str] = []
+        # plain.py: what each asked place computed, the history to frame, the memories cited
+        asked_h = plain_mod.horizon_of((state.get("request") or {}).get("question"))
+        checks: dict[str, plain_mod.Check] = {}
+        history_ctx: dict[str, str] = {}
+        cited_memories: list[dict] = []
 
         def add(text: str, nums: list[float], evs: list[Evidence], data: bool = True) -> Claim:
             cid = f"F{len(claims) + 1}"
@@ -657,6 +720,7 @@ def make_forecast_answer(deps: Deps):
             p = FORECAST_BY_ID.get(place["id"])
             if p is None:
                 continue
+            check = checks.setdefault(p[0], _plain_check(p, asked_h))
             rain48, hour = None, None
             wev = evidence.get(place.get("weather") or "")
             if wev is not None:
@@ -673,6 +737,9 @@ def make_forecast_answer(deps: Deps):
                     (text, nums), st = got
                     add(text, nums, [rev])
                     statuses.append((st, label(p), "river forecast"))
+                    check.signals.append(
+                        plain_mod.Signal("river", _PLAIN_STATUS[st], valencia=p[1] == "valencia")
+                    )
             elif p[1] == "gauge":
                 gaps.append(
                     f"FloodSense holds no river discharge forecast for the {p[2]} gauge; the answer "
@@ -685,6 +752,7 @@ def make_forecast_answer(deps: Deps):
                     (text, nums), st = got
                     add(text, nums, [lev])
                     statuses.append((st, label(p), "current level"))
+                    _level_signal(check, row, st)
             ev_id = pattern_event(p)
             pat = (
                 next(
@@ -712,8 +780,16 @@ def make_forecast_answer(deps: Deps):
                 built = pattern_claim(p, ev_id, srow, rain48) if srow else None
                 if built:
                     add(built[0], built[1], [sev, wev])
+                    history_ctx["pattern"] = plain_mod.pattern_context(
+                        PATTERNS[ev_id]["label"],
+                        PATTERNS[ev_id]["days"],
+                        quick._fmt(quick._num(srow.get("rain_48h_mm")) or 0.0),
+                        POINT_NAMES.get(pat["point"], pat["point"]),
+                    )
             if rain48 is not None:
-                statuses.append((_rain_status(rain48, hour), label(p), "rain forecast"))
+                st = _rain_status(rain48, hour)
+                statuses.append((st, label(p), "rain forecast"))
+                check.signals.append(plain_mod.Signal("rain", _PLAIN_STATUS[st]))
             for mem in hist.get("memories") or []:
                 if mem["point_id"] != p[0]:
                     continue
@@ -731,12 +807,23 @@ def make_forecast_answer(deps: Deps):
                     [mev],
                     data=False,
                 )
+                # The memory this claim cites is one this run used: the Memories panel lists it.
+                raw_mem = mem.get("memory") if isinstance(mem.get("memory"), dict) else None
+                if raw_mem is not None:
+                    cited_memories.append(raw_mem)
+                # A memory that quotes a document is a past event; a bare earlier reading ranks last.
+                history_ctx.setdefault(
+                    "docmemory" if "[doc" in str(m.get("content") or "") else "memory",
+                    plain_mod.memory_context(raw_mem or {"content": m.get("content")}, bool(m.get("seeded")))
+                    or "",
+                )
         for passage in hist.get("passages") or []:
             raw = passage["raw"]
             c = Claim(claim_id=f"F{len(claims) + 1}", text=_doc_text(raw), kind="fact")
             rows_for_q: dict[str, list[dict]] = {}
             _cite_passage(c, raw, 1, rows_for_q)
             claims.append(c)
+            history_ctx.setdefault("passage", plain_mod.passage_context(raw) or "")
             for qid, rows in rows_for_q.items():
                 extra.append(
                     Evidence(
@@ -791,7 +878,26 @@ def make_forecast_answer(deps: Deps):
         parts += [c.text for c in claims]
         parts += [g[0].upper() + g[1:] + "." for g in gaps]
         parts.append(disclaimer)
+        try:
+            calm: dict | None = plain_mod.build_plain(
+                list(checks.values()),
+                asked=asked_h,
+                claims=[c.model_dump() for c in claims],
+                context=next(
+                    (
+                        history_ctx[k]
+                        for k in ("docmemory", "pattern", "passage", "memory")
+                        if history_ctx.get(k)
+                    ),
+                    None,
+                ),
+            )
+        except Exception:  # noqa: BLE001 - the plain object is an addition; the claims still answer
+            log.exception("forecast: plain answer failed")
+            calm = None
         return {
+            **({"plain": calm} if calm else {}),
+            "memories": cited_memories,
             "claims": [c.model_dump() for c in claims],
             "evidence": add_evidence(state, *extra) if extra else state.get("evidence") or {},
             "summary": " ".join(parts),

@@ -172,6 +172,23 @@ class Forecast(ContractModel):
     attribution: str | None = None
 
 
+class Plain(ContractModel):
+    """Quick and forecast lanes: the calm, plain-language answer. Fixed rules, no model."""
+
+    headline: str = Field(min_length=1)
+    one_line: str = Field(min_length=1)
+    horizon: Literal["48h", "7d"]
+    status: Literal["normal", "watch", "elevated", "unknown"]
+    basis: Literal["gauge", "model"] | None = None
+    places: list[str] = Field(default_factory=list)
+    country: str | None = None
+    service: str | None = None
+    context: str | None = None
+    next_step: str = Field(min_length=1)
+    disclaimer: str = Field(min_length=1)
+    details: list[str]
+
+
 class Answer(ContractModel):
     run_id: str
     question: str
@@ -185,6 +202,7 @@ class Answer(ContractModel):
     lane: Lane | None = None
     router_reason: str | None = None
     forecast: Forecast | None = None
+    plain: Plain | None = None
     memory_used: list[MemoryUsed] = Field(default_factory=list)
 
     @model_validator(mode="after")

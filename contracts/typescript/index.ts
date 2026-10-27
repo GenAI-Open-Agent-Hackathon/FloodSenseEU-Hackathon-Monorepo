@@ -26,6 +26,26 @@ export interface Forecast {
   disclaimer: string;
   attribution?: string;
 }
+/** Quick and forecast lanes: the calm, plain-language answer. Fixed rules, no model; the claims stay the cited detail. */
+export interface Plain {
+  headline: string;
+  /** One plain sentence. A number appears only when a cited claim states it. */
+  one_line: string;
+  /** "7d" only when the question asked for the week and the 7-day river forecast covers it. */
+  horizon: "48h" | "7d";
+  status: "normal" | "watch" | "elevated" | "unknown";
+  basis?: "gauge" | "model";
+  places?: string[];
+  /** ISO alpha-2 of the first asked place; picks the official warning links. */
+  country?: string | null;
+  service?: string;
+  /** A history item framed as history, cut at a sentence boundary. */
+  context?: string | null;
+  next_step: string;
+  disclaimer: string;
+  /** claim_id of every claim that is the cited detail. */
+  details: string[];
+}
 export type ApprovalStatus = "pending" | "approved" | "edited" | "rejected";
 export type ModelId =
   | "meterless/fast"
@@ -178,6 +198,8 @@ export interface Answer {
   router_reason?: string;
   /** Forecast lane only. */
   forecast?: Forecast;
+  /** Quick and forecast lanes only. */
+  plain?: Plain;
   memory_used?: MemoryUsed[];
 }
 

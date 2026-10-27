@@ -42,6 +42,8 @@ A `POST /runs` body that is not valid UTF-8 or not valid JSON is `400 {"detail":
 
 Chat front door: after the bucket and before the cache or a slot, `POST /runs` asks the agents' `POST /front-door` (short lookup timeout). Small talk (greeting, help, thanks, off-topic) comes back as `200 {"kind": "reply", ...}` with no `run_id`, on sync and `?wait=false` alike. A reply takes a bucket token but no concurrency slot, and is never cached or replayed as a run. Anything else, or a front door that is unreachable or slow, goes on to the run as before; the API then forwards `POST /runs?front_door=false` so the agents do not classify twice.
 
+The quick and forecast lanes also carry `plain` (the calm answer: headline, one_line, horizon, context, next_step, disclaimer, details; `agents/floodsense_agents/plain.py`, no model call). The snapshot has it, and the schema projection (`contract.answer.plain`) passes it through unchanged for those two lanes only.
+
 Router lanes: a reply carries `lane: "reply"`; a run snapshot carries `lane` (`quick` or `full`) and `router_reason`, and the schema projection (`contract.answer`) copies both. Repeated identical small talk spends one bucket token each (a burst ends in 429). A quick-lane answer ends `status: "answered"` with no approval; when its Judge passed and `FF_SEMANTIC_CACHE` is on, the API caches it with `CACHE_TTL_LIVE_S` (sync: on the response; `?wait=false`: when the slot holder sees the run leave `running`). A repeat is `200` with `served_from: "cache"`, `cached_at` = the time it was stored, `label.text` "Cached answer · not live · original run …" and `cache.expires_in_s`. Full-lane runs are still cached only after a person approves them.
 
 ## System status (`GET /system`)
