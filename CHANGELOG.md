@@ -19,7 +19,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Changed
 
-- `retrieve_docs`: inside an event run the event top k is unchanged. For an insurer role or an insurance-type question (insur*, versicher*, seguro*, protection gap, loss(es), claim(s), policy) it appends at most 2 event-agnostic passages, only from EU-wide documents or the event's country (no ES documents in EMSR517 runs, no DE documents in EMSR773 runs). `rag.chunks` has no country or audience column; the allowed doc_ids come from `rag_scope.json`.
+- `retrieve_docs`: inside an event run the event top k is unchanged. For an insurer role or an insurance-type question (insur*, versicher*, seguro*, protection gap, economic loss(es), claims paid, policy/policies) it appends at most 2 event-agnostic passages, only from EU-wide documents or the event's country (no ES documents in EMSR517 runs, no DE documents in EMSR773 runs). `rag.chunks` has no country or audience column; the allowed doc_ids come from `rag_scope.json` (a warning is logged when it is missing). Each generic passage gets its own claim `C-doc-g<n>` built from that passage; it never sits on a claim from an event passage.
 
 ### Fixed
 
