@@ -316,8 +316,17 @@ describe("forecast lane result", () => {
   it("shows a rain screening as amber, never red", () => {
     expect(screeningView("Normal").tone).toBe("normal");
     expect(screeningView("Watch").tone).toBe("watch");
-    expect(screeningView("Warning").tone).toBe("elevated");
+    expect(screeningView("Elevated").tone).toBe("elevated");
+    expect(screeningView("Warning").word).toBe("Elevated");
     expect(screeningView(null).tone).toBe("unknown");
+  });
+
+  it("names the driver in the chip and never says Warning or Elevated rain", () => {
+    expect(screeningView("Elevated", "Elevated (river model)").word).toBe("Elevated (river model)");
+    expect(screeningView("Elevated", "Elevated (rain)").word).toBe("Elevated (rain)");
+    expect(screeningView("Normal").word).toBe("Normal");
+    expect(screeningView("Elevated").word).not.toMatch(/warning|rain/i);
+    expect(forecastBriefFrom({ ...body, forecast: { ...body.forecast, status_label: "Watch (rain)" } }, "r1")?.statusLabel).toBe("Watch (rain)");
   });
 
   it("splits the claims into the outlook and what happened before", () => {

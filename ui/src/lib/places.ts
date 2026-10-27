@@ -63,7 +63,7 @@ export function calmSentence(kind: WatchSource["kind"], status: GaugeStatus, riv
     if (status === "ok") return `Our model shows normal river flow for ${where} over the next 7 days.`;
     if (status === "near")
       return `Our model shows river flow for ${where} somewhat above its recent 30-day normal over the next 7 days. Model, not an official warning.`;
-    return `Our model shows river flow for ${where} at least twice its recent 30-day normal over the next 7 days. That can be seasonal. Model, not an official warning.`;
+    return `Our model shows river flow for ${where} at least twice its recent 30-day normal over the next 7 days. Model, not an official warning.`;
   }
   if (status === "ok") return `Our model shows river flow at ${name} within its own recent normal (the past three days; not official).`;
   if (status === "near") return `Our model shows river flow at ${name} at least twice its own recent normal (the past three days; not official).`;

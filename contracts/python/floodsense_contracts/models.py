@@ -161,7 +161,8 @@ class MemoryUsed(ContractModel):
 class Forecast(ContractModel):
     """Forecast lane only: a screening status and a template lead, never official."""
 
-    status: Literal["Normal", "Watch", "Warning"]
+    status: Literal["Normal", "Watch", "Elevated"]
+    status_label: str | None = None
     status_reason: str | None = None
     places: list[str] = Field(default_factory=list)
     horizon_h: int | None = Field(default=None, ge=1)

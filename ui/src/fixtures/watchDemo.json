@@ -88,7 +88,7 @@
     "rain_48h_mm": 0.6,
     "max_hour_mm": 0.5,
     "forecast_max_m3s": 233.42,
-    "screening": "Warning"
+    "screening": "Elevated"
    }
   },
   {
@@ -134,7 +134,7 @@
     "rain_48h_mm": 1.2,
     "max_hour_mm": 0.7,
     "forecast_max_m3s": 163.06,
-    "screening": "Warning"
+    "screening": "Elevated"
    }
   },
   {
@@ -180,7 +180,7 @@
     "rain_48h_mm": 0.2,
     "max_hour_mm": 0.1,
     "forecast_max_m3s": 209.86,
-    "screening": "Warning"
+    "screening": "Elevated"
    }
   },
   {
@@ -226,7 +226,7 @@
     "rain_48h_mm": 0.9,
     "max_hour_mm": 0.5,
     "forecast_max_m3s": 212.8,
-    "screening": "Warning"
+    "screening": "Elevated"
    }
   },
   {
@@ -272,7 +272,7 @@
     "rain_48h_mm": 0.0,
     "max_hour_mm": 0.0,
     "forecast_max_m3s": 906.82,
-    "screening": "Warning"
+    "screening": "Elevated"
    }
   },
   {

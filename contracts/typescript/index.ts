@@ -15,7 +15,9 @@ export type Lane = "reply" | "quick" | "forecast" | "full";
 
 /** Forecast lane only: a FloodSense screening status and a template lead, never an official warning. */
 export interface Forecast {
-  status: "Normal" | "Watch" | "Warning";
+  status: "Normal" | "Watch" | "Elevated";
+  /** Status plus its driver, e.g. "Elevated (river model)". */
+  status_label?: string;
   status_reason?: string;
   places?: string[];
   horizon_h?: number;
