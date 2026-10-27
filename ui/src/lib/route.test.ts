@@ -111,8 +111,11 @@ describe("DESK_NAV", () => {
       "Sites / map",
       "Alerts",
       "Review",
+      "System",
       "How it works",
     ]);
+    expect(parseHash("#/insurer/system")).toEqual({ role: "insurer", page: "system" });
+    expect(parseHash("#/citizen/system")).toEqual({ role: "citizen", page: "overview" });
   });
 
   it("labels a route from the nav table", () => {

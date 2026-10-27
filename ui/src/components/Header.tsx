@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+﻿import { useEffect, useId, useRef, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
 import { headerSubtitle } from "../lib/events";
@@ -126,7 +126,7 @@ export function Header() {
               type="button"
               className="icon-button"
               aria-expanded={profileOpen}
-              aria-label="Account preview"
+              aria-label="Account"
               onClick={() => {
                 setBellOpen(false);
                 setProfileOpen((open) => !open);
@@ -139,7 +139,6 @@ export function Header() {
                 <p className="menu-kicker" id={profileTitle}>
                   Account
                 </p>
-                <p className="menu-title">Preview session</p>
                 <p className="menu-body">Sign-in is not wired on this build. No credentials are collected.</p>
                 <button type="button" className="button" disabled>
                   Sign in

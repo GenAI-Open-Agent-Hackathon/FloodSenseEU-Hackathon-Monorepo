@@ -1,4 +1,5 @@
 import { shortModel } from "./liveRun";
+import { providerOf } from "./lanes";
 
 /** Display names for the Nemotron ids the agents run. */
 const MODEL_NAMES: Record<string, string> = {
@@ -27,8 +28,8 @@ export function modelChip(modelId: string | null | undefined, lane: string | nul
   if (ids.length) {
     const id = ids[ids.length - 1];
     const name = modelName(id);
-    const nemotron = id.toLowerCase().startsWith("nvidia/") && id.toLowerCase().includes("nemotron");
-    if (!nemotron) return name;
+    const provider = providerOf(id);
+    if (provider !== "Nightshift") return provider ? `${name} · ${provider}` : name;
     const laneWord = l === "deep" ? "deep lane" : l === "fast" ? "fast lane" : null;
     return laneWord ? `${name} · Nightshift ${laneWord}` : `${name} · Nightshift`;
   }
@@ -41,6 +42,6 @@ export function runModelLine(modelIds: readonly string[]): string | null {
   const ids = modelIds.flatMap((m) => llmIds(m));
   if (!ids.length) return null;
   const id = ids[ids.length - 1];
-  const nemotron = id.toLowerCase().startsWith("nvidia/") && id.toLowerCase().includes("nemotron");
-  return nemotron ? `${modelName(id)} via Nightshift` : modelName(id);
+  const provider = providerOf(id);
+  return provider ? `${modelName(id)} via ${provider}` : modelName(id);
 }

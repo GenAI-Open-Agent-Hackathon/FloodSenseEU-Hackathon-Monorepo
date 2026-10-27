@@ -127,3 +127,8 @@ button.citation-marker[aria-expanded="true"] { background: var(--brand); color: 
 .hiw-dot-off { background: var(--risk-moderate); }
 .hiw-dot-down { background: var(--risk-severe); }
 .hiw-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+
+/* Tagline stays on phones, as a smaller second line under the product name. */
+@media (max-width: 980px) {
+  .header .product-sub { display: block; font-size: 0.7rem; line-height: 1.2; margin-top: 0.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}

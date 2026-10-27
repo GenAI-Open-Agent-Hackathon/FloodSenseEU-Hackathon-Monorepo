@@ -1,27 +1,31 @@
+import { parseSystem, type SystemStatus } from "../lib/system";
 import { apiBaseUrl, apiTimeoutMs } from "./config";
 
-/** GET result: the JSON body, "missing" for a 404 (endpoint not deployed yet), or "down" when unreachable. */
-export type Probe = { kind: "ok"; body: unknown } | { kind: "missing" } | { kind: "down" };
+export type SystemFetch = { status: SystemStatus | null; error: string | null; aborted?: boolean };
 
-async function probe(path: string, signal?: AbortSignal, base = apiBaseUrl()): Promise<Probe> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), apiTimeoutMs());
-  const onAbort = () => ctrl.abort();
+/**
+ * GET /system once. A failure is an error string, never a throw.
+ * `signal` cancels the request (the page unmounted); the probe timeout still applies.
+ */
+export async function fetchSystem(base = apiBaseUrl(), signal?: AbortSignal): Promise<SystemFetch> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), apiTimeoutMs());
+  const onAbort = () => controller.abort();
   signal?.addEventListener("abort", onAbort);
   try {
-    const r = await fetch(`${base}${path}`, { signal: ctrl.signal, credentials: "omit" });
-    if (r.status === 404) return { kind: "missing" };
-    if (!r.ok) return { kind: "down" };
-    return { kind: "ok", body: await r.json() };
+    const response = await fetch(`${base}/system`, {
+      credentials: "omit",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return { status: null, error: `GET /system returned ${response.status}` };
+    const status = parseSystem(await response.json());
+    return status ? { status, error: null } : { status: null, error: "GET /system did not return an object" };
   } catch {
-    return { kind: "down" };
+    if (signal?.aborted) return { status: null, error: null, aborted: true };
+    return { status: null, error: `API not reached at ${base}/system` };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
   }
 }
-
-/** GET /config: agents flags and lanes. */
-export const fetchConfig = (signal?: AbortSignal) => probe("/config", signal);
-/** GET /system: component health. May 404 on builds without it; the caller treats that as unknown. */
-export const fetchSystem = (signal?: AbortSignal) => probe("/system", signal);

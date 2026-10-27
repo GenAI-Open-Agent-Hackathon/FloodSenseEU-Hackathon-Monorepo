@@ -130,9 +130,9 @@ export function sourceFromRun(c: ReplayCitation, eventId?: string | null): Sourc
   };
 }
 
-/** "H-MEM · approved run <id>", or "Demo seed" for a seeded memory with no approving run. */
-export function memoryLabel(m: Pick<MemoryUsed, "runId">): string {
-  return m.runId ? `H-MEM · approved run ${m.runId}` : "H-MEM · Demo seed";
+/** "H-MEM · approved run <id>", or "H-MEM · Demo seed" for a memory seeded by `tasks.py demo-seed` (or with no approving run). */
+export function memoryLabel(m: Pick<MemoryUsed, "runId"> & { seeded?: boolean }): string {
+  return m.runId && !m.seeded ? `H-MEM · approved run ${m.runId}` : "H-MEM · Demo seed";
 }
 
 export function sourceFromMemory(m: MemoryUsed): SourceDetail {

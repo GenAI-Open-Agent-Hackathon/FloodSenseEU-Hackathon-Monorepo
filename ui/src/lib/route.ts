@@ -4,7 +4,7 @@ import type { RouteId } from "../types/ui";
 export type RoleId = RouteId;
 
 export const CITIZEN_PAGES = ["now", "replay", "overview", "area", "actions", "evidence", "how"] as const;
-export const INSURER_PAGES = ["now", "replay", "approvals", "portfolio", "sites", "alerts", "review", "how"] as const;
+export const INSURER_PAGES = ["now", "replay", "approvals", "portfolio", "sites", "alerts", "review", "system", "how"] as const;
 
 export type CitizenPage = (typeof CITIZEN_PAGES)[number];
 export type InsurerPage = (typeof INSURER_PAGES)[number];
@@ -33,6 +33,7 @@ export const DESK_NAV: {
     { page: "sites", label: "Sites / map" },
     { page: "alerts", label: "Alerts" },
     { page: "review", label: "Review" },
+    { page: "system", label: "System" },
     { page: "how", label: "How it works" },
   ],
 };

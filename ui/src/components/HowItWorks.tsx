@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { fetchConfig, fetchSystem, type Probe } from "../api/system";
-import { boxStatuses, DOT_TEXT, feedsMode, type BoxId, type DotState } from "../lib/howItWorks";
+import { fetchAgentsConfig } from "../api/config";
+import { fetchSystem } from "../api/system";
+import { boxStatuses, DOT_TEXT, feedsMode, type BoxId, type ConfigProbe, type DotState } from "../lib/howItWorks";
+import type { SystemStatus } from "../lib/system";
 
 const AGENTS = ["Scope", "Watchers", "Memory", "Investigator", "Skeptic", "Exposure", "Playbook", "Judge"];
 
@@ -46,11 +48,11 @@ function Arrow({ label }: { label?: string }) {
 
 /** One page diagram of the system, with a live status dot per box from GET /config and GET /system. */
 export function HowItWorks() {
-  const [probes, setProbes] = useState<{ config: Probe; system: Probe } | null>(null);
+  const [probes, setProbes] = useState<{ config: ConfigProbe; system: SystemStatus | null; systemError: string | null } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.all([fetchConfig(controller.signal), fetchSystem(controller.signal)]).then(([config, system]) => {
-      if (!controller.signal.aborted) setProbes({ config, system });
+    void Promise.all([fetchAgentsConfig(controller.signal), fetchSystem(undefined, controller.signal)]).then(([config, sys]) => {
+      if (!controller.signal.aborted && !sys.aborted) setProbes({ config, system: sys.status, systemError: sys.error });
     });
     return () => controller.abort();
   }, []);
@@ -71,7 +73,7 @@ export function HowItWorks() {
       <p className="hiw-legend note" aria-label="Status legend">
         <Dot state="ok" /> running <Dot state="off" /> switched off <Dot state="down" /> not reachable <Dot state="unknown" />{" "}
         unknown
-        {probes?.system.kind === "missing" && " · component health (GET /system) is not on this build"}
+        {probes && !probes.system && " · component health (GET /system) is not available, so some dots are unknown"}
       </p>
 
       <div className="hiw-flow">

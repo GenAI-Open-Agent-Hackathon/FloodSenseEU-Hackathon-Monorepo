@@ -1,4 +1,4 @@
-import type { Probe } from "../api/system";
+import type { SystemStatus } from "./system";
 
 /** Status dot on a How it works box. */
 export type DotState = "ok" | "off" | "down" | "unknown";
@@ -10,22 +10,16 @@ export const DOT_TEXT: Record<DotState, string> = {
   unknown: "status unknown",
 };
 
-export type BoxId =
-  | "router"
-  | "agents"
-  | "zetaris"
-  | "feeds"
-  | "nightshift"
-  | "memory"
-  | "rag"
-  | "redis"
-  | "human";
+export type BoxId = "router" | "agents" | "zetaris" | "feeds" | "nightshift" | "memory" | "rag" | "redis" | "human";
+
+/** GET /config result: the body, or "down" when the API could not be read. */
+export type ConfigProbe = { kind: "ok"; body: unknown } | { kind: "down" };
 
 const rec = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 
-/** The body itself, or its `data` envelope. */
-function unwrap(p: Probe): Record<string, unknown> | null {
+/** The agents' /config body (the API passes it through, possibly in a `data` envelope). */
+function configBody(p: ConfigProbe): Record<string, unknown> | null {
   if (p.kind !== "ok") return null;
   const body = rec(p.body);
   return rec(body?.data) ?? body;
@@ -35,63 +29,40 @@ function flag(config: Record<string, unknown> | null, name: string): DotState {
   const v = rec(config?.flags)?.[name];
   if (v === true) return "ok";
   if (v === false) return "off";
-  return config ? "ok" : "unknown";
+  return "unknown";
 }
 
-function healthWord(v: unknown): DotState | null {
-  if (v === true) return "ok";
-  if (v === false) return "down";
-  if (typeof v === "string") {
-    const s = v.toLowerCase();
-    if (/^(ok|up|healthy|ready|live|running|green)$/.test(s)) return "ok";
-    if (/^(off|disabled)$/.test(s)) return "off";
-    if (/^(down|error|failed|unhealthy|red|unreachable)$/.test(s)) return "down";
-  }
-  const r = rec(v);
-  if (r) return healthWord(r.status ?? r.ok ?? r.state ?? r.healthy);
-  return null;
-}
-
-/** Look up a component in a /system body, whatever its exact shape (flat, `components`, `services`, `checks`). */
-export function systemStatus(system: Probe, names: string[]): DotState | null {
-  const body = unwrap(system);
-  if (!body) return null;
-  const pools = [body, rec(body.components), rec(body.services), rec(body.checks)].filter(
-    (p): p is Record<string, unknown> => p !== null,
-  );
-  for (const pool of pools) {
-    for (const [key, value] of Object.entries(pool)) {
-      if (names.some((n) => key.toLowerCase().includes(n))) {
-        const s = healthWord(value);
-        if (s) return s;
-      }
-    }
-  }
-  return null;
-}
-
-/** Pure: every box's dot from GET /config and GET /system. A missing /system (404) leaves its boxes unknown, never red. */
-export function boxStatuses(config: Probe, system: Probe): Record<BoxId, DotState> {
-  const cfg = unwrap(config);
-  const agentsUp: DotState = config.kind === "ok" ? "ok" : config.kind === "down" ? "down" : "unknown";
-  const sys = (names: string[], fallback: DotState): DotState => systemStatus(system, names) ?? fallback;
-  const lanes = rec(cfg?.lanes);
+/**
+ * Pure: every box's dot from GET /config and GET /system (api/app/system.py, parsed by `parseSystem`).
+ * `system` is null when /system could not be read (404 on an older API, or down): those boxes fall back
+ * to /config or stay unknown, never red.
+ */
+export function boxStatuses(config: ConfigProbe, system: SystemStatus | null): Record<BoxId, DotState> {
+  const cfg = configBody(config);
+  const agentsUp: DotState = cfg ? "ok" : "down";
+  const lanes = system ? system.models.lanes : (rec(cfg?.lanes) as Record<string, unknown> | null);
+  const hasLanes = Boolean(lanes && Object.values(lanes).some((v) => typeof v === "string" && v));
   return {
-    router: sys(["router", "front_door", "front-door"], agentsUp),
-    agents: sys(["agents"], agentsUp),
-    zetaris: sys(["zetaris"], "unknown"),
-    feeds: sys(["feeds", "open_meteo", "open-meteo", "pegel"], cfg ? (rec(cfg.flags)?.FF_LIVE_DATA === true ? "ok" : "off") : "unknown"),
-    nightshift: sys(["nightshift", "llm", "nemotron"], lanes && (lanes.fast || lanes.deep) ? "ok" : agentsUp === "ok" ? "unknown" : agentsUp),
-    memory: sys(["hmem", "h-mem", "meterless", "memory"], flag(cfg, "FF_HMEM")),
-    rag: sys(["pgvector", "rag", "nim", "embed"], flag(cfg, "FF_RAG_DOCS")),
-    redis: sys(["redis", "cache"], "unknown"),
+    router: agentsUp,
+    agents: system ? (system.models.ok ? "ok" : "down") : agentsUp,
+    // No Zetaris health is exposed; the agents read it on every run.
+    zetaris: "unknown",
+    feeds: cfg ? (rec(cfg.flags)?.FF_LIVE_DATA === true ? "ok" : "off") : "unknown",
+    nightshift: hasLanes ? "ok" : system && !system.models.ok ? "down" : "unknown",
+    memory: system
+      ? system.memory.ok && (!system.engines.configured || system.engines.ok)
+        ? "ok"
+        : "down"
+      : flag(cfg, "FF_HMEM"),
+    rag: system && system.rag.enabled !== null ? (system.rag.enabled ? "ok" : "off") : flag(cfg, "FF_RAG_DOCS"),
+    redis: system ? (system.cache.backend === "redis" ? "ok" : system.cache.backend === "unknown" ? "unknown" : "off") : "unknown",
     human: flag(cfg, "FF_HITL"),
   };
 }
 
 /** "live feeds" or "seed data" for the data box, from FF_LIVE_DATA. */
-export function feedsMode(config: Probe): "live feeds" | "seed data" | null {
-  const cfg = unwrap(config);
+export function feedsMode(config: ConfigProbe): "live feeds" | "seed data" | null {
+  const cfg = configBody(config);
   if (!cfg) return null;
   return rec(cfg.flags)?.FF_LIVE_DATA === true ? "live feeds" : "seed data";
 }
