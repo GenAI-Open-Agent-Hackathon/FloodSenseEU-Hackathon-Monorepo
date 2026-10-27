@@ -53,6 +53,8 @@ curl -N 127.0.0.1:8100/runs/<id>/events        # SSE: one TraceEvent per node, t
 
 The product UI is the Vite console in `ui/` (compose publishes it on `127.0.0.1:15173`). This service does not serve `ui/app` or `ui/mock`. `GET /` and `GET /console` serve `console.html`, a secondary operator page on this unpublished port.
 
+**Replay schema.** An event replay reads `hazard_timeline` and `discharge_daily` from `EventSpec.hazard_schema` when set, whatever `FF_LIVE_DATA` says (`events.hazard_schema`). EMSR517 sets `floodsense_seed`: the live `floodsense` hazard views hold Valencia only, and the real Ahr extract (ERA5 hourly rain, GloFAS daily discharge, migrations 051/052) is in the seed. `exposure_join`, `gauge_levels` and `provenance` keep the configured schema. `GET /views/{name}?event_id=…&source=replay` serves the same rows to the UI (hazard views only, filtered to the event's point ids, `x-schema` / `x-source` headers). Rain thresholds: the Watchers flag an hour >= 30 mm or a window total >= 50 mm; the Skeptic's rain check passes on an hour >= 20 mm or a window total >= 50 mm, because ERA5 smooths the Ahr storm to 5.6-18.5 mm/h.
+
 `replay_ts` is the "now" of a replay: the Watchers and the Investigator only see rows at or before it, so the demo can step through 29 Oct 2024 hour by hour.
 
 ## LLM provider switch (local benchmarking only)

@@ -17,6 +17,7 @@ from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_
 from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, is_live, points_sql
 from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import map_ordered, parse_json
+from floodsense_agents.events import hazard_schema
 from floodsense_agents.nodes.watchers import last_complete_day, window
 from floodsense_agents.prompts import SKEPTIC, rows_block
 from floodsense_agents.settings import settings
@@ -25,23 +26,29 @@ from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 log = logging.getLogger("floodsense.skeptic")
 
 
-def _footprint_checks(s: str) -> list[tuple[str, str, tuple[str, ...]]]:
+def _footprint_checks(s: str, ev: dict | None = None) -> list[tuple[str, str, tuple[str, ...]]]:
+    # exposure_join has no event column: without the event's bbox the Ahr check
+    # counted Valencia's 91 footprint sites as EMSR517's.
+    area = ""
+    if ev and ev.get("bbox"):
+        lat0, lat1, lon0, lon1 = ev["bbox"]
+        area = f" AND lat BETWEEN {lat0} AND {lat1} AND lon BETWEEN {lon0} AND {lon1}"
     return [
         (
             "the footprint contains insured sites",
-            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} HAVING "
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL}{area} HAVING "
             f"COUNT(*) >= 1",
             (),
         ),
         (
             "the footprint does not swallow every site (it is a footprint, not a region)",
-            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {OUTSIDE_FOOTPRINT_SQL} HAVING "
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {OUTSIDE_FOOTPRINT_SQL}{area} HAVING "
             f"COUNT(*) >= 1",
             (),
         ),
         (
             "sites in the footprint carry coordinates",
-            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL} AND lat IS "
+            f"SELECT COUNT(*) AS n FROM {s}.exposure_join WHERE {IN_FOOTPRINT_SQL}{area} AND lat IS "
             f"NOT NULL AND lon IS NOT NULL HAVING COUNT(*) >= 1",
             (),
         ),
@@ -157,7 +164,9 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
     """(name, sql): each query must return >= 1 row for the check to pass."""
     if is_live(state):
         return _live_checks_for(h, state)
-    s, ev = settings.schema, state["event"]
+    es, ev = settings.schema, state["event"]
+    # Hazard counter-checks read the views the claims cite: the replay schema.
+    s = hazard_schema(ev, es)
     t0, t1 = window(state)
     clock = (t0, t1)
     day = (t0[:10], last_complete_day(t1))
@@ -166,10 +175,14 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
     if h.link == "rain->catchment":
         return [
             (
-                DEFINITIONS["extreme_rain"].wording,
-                f"SELECT point_id, MAX(rain_mm) AS max_mm FROM {s}.hazard_timeline WHERE point_id "
+                # Hourly or window total: ERA5 hourly rain is smoothed (Ahr 2021:
+                # 5.6-18.5 mm/h) while the day sums 45-108 mm.
+                f"{DEFINITIONS['extreme_rain'].wording} {DEFINITIONS['extreme_rain_total'].wording}",
+                f"SELECT point_id, MAX(rain_mm) AS max_mm, SUM(rain_mm) AS total_mm FROM "
+                f"{s}.hazard_timeline WHERE point_id "
                 f"IN ({rain_pts}) AND ts_utc BETWEEN ? AND ? GROUP BY point_id HAVING "
-                f"MAX(rain_mm) >= {DEFINITIONS['extreme_rain'].value}",
+                f"MAX(rain_mm) >= {DEFINITIONS['extreme_rain'].value} OR SUM(rain_mm) >= "
+                f"{DEFINITIONS['extreme_rain_total'].value}",
                 clock,
             ),
             (
@@ -202,32 +215,43 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
             ),
         ]
     if h.link == "catchment->river":
+        rise = DEFINITIONS["extreme_discharge_rise"].value
+        flow_at = DEFINITIONS["anomaly_discharge"].value
         return [
             (
+                # Hourly or daily. hazard_timeline repeats the day's GloFAS value per
+                # hour and the Ahr extract starts on 13 Jul, mid-rise (28 -> 250 m3/s);
+                # discharge_daily starts before the event (6.9 m3/s on 12 Jul).
                 DEFINITIONS["extreme_discharge_rise"].wording,
-                f"SELECT MAX(discharge_m3s) AS mx, MIN(discharge_m3s) AS mn FROM "
-                f"{s}.hazard_timeline WHERE point_id IN ({river_pts}) AND discharge_m3s IS NOT "
-                f"NULL AND ts_utc BETWEEN ? AND ? HAVING MAX(discharge_m3s) >= 10 * "
+                f"SELECT 'hourly' AS series, MAX(discharge_m3s) AS mx, MIN(discharge_m3s) AS mn "
+                f"FROM {s}.hazard_timeline WHERE point_id IN ({river_pts}) AND discharge_m3s IS "
+                f"NOT NULL AND ts_utc BETWEEN ? AND ? HAVING MAX(discharge_m3s) >= {rise} * "
+                f"MIN(discharge_m3s) UNION ALL SELECT 'daily' AS series, MAX(discharge_m3s) AS mx, "
+                f"MIN(discharge_m3s) AS mn FROM {s}.discharge_daily WHERE point_id IN "
+                f"({river_pts}) AND date BETWEEN ? AND ? HAVING MAX(discharge_m3s) >= {rise} * "
                 f"MIN(discharge_m3s)",
+                clock + day,
+            ),
+            (
+                "the river point reaches the anomaly line (discharge >= 100 m3/s)",
+                f"SELECT point_id, MAX(discharge_m3s) AS mx FROM {s}.hazard_timeline WHERE "
+                f"point_id IN ({river_pts}) AND ts_utc BETWEEN ? AND ? GROUP BY point_id "
+                f"HAVING MAX(discharge_m3s) >= {flow_at}",
                 clock,
             ),
             (
-                "daily discharge confirms the rise",
-                f"SELECT MAX(discharge_m3s) AS mx, MIN(discharge_m3s) AS mn FROM "
-                f"{s}.discharge_daily WHERE point_id IN ({river_pts}) AND date BETWEEN ? AND ? "
-                f"HAVING MAX(discharge_m3s) >= 10 * MIN(discharge_m3s)",
-                day,
-            ),
-            (
-                "a warning was issued for the river point",
-                f"SELECT point_id, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline WHERE "
-                f"point_id IN ({river_pts}) AND warning_level IS NOT NULL AND ts_utc BETWEEN "
-                f"? AND ? GROUP BY point_id",
-                clock,
+                # Reanalysis views (GloFAS / ERA5, migrations 051/052) carry no
+                # warning column values; a missing column is not a counter-example.
+                "a warning was issued for the river point, or the view carries no warnings",
+                f"SELECT COUNT(warning_level) AS warnings, COUNT(*) AS n FROM {s}.hazard_timeline "
+                f"WHERE point_id IN ({river_pts}) AND ts_utc BETWEEN ? AND ? HAVING COUNT(*) >= 1 "
+                f"AND (COUNT(warning_level) >= 1 OR (SELECT COUNT(warning_level) FROM "
+                f"{s}.hazard_timeline WHERE ts_utc BETWEEN ? AND ?) = 0)",
+                clock + clock,
             ),
         ]
     if h.link == "river->site":
-        return _footprint_checks(s)
+        return _footprint_checks(es, ev)
     return []
 
 

@@ -132,6 +132,12 @@ class EventSpec:
     gauges: tuple[tuple[str, str], ...]
     # Names a question may use. Not point ids, and not SQL filters.
     place_names: tuple[str, ...] = ()
+    # Schema whose hazard_timeline / discharge_daily hold this event's replay
+    # rows, whatever FF_LIVE_DATA says. None: the configured schema. The live
+    # floodsense.* hazard views hold Valencia only; the real Ahr extract
+    # (migrations 051/052) is in floodsense_seed, so an EMSR517 replay must
+    # read it there or it reads Valencia's views and finds nothing.
+    hazard_schema: str | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -182,8 +188,12 @@ EVENTS: dict[str, EventSpec] = {
         ),
         RHINE_GAUGES,
         ("Altenahr", "Ahrweiler", "Bad Neuenahr-Ahrweiler", *GERMAN_PLACES),
+        "floodsense_seed",
     ),
 }
+# Views whose rows are per event point (hazard and discharge), so the replay
+# schema applies to them. exposure_join, gauge_levels and provenance are not.
+HAZARD_VIEWS: tuple[str, ...] = ("hazard_timeline", "discharge_daily")
 ALIASES = {"valencia_2024": "EMSR773", "ahr_2021": "EMSR517"}
 
 
@@ -195,6 +205,19 @@ def spec(event_id: str) -> EventSpec:
             f"{', '.join(ALIASES)})"
         )
     return EVENTS[key]
+
+
+def hazard_schema(event: dict | None, default: str) -> str:
+    """The schema an event-mode replay reads hazard_timeline / discharge_daily from.
+
+    Falls back to the registry by event_id, so state resumed from an older
+    checkpoint (no hazard_schema key) still reads the right views.
+    """
+    ev = event or {}
+    if ev.get("hazard_schema"):
+        return str(ev["hazard_schema"])
+    known = EVENTS.get(ALIASES.get(str(ev.get("event_id")), str(ev.get("event_id"))))
+    return (known.hazard_schema if known else None) or default
 
 
 def _context_event(context: dict | None) -> tuple[str, str] | None:

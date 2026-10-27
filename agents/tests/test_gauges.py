@@ -72,7 +72,7 @@ class GaugeContractTest(unittest.TestCase):
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
         out = make_watchers(deps)(_state("EMSR517"))
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 5)
+        self.assertEqual(len(sqls), 6)  # rain, rain_total, discharge, warning, gauges, provenance
         gauge_sql = next(sql for sql in sqls if "gauge_levels" in sql)
         self.assertIn("level_cm", gauge_sql)
         self.assertNotIn("SELECT *", gauge_sql.upper())
@@ -92,7 +92,7 @@ class GaugeContractTest(unittest.TestCase):
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
         out = make_watchers(deps)(_state("EMSR773"))
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 4)
+        self.assertEqual(len(sqls), 5)
         self.assertFalse(any("gauge_levels" in sql for sql in sqls))
         self.assertIn("provenance", sqls[-1])
 

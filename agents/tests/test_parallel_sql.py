@@ -167,20 +167,22 @@ class ParallelSqlTest(unittest.TestCase):
     def test_watchers_keep_hazard_then_provenance_order(self) -> None:
         valencia = make_watchers(_deps())(_event_state("EMSR773"))
         valencia_sql = [row["sql"] for row in valencia["evidence"].values()]
-        self.assertEqual(len(valencia_sql), 4)
+        self.assertEqual(len(valencia_sql), 5)
         self.assertIn("rain_mm", valencia_sql[0])
-        self.assertIn("discharge_m3s", valencia_sql[1])
-        self.assertIn("warning_level", valencia_sql[2])
-        self.assertIn("provenance", valencia_sql[3])
+        self.assertIn("SUM(rain_mm)", valencia_sql[1])
+        self.assertIn("discharge_m3s", valencia_sql[2])
+        self.assertIn("warning_level", valencia_sql[3])
+        self.assertIn("provenance", valencia_sql[4])
         self.assertFalse(any("gauge_levels" in sql for sql in valencia_sql))
         out = make_watchers(_deps())(_event_state("EMSR517"))
         sqls = [row["sql"] for row in out["evidence"].values()]
-        self.assertEqual(len(sqls), 5)
+        self.assertEqual(len(sqls), 6)
         self.assertIn("rain_mm", sqls[0])
-        self.assertIn("discharge_m3s", sqls[1])
-        self.assertIn("warning_level", sqls[2])
-        self.assertIn("gauge_levels", sqls[3])
-        self.assertIn("provenance", sqls[4])
+        self.assertIn("SUM(rain_mm)", sqls[1])
+        self.assertIn("discharge_m3s", sqls[2])
+        self.assertIn("warning_level", sqls[3])
+        self.assertIn("gauge_levels", sqls[4])
+        self.assertIn("provenance", sqls[5])
         kinds = [item["kind"] for item in out["anomalies"]]
         self.assertLess(kinds.index("rain"), kinds.index("discharge"))
         self.assertLess(kinds.index("discharge"), kinds.index("warning"))
@@ -211,6 +213,7 @@ class ParallelSqlTest(unittest.TestCase):
                 "discharge_daily",
                 "exposure_join",
                 "hazard_timeline",
+                "hazard_timeline",  # the peak row
             ],
         )
 

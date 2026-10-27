@@ -62,6 +62,12 @@ def _values(evs: list[Evidence]) -> list[float]:
     return vals
 
 
+def _quote_numbers(text: str) -> list[float]:
+    from floodsense_agents.nodes.investigator import numbers_in
+
+    return numbers_in(text)
+
+
 def _match(n: float, vals: list[float]) -> bool:
     tol = settings.numeric_tolerance
     return any(math.isclose(n, v, rel_tol=tol, abs_tol=0.5 if abs(n) < 10 else 0.0) for v in vals)
@@ -101,14 +107,21 @@ def score_claim(c: Claim, evidence: dict[str, Evidence], deps: Deps | None) -> J
     a = [evidence[x.query_id] for x in c.citations if x.layer == "a" and x.query_id in evidence]
     coverage = len(c.citations) > 0
     faithful = bool(a) and all(e.row_count > 0 and not e.error for e in a)
-    for x in c.citations:
-        if x.layer == "c" and x.quote and x.content_sha256:
-            faithful = faithful and layer_c_matches_passage(x, evidence)
+    docs = [x for x in c.citations if x.layer == "c" and x.quote and x.content_sha256]
+    if not a and docs:
+        # A document-only claim (C-doc) has no layer-(a) query to have rows: it is
+        # faithful when every quoted passage hashes and sits in its retrieved chunk.
+        faithful = True
+    for x in docs:
+        faithful = faithful and layer_c_matches_passage(x, evidence)
     licence_ok = all(
         not (x.storage == "pointer" and x.quote and len(x.quote) > 400) for x in c.citations
     )
     vals = _values(a)
-    numbers_match = all(_match(n, vals) for n in c.numbers) if a else not c.numbers
+    if not a and docs:
+        # Numbers of a document claim are checked against its quotes.
+        vals = [v for x in docs for v in _quote_numbers(x.quote or "")]
+    numbers_match = all(_match(n, vals) for n in c.numbers) if (a or docs) else not c.numbers
     grounding, rationale, model_id = None, "", "deterministic"
     if deps is not None and a:
         try:

@@ -14,10 +14,11 @@ lane, in the Playbook.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 
-from floodsense_agents.events import point_label
+from floodsense_agents.events import hazard_schema, point_label
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
 from floodsense_agents.live import (
     GAUGE_LIVE_ROWS,
@@ -66,6 +67,54 @@ def numbers_in(text: str) -> list[float]:
         except ValueError:
             pass
     return out
+
+
+def cell_values(evs: list[Evidence]) -> list[float]:
+    """Every numeric cell of the cited rows (the values the Judge can match)."""
+    out: list[float] = []
+    for e in evs:
+        for row in e.rows_sample:
+            for v in row.values():
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    out.append(float(v))
+    return out
+
+
+# "13 Jul 2021", "14 July", "Jul 2021": calendar words, not values to check.
+_MONTHS = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?"
+_WORD_DATE = re.compile(
+    rf"\b(?:\d{{1,2}}(?:[-–]\d{{1,2}})? {_MONTHS}(?: \d{{4}})?|{_MONTHS} \d{{1,2}}(?:, \d{{4}})?"
+    rf"|{_MONTHS} \d{{4}})(?!\d)"
+)
+
+
+def date_numbers(text: str) -> list[float]:
+    """The day and year figures of the calendar dates a text spells out."""
+    return [float(n) for m in _WORD_DATE.findall(text or "") for n in re.findall(r"\d+", m)]
+
+
+def cited_numbers(numbers: list[float], evs: list[Evidence], text: str = "") -> list[float]:
+    """Drop the numbers that are SQL literals of the cited queries, not cells.
+
+    The model copied the bbox (50.2, 50.7, 6.6, 7.4) of the exposure query into
+    a claim's numbers; those are filters, not results, and the Judge scored the
+    claim 0 on numeric accuracy for them. A number that is a cell stays. A
+    number that is neither stays too, so the Judge still flags a wrong value.
+    """
+    vals = cell_values(evs)
+    # SQL literals of the cited queries, and the day / year of dates the text spells out
+    # (the live Ahr run's C3 carried [13, 2021] for "13 Jul 2021").
+    literals = [x for e in evs for x in numbers_in(e.sql or "")] + date_numbers(text)
+    # A declared line the text compares against ("under the 30 mm/h line") is not a cell either.
+    literals += [float(d.value) for d in DEFINITIONS.values()]
+    tol = settings.numeric_tolerance
+
+    def near(n: float, pool: list[float]) -> bool:
+        return any(
+            math.isclose(n, v, rel_tol=tol, abs_tol=0.5 if abs(n) < 10 else 0.0) for v in pool
+        )
+
+    return [n for n in numbers if near(n, vals) or not any(math.isclose(n, x) for x in literals)]
 
 
 def cite(claim_id: str, ev: Evidence, provenance: list[dict], n: int) -> list[Citation]:
@@ -147,30 +196,31 @@ def _deterministic(
     state: FloodState, deps: Deps
 ) -> tuple[list[Hypothesis], list[Claim], str, list[Evidence]]:
     s, ev, prov = settings.schema, state["event"], state.get("provenance", [])
+    hs = hazard_schema(ev, s)  # the replay's hazard rows (floodsense_seed for the Ahr)
     t0, t1 = window(state)
     rain_pts = ", ".join(f"'{p}'" for p in ev["rain_points"])
     river_pts = ", ".join(f"'{p}'" for p in ev["river_points"])
     # Rain, discharge, the daily series, the footprint count, and warnings do
     # not depend on each other. Order of the tuple is the evidence order.
-    rain, flow, daily, foot, warn = run_sql_parallel(
+    rain, flow, daily, foot, warn, peak = run_sql_parallel(
         deps.zetaris,
         [
             (
                 f"SELECT point_id, SUM(rain_mm) AS total_mm, MAX(rain_mm) AS max_hourly_mm, "
                 f"MIN(ts_utc) AS first_utc, MAX(ts_utc) AS last_utc, "
-                f"COUNT(*) AS hours FROM {s}.hazard_timeline WHERE point_id IN ({rain_pts}) AND "
+                f"COUNT(*) AS hours FROM {hs}.hazard_timeline WHERE point_id IN ({rain_pts}) AND "
                 f"rain_mm IS NOT NULL "
                 f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id ORDER BY total_mm DESC",
                 (t0, t1),
             ),
             (
-                f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE point_id IN "
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {hs}.hazard_timeline WHERE point_id IN "
                 f"({river_pts}) "
                 f"AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
                 (t0, t1),
             ),
             (
-                f"SELECT point_id, date, discharge_m3s, source FROM {s}.discharge_daily WHERE "
+                f"SELECT point_id, date, discharge_m3s, source FROM {hs}.discharge_daily WHERE "
                 f"point_id IN ({river_pts}) "
                 f"AND date BETWEEN ? AND ? ORDER BY date",
                 (t0[:10], last_complete_day(t1)),
@@ -181,9 +231,17 @@ def _deterministic(
                 None,
             ),
             (
-                f"SELECT point_id, warning_level, MIN(ts_utc) AS first_utc FROM {s}.hazard_timeline "
+                f"SELECT point_id, warning_level, MIN(ts_utc) AS first_utc FROM {hs}.hazard_timeline "
                 f"WHERE warning_level IS NOT NULL "
                 f"AND ts_utc BETWEEN ? AND ? GROUP BY point_id, warning_level ORDER BY first_utc",
+                (t0, t1),
+            ),
+            # The peak row itself. The series above is sampled (20 rows), so on a
+            # 96-hour series its maximum is the first day's, not the peak.
+            (
+                f"SELECT point_id, ts_utc, discharge_m3s FROM {hs}.hazard_timeline WHERE point_id IN "
+                f"({river_pts}) AND discharge_m3s IS NOT NULL "
+                f"AND ts_utc BETWEEN ? AND ? ORDER BY discharge_m3s DESC, ts_utc ASC LIMIT 1",
                 (t0, t1),
             ),
         ],
@@ -249,14 +307,14 @@ def _deterministic(
     h2 = []
     flows = [r for r in flow.rows_sample if r.get("discharge_m3s") is not None]
     if flows:
-        p = max(flows, key=lambda r: r["discharge_m3s"])
+        p = peak.rows_sample[0] if peak.rows_sample else max(flows, key=lambda r: r["discharge_m3s"])
         base = flows[0]
         h2.append(
             claim(
                 f"Discharge at {point_label(p['point_id'])} reached {_fmt(p['discharge_m3s'])} m3/s at "
                 f"{p['ts_utc']}, from {_fmt(base['discharge_m3s'])} m3/s at {base['ts_utc']}.",
                 "number",
-                [flow],
+                [peak, flow] if peak.rows_sample else [flow],
                 "H2",
                 [p["discharge_m3s"], base["discharge_m3s"]],
             )
@@ -289,14 +347,16 @@ def _deterministic(
         )
     if rain.rows_sample and flows:
         first_rain = rain.rows_sample[0]["first_utc"]
-        peak_ts = max(flows, key=lambda r: r["discharge_m3s"])["ts_utc"]
+        peak_ts = (
+            peak.rows_sample[0] if peak.rows_sample else max(flows, key=lambda r: r["discharge_m3s"])
+        )["ts_utc"]
         if first_rain < peak_ts:
             h2.append(
                 claim(
                     f"Rain began at {first_rain} and the discharge peak followed at {peak_ts}, "
                     f"consistent with catchment runoff driving the river response.",
                     "cause",
-                    [rain, flow],
+                    [rain, flow, peak],
                     "H2",
                     [],
                 )
@@ -341,7 +401,7 @@ def _deterministic(
         f"{h.statement} [{', '.join(h.citations)}]." if h.citations else f"{h.statement}."
         for h in hyps
     )
-    return hyps, claims, summary, [rain, flow, daily, foot, warn]
+    return hyps, claims, summary, [rain, flow, daily, foot, warn, peak]
 
 
 def _live_deterministic(
@@ -820,14 +880,24 @@ def _model(
     claims = []
     for c in js["claims"]:
         evs = [known[q] for q in c.get("query_ids", []) if q in known]
+        if not live and evs and all(e.row_count == 0 or e.error for e in evs):
+            # Event mode: a claim whose every cited query came back empty has no
+            # rows behind it, and the Skeptic rejects its whole hypothesis for it
+            # (live Ahr run: the empty warning_level query sank H1). Drop it.
+            log.info("investigator: dropped claim %s, its cited queries returned no rows", c.get("claim_id"))
+            continue
         cid = str(c["claim_id"])
         claims.append(
             Claim(
                 claim_id=cid,
                 text=str(c["text"]),
                 kind=c.get("kind") if c.get("kind") in ("fact", "number", "cause") else "fact",
-                numbers=[float(x) for x in c.get("numbers", []) if isinstance(x, (int, float))]
-                or numbers_in(str(c["text"])),
+                numbers=cited_numbers(
+                    [float(x) for x in c.get("numbers", []) if isinstance(x, (int, float))]
+                    or numbers_in(str(c["text"])),
+                    evs,
+                    str(c["text"]),
+                ),
                 citations=[x for i, e in enumerate(evs, 1) for x in cite(cid, e, prov, i)],
                 hypothesis_id=c.get("hypothesis_id"),
             )

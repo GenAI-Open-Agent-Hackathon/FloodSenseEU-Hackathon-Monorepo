@@ -87,7 +87,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
     # The UI reads the Zetaris query id and row metadata of /views from these headers.
-    expose_headers=["x-query-id", "x-schema", "x-executed-at", "x-dropped-rows", "x-truncated", "Retry-After"],
+    expose_headers=["x-query-id", "x-schema", "x-source", "x-executed-at", "x-dropped-rows", "x-truncated", "Retry-After"],
 )
 
 
@@ -378,9 +378,18 @@ async def past_runs(limit: int = 50, thread_id: str | None = None) -> Response:
 
 
 @app.get("/views/{name}")
-async def get_view(name: str, event_id: str | None = None) -> Response:
-    """Rows of one contract view. Not cached, not rate limited."""
-    params = {"event_id": event_id} if event_id is not None else None
+async def get_view(name: str, event_id: str | None = None, source: str | None = None) -> Response:
+    """Rows of one contract view. Not cached, not rate limited.
+
+    source=replay asks for the event replay's schema (floodsense_seed for the Ahr);
+    the agents service validates it.
+    """
+    params: dict | None = {}
+    if event_id is not None:
+        params["event_id"] = event_id
+    if source is not None:
+        params["source"] = source
+    params = params or None
     try:
         r = await _agents_request("GET", f"/views/{name}", params=params)
     except httpx.HTTPError as e:
