@@ -19,7 +19,6 @@ describe("buildRunRequest", () => {
     const base = { question: " Where? ", provider: "anthropic" as const };
     expect(buildRunRequest({ ...base, allowedProviders: ["nightshift"] })).toEqual({
       question: "Where?",
-      event_id: "EMSR773",
       doc_query: "Where?",
     });
     expect(buildRunRequest({ ...base, allowedProviders: ["nightshift", "anthropic"] }).llm_provider).toBe("anthropic");

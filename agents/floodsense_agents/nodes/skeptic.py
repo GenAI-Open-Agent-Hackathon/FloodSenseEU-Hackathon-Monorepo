@@ -14,9 +14,9 @@ import logging
 import time
 
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
-from floodsense_agents.live import LIVE_ROWS, is_live, points_sql
+from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, is_live, points_sql
 from floodsense_agents.models import Evidence, Hypothesis
-from floodsense_agents.nightshift import parse_json
+from floodsense_agents.nightshift import map_ordered, parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
 from floodsense_agents.prompts import SKEPTIC, rows_block
 from floodsense_agents.settings import settings
@@ -48,6 +48,29 @@ def _footprint_checks(s: str) -> list[tuple[str, str, tuple[str, ...]]]:
     ]
 
 
+def _gauge_checks(s: str, found: dict) -> list[tuple[str, str, tuple[str, ...]]]:
+    """The Rhine gauge hypothesis, checked against gauge_levels in its own direction."""
+    stations = found.get("gauge_stations") or []
+    if not stations:
+        return [
+            (
+                "gauge_levels holds no live reading",
+                f"SELECT COUNT(*) AS n FROM {s}.gauge_levels WHERE {GAUGE_LIVE_ROWS} HAVING COUNT(*) = 0",
+                (),
+            )
+        ]
+    names = ", ".join("'" + str(x).replace("'", "''") + "'" for x in stations)
+    return [
+        (
+            "every cited station has a live reading in gauge_levels",
+            f"SELECT COUNT(DISTINCT station) AS stations FROM {s}.gauge_levels WHERE "
+            f"{GAUGE_LIVE_ROWS} AND station IN ({names}) HAVING COUNT(DISTINCT station) = "
+            f"{len(stations)}",
+            (),
+        )
+    ]
+
+
 def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
     """Live counter-checks: the same view the claims cite (hazard_now), other predicates.
 
@@ -60,6 +83,8 @@ def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, t
     found = state.get("live_findings") or {}
     rain_at = DEFINITIONS["anomaly_rain"].value
     flow_at = DEFINITIONS["anomaly_discharge"].value
+    if found.get("gauge_hypothesis") == h.id:
+        return _gauge_checks(s, found)
     if h.link == "rain->catchment":
         direction = (
             ("forecast rain reaches the anomaly line", f">= {rain_at}")
@@ -155,13 +180,25 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
                 clock,
             ),
             (
-                "rain started before the discharge peak",
-                f"SELECT MIN(r.ts_utc) AS first_rain, MAX(d.ts_utc) AS peak FROM "
-                f"{s}.hazard_timeline r, {s}.hazard_timeline d WHERE r.point_id IN ({rain_pts}) "
-                f"AND r.rain_mm > 0 AND d.point_id IN ({river_pts}) AND d.discharge_m3s IS NOT "
-                f"NULL AND r.ts_utc BETWEEN ? AND ? AND d.ts_utc BETWEEN ? AND ? "
-                f"HAVING MIN(r.ts_utc) < MAX(d.ts_utc)",
-                clock + clock,
+                "rain started before the observed discharge peak (or before now while rising)",
+                # Reference time: peak_ts, the ts of the highest discharge row in the
+                # clocked window (argmax; ties take the earliest). If that row is also the
+                # latest non-null discharge row, the river is still rising (or the gauge
+                # stopped at its peak) and no fall is observed, so the reference is t1,
+                # the clock. No discharge row at all: t1 as well. Daily 00:00 rows are not
+                # read here; only hourly hazard_timeline rows with a discharge value count.
+                # Passes iff first rain <= reference. Placeholders in text order:
+                #   rain window (t0, t1), CASE fallback t1, peak window (t0, t1),
+                #   latest window (t0, t1), COALESCE fallback t1.
+                f"SELECT MIN(r.ts_utc) AS first_rain FROM {s}.hazard_timeline r WHERE "
+                f"r.point_id IN ({rain_pts}) AND r.rain_mm > 0 AND r.ts_utc BETWEEN ? AND ? "
+                f"HAVING MIN(r.ts_utc) <= COALESCE((SELECT CASE WHEN p.ts_utc < l.last_ts THEN "
+                f"p.ts_utc ELSE ? END FROM (SELECT ts_utc FROM {s}.hazard_timeline WHERE "
+                f"point_id IN ({river_pts}) AND discharge_m3s IS NOT NULL AND ts_utc BETWEEN ? AND ? "
+                f"ORDER BY discharge_m3s DESC, ts_utc ASC LIMIT 1) p, (SELECT MAX(ts_utc) AS last_ts "
+                f"FROM {s}.hazard_timeline WHERE point_id IN ({river_pts}) AND discharge_m3s IS NOT "
+                f"NULL AND ts_utc BETWEEN ? AND ?) l), ?)",
+                clock + (t1,) + clock + clock + (t1,),
             ),
         ]
     if h.link == "catchment->river":
@@ -207,14 +244,33 @@ def _generic_ok(h: Hypothesis, state: FloodState) -> tuple[bool, str]:
             ]
             # Live: an answered hazard_now threshold query with no rows is the
             # evidence for "nothing crosses". Only an errored or missing query is not.
-            if live and qids and any(
-                q in ev and not ev[q].get("error") and "hazard_now" in str(ev[q].get("view"))
-                for q in qids
+            if (
+                live
+                and qids
+                and any(
+                    q in ev and not ev[q].get("error") and "hazard_now" in str(ev[q].get("view"))
+                    for q in qids
+                )
             ):
                 continue
             if not qids or not any(ev.get(q, {}).get("row_count", 0) > 0 for q in qids):
                 return False, f"claim {c['claim_id']} cites no query with rows"
     return True, ""
+
+
+def _rationale(deps: Deps, prompt: str) -> tuple[str, str] | None:
+    """(rationale text or '', model_id) from the fast lane, or None if the call failed."""
+    try:
+        text, model_id = deps.llm.complete("fast", SKEPTIC, prompt)
+    except Exception as e:
+        log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+        return None
+    try:
+        js = parse_json(text)
+    except Exception as e:
+        log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+        return "", model_id
+    return (str(js["rationale"])[:240] if js.get("rationale") else ""), model_id
 
 
 def make(deps: Deps):
@@ -223,6 +279,7 @@ def make(deps: Deps):
         hyps = [Hypothesis(**h) for h in state["hypotheses"]]
         new_ev: list[Evidence] = []
         model_id = None
+        prompts: list[str] = []
         for h in hyps:
             ok, why = _generic_ok(h, state)
             rounds, qids, notes = 0, [], []
@@ -246,20 +303,22 @@ def make(deps: Deps):
                 verdict, rationale = "proposed", "unchecked: no counter-check applies to this link"
             elif not ok and rounds == 0 and is_live(state):
                 verdict, rationale = "proposed", f"unchecked: {why}"
-            try:  # optional model rationale from the same rows
-                text, model_id = deps.llm.complete(
-                    "fast",
-                    SKEPTIC,
-                    f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
-                    f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "
-                    f"{verdict} ({rationale})",
-                )
-                js = parse_json(text)
-                if js.get("rationale"):
-                    rationale = f"{rationale} | model: {str(js['rationale'])[:240]}"
-            except Exception as e:
-                log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+            prompt = (
+                f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
+                f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "
+                f"{verdict} ({rationale})"
+            )
             h.status, h.rounds, h.evidence, h.rationale = verdict, rounds, qids, rationale
+            prompts.append(prompt)
+        # Optional model rationales from the same rows: one call per hypothesis,
+        # concurrently. Applied in hypothesis order, so the output is the same
+        # as the serial loop; model_id is the last call that answered.
+        for h, reply in zip(hyps, map_ordered(lambda p: _rationale(deps, p), prompts)):
+            if reply is None:
+                continue
+            extra, model_id = reply
+            if extra:
+                h.rationale = f"{h.rationale} | model: {extra}"
         n_bad = sum(1 for h in hyps if h.status == "not_supported")
         return {
             "hypotheses": [h.model_dump() for h in hyps],

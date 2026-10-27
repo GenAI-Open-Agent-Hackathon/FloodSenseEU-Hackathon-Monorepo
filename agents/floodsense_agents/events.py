@@ -7,11 +7,14 @@ Point ids are the warehouse ids, not town slugs. Valencia is VAL01–VAL08
 004 and 012). Chiva is VAL07. Paiporta, on the Barranco del Poyo, is VAL01.
 Turís is not on that list, so it is not a filter. The Ahr ids are the
 ingestion/feeds/feeds.py tuple: AHR01 Altenahr, AHR02 Ahrweiler.
-floodsense_seed hazard and discharge views hold the Valencia series only.
+floodsense_seed hazard and discharge views hold Valencia and, since migrations
+051/052, a real Open-Meteo Ahr extract (AHR01-AHR04, ERA5 rain 13-16 Jul 2021,
+GloFAS discharge 10-20 Jul 2021). The live floodsense views are Valencia only.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 
 # Order is ingestion/prep/valencia_points.csv and migration 003.
@@ -20,7 +23,7 @@ VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
 AHR_POINT_IDS: tuple[str, ...] = ("AHR01", "AHR02", "AHR03", "AHR04")
 
 # Place names for claim text. Municipality from valencia_points.csv, and the
-# town name from feeds.py. AHR02 is Ahrweiler, the short name the scope gate uses.
+# town name from feeds.py. AHR02 is Bad Neuenahr-Ahrweiler; the scope gate also takes "Ahrweiler".
 POINT_NAMES: dict[str, str] = {
     "VAL01": "Paiporta",
     "VAL02": "Catarroja",
@@ -31,7 +34,7 @@ POINT_NAMES: dict[str, str] = {
     "VAL07": "Chiva",
     "VAL08": "Utiel",
     "AHR01": "Altenahr",
-    "AHR02": "Ahrweiler",
+    "AHR02": "Bad Neuenahr-Ahrweiler",
     "AHR03": "Schuld",
     "AHR04": "Dernau",
 }
@@ -51,6 +54,51 @@ RHINE_GAUGES: tuple[tuple[str, str], ...] = (
     ("KÖLN", "RHEIN"),
     ("KOBLENZ", "RHEIN"),
 )
+
+# Words that put a question in Germany. They join the EMSR517 vocabulary (the
+# scope gate) and route a default-event question there (route_event). In live
+# mode EMSR517 is "the Rhine right now": gauge_levels, not the 2021 window.
+GERMAN_PLACES: tuple[str, ...] = (
+    "Rhine",
+    "Rhein",
+    "Köln",
+    "Koeln",
+    "Cologne",
+    "Bonn",
+    "Koblenz",
+    "Mosel",
+    "Moselle",
+    "Ahrtal",
+    "Germany",
+    "Deutschland",
+    "NRW",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Rhineland-Palatinate",
+)
+# "Ahr" in any case (AHR too) and the AHR point ids route to EMSR517.
+_GERMAN_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in (*GERMAN_PLACES, "Ahr", "Altenahr", "Ahrweiler"))
+    + r"|AHR\d{2})\b",
+    re.IGNORECASE | re.UNICODE,
+)
+# Every Valencia town in POINT_NAMES (Catarroja, Sedaví, ...) keeps a question in Valencia.
+_VALENCIA_RE = re.compile(
+    r"\b(?:"
+    + "|".join(
+        re.escape(name) for pid, name in POINT_NAMES.items() if pid.startswith("VAL")
+    )
+    + r"|valencia|val[eè]ncia|spain|españa|espana|poyo|dana|VAL\d{2})\b",
+    re.IGNORECASE | re.UNICODE,
+)
+DEFAULT_EVENT = "EMSR773"
+GERMAN_EVENT = "EMSR517"
+
+
+def names_germany(question: str) -> str | None:
+    """The first German place word of a question, or None."""
+    m = _GERMAN_RE.search(question or "")
+    return m.group(0) if m else None
 
 
 @dataclass(frozen=True)
@@ -133,7 +181,7 @@ EVENTS: dict[str, EventSpec] = {
             ("2021-07-15T06:00:00Z", "Copernicus publishes the footprint"),
         ),
         RHINE_GAUGES,
-        ("Altenahr", "Ahrweiler"),
+        ("Altenahr", "Ahrweiler", "Bad Neuenahr-Ahrweiler", *GERMAN_PLACES),
     ),
 }
 ALIASES = {"valencia_2024": "EMSR773", "ahr_2021": "EMSR517"}
@@ -147,3 +195,47 @@ def spec(event_id: str) -> EventSpec:
             f"{', '.join(ALIASES)})"
         )
     return EVENTS[key]
+
+
+def _context_event(context: dict | None) -> tuple[str, str] | None:
+    """The event the user's selection points at: event_id, then point, station, place."""
+    ctx = context or {}
+    if ctx.get("event_id"):
+        try:
+            return spec(str(ctx["event_id"])).event_id, f"context event_id {ctx['event_id']}"
+        except KeyError:
+            pass
+    pid = ctx.get("point_id")
+    if pid in POINT_NAMES:
+        ev = GERMAN_EVENT if str(pid).startswith("AHR") else DEFAULT_EVENT
+        return ev, f"context point {pid}"
+    if ctx.get("station"):
+        # PEGELONLINE stations are German, whatever list gauge_levels grows to.
+        return GERMAN_EVENT, f"context station {ctx['station']}"
+    place = str(ctx.get("place") or "")
+    if place and names_germany(place):
+        return GERMAN_EVENT, f"context place {place}"
+    if place and _VALENCIA_RE.search(place):
+        return DEFAULT_EVENT, f"context place {place}"
+    return None
+
+
+def route_event(
+    question: str, event_id: str | None, context: dict | None = None
+) -> tuple[str, str]:
+    """(event_id, reason). An explicit event_id always stands; only None is routed.
+
+    Unset: the user's selection (context) wins, then a German question (Rhine,
+    Köln, Ahr, AHR01 ...) goes to EMSR517, else EMSR773. A question that also
+    names a Valencia town stays on EMSR773 (the scope gate decides).
+    """
+    if event_id:
+        chosen = spec(event_id).event_id
+        return chosen, f"event_id {chosen} requested"
+    picked = _context_event(context)
+    if picked:
+        return picked
+    word = names_germany(question)
+    if word and not _VALENCIA_RE.search(question or ""):
+        return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"
+    return DEFAULT_EVENT, f"no event_id; default {DEFAULT_EVENT}"

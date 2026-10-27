@@ -68,6 +68,27 @@ operator console shows an LLM select next to Run, and `POST /runs` accepts
 `claude-sonnet-5-5`). With the gate off, any value other than `nightshift` is
 rejected with 422. The API cache keeps each provider's answers apart.
 
+## Nightshift speed and retries
+
+Measured on Nightshift: both lanes answer with Nemotron 3.5 Lightning 30B A3B at about 60 to 70 completion tokens/s, and most completion tokens are hidden reasoning even with `enable_thinking=false`, so latency follows token count. Long generations get a **502 from the gateway at about 45 s**.
+
+- Retry policy (`nightshift.py`): a reply with `finish_reason: length` is an error and is not retried, so a truncated reply never reaches a parser or the Judge. A 429 waits `Retry-After` seconds (at most 10). A timeout (`LLM_TIMEOUT_S`, 180) or an error that arrives after `LLM_SLOW_FAIL_S` (20 s) is final, and the node falls back to its deterministic path. Other errors (fast 5xx, connection, a 200 with no `choices`) get `LLM_MAX_ATTEMPTS` (2) tries in total.
+- `LLM_MAX_TOKENS_FAST` / `LLM_MAX_TOKENS_DEEP` (6000 / 8000) are runaway caps, not length budgets; `0` sends no `max_tokens`.
+- Skeptic rationale calls and Judge per-claim grounding calls run on up to `LLM_MAX_PARALLEL` (6) threads. Results are applied in input order, so scores, hypotheses and the trace are the same as a serial run. `1` runs them serially.
+- The repair round runs only when the Judge flags claims **and** the run does not pass. `JUDGE_REPAIR_WHEN_PASSING=true` repairs flagged claims on a passing run too.
+
+Benchmark one full run against real Nightshift and Zetaris inside the agents container, without rebuilding it:
+
+```
+docker cp agents/floodsense_agents floodsense-app-agents-1:/tmp/bench/floodsense_agents
+docker cp scripts/bench_nightshift.py floodsense-app-agents-1:/tmp/bench_nightshift.py
+docker exec -w /tmp -e PYTHONPATH=/tmp/bench floodsense-app-agents-1 python /tmp/bench_nightshift.py
+```
+
+`PYTHONPATH=/app` measures the image's code instead. It prints per-node trace latency and per-call lane, seconds, prompt size and answering model (`--json` for one object). It reads the container env and prints no secret.
+
+`AnthropicClient` (the test-only provider switch) keeps its own `max_tokens` (16000) and its own retry policy (3 attempts). None of the `LLM_*` settings above apply to it, so bench numbers for the two providers are not like-for-like.
+
 ## Human-in-the-loop
 
 `hitl.py` pauses with `interrupt()`; the checkpointer is **SQLite under `/data/checkpoints`** (the compose volume, `checkpoints.py`), so a paused run survives a restart of the container. Resume with `POST /runs/{id}/approval`: `approve` releases the outbound playbook actions, `edit` replaces the summary with the analyst's `edits` and releases, `reject` releases nothing. The decision lands in `approval{status, decision, edits, reviewer_note}` and in the trace. `FF_HITL=false` auto-approves and says so (`approval.status = "auto"`): dev only.
@@ -119,3 +140,11 @@ The NVIDIA chat key is not a variable in `.env`. It lives only in Nightshift's P
 Lane ids: fast `meterless/fast`, deep `meterless/deep`. The app sends these ids. Nightshift picks the model. No `meterless/auto`. The map to the model that answers today is the table at the top of `docs/architecture/c4.md`. Super VL answers both lanes today, so the fast lane is not by itself a large wall-time cut. It helps when `MODEL_FAST` is a cheaper or faster model, such as Lightning.
 
 Independent Zetaris reads in one node run together, up to `ZETARIS_MAX_PARALLEL` (default 8). Set it to 1 to run them one after another, in call order. A query that raises is recorded as `Evidence.error`. The other queries in that batch still come back. That overlap is the guaranteed gain while both Nightshift lanes are answered by the same model.
+
+## Germany: routing, the Rhine right now, and context
+
+**Event routing** (`events.route_event`, called by `Runtime.start`). `RunRequest.event_id` is optional. An explicit id always stands, so `EMSR773` forces Valencia. When it is unset, the run picks in this order: `context` (event_id, then a known `point_id`, then a `station`, which is always German, then `place`); then a question naming Rhine/Rhein/Köln/Koeln/Cologne/Bonn/Koblenz/Mosel/Ahr (any case, including AHR and the AHR point ids)/Germany/NRW/Rheinland-Pfalz goes to EMSR517; otherwise EMSR773. A question that also names a Valencia town from `POINT_NAMES` (Paiporta, Catarroja, Sedaví, ...) stays on EMSR773. The reason is on the scope trace step ("event EMSR517: question names 'Köln' ..."). The UI sends `event_id` only when the page has one.
+
+**The Rhine right now.** Live mode on EMSR517 reads `{schema}.gauge_levels` (PEGELONLINE). It first counts `hazard_now` rows for the German points and says plainly when there are none, without borrowing Valencia rows. Each station gets one claim: level in cm, UTC time and "N h ago", and the trend from `trend_cm_h`. Without that column, the trend is given as "from P cm at T to L cm", using two cited cells. The threshold is `mhw_cm`, falling back to any numeric column named like threshold/warn/hsw. The wording uses `band` (below/near/above) when present. A row with `is_stale` is reported as "stale reading from <time>", never as current. With no live row, the answer is a "Status:" claim with no numbers. Every gauge claim says: not an official warning; official: Hochwassermeldedienst (Länder) / DWD. The Skeptic checks the gauge hypothesis against `gauge_levels`.
+
+**RunRequest.context** (`models.RunContext`): `{page, role: citizen|insurer, place, point_id, station, event_id, replay_date}`. Keys are allowlisted, so an unknown key is a 422. Every field is short and pattern-checked. Context values are never SQL identifiers. A `point_id` is used only when it is one of the event's known points. The station is uppercased and quote-escaped, and only appears inside a quoted string value. The context focuses the Watchers queries (`point_id = …`, `station = …`) and the live hazard chain, and puts the selected station first. It also phrases the answer for the role: a citizen gets "In plain words: …" and what to do, an insurer gets "Exposure: …" first. The scope trace step records it. The API cache key and replay matching include the context, so a cached answer never crosses places or roles.

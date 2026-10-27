@@ -17,6 +17,10 @@ One statement per REST request. Split a file on a line that is exactly `-- state
 
 Seed views (`floodsense_seed.*`) share the schemas of the live views so the agent pair can build before live sources are ready. Agents switch with `FF_LIVE_DATA`.
 
+### Ahr 2021 seed rows (051, 052)
+
+`floodsense_seed.discharge_daily` and `floodsense_seed.hazard_timeline` carry the EMSR517 Ahr replay next to Valencia: AHR01 Altenahr, AHR02 Bad Neuenahr-Ahrweiler, AHR03 Schuld, AHR04 Dernau. Like 012/013 the rows are inline `VALUES`, not FILESTORE tables, so nothing new is staged into the container. The rows are rendered from `ingestion/prep/ahr_*.csv` by `ingestion/prep/ahr_hazard.py --migrations`, and a test checks that the committed SQL matches the CSVs. The live views (004, 007) read the Valencia REST tables and are unchanged, so `floodsense.*` and the API's `/views/...` still have no AHR rows.
+
 ## Sync command
 
 ```powershell
@@ -46,3 +50,16 @@ Applied files are recorded in `.zetaris-sync/ledger.json` (git-ignored, one per 
 Each person creates their own Zetaris API key in their own UI and stores it in `ingestion/.env` (host URL `127.0.0.1`). Do not point this command at `agents/.env`: that file is for containers and uses `host.docker.internal`, which usually does not resolve on the host. The root `.env` is not injected into containers. The sync command reads `ingestion/.env`, not the root file and not `agents/.env`. Nobody shares keys.
 
 This folder does not start Zetaris. Zetaris is a separate Docker Compose project on each machine (UI `:3000`, REST `:8888/api/v1.0`, JDBC `:10000`).
+
+## Live river gauges (045-050)
+
+048 adds `is_stale` (fetched_at missing or older than 30 minutes); 049/050 are the seed twin (050 fixes KÖLN encoding). `floodsense.gauge_levels` reads `floodsense_live_src.pegel_now_src`, a FILESTORE table over
+`floodsense_live/pegel_now/live.csv`. `python tasks.py pegel-poll` fetches the current PEGELONLINE
+water level, trend (cm/h over about an hour), characteristic values (MNW, MW, MHW, HHW, HSW) and a
+`band` (below / near / above against MHW) for Mainz, Kaub, Koblenz, Andernach, Bonn, Koeln,
+Duesseldorf, Trier UP and Cochem, writes the CSV and copies it into `zetaris-driver-1`.
+`python tasks.py pegel-poll --interval 600` repeats every 10 minutes. Run it once before applying
+045 (inferSchema reads the header at CREATE). The Ahr is not on PEGELONLINE (state gauges), so it
+stays replay only. Data: PEGELONLINE, DL-DE->Zero-2.0, "Quelle: WSV, PEGELONLINE".
+A REST table straight on the PEGELONLINE API was not used: one request has no trend, nested
+characteristic values need several explodes, and a wrong REST table cannot be dropped on 2.4.3.1.

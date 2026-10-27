@@ -14,7 +14,7 @@ from langgraph.types import Command
 
 from floodsense_agents import labelling
 from floodsense_agents.checkpoints import build_checkpointer
-from floodsense_agents.events import spec
+from floodsense_agents.events import route_event, spec
 from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.models import ApprovalDecision, RunRequest
@@ -219,7 +219,11 @@ class Runtime:
 
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
-        ev = spec(req.event_id)
+        # A Rhine / Köln / Ahr question on the default event runs on EMSR517.
+        routed, route_why = route_event(
+            req.question, req.event_id, req.context.model_dump() if req.context else None
+        )
+        ev = spec(routed)
         thread_id = req.thread_id or run_id
         turns = self.thread(req.thread_id) if req.thread_id else []
         served_from, cached_at = labelling.computation_label(
@@ -233,6 +237,7 @@ class Runtime:
                     "thread_id": thread_id,
                     "thread": turns,
                     "event_id": ev.event_id,
+                    "event_route": route_why,
                     "customer_id": req.customer_id,
                     "replay_ts": req.replay_ts,
                     "request": req.model_dump(),

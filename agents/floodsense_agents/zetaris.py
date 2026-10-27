@@ -363,6 +363,8 @@ _SEED = {
     ]
     + [(_VAL_RIVER, "2024-10-29T19:11:00Z", None, None, "es-alert")]
     + [
+        # 13:00: the rain was under way before 14:00, so a 15:00 replay sees two hours.
+        (_AHR_RAIN, "2021-07-14T13:00:00Z", 12.0, None, None),
         (_AHR_RAIN, "2021-07-14T14:00:00Z", 38.0, None, "3"),
         (_AHR_RAIN, "2021-07-14T16:00:00Z", 61.0, None, "4"),
         (_AHR_RAIN, "2021-07-14T18:00:00Z", 43.0, None, "4"),

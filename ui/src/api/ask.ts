@@ -1,6 +1,7 @@
 import { apiBaseUrl } from "./config";
 import { adoptRunBody, type RecordedRun } from "./replay";
 import type { LlmProvider } from "../lib/llmProvider";
+import { withAskContext, type AskContext } from "../lib/askContext";
 
 export const DEFAULT_EVENT_ID = "EMSR773";
 
@@ -13,6 +14,8 @@ export interface AskInput {
   threadId?: string | null;
   /** "live" reads hazard_now (past days and the next 48 h). Unset lets the agents classify the question. */
   mode?: AskMode;
+  /** Screen context (role, page, point, replay moment). Sent as `context` only through withAskContext. */
+  context?: AskContext | null;
 }
 
 export type AskMode = "live" | "event";
@@ -48,17 +51,19 @@ export function capTurns<T>(turns: T[], max = MAX_TURNS): T[] {
 }
 
 /** Pure: the POST /runs body. */
-export function buildRunRequest(input: AskInput): Record<string, string> {
+export function buildRunRequest(input: AskInput): Record<string, unknown> {
   const question = input.question.trim();
   const body: Record<string, string> = {
     question,
-    event_id: input.eventId || DEFAULT_EVENT_ID,
     doc_query: question,
   };
+  // No event_id unless the page has one: the agents route an unset event by the
+  // question (Rhine, Köln, Ahr -> EMSR517) and default to EMSR773 otherwise.
+  if (input.eventId) body.event_id = input.eventId;
   if (input.allowedProviders.includes(input.provider)) body.llm_provider = input.provider;
   if (input.threadId) body.thread_id = input.threadId;
   if (input.mode) body.mode = input.mode;
-  return body;
+  return withAskContext(body, input.context);
 }
 
 export type AskResult =

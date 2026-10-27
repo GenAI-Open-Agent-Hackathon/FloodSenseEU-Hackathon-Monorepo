@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timedelta
 
 from floodsense_agents.governance import DEFINITIONS
-from floodsense_agents.live import LIVE_ROWS, horizon_word, is_live, points_sql
+from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, focus, horizon_word, is_live, points_sql
 from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -66,10 +66,14 @@ def make(deps: Deps):
         rain_at = DEFINITIONS["anomaly_rain"]
         flow_at = DEFINITIONS["anomaly_discharge"]
         live = is_live(state)
+        # The user's selection (context), mapped to known ids only.
+        fx = focus(state)
+        at_point = f" AND point_id = '{fx['point_id']}'" if fx["point_id"] else ""
+        at_station = f" AND station = '{fx['station']}'" if fx["station"] else ""
         if live:
             # hazard_now is a rolling window (past ~3 days, forecast ~48 h).
             # No clock predicate: the view already is "now". Same thresholds.
-            pts = points_sql(state["event"])
+            pts = points_sql(state["event"], fx["point_id"])
             t0, t1 = "now-past", "now+forecast"
             live_q = {
                 "rain": (
@@ -96,12 +100,12 @@ def make(deps: Deps):
         q = live_q if live else {
             "rain": (
                 f"SELECT point_id, ts_utc, rain_mm FROM {s}.hazard_timeline WHERE ts_utc "
-                f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value} ORDER BY rain_mm DESC",
+                f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value}{at_point} ORDER BY rain_mm DESC",
                 clock,
             ),
             "discharge": (
                 f"SELECT point_id, ts_utc, discharge_m3s FROM {s}.hazard_timeline WHERE "
-                f"ts_utc BETWEEN ? AND ? AND discharge_m3s >= {flow_at.value} "
+                f"ts_utc BETWEEN ? AND ? AND discharge_m3s >= {flow_at.value}{at_point} "
                 f"ORDER BY discharge_m3s DESC",
                 clock,
             ),
@@ -109,12 +113,20 @@ def make(deps: Deps):
                 f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level FROM "
                 f"{s}.hazard_timeline "
                 f"WHERE ts_utc BETWEEN ? AND ? "
-                f"AND warning_level IS NOT NULL GROUP BY point_id, warning_level ORDER BY first_utc",
+                f"AND warning_level IS NOT NULL{at_point} GROUP BY point_id, warning_level "
+                f"ORDER BY first_utc",
                 clock,
             ),
         }
         # Valencia lists none. The Ahr lists the Rhine gauges between Koblenz and Bonn.
-        if state["event"].get("gauges") and not live:
+        if state["event"].get("gauges") and live:
+            # The Rhine right now: live PEGELONLINE rows only, newest first.
+            q["gauges"] = (
+                f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
+                f"WHERE {GAUGE_LIVE_ROWS}{at_station} ORDER BY ts_utc DESC, station",
+                None,
+            )
+        elif state["event"].get("gauges"):
             q["gauges"] = (
                 f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
                 f"WHERE ts_utc BETWEEN ? AND ? ORDER BY station, ts_utc",
