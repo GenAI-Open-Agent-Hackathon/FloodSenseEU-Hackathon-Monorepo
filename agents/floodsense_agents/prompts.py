@@ -14,6 +14,7 @@ their wording, keep their facts. Rules:
 - A claim is one sentence that states a fact, a number or a cause. Every claim cites >= 1 query_id whose rows contain it.
 - Every number in a claim must appear in the cited rows (same unit). Do not use knowledge that is not in the evidence.
 - Say what the evidence does not show instead of guessing. Keep it short and in {lang}.
+- query_ids are the short ids shown (Q1, Q2, ...). Answer directly; do not deliberate at length.
 Reply with ONE JSON object:
 {"statement": "one sentence for the link",
  "claims": [{"text": "...", "kind": "number|fact|cause", "numbers": [491], "query_ids": ["<query_id>"]}]}"""
@@ -53,14 +54,14 @@ def _cell(v) -> str:
     return f"{v:.3f}".rstrip("0").rstrip(".")
 
 
-def compact_rows(e, numbers=(), max_rows: int = 8) -> str:
+def compact_rows(e, numbers=(), max_rows: int = 8, qid: str | None = None) -> str:
     """One evidence table, compact: a header line, column names, <= max_rows rows.
 
     Rows holding one of ``numbers`` (the values a draft claim states) come
     first, so a peak late in a long series is not cut; the rest fill up in
     their original order. Numbers are written plainly (no exponent).
     """
-    head = f"query_id={e.query_id} view={e.view} rows={e.row_count}" + (
+    head = f"query_id={qid or e.query_id} view={e.view.rsplit('.', 1)[-1]} rows={e.row_count}" + (
         f" ERROR={e.error}" if e.error else ""
     )
     rows = list(e.rows_sample)

@@ -99,7 +99,7 @@ def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx
                 break
             chunk = _loads(data)
             if chunk.get("error"):
-                stray.append(str(chunk["error"])[:160])
+                stray.append(str(chunk["error"])[:400])
             model = chunk.get("model") or model
             usage = chunk.get("usage") or usage
             for ch in chunk.get("choices") or []:
@@ -110,7 +110,9 @@ def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx
     if not (parts or finish):
         # The stream closed before any answer (seen at ~45 s on Nightshift).
         # ValueError: _send's transient-error path decides on a retry.
-        raise ValueError(f"stream ended without an answer: {' | '.join(stray[-2:]) or 'no data'}")
+        raise ValueError(
+            f"stream ended without an answer: {' | '.join(stray[-2:])[:500] or 'no data'}"
+        )
     out = {
         "model": model,
         "usage": usage,

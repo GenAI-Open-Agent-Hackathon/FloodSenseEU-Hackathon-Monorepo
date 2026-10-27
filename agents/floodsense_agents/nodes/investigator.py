@@ -974,10 +974,15 @@ def _link_prompt(
     drafts: list[Claim],
     evs: list[Evidence],
     others: list[Evidence] = (),
+    alias: dict[str, str] | None = None,
 ) -> str:
+    """One link's prompt. Query ids appear as short aliases (Q1, Q2..): a 36-char
+    UUID per citation cost the model tokens it cannot spare under the deadline."""
+    alias = alias or {}
     nums = [n for c in drafts for n in c.numbers]
     shown = {e.query_id for e in evs}
     rest = [e for e in others if e.query_id not in shown]
+    view = lambda e: e.view.rsplit(".", 1)[-1]  # noqa: E731
     return (
         f"EVENT: {state['event']['name']} ({state['event_id']}); river "
         f"{state['event']['river']}\nQUESTION: {state['request']['question']}\n"
@@ -985,10 +990,13 @@ def _link_prompt(
         f"LINK: {h.id} {h.link}\nDRAFT:\n"
         + "\n".join(f"- {c.text}" for c in drafts)
         + "\n\nEVIDENCE:\n"
-        + "\n\n".join(compact_rows(e, nums, LINK_ROWS) for e in evs)
+        + "\n\n".join(compact_rows(e, nums, LINK_ROWS, qid=alias.get(e.query_id)) for e in evs)
         + (
             "\n\nOTHER QUERIES OF THIS RUN (rows not shown):\n"
-            + "\n".join(f"query_id={e.query_id} view={e.view} rows={e.row_count}" for e in rest)
+            + "\n".join(
+                f"query_id={alias.get(e.query_id, e.query_id)} view={view(e)} rows={e.row_count}"
+                for e in rest
+            )
             if rest
             else ""
         )
@@ -1050,10 +1058,14 @@ def _model(
             if x.layer == "a" and x.query_id in evidence
         )
         jobs.append((h, drafts, [evidence[q] for q in qids]))
+    alias = {q: f"Q{i}" for i, q in enumerate(evidence, 1)}
+    back = {a: q for q, a in alias.items()}
     system = INVESTIGATOR_LINK.replace("{lang}", state["request"].get("lang", "en"))
     replies = map_ordered(
         lambda j: (
-            _link_reply(deps, system, _link_prompt(state, *j, list(evidence.values())), j[0].link)
+            _link_reply(
+                deps, system, _link_prompt(state, *j, list(evidence.values()), alias), j[0].link
+            )
             if j[2]
             else None
         ),
@@ -1073,7 +1085,8 @@ def _model(
             model_id = model_id or mid
             known = evidence
             for k, c in enumerate(raw, 1):
-                cited = [known[q] for q in c.get("query_ids") or [] if q in known]
+                ids_in = [back.get(str(q), str(q)) for q in c.get("query_ids") or []]
+                cited = [known[q] for q in dict.fromkeys(ids_in) if q in known]
                 if cited and all(e.row_count == 0 or e.error for e in cited):
                     # A claim whose every cited query came back empty has no rows
                     # behind it, and the Skeptic would reject its whole link.
