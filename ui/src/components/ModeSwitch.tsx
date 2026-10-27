@@ -155,6 +155,7 @@ export function LiveHealthNote({ live }: { live: Pick<LiveWatch, "health" | "ref
           {h.loaded} of {h.total} sources loaded.
         </strong>{" "}
         Could not read: {h.failed.join(", ")}. Showing what we have; nothing here says the missing sources are calm.
+        {stale ? ` ${stale}.` : ""}
       </span>
       <button type="button" className="button" onClick={live.refresh}>
         Retry

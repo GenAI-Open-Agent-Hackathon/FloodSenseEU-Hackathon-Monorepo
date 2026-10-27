@@ -181,6 +181,37 @@ class ViewsCacheTest(unittest.TestCase):
         s = run(vc.get("eu_watch", {}, Upstream((404, "no", "text/plain", {}))))
         self.assertEqual(s.status, 404)
 
+    def test_empty_200_does_not_replace_a_good_copy(self) -> None:
+        vc = self.make()
+        run(vc.get("eu_watch", {}, Upstream(ok(1))))
+        self.clock.t += 700
+        for body in ("[]", "", '{"rows": []}'):
+            s = run(vc.get("eu_watch", {}, Upstream((200, body, "application/json", {}))))
+            self.assertEqual((s.cache, s.status), ("stale", 200))
+            self.assertIn('"n": 1', s.body)
+
+    def test_empty_200_with_no_copy_is_returned_uncached(self) -> None:
+        vc = self.make()
+        s = run(vc.get("eu_watch", {}, Upstream((200, "[]", "application/json", {}))))
+        self.assertEqual((s.status, s.cache, s.body), (200, None, "[]"))
+        self.assertEqual(run(vc.get("eu_watch", {}, Upstream(ok(2)))).cache, "miss")
+
+    def test_a_cancelled_leader_does_not_break_the_waiters(self) -> None:
+        vc = self.make()
+        up = Upstream(ok(1))
+        up.delay = 0.1
+
+        async def go():
+            leader = asyncio.ensure_future(vc.get("eu_watch", {}, up))
+            await asyncio.sleep(0.02)
+            waiter = asyncio.ensure_future(vc.get("eu_watch", {}, up))
+            await asyncio.sleep(0.02)
+            leader.cancel()
+            return await waiter
+
+        s = run(go())
+        self.assertEqual((s.status, s.cache, up.calls), (200, "hit", 1))
+
     def test_memory_backend_is_reported(self) -> None:
         self.assertEqual(self.make().stats()["backend"], "memory")
 

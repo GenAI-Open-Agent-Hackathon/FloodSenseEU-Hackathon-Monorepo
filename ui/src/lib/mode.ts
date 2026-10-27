@@ -88,11 +88,11 @@ export function isDemoIsolated(page: string): boolean {
  * Pure: the mode sentence of the context strip. It always ends in a final state: a time, "unavailable", or "checking…"
  * only while the live views are really loading.
  */
-export function modeStripText(state: ModeState, checkedAt: number | null, health: LiveHealth | null = null, page = ""): string {
+export function modeStripText(state: ModeState, checkedAt: number | null, health: LiveHealth | null = null, page = "", now = Date.now()): string {
   if (state.mode === "past") return `Past flood: ${EVENT_META[state.eventId].short} (replay)`;
   if (state.demo) return isDemoIsolated(page) ? "Demo data · bundled snapshot, not live" : "Live data (demo mode only affects the watch views)";
   const partial = health && health.failed.length > 0 && !health.loading ? ` · ${health.loaded} of ${health.total} sources` : "";
-  const old = health && !health.loading ? staleStripText(health.stale ?? []) : null;
+  const old = health && !health.loading ? staleStripText(health.stale ?? [], now) : null;
   if (old) return `Live data · ${old}`;
   if (checkedAt !== null) return `Live data · checked ${hhmmOf(checkedAt)} UTC${partial}`;
   if (!health || health.loading) return "Live data · checking…";

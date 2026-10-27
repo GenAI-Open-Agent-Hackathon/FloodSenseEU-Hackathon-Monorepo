@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cacheInfoOf, staleNote, staleStripText, staleViews } from "./staleness";
+import { cacheInfoOf, dataTime, staleNote, staleStripText, staleViews } from "./staleness";
 import { modeStripText } from "./mode";
 
 const headers = (h: Record<string, string>) => ({ get: (k: string) => h[k.toLowerCase()] ?? null });
@@ -18,6 +18,19 @@ describe("cacheInfoOf", () => {
   });
 });
 
+describe("data time", () => {
+  it("prefers the copy executed-at over the browser fetch time", () => {
+    const i = cacheInfoOf("eu_watch", headers({ "x-views-cache": "hit", "x-views-age-s": "540", "x-executed-at": "2026-10-27T10:21:00Z" }), NOW);
+    expect(dataTime(i, NOW)).toBe(Date.parse("2026-10-27T10:21:00Z"));
+    expect(dataTime(null, NOW)).toBe(NOW);
+  });
+  it("the strip age ticks with the clock", () => {
+    const s = [{ view: "eu_watch", goodAt: NOW - 600_000 }];
+    expect(staleStripText(s, NOW)).toBe("view eu_watch is 10 min old");
+    expect(staleStripText(s, NOW + 300_000)).toBe("view eu_watch is 15 min old");
+  });
+});
+
 describe("stale notes", () => {
   const stale = staleViews([
     cacheInfoOf("eu_watch", headers({ "x-views-cache": "stale", "x-views-age-s": "1500" }), NOW),
@@ -31,12 +44,12 @@ describe("stale notes", () => {
   });
   it("labels the strip with the age and never calls it plain live", () => {
     expect(staleStripText(stale)).toBe("view eu_watch is 25 min old");
-    expect(modeStripText({ mode: "live", demo: false, eventId: "ahr2021" } as never, NOW, { loaded: 45, total: 45, failed: [], loading: false, stale })).toBe(
+    expect(modeStripText({ mode: "live", demo: false, eventId: "ahr2021" } as never, NOW, { loaded: 45, total: 45, failed: [], loading: false, stale }, "now", NOW)).toBe(
       "Live data · view eu_watch is 25 min old",
     );
   });
   it("names several views", () => {
-    const two = [...stale, { view: "hazard_now", goodAt: NOW - 60_000, ageS: 60 }];
+    const two = [...stale, { view: "hazard_now", goodAt: NOW - 60_000 }];
     expect(staleStripText(two)).toBe("views eu_watch, hazard_now are 25 min old");
   });
 });

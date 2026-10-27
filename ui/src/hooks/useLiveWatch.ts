@@ -7,7 +7,7 @@ import { summariseGauges, type GaugeSummary } from "../lib/gauges";
 import { summariseAll, type PointNow } from "../lib/now";
 import { DEMO_SNAPSHOT_AT, isDemo } from "../lib/demo";
 import { WATCH_TOTAL, type LiveHealth } from "../lib/mode";
-import { staleViews } from "../lib/staleness";
+import { dataTime, staleViews } from "../lib/staleness";
 import { oldestFetch } from "../lib/places";
 import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
 
@@ -123,9 +123,9 @@ export function useLiveWatch(): LiveWatch {
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
   const fetchedMs = oldestFetch([
-    gauges.state === "rows" ? (gauges.fetchedAt ?? null) : null,
-    euWatch.state === "rows" ? euWatch.fetchedAt : null,
-    hazard.state === "ready" ? hazard.fetchedAt : null,
+    gauges.state === "rows" ? dataTime(gauges.cache, gauges.fetchedAt ?? null) : null,
+    euWatch.state === "rows" ? dataTime(euWatch.cache, euWatch.fetchedAt) : null,
+    hazard.state === "ready" ? dataTime(hazard.data.cache, hazard.fetchedAt) : null,
   ]);
   // Demo rows are a frozen snapshot: "checked" is the snapshot time, never the moment the page read it.
   const updatedAt = fetchedMs !== null && demo ? Date.parse(DEMO_SNAPSHOT_AT) : fetchedMs;

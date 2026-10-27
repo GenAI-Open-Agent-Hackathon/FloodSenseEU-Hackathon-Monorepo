@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import threading
 import time
@@ -60,6 +61,18 @@ def query_of(params: dict[str, str] | None) -> str:
 
 def _failure(status: int) -> bool:
     return status >= 500 or status == 429
+
+
+def _empty(body: str) -> bool:
+    """An empty list, empty rows or no body: a live REST view that answers this has lost its data."""
+    text = body.strip()
+    if text in ("", "[]", "{}", "null"):
+        return True
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return False
+    return isinstance(value, dict) and value.get("rows") == []
 
 
 @dataclass
@@ -188,7 +201,7 @@ class ViewsCache:
         """One upstream call; a 200 is stored. Returns the Copy, or the raw failure."""
         result = await upstream()
         status, body, ctype, headers = result
-        if status == 200:
+        if status == 200 and not _empty(body):
             copy = Copy(status, body, ctype, headers, self._clock())
             await asyncio.to_thread(self.store, name, query, copy)
             return copy
@@ -213,15 +226,16 @@ class ViewsCache:
         flight = self._flights.get(slot)
         leader = flight is None
         if flight is None:
-            flight = asyncio.get_running_loop().create_future()
+            # The call runs in its own task: a cancelled leader does not cancel the waiters' result.
+            flight = asyncio.ensure_future(self._call(name, query, upstream))
             self._flights[slot] = flight
-            try:
-                flight.set_result(await self._call(name, query, upstream))
-            except BaseException as exc:  # noqa: BLE001 - followers see the same failure
-                flight.set_exception(exc)
-                flight.exception()  # mark retrieved when nobody else awaits
-            finally:
+
+            def _done(t: asyncio.Future, slot: str = slot) -> None:
                 self._flights.pop(slot, None)
+                if not t.cancelled():
+                    t.exception()  # mark retrieved when nobody awaits
+
+            flight.add_done_callback(_done)
         try:
             outcome = await asyncio.shield(flight)
         except asyncio.CancelledError:
@@ -241,9 +255,10 @@ class ViewsCache:
                 self._bump(name, "hits")
             return self._from_copy(outcome, "miss" if leader else "hit")
         status, body, ctype, headers = outcome
-        if leader and _failure(status):
-            self._error(name, f"HTTP {status}")
-        if _failure(status) and copy is not None:
+        bad = _failure(status) or (status == 200 and _empty(body))
+        if leader and bad:
+            self._error(name, "empty 200 body" if status == 200 else f"HTTP {status}")
+        if bad and copy is not None:
             if leader:
                 self._bump(name, "stale_serves")
             return self._from_copy(copy, "stale")
@@ -272,7 +287,7 @@ class ViewsCache:
                 self._error(name, f"warm-up {type(exc).__name__}")
                 log.warning("views cache warm-up for %s failed: %s", name, type(exc).__name__)
                 continue
-            if status == 200:
+            if status == 200 and not _empty(body):
                 self.store(name, "", Copy(status, body, ctype, headers, self._clock()))
             else:
                 self._error(name, f"warm-up HTTP {status}")

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { modeStripText } from "../lib/mode";
 import { DemoChip } from "./ModeSwitch";
@@ -9,9 +10,14 @@ import { DemoChip } from "./ModeSwitch";
  */
 export function ReplayBar() {
   const { modeState, liveCheckedAt, liveHealth, deskRoute, playing, stopSimulation } = useConsole();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
   return (
     <div className="replay-bar" data-kind={modeState.mode === "past" && deskRoute.role !== "operator" ? "replay" : "live"} role="status" aria-live="polite">
-      <span className="context-text">{modeStripText(deskRoute.role === "operator" ? { ...modeState, mode: "live" } : modeState, liveCheckedAt, liveHealth, deskRoute.page)}</span>
+      <span className="context-text">{modeStripText(deskRoute.role === "operator" ? { ...modeState, mode: "live" } : modeState, liveCheckedAt, liveHealth, deskRoute.page, now)}</span>
       <DemoChip />
       {playing && (
         <>

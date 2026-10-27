@@ -7,14 +7,13 @@ export interface ViewCacheInfo {
   view: string;
   cache: "miss" | "hit" | "stale" | null;
   ageS: number | null;
-  /** When the copy was read from the live source (ms): now minus its age. */
+  /** When the copy was read from the source (ms): its x-executed-at, else now minus its age. */
   goodAt: number | null;
 }
 
 export interface StaleView {
   view: string;
   goodAt: number;
-  ageS: number;
 }
 
 type HeaderSource = { get?: (name: string) => string | null } | undefined | null;
@@ -24,14 +23,16 @@ export function cacheInfoOf(view: string, headers: HeaderSource, now = Date.now(
   const cache = raw === "miss" || raw === "hit" || raw === "stale" ? raw : null;
   const age = Number(headers?.get?.("x-views-age-s") ?? "");
   const ageS = cache && Number.isFinite(age) && age >= 0 ? Math.round(age) : null;
-  return { view, cache, ageS, goodAt: ageS === null ? null : now - ageS * 1000 };
+  const executed = Date.parse(headers?.get?.("x-executed-at") ?? "");
+  const goodAt = Number.isFinite(executed) ? executed : ageS === null ? null : now - ageS * 1000;
+  return { view, cache, ageS, goodAt };
 }
 
 /** The stale views among the loaded ones. Order is kept. */
 export function staleViews(infos: (ViewCacheInfo | null | undefined)[]): StaleView[] {
   const out: StaleView[] = [];
   for (const i of infos) {
-    if (i && i.cache === "stale" && i.goodAt !== null && i.ageS !== null) out.push({ view: i.view, goodAt: i.goodAt, ageS: i.ageS });
+    if (i && i.cache === "stale" && i.goodAt !== null) out.push({ view: i.view, goodAt: i.goodAt });
   }
   return out;
 }
@@ -49,10 +50,15 @@ export function staleNote(stale: StaleView[]): string | null {
 }
 
 /** "view eu_watch is 12 min old" for the context strip; several views are listed. */
-export function staleStripText(stale: StaleView[]): string | null {
+export function staleStripText(stale: StaleView[], now = Date.now()): string | null {
   if (stale.length === 0) return null;
   const names = stale.map((s) => s.view);
-  const minutes = Math.max(1, Math.round(Math.max(...stale.map((s) => s.ageS)) / 60));
+  const minutes = Math.max(1, Math.round((now - Math.min(...stale.map((s) => s.goodAt))) / 60_000));
   const subject = names.length === 1 ? `view ${names[0]} is` : `views ${names.join(", ")} are`;
   return `${subject} ${minutes} min old`;
+}
+
+/** When the data on screen was read from its source: the copy's own time, never the browser fetch time of a cached copy. */
+export function dataTime(info: ViewCacheInfo | null | undefined, fetchedAt: number | null): number | null {
+  return info?.goodAt ?? fetchedAt;
 }
