@@ -1,3 +1,4 @@
+import type { DataOrigin } from "../types/views";
 import { normalizeUtcTimestamp } from "./time";
 
 /** One row of the `gauge_levels` view (contracts/views.yaml). Served by Zetaris, never fetched from PEGELONLINE here. */
@@ -7,6 +8,14 @@ export interface GaugeLevelRow {
   ts_utc: string;
   level_cm: number;
   source: string;
+  lat: number | null;
+  lon: number | null;
+  trend_cm_h: number | null;
+  mw_cm: number | null;
+  mhw_cm: number | null;
+  band: GaugeStatus;
+  fetched_at: string | null;
+  is_stale: boolean;
 }
 
 export type GaugeStatus = "ok" | "near" | "over" | "unknown";
@@ -20,11 +29,42 @@ export interface GaugeSummary {
   trend: Trend | null;
   history: number[];
   source: string;
-  /** The view carries no warning level, so every live gauge is "unknown" until one is joined in. */
+  /** Colour from the view's band (below|near|above|unknown). */
   status: GaugeStatus;
+  /** MHW (mean high water) from the view, the warning reference shown on cards. */
   warningLevelCm: number | null;
+  meanLevelCm: number | null;
+  stale: boolean;
+  /** seed when the source is a seed stamp, else live. Fixture/replay never reach this view. */
+  origin: DataOrigin;
   lat: number | null;
   lon: number | null;
+}
+
+/** A row's origin from its source stamp. Anything that names seed, fixture or replay is not live. */
+export function gaugeOrigin(source: string): DataOrigin {
+  const s = source.toLowerCase();
+  if (s.startsWith("fixture")) return "fixture";
+  if (!s || s.startsWith("seed") || s.includes("seed") || s.includes("replay")) return "seed";
+  return "live";
+}
+
+/** Live only when the row is from a live source and the view says it is fresh. */
+export function isLiveGauge(g: Pick<GaugeSummary, "origin" | "stale">): boolean {
+  return g.origin === "live" && !g.stale;
+}
+
+/** Load-level label: Live only if every gauge is live and fresh. */
+export function gaugesLabel(gauges: readonly GaugeSummary[]): "Live" | "Stale" | "Seed" | "Fixture" | null {
+  if (gauges.length === 0) return null;
+  if (gauges.some((g) => g.origin === "fixture")) return "Fixture";
+  if (gauges.some((g) => g.origin === "seed")) return "Seed";
+  return gauges.every(isLiveGauge) ? "Live" : "Stale";
+}
+
+/** Text that Leaflet renders as HTML. */
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 }
 
 export function asGaugeRow(value: unknown): GaugeLevelRow | null {
@@ -33,11 +73,41 @@ export function asGaugeRow(value: unknown): GaugeLevelRow | null {
   const station = typeof row.station === "string" ? row.station.trim() : "";
   const water = typeof row.water === "string" ? row.water.trim() : "";
   const source = typeof row.source === "string" ? row.source.trim() : "";
-  const level = typeof row.level_cm === "number" && Number.isFinite(row.level_cm) ? row.level_cm : null;
-  const ts = typeof row.ts_utc === "string" ? normalizeUtcTimestamp(row.ts_utc) : null;
+  const level = num(row.level_cm);
+  const ts = typeof row.ts_utc === "string" ? normalizeUtcTimestamp(row.ts_utc.replace(/\.\d+$/, "")) : null;
   if (!station || level === null || !ts) return null;
-  return { station, water, ts_utc: ts, level_cm: level, source };
+  const band = typeof row.band === "string" ? row.band.trim().toLowerCase() : "";
+  const fetched = typeof row.fetched_at === "string" ? normalizeUtcTimestamp(row.fetched_at.replace(/\.\d+$/, "")) : null;
+  // A missing flag is stale: never call a reading live without the view saying so.
+  const stale = !(row.is_stale === false || row.is_stale === "false");
+  return {
+    station,
+    water,
+    ts_utc: ts,
+    level_cm: level,
+    source,
+    lat: num(row.lat),
+    lon: num(row.lon),
+    trend_cm_h: num(row.trend_cm_h),
+    mw_cm: num(row.mw_cm),
+    mhw_cm: num(row.mhw_cm),
+    band: BANDS[band] ?? "unknown",
+    fetched_at: fetched,
+    is_stale: stale,
+  };
 }
+
+/** The running API may send numbers as strings; coerce both. */
+function num(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+const BANDS: Record<string, GaugeStatus> = { below: "ok", near: "near", above: "over", unknown: "unknown" };
 
 function fold(name: string): string {
   return name
@@ -52,7 +122,7 @@ function fold(name: string): string {
 
 /**
  * Approximate positions of Rhine and Ahr gauges, so the map can place a station the view names.
- * The view has no coordinates. A station missing here is listed but not drawn.
+ * Fallback only, for rows without lat/lon. A station with neither is listed but not drawn.
  */
 export const STATION_POSITIONS: Record<string, [number, number]> = {
   [fold("Maxau")]: [49.0383, 8.3058],
@@ -105,11 +175,13 @@ export function summariseGauges(rows: readonly GaugeLevelRow[]): GaugeSummary[] 
     const last = sorted[sorted.length - 1];
     const prev = sorted.length > 1 ? sorted[sorted.length - 2] : null;
     let trend: Trend | null = null;
-    if (prev) {
+    if (last.trend_cm_h !== null) {
+      trend = last.trend_cm_h > 0 ? "rising" : last.trend_cm_h < 0 ? "falling" : "steady";
+    } else if (prev) {
       const delta = last.level_cm - prev.level_cm;
       trend = delta > STEADY_CM ? "rising" : delta < -STEADY_CM ? "falling" : "steady";
     }
-    const pos = stationPosition(last.station);
+    const pos = last.lat !== null && last.lon !== null ? ([last.lat, last.lon] as [number, number]) : stationPosition(last.station);
     out.push({
       station: last.station,
       water: last.water,
@@ -118,8 +190,11 @@ export function summariseGauges(rows: readonly GaugeLevelRow[]): GaugeSummary[] 
       trend,
       history: sorted.slice(-48).map((row) => row.level_cm),
       source: last.source,
-      status: "unknown",
-      warningLevelCm: null,
+      status: last.band,
+      warningLevelCm: last.mhw_cm,
+      meanLevelCm: last.mw_cm,
+      stale: last.is_stale,
+      origin: gaugeOrigin(last.source),
       lat: pos ? pos[0] : null,
       lon: pos ? pos[1] : null,
     });

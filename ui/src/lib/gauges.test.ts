@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fetchGaugeLevels } from "../api/gauges";
-import { asGaugeRow, stationPosition, summariseGauges } from "./gauges";
+import { asGaugeRow, escapeHtml, gaugeOrigin, gaugesLabel, isLiveGauge, stationPosition, summariseGauges } from "./gauges";
 
 const row = (station: string, ts: string, level: number) => ({
   station,
@@ -30,6 +30,49 @@ describe("gauge_levels rows", () => {
     expect(out.find((g) => g.station === "KÖLN")?.trend).toBeNull();
   });
 
+  it("reads the live columns, coercing numbers sent as strings", () => {
+    const parsed = asGaugeRow({
+      station: "MAINZ",
+      water: "RHEIN",
+      ts_utc: "2026-10-27 00:00:00.0",
+      level_cm: 153.0,
+      source: "ds_pegelonline",
+      lat: "50.003995",
+      lon: "8.275319",
+      trend_cm_h: "-1.0",
+      mw_cm: "288.0",
+      mhw_cm: "547.0",
+      band: "near",
+      fetched_at: "2026-10-27 00:05:53.0",
+      is_stale: "false",
+    });
+    expect(parsed).not.toBeNull();
+    const [g] = summariseGauges([parsed!]);
+    expect(g).toMatchObject({ lat: 50.003995, lon: 8.275319, status: "near", trend: "falling", warningLevelCm: 547, meanLevelCm: 288, stale: false });
+  });
+
+  it("treats is_stale true or missing as stale", () => {
+    expect(asGaugeRow({ ...row("BONN", "2026-10-27T10:00:00Z", 1), is_stale: true })?.is_stale).toBe(true);
+    expect(asGaugeRow(row("BONN", "2026-10-27T10:00:00Z", 1))?.is_stale).toBe(true);
+  });
+
+  it("is Live only for a live-source, fresh row; seed, fixture and stale rows never are", () => {
+    const fresh = { ...row("MAINZ", "2026-10-27T10:00:00Z", 1), source: "ds_pegelonline", is_stale: false };
+    const one = (r: Record<string, unknown>) => summariseGauges([asGaugeRow(r)!]);
+    expect(isLiveGauge(one(fresh)[0])).toBe(true);
+    expect(gaugesLabel(one(fresh))).toBe("Live");
+    expect(isLiveGauge(one({ ...fresh, is_stale: true })[0])).toBe(false);
+    expect(gaugesLabel(one({ ...fresh, is_stale: true }))).toBe("Stale");
+    expect(gaugesLabel(one({ ...fresh, source: "seed:pegelonline" }))).toBe("Seed");
+    expect(gaugesLabel(one({ ...fresh, source: "fixture" }))).toBe("Fixture");
+    expect(gaugeOrigin("ds_pegelonline_replay")).toBe("seed");
+    expect(gaugesLabel([])).toBeNull();
+  });
+
+  it("escapes tooltip HTML", () => {
+    expect(escapeHtml('<b>"x"&</b>')).toBe("&lt;b&gt;&quot;x&quot;&amp;&lt;/b&gt;");
+  });
+
   it("places known stations, folding umlauts", () => {
     expect(stationPosition("Köln")).not.toBeNull();
     expect(stationPosition("KOELN")).toEqual(stationPosition("Köln"));
@@ -46,7 +89,7 @@ describe("fetchGaugeLevels", () => {
   });
   it("reports rows as live", async () => {
     const load = await fetchGaugeLevels(undefined, respond([row("BONN", "2026-10-27T10:00:00Z", 1)]));
-    expect(load.state).toBe("live");
+    expect(load.state).toBe("rows");
     expect(load.rows).toHaveLength(1);
   });
   it("reports errors and bad shapes as unavailable", async () => {

@@ -63,13 +63,12 @@ function PlacePicker() {
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
-      <div className="location-picker__options" role="listbox" aria-label="Places">
+      <div className="location-picker__options" role="group" aria-label="Places">
         {matches.map((p) => (
           <button
             key={p.point_id}
             type="button"
-            role="option"
-            aria-selected={p.point_id === desk.pointId}
+            aria-pressed={p.point_id === desk.pointId}
             className={`location-option${p.point_id === desk.pointId ? " is-selected" : ""}`}
             onClick={() => desk.setPointId(p.point_id)}
           >
@@ -195,8 +194,8 @@ export function CitizenOverview() {
                     {serving.kind === "cached" ? `${serving.text} UTC` : serving.text}
                   </span>
                   {typeof judge === "number" && (
-                    <span className="judge__pill" title="Judge score of the reviewed answer, 0 to 100">
-                      Judge {Math.round(judge * 100)}/100
+                    <span className="judge__pill" title="Judge overall score of the reviewed answer, 0 to 1">
+                      Judge {judge.toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -250,9 +249,9 @@ export function CitizenOverview() {
             <GaugeMap load={gauges} gauges={summaries} />
           </div>
         </section>
-        <section className="card" aria-label="Gauges on the Rhine and Ahr">
+        <section className="card" aria-label="River gauges (Rhine, Mosel)">
           <header className="card__header">
-            <h2 className="card__title">Gauges on the Rhine and Ahr</h2>
+            <h2 className="card__title">River gauges (Rhine, Mosel)</h2>
           </header>
           <div className="card__body">
             <GaugeList load={gauges} gauges={summaries} />
@@ -282,7 +281,10 @@ export function CitizenArea() {
       <section className="card" aria-label="Plain-language discharge">
         <p className="section-label">My area</p>
         <h2>{point ? point.name : desk.pointId}</h2>
-        <p className="figure-caption">{origin}</p>
+        <p className="figure-caption">
+          Source: {origin}
+          {row ? ` · ${row.source}` : ""}
+        </p>
         <p className="figure">{row ? formatM3s(row.discharge_m3s) : "—"}</p>
         <p className="figure-unit">m³/s discharge</p>
         <Sparkline

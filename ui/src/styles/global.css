@@ -950,6 +950,15 @@ a.button.primary { color: #f4fffc; }
 
 .chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
 .chip--live { background: var(--risk-low-soft); border-color: var(--live-border); color: var(--ok-ink); }
+.gauge-list--scroll { max-height: 520px; overflow-y: auto; padding-right: 0.2rem; }
+.chip--stale { background: var(--risk-moderate-soft); border-color: var(--sample-border); color: var(--warn-ink); }
+.gauge__bar { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; margin: 0.2rem 0; }
+.gauge__bar span { display: block; height: 100%; background: var(--risk-low); }
+.gauge--near .gauge__bar span { background: var(--risk-moderate); }
+.gauge--over .gauge__bar span { background: var(--risk-severe); }
+.gauge--ok { border-left: 3px solid var(--risk-low); }
+.gauge--near { border-left: 3px solid var(--risk-moderate); }
+.gauge--over { border-left: 3px solid var(--risk-severe); }
 .chip--sample { background: var(--sample-bg); border: 1px dashed var(--sample-border); color: var(--warn-ink); }
 
 .risk-badge.risk-badge--lg { font-size: 1.05rem; padding: 0.3rem 0.9rem; margin: 0; }
@@ -1069,6 +1078,14 @@ a.button.primary { color: #f4fffc; }
   .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 30; border: 0; background: rgb(16 35 58 / 35%); }
   .header-inner { padding-left: 2.8rem; flex-wrap: wrap; row-gap: 0.4rem; }
   .product-sub { display: none; }
+  /* Two rows: brand and tools, then the desk switch. */
+  .header-inner { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.4rem; }
+  .brand { min-width: 0; order: 1; }
+  .header-tools { order: 2; margin-left: auto; gap: 0.2rem; }
+  .nav-links { order: 3; flex-basis: 100%; }
+  .brand .mark { display: none; }
+  /* Test-only benchmarking select; not on phones. */
+  .llm-select { display: none; }
   .risk-summary__meta { align-items: flex-start; }
   .location-option { min-width: 0; flex: 1 1 40%; }
   .leaflet-map { height: 300px; }

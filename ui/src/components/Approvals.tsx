@@ -1,3 +1,4 @@
+import { plainLanguage } from "../lib/plain";
 import { useEffect, useId, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsById } from "../lib/citations";
@@ -38,7 +39,7 @@ export function Approvals() {
         {action && (
           <>
             <p>
-              {action.detail} {cited.length > 0 && <span className="cite-marks">{citationMarks(cited)}</span>}
+              {plainLanguage(action.detail)} {cited.length > 0 && <span className="cite-marks">{citationMarks(cited)}</span>}
             </p>
             <details className="disclosure">
               <summary>Technical detail</summary>
@@ -71,7 +72,7 @@ export function Approvals() {
             {judge.claims.map((claim) => (
               <li key={claim.claim_id}>
                 <GroundingBadge grounding={claim.grounding} score={claim.score} />{" "}
-                {desk.answer.claims.find((item) => item.claim_id === claim.claim_id)?.text}
+                {plainLanguage(desk.answer.claims.find((item) => item.claim_id === claim.claim_id)?.text ?? "")}
               </li>
             ))}
           </ul>
