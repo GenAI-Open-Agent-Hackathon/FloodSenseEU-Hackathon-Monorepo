@@ -12,6 +12,8 @@ export interface GaugeLoad {
    */
   state: "rows" | "empty" | "unavailable";
   detail: string;
+  /** Zetaris query id of this read (x-query-id), when the API sends it. */
+  queryId?: string | null;
 }
 
 /** Gauge readings through the Zetaris-backed API. The browser never calls PEGELONLINE. */
@@ -28,7 +30,7 @@ export async function fetchGaugeLevels(signal?: AbortSignal, fetcher: typeof fet
     const rows = parseRows(body, asGaugeRow);
     if (rows === null) return { rows: [], state: "unavailable", detail: `${GAUGE_LEVELS_PATH} did not match the view columns` };
     if (rows.length === 0) return { rows: [], state: "empty", detail: `GET ${GAUGE_LEVELS_PATH} returned no rows` };
-    return { rows, state: "rows", detail: `GET ${base}${GAUGE_LEVELS_PATH}` };
+    return { rows, state: "rows", detail: `GET ${base}${GAUGE_LEVELS_PATH}`, queryId: response.headers?.get?.("x-query-id") ?? null };
   } catch {
     return { rows: [], state: "unavailable", detail: `GET ${GAUGE_LEVELS_PATH} failed` };
   } finally {

@@ -36,6 +36,7 @@ import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route"
 import { AHR_DEFAULT_DATE, screenContextFor, DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
+import type { Reference } from "../lib/references";
 import type {
   DataOrigin,
   DischargeDailyRow,
@@ -77,9 +78,15 @@ export interface ConsoleValue {
   setAhrDate: (date: string) => void;
   ahrPointId: string;
   setAhrPointId: (pointId: string) => void;
+  /** Insurer Sites / map: the live Europe view (default) or a replayed event. The replay strip shows only for a replay. */
+  sitesView: "live" | "replay";
+  setSitesView: (view: "live" | "replay") => void;
   evidenceOpen: boolean;
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
+  /** One numbered source shown in full in the Evidence drawer; null when the drawer shows the topic view. */
+  evidenceSource: Reference | null;
+  openSource: (ref: Reference) => void;
   closeEvidence: () => void;
   /** Ask FloodSense popup. Closed at start. A route change never opens it. */
   askOpen: boolean;
@@ -174,8 +181,10 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const [eventId, setEventId] = useState<EventId>(DEFAULT_EVENT_ID);
   const [ahrDate, setAhrDate] = useState(AHR_DEFAULT_DATE);
   const [ahrPointId, setAhrPointId] = useState("AHR01");
+  const [sitesView, setSitesView] = useState<"live" | "replay">("live");
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
+  const [evidenceSource, setEvidenceSource] = useState<Reference | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [askPrefill, setAskPrefill] = useState<string | null>(null);
   const [approval, setApproval] = useState<Approval>(() => initialApproval(bundle.answer));
@@ -332,6 +341,12 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
 
   const openEvidence = useCallback((topic: EvidenceTopic) => {
     setEvidenceTopic(topic);
+    setEvidenceSource(null);
+    setEvidenceOpen(true);
+  }, []);
+
+  const openSource = useCallback((ref: Reference) => {
+    setEvidenceSource(ref);
     setEvidenceOpen(true);
   }, []);
 
@@ -350,8 +365,11 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const closeAsk = useCallback(() => setAskOpen(false), []);
 
   const screenContext = useCallback((): AskContext => {
-    return screenContextFor(deskRoute, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
-  }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId]);
+    // The live Europe view of Sites shows no replayed event, so its context names none.
+    const route: DeskRoute = deskRoute.role === "insurer" && deskRoute.page === "sites" && sitesView === "live" ? { role: "insurer", page: "alerts" } : deskRoute;
+    const ctx = screenContextFor(route, eventId, { date, pointId, points: bundle.points }, { date: ahrDate, pointId: ahrPointId });
+    return route === deskRoute ? ctx : { ...ctx, page: deskRoute.page };
+  }, [bundle.points, pointId, deskRoute, eventId, date, ahrDate, ahrPointId, sitesView]);
 
   const decide = useCallback((status: ApprovalStatus, note: string) => {
     setApproval((current) => ({ ...current, status, note }));
@@ -406,9 +424,13 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       setAhrDate,
       ahrPointId,
       setAhrPointId,
+      sitesView,
+      setSitesView,
       evidenceOpen,
       evidenceTopic,
       openEvidence,
+      evidenceSource,
+      openSource,
       closeEvidence,
       askOpen,
       openAsk,
@@ -446,9 +468,12 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       eventId,
       ahrDate,
       ahrPointId,
+      sitesView,
       evidenceOpen,
       evidenceTopic,
       openEvidence,
+      evidenceSource,
+      openSource,
       closeEvidence,
       askOpen,
       openAsk,

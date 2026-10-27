@@ -29,7 +29,11 @@ export function InsurerView({ page }: { page: InsurerPage }) {
     case "portfolio":
       return <Portfolio />;
     case "sites":
-      return (
+      return desk.sitesView === "live" ? (
+        <div className="page-stack">
+          <MapPanel exposureDefault />
+        </div>
+      ) : (
         <div className="insurer-top">
           <MapPanel exposureDefault />
           {desk.eventId === "EMSR773" && <Drilldown />}

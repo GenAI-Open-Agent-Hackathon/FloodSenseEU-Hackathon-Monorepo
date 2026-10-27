@@ -1,92 +1,194 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { SIMULATED_ALERT_M3S } from "../config/scenario";
 import { useConsole } from "../context/ConsoleContext";
+import { useLiveWatch } from "../hooks/useLiveWatch";
 import { formatDay, formatEur } from "../lib/format";
 import { exposureStats, rowsOnDate } from "../lib/series";
 import { EVENT_META } from "../lib/events";
+import { DEMO_BOOK_LINE, groupByNearest, NEAR_KM, nearestSource, siteWatchLine } from "../lib/nearest";
+import { hhmm } from "../lib/alertMonitor";
+import { statusLabel } from "../lib/origin";
 import { OriginList } from "./Banners";
+import "../styles/insurer.css";
 
-/** Book KPIs (moved from the map card) and the in-footprint split by segment. */
+const STATUS_TEXT = { ok: "below watch level", near: "Watch", over: "Warning", unknown: "no threshold" } as const;
+const SITE_PAGE = 25;
+
+/** Live first: each insured site against its nearest watched source. Then the replay exposure, labelled as a replay. */
 export function Portfolio() {
   const desk = useConsole();
-  const stats = useMemo(() => exposureStats(desk.exposure.rows), [desk.exposure.rows]);
-  const peakCount = rowsOnDate(desk.discharge.rows, desk.date).filter(
-    (row) => row.discharge_m3s >= SIMULATED_ALERT_M3S,
-  ).length;
-  const largest = stats.segments[0]?.sum ?? 0;
-
-  if (desk.eventId !== "EMSR773") {
-    return (
-      <div className="page-stack">
-        <section className="card" aria-label="Exposure">
-          <p className="section-label">Exposure · {EVENT_META[desk.eventId].short} · {desk.eventId}</p>
-          <h2>No insured book for this event</h2>
-          <p className="note">
-            The synthetic portfolio (exposure_join) is joined to the EMSR773 Valencia footprint only. There are no policies or
-            footprint rows for {desk.eventId}, so there is nothing to total here.
-          </p>
-          <div className="button-row">
-            <button type="button" className="button" onClick={() => desk.setEventId("EMSR773")}>
-              Show the Valencia book
-            </button>
-          </div>
-        </section>
-      </div>
-    );
-  }
+  const watch = useLiveWatch();
+  const sites = desk.exposure.rows;
+  const nearest = useMemo(() => groupByNearest(sites, watch.sources), [sites, watch.sources]);
+  const [shown, setShown] = useState(SITE_PAGE);
 
   return (
     <div className="page-stack">
-      <section className="card" aria-label="Exposure">
-        <p className="section-label">Exposure on {formatDay(desk.date)}</p>
-        <h2>Synthetic book against the EMSR773 footprint</h2>
-        <dl className="kpis">
+      <section className="card" aria-labelledby="pf-live">
+        <div className="card-head">
           <div>
-            <dt>Points</dt>
-            <dd>{desk.points.length}</dd>
+            <p className="section-label">Insured sites · live watch</p>
+            <h2 id="pf-live">Nearest watched source per site</h2>
           </div>
-          <div>
-            <dt>Peak band</dt>
-            <dd>{peakCount}</dd>
-          </div>
-          <div>
-            <dt>in_footprint</dt>
-            <dd>
-              {stats.inFootprint} / {stats.policies}
-            </dd>
-          </div>
-          <div>
-            <dt>Sum insured</dt>
-            <dd>{formatEur(stats.sumInsured)}</dd>
-          </div>
-        </dl>
-      </section>
-      <section className="card" aria-label="In footprint by segment">
-        <p className="section-label">By segment</p>
-        <h2>Sum insured inside the footprint</h2>
-        {stats.segments.length === 0 ? (
-          <p className="note">No policies inside the footprint in the loaded rows.</p>
+          <span className="chip chip--sample">{statusLabel(desk.exposure.origin)} book</span>
+        </div>
+        <p className="demo-book">{DEMO_BOOK_LINE}</p>
+        {watch.state === "loading" ? (
+          <p className="note">Reading the live watch…</p>
+        ) : watch.sources.length === 0 ? (
+          <p className="note">The live watch returned no sources ({watch.detail || "no detail"}), so no site can be matched. The replay exposure is below.</p>
         ) : (
-          <ul className="bars">
-            {stats.segments.map((segment) => (
-              <li key={segment.segment}>
-                <span className="bar-label">{segment.segment}</span>
-                <span className="bar-track" aria-hidden="true">
-                  <span style={{ width: `${largest > 0 ? (segment.sum / largest) * 100 : 0}%` }} />
-                </span>
-                <span className="bar-value">
-                  {formatEur(segment.sum)} · {segment.count} {segment.count === 1 ? "policy" : "policies"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="table-wrap">
+              <table className="pf-table">
+                <caption className="sr-only">Insured sites grouped by nearest watched source</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Nearest watched source</th>
+                    <th scope="col">Live status</th>
+                    <th scope="col">Distance</th>
+                    <th scope="col">Sites</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nearest.groups.map((g) => (
+                    <tr key={g.source.id}>
+                      <td>
+                        {g.source.river} at {g.source.name} <span className="muted small">({g.source.kind === "gauge" ? "gauge" : "model"}, {g.source.country})</span>
+                      </td>
+                      <td>
+                        {g.near ? (
+                          <span className={`level-chip level-chip--${g.source.status === "over" ? "warning" : g.source.status === "near" ? "watch" : "calm"}`}>
+                            {STATUS_TEXT[g.source.status]}
+                          </span>
+                        ) : (
+                          <span className="muted small">too far to describe these sites</span>
+                        )}
+                        {!g.source.live && <span className="muted small"> · not live</span>}
+                      </td>
+                      <td>
+                        {Math.round(g.minKm) === Math.round(g.maxKm) ? `${Math.round(g.minKm)} km` : `${Math.round(g.minKm)}–${Math.round(g.maxKm)} km`}
+                      </td>
+                      <td>{g.sites}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="note">
+              A source within {NEAR_KM} km is taken to describe a site; farther, it is only the nearest one.
+              {nearest.groups.length > 0 && !nearest.groups.some((g) => g.near)
+                ? ` No watched source is within ${NEAR_KM} km of any site in this book, so no live reading describes these sites yet; the replay exposure below is the book's only flood view.`
+                : ""}
+              {nearest.unplaced > 0 ? ` ${nearest.unplaced} site${nearest.unplaced === 1 ? " has" : "s have"} no usable lat/lon.` : ""}
+              {watch.checkedAt !== null ? ` Checked ${hhmm(watch.checkedAt)}.` : ""}
+            </p>
+            <details className="disclosure">
+              <summary>Per site ({sites.length})</summary>
+              <ul className="pf-sites">
+                {sites.slice(0, shown).map((site) => (
+                  <li key={site.policy_id}>
+                    <strong>{site.policy_id}</strong> <span className="muted small">{site.segment} · {formatEur(site.sum_insured_eur)}</span>
+                    <br />
+                    <span className="small">{siteWatchLine(nearestSource(site, watch.sources))}</span>
+                  </li>
+                ))}
+              </ul>
+              {shown < sites.length && (
+                <button type="button" className="button" onClick={() => setShown((n) => n + SITE_PAGE * 4)}>
+                  Show more ({sites.length - shown} left)
+                </button>
+              )}
+            </details>
+          </>
         )}
-        <p className="note">Portfolio rows are synthetic. exposure_join.in_footprint marks them against the footprint.</p>
       </section>
+      <ReplayExposure />
       <details className="card disclosure">
         <summary>Data origin</summary>
         <OriginList />
       </details>
     </div>
+  );
+}
+
+/** The EMSR773 replay exposure (synthetic book against the Copernicus footprint), clearly a replay. */
+function ReplayExposure() {
+  const desk = useConsole();
+  const stats = useMemo(() => exposureStats(desk.exposure.rows), [desk.exposure.rows]);
+  const peakCount = rowsOnDate(desk.discharge.rows, desk.date).filter((row) => row.discharge_m3s >= SIMULATED_ALERT_M3S).length;
+  const largest = stats.segments[0]?.sum ?? 0;
+
+  if (desk.eventId !== "EMSR773") {
+    return (
+      <section className="card" aria-label="Replay exposure">
+        <p className="section-label">
+          Replay exposure · {EVENT_META[desk.eventId].short} · {desk.eventId} · not live
+        </p>
+        <h2>No insured book for this event</h2>
+        <p className="note">
+          The synthetic portfolio (exposure_join) is joined to the EMSR773 Valencia footprint only. There are no policies or footprint rows for{" "}
+          {desk.eventId}, so there is nothing to total here.
+        </p>
+        <div className="button-row">
+          <button type="button" className="button" onClick={() => desk.setEventId("EMSR773")}>
+            Show the Valencia replay exposure
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card" aria-labelledby="pf-replay">
+      <div className="card-head">
+        <div>
+          <p className="section-label">Replay exposure · {formatDay(desk.date)} · not live</p>
+          <h2 id="pf-replay">Synthetic book against the EMSR773 footprint</h2>
+        </div>
+        <span className="chip chip--sample">Replay of a past event</span>
+      </div>
+      <dl className="kpis">
+        <div>
+          <dt>Points</dt>
+          <dd>{desk.points.length}</dd>
+        </div>
+        <div>
+          <dt>Peak band</dt>
+          <dd>{peakCount}</dd>
+        </div>
+        <div>
+          <dt>in_footprint</dt>
+          <dd>
+            {stats.inFootprint} / {stats.policies}
+          </dd>
+        </div>
+        <div>
+          <dt>Sum insured</dt>
+          <dd>{formatEur(stats.sumInsured)}</dd>
+        </div>
+      </dl>
+      <h3 className="pf-sub">Sum insured inside the footprint, by segment</h3>
+      {stats.segments.length === 0 ? (
+        <p className="note">No policies inside the footprint in the loaded rows.</p>
+      ) : (
+        <ul className="bars">
+          {stats.segments.map((segment) => (
+            <li key={segment.segment}>
+              <span className="bar-label">{segment.segment}</span>
+              <span className="bar-track" aria-hidden="true">
+                <span style={{ width: `${largest > 0 ? (segment.sum / largest) * 100 : 0}%` }} />
+              </span>
+              <span className="bar-value">
+                {formatEur(segment.sum)} · {segment.count} {segment.count === 1 ? "policy" : "policies"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="note">
+        Portfolio rows are synthetic. exposure_join.in_footprint marks them against the Copernicus EMSR773 footprint of the 29 Oct 2024 flood.
+      </p>
+    </section>
   );
 }
