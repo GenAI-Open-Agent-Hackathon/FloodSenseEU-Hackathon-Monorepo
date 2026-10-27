@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { AgentPipeline } from "./AgentPipeline";
+import { AgentPipeline, LiveAgentPipeline } from "./AgentPipeline";
 import { RetrievalPanel } from "./RetrievalPanel";
 import { mergeContext } from "../lib/askContext";
-import { askFloodSense, capTurns, followUpThreadId, modeForPage, modeLabel, runBadge } from "../api/ask";
+import { capTurns, followUpThreadId, modeForPage, modeLabel } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
@@ -11,6 +11,13 @@ import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting
 import { shownEventId } from "../lib/events";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
+import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
+import { turnBadge } from "../lib/turnBadge";
+import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
+import { memoryLine, NO_MEMORIES, sourceChips, type MemoryUsed } from "../lib/hitl";
+import { setAwaitingRunId } from "../lib/lastRun";
+import { friendlyError, statusFromMessage } from "../lib/friendlyError";
+import "../styles/hitl.css";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
@@ -20,6 +27,11 @@ interface Turn {
   question: string;
   run: RecordedRun | null;
   error: string | null;
+  /** A plain assistant reply (the API's fast intent path: `{kind: "reply", answer}`, no run). */
+  reply?: string | null;
+  suggestions?: string[];
+  /** The streamed pipeline as it ended, for a failed live run. */
+  live?: LiveRunState | null;
 }
 
 /**
@@ -70,8 +82,31 @@ export function AskFloodSense() {
   // Conversation typed in this popup. Newest at the bottom; it survives closing the popup.
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState<{ question: string; started: number; provider: string } | null>(null);
+  const [pending, setPending] = useState<{ question: string; started: number; provider: string; live: LiveRunState | null } | null>(
+    null,
+  );
   const [elapsed, setElapsed] = useState(0);
+  // 429: Send waits until this instant, with a countdown.
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [retryLeft, setRetryLeft] = useState(0);
+  // Announced only when the countdown starts and when it ends, not every second.
+  const [retryAnnounce, setRetryAnnounce] = useState("");
+  useEffect(() => {
+    if (retryUntil === null) return;
+    const tick = () => {
+      const left = Math.ceil((retryUntil - Date.now()) / 1000);
+      if (left <= 0) {
+        setRetryUntil(null);
+        setRetryLeft(0);
+        setRetryAnnounce("You can ask again now.");
+      } else setRetryLeft(left);
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
+  const stopStreamRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopStreamRef.current?.(), []);
   const inflightRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -108,7 +143,11 @@ export function AskFloodSense() {
 
   const send = async (typed?: string, eventOverride?: string) => {
     const question = (typed ?? draft).trim();
-    if (!question || sendingRef.current) return;
+    if (!question || sendingRef.current || retryUntil !== null) return;
+    // A new question ends any earlier stream or poll.
+    stopStreamRef.current?.();
+    stopStreamRef.current = null;
+    inflightRef.current?.abort();
     sendingRef.current = true;
     const controller = new AbortController();
     inflightRef.current = controller;
@@ -116,8 +155,8 @@ export function AskFloodSense() {
     // Follow-ups continue the thread of the newest answered run.
     const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
     if (typed === undefined) setDraft("");
-    setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider" });
-    const result = await askFloodSense(
+    setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider", live: null });
+    const result = await startLiveRun(
       {
         question,
         provider: llmProvider,
@@ -129,19 +168,70 @@ export function AskFloodSense() {
       },
       controller.signal,
     );
-    if (controller.signal.aborted) return;
-    sendingRef.current = false;
-    inflightRef.current = null;
-    setPending(null);
-    const id = Date.now();
-    setTurns((prev) =>
-      capTurns([
-        ...prev,
-        result.ok ? { id, question, run: result.run, error: null } : { id, question, run: null, error: result.message },
-      ]),
-    );
+    if (controller.signal.aborted || result.kind === "aborted") return;
+    const finish = (turn: Partial<Omit<Turn, "id" | "question">>) => {
+      if (controller.signal.aborted) return;
+      stopStreamRef.current?.();
+      stopStreamRef.current = null;
+      sendingRef.current = false;
+      inflightRef.current = null;
+      setPending(null);
+      setTurns((prev) => capTurns([...prev, { id: Date.now(), question, run: null, error: null, ...turn }]));
+    };
+    if (result.kind === "reply") return finish({ reply: result.answer, suggestions: result.suggestions });
+    if (result.kind === "run") return finish({ run: result.run });
+    if (result.kind === "error") return finish({ error: result.message });
+    if (result.kind === "rate_limited") {
+      // One message only: the countdown line. The question goes back to the composer; no turn is added.
+      const secs = result.retryAfterS ?? 30;
+      sendingRef.current = false;
+      inflightRef.current = null;
+      setPending(null);
+      setDraft(question);
+      setRetryUntil(Date.now() + secs * 1000);
+      setRetryAnnounce(`FloodSense is busy. Your question was not started; you can ask again in ${secs} seconds.`);
+      return;
+    }
+    // 202: a live run. Stream its pipeline, then read the final run.
+    const runId = result.runId;
+    let live = initialLiveState(runId);
+    let concluded = false;
+    setPending((p) => (p ? { ...p, live } : p));
+    const conclude = async () => {
+      if (concluded) return;
+      concluded = true;
+      stopStreamRef.current?.();
+      if (live.status === "not_found") {
+        return finish({ error: `Run ${runId} was not found. It may have stopped before its first step. Try again.`, live });
+      }
+      if (live.status === "failed") {
+        return finish({ error: `Run ${runId} failed after it started. A failed live run is not swapped for a replay; try again.`, live });
+      }
+      if (live.status === "error") {
+        return finish({ error: live.error ?? `Lost contact with run ${runId}.`, live });
+      }
+      try {
+        // The badge comes from the stream's served_from, not the GET.
+        const run = await resolveFinalRun(runId, live.servedFrom, { signal: controller.signal });
+        if (run) {
+          if (run.status === "awaiting_approval") setAwaitingRunId(runId);
+          return finish({ run });
+        }
+        return finish({ error: `Run ${runId} ended (${live.status}) but its answer could not be read.`, live });
+      } catch {
+        if (!controller.signal.aborted) finish({ error: `Run ${runId} ended, but the final answer could not be fetched.`, live });
+      }
+    };
+    stopStreamRef.current = subscribeRunEvents(runId, (event) => {
+      if (controller.signal.aborted || concluded) return;
+      live = liveReducer(live, event);
+      setPending((p) => (p ? { ...p, live } : p));
+      if (live.status !== "running") void conclude();
+    }, { signal: controller.signal });
   };
   const cancel = () => {
+    stopStreamRef.current?.();
+    stopStreamRef.current = null;
     inflightRef.current?.abort();
     inflightRef.current = null;
     sendingRef.current = false;
@@ -326,15 +416,34 @@ export function AskFloodSense() {
                 {turn.run ? (
                   <RecordedAnswer
                     run={turn.run}
-                    badge={runBadge(turn.run)}
+                    badge={turnBadge(turn.run)}
                     onSwitch={
                       pending === null && switchTarget(turn.run) ? (eventId) => void send(turn.question, eventId) : undefined
                     }
                   />
+                ) : turn.reply ? (
+                  <>
+                    <p className="ask-question ask-reply">{turn.reply}</p>
+                    {turn.suggestions && turn.suggestions.length > 0 && (
+                      <ul className="ask-suggestions" aria-label="Suggested follow-ups">
+                        {turn.suggestions.map((q) => (
+                          <li key={q}>
+                            <button type="button" className="ask-suggestion" disabled={pending !== null} onClick={() => void send(q)}>
+                              {q}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 ) : (
-                  <p className="ask-error">
-                    {turn.error}
-                  </p>
+                  <ErrorTurn
+                    raw={turn.error ?? ""}
+                    role={deskRoute.role}
+                    live={turn.live ?? null}
+                    recorded={recorded}
+                    onRetry={pending === null && retryUntil === null ? () => void send(turn.question) : undefined}
+                  />
                 )}
               </div>
             ))}
@@ -342,15 +451,34 @@ export function AskFloodSense() {
               <div className="ask-turn">
                 <p className="ask-bubble">{pending.question}</p>
                 <p className="ask-working">
-                  <span role="status">Working on your question</span>
-                  <span aria-hidden="true"> · {elapsed} s</span> · {pending.provider}. The answer arrives when the run
-                  reaches review.{" "}
-                  <button type="button" className="ask-link" onClick={cancel}>
+                  <span>{pending.live ? "Agents are working on your question" : "Starting a live run"}</span>
+                  <span className="ask-elapsed">
+                    {" "}
+                    · <span className="sr-only">elapsed </span>
+                    {formatElapsed(elapsed)}
+                  </span>{" "}
+                  · {pending.provider}. A full run can take several minutes.{" "}
+                  <button type="button" className="ask-link" onClick={cancel} aria-label="Stop watching this run">
                     Cancel
                   </button>
                 </p>
+                <p className="ask-tip" aria-hidden="true">
+                  Tip: {tipFor(elapsed)}
+                </p>
+                <p className="sr-only" role="status" aria-live="polite">
+                  {pending.live?.announce ?? "Starting a live run."}
+                </p>
+                {pending.live && <LiveAgentPipeline state={pending.live} />}
               </div>
             )}
+            {retryUntil !== null && (
+              <p className="ask-retry" aria-hidden="true">
+                FloodSense is busy; your question was not started. You can ask again in {formatElapsed(retryLeft)}.
+              </p>
+            )}
+            <p className="sr-only" role="status" aria-live="polite">
+              {retryAnnounce}
+            </p>
           </div>
           <form
             className="ask-composer"
@@ -368,7 +496,12 @@ export function AskFloodSense() {
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={onComposerKey}
             />
-            <button type="submit" className="button" disabled={pending !== null || draft.trim() === ""}>
+            <button
+              type="submit"
+              className="button"
+              disabled={pending !== null || retryUntil !== null || draft.trim() === ""}
+              aria-label={retryUntil !== null ? `Send, available in ${retryLeft} seconds` : "Send question"}
+            >
               Send
             </button>
           </form>
@@ -424,12 +557,15 @@ function RecordedAnswer({
           <li key={claim.id}>
             {claim.text}{" "}
             {run.flaggedClaimIds.includes(claim.id) && <strong className="note">[Flagged by Judge] </strong>}
-            {claim.citations.map((citation) => (
-              <span key={citation.id} className="cite-marks" title={citation.quote ?? citation.title}>
-                [{citation.layer}: {citation.title}
-                {citation.page !== null ? `, p. ${citation.page}` : ""}]{" "}
+            {claim.citations.length > 0 && (
+              <span className="src-chips" aria-label="Sources for this sentence">
+                {sourceChips(claim.citations).map((chip) => (
+                  <span key={chip.text} className={`src-chip src-chip-${chip.kind}`}>
+                    {chip.text}
+                  </span>
+                ))}
               </span>
-            ))}
+            )}
             {claim.citations
               .filter((citation) => citation.layer === "c" && citation.quote)
               .map((citation) => (
@@ -453,6 +589,7 @@ function RecordedAnswer({
           </li>
         ))}
       </ul>
+      {run.memoryUsed && <MemoriesPanel memories={run.memoryUsed} />}
       {run.judgeOverall !== null && (
         <p className="note">
           Judge score {run.judgeOverall.toFixed(2)}
@@ -468,6 +605,66 @@ function RecordedAnswer({
         <p className="note">Trace recorded with run {run.runId}.</p>
       </details>
     </>
+  );
+}
+
+/** A failed turn: friendly, role-aware text, Retry, an optional recorded answer, and the stripped detail collapsed. */
+function ErrorTurn({
+  raw,
+  role,
+  live,
+  recorded,
+  onRetry,
+}: {
+  raw: string;
+  role: string;
+  live: LiveRunState | null;
+  recorded: RecordedRun | null;
+  onRetry?: () => void;
+}) {
+  const info = friendlyError(statusFromMessage(raw), raw, role);
+  return (
+    <>
+      <p className="ask-error">{info.text}</p>
+      {info.retry && (
+        <div className="button-row">
+          <button type="button" className="button" disabled={!onRetry} onClick={onRetry} aria-label="Retry this question">
+            Retry
+          </button>
+        </div>
+      )}
+      {info.offerRecorded && recorded && (
+        <div className="ask-fallback">
+          <RecordedAnswer run={recorded} badge={`Latest recorded answer · not live · run ${recorded.runId}`} />
+        </div>
+      )}
+      {live && <LiveAgentPipeline state={live} />}
+      {info.technical && (
+        <details className="disclosure">
+          <summary>Technical detail</summary>
+          <p className="note">{info.technical}</p>
+        </details>
+      )}
+    </>
+  );
+}
+
+/** Run-level H-MEM recall. Memories are prompt context, never cited, so no sentence is marked as using one. */
+function MemoriesPanel({ memories }: { memories: MemoryUsed[] }) {
+  return (
+    <section className="mem-panel" aria-label="Memories used">
+      <p className="mem-title">Memories used</p>
+      {memories.length === 0 ? (
+        <p className="note">{NO_MEMORIES}</p>
+      ) : (
+        <ul className="mem-list">
+          {memories.map((m) => (
+            <li key={m.memoryId}>{memoryLine(m)}</li>
+          ))}
+        </ul>
+      )}
+      {memories.length > 0 && <p className="note">Context for the whole run; not linked to any one sentence.</p>}
+    </section>
   );
 }
 

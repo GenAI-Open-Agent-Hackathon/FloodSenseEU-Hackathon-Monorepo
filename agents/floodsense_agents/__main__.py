@@ -25,6 +25,7 @@ GET  /version                      build sha and timestamp
 GET  /config                       flags, lanes, schema, checkpointer (no secrets)
 GET  /readiness                    the eight foundations checked against the newest run
 POST /runs                         RunRequest -> runs until the HITL interrupt; returns the run snapshot (status awaiting_approval)
+POST /front-door                   200 ReplyResponse for small talk, else {kind: run}; no graph run
 POST /runs?wait=false              202 {run_id, thread_id, status: running} at once; the graph runs in the background
 GET  /runs/past                    runs started by this process, newest first (the checkpointer holds every run's state)
 GET  /runs/{id}                    snapshot: contract state + claims, evidence, judge_summary, trace
@@ -51,7 +52,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from floodsense_agents import __version__
-from floodsense_agents import desk, labelling
+from floodsense_agents import desk, front_door, labelling
 from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import available_providers
@@ -358,13 +359,37 @@ def config():
     )
 
 
+def _front_door_reply(req: RunRequest) -> dict | None:
+    rt = runtime()
+    llm = getattr(rt.deps, "llm", None) if getattr(rt, "deps", None) is not None else None
+    return front_door.front_door(req, llm)
+
+
+@app.post("/front-door")
+def front_door_check(req: RunRequest):
+    """The front door alone: 200 ReplyResponse, or 200 {"kind": "run"} for the full run.
+
+    The API calls this before it spends a concurrency slot or a cache lookup.
+    """
+    reply = _front_door_reply(req)
+    return reply if reply is not None else {"kind": "run"}
+
+
 @app.post("/runs", status_code=201)
-def start_run(req: RunRequest, wait: bool = True):
+def start_run(req: RunRequest, wait: bool = True, front_door: bool = True):
     """wait=true (default): run to the HITL pause and return the snapshot (201).
 
     wait=false: 202 {run_id, thread_id, status: running} at once; the graph runs
     in the background. Follow it on GET /runs/{id}/events or poll GET /runs/{id}.
+
+    Either way a greeting, help, thanks or off-topic message gets a 200
+    ReplyResponse ({"kind": "reply", ...}, no run_id) without a graph run.
+    front_door=false skips that check (the API has already made it).
     """
+    if front_door:
+        reply = _front_door_reply(req)
+        if reply is not None:
+            return JSONResponse(reply, status_code=200)
     try:
         if not wait:
             accepted = runtime().start_async(req)
