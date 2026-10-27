@@ -22,4 +22,14 @@ Host port `127.0.0.1:15432` (not published on the LAN). The password in `.env.ex
 
 `pgvector/migrations/002_rag_embed_model_nemotron35.sql` moves the `embed_model` check to `nvidia/nemotron-3.5-embed-1b` (the old model is retired on NIM). Apply it after `001`, the same way.
 
+Filling the table with `scripts/rag_ingest.py` needs an NVIDIA NIM key in `NVIDIA_NIM_API_KEY` and `PGVECTOR_DSN` in the environment of that command:
+
+1. Sign in at [build.nvidia.com](https://build.nvidia.com) with a free NVIDIA account.
+2. Open the `nvidia/nemotron-3.5-embed-1b` model page. (`nvidia/llama-nemotron-embed-1b-v2` is retired and answers HTTP 410.)
+3. Choose **Get API Key**, then **Generate**. The key starts with `nvapi-`. The free tier's trial credits cover the corpus.
+4. Put it in your gitignored `agents/.env` as `NVIDIA_NIM_API_KEY=`. Leave `NIM_EMBEDDINGS_URL` empty to use the default `https://integrate.api.nvidia.com/v1/embeddings`.
+5. Do not commit it, paste it in chat, or put it in a fixture or screenshot. CI's gitleaks rule fails on an `nvapi-` string.
+
+Zetaris migration `044` also needs `PGVECTOR_PASSWORD` in `ingestion/.env`, equal to `POSTGRES_PASSWORD` here. The model choice is in [ADR 0009](../docs/adr/0009-vector-search-next-to-zetaris.md).
+
 This database is part of the FloodSense compose project. It is not the Zetaris stack. Registering it as a Zetaris JDBC source is required for layer (c), not optional. The registration is `zetaris/migrations/044_register_pgvector_rag_chunks.sql`. The password in that file stays `${PGVECTOR_PASSWORD}`.
