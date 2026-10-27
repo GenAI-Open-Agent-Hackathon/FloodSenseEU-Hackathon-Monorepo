@@ -17,6 +17,10 @@ One statement per REST request. Split a file on a line that is exactly `-- state
 
 Seed views (`floodsense_seed.*`) share the schemas of the live views so the agent pair can build before live sources are ready. Agents switch with `FF_LIVE_DATA`.
 
+### Ahr 2021 seed rows (051, 052)
+
+`floodsense_seed.discharge_daily` and `floodsense_seed.hazard_timeline` carry the EMSR517 Ahr replay next to Valencia: AHR01 Altenahr, AHR02 Bad Neuenahr-Ahrweiler, AHR03 Schuld, AHR04 Dernau. Like 012/013 the rows are inline `VALUES`, not FILESTORE tables, so nothing new is staged into the container. The rows are rendered from `ingestion/prep/ahr_*.csv` by `ingestion/prep/ahr_hazard.py --migrations`, and a test checks that the committed SQL matches the CSVs. The live views (004, 007) read the Valencia REST tables and are unchanged, so `floodsense.*` and the API's `/views/...` still have no AHR rows.
+
 ## Sync command
 
 ```powershell
