@@ -145,7 +145,7 @@ py tasks.py down
 
 Compose profiles: `rag` starts pgvector, `cache` starts Redis (`docker compose --profile rag --profile cache up`).
 
-Live PEGELONLINE gauges (fetch, write the CSV, copy it into the Zetaris driver; repeat every 15 minutes):
+Live PEGELONLINE gauges start with the stack (`py tasks.py up`, service `pegel-poller`, every 10 minutes). Manual run (fetch, write the CSV, copy it into the Zetaris driver; repeat every 15 minutes):
 
 ```powershell
 py tasks.py pegel-poll --interval 900

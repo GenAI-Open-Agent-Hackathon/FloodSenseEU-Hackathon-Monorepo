@@ -84,6 +84,28 @@ services:
     networks:
       - floodsense
 
+  # Live German gauges. Replaces `python tasks.py pegel-poll --interval 600` on a host.
+  # It reaches the separate Zetaris stack only through `docker cp` / `docker exec` on the
+  # driver container, so it needs the Docker socket (Linux; Docker Desktop on Windows and
+  # macOS expose the same path inside containers). It joins no Zetaris network and has no
+  # keys or .env. Default profile: `up` and `up-all` both start it.
+  pegel-poller:
+    build: ./ingestion/feeds
+    environment:
+      ZETARIS_CONTAINER: ${ZETARIS_CONTAINER:-zetaris-driver-1}
+      POLL_INTERVAL_S: ${POLL_INTERVAL_S:-600}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "pegel_poll.py", "--health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - floodsense
+
   pgvector:
     image: pgvector/pgvector:pg16
     profiles: ["rag"]
