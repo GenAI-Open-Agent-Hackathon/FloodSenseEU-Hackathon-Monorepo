@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Nightshift rate-limit handling (`agents/floodsense_agents/nightshift.py`). Errors are classified as `rate_limited` (429 / `nvidia_429` / Too Many Requests), `empty_response`, `provider_deadline` or `other`. Rate limits and empty responses retry with exponential backoff and jitter (2 s base, ×2, at most 3 retries, `Retry-After` honoured up to 10 s, at most 20 s extra wait per call, never past the call or router/front-door deadline); `provider_deadline` is not retried. A process-wide gate caps calls in flight (`NIGHTSHIFT_MAX_CONCURRENCY`, 3) and paces call starts (`NIGHTSHIFT_RPM`, 35, below NVIDIA's 40/min). The call log line records retries ("retried 2× after rate limit").
 - UI: "How it works" page on both desks (`HowItWorks.tsx`): router and lanes, agents, Zetaris data (Open-Meteo GloFAS, PEGELONLINE, Copernicus EMS, seed data), Nightshift with NVIDIA Nemotron fast and deep lanes, Meterless H-MEM + World Model, RAG (pgvector + NIM nemotron-embed), Redis cache and rate limits, human approval. Live status dots from `GET /config` and `GET /system`; a missing `/system` (404) shows "unknown".
 - UI: grounded sources per claim. Number badges on citizen Overview and in the Ask chat open the source inline with a real link: Zetaris view, query id and upstream feed; document title, publisher, page and paragraph, quote and URL; H-MEM approved run or demo seed; World Model board. Legend line under "Why?".
 
@@ -71,6 +72,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- `POST /runs` with a body that is not UTF-8 JSON answers `400 {"detail": "request body must be UTF-8 JSON"}` instead of a 500.
+- Nightshift: `LLM_TIMEOUT_S` is now a total per-call budget covering the gate wait, every attempt and the backoff sleeps, not a per-attempt timeout. Other `provider_error` 502s (not a rate limit or an empty response) that arrive after `LLM_SLOW_FAIL_S` (20 s) are no longer retried; before, any stream `provider_error` got one more try even when slow.
 - UI: `friendlyError` only says "Here is the latest recorded answer" when one is shown, and strips bare and quoted service hostnames and IPv6 addresses with a port from technical detail.
 - Rhine live gauge claims read MHW from Zetaris REST rows, which arrive as strings, so the station threshold is stated again instead of "carries no threshold".
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."

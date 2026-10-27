@@ -469,7 +469,10 @@ async def start_run(request: Request) -> Response:
     refused = _bucket_refusal(request)
     if refused is not None:
         return refused
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:  # bad UTF-8 (UnicodeDecodeError) or bad JSON
+        return JSONResponse({"detail": "request body must be UTF-8 JSON"}, status_code=400)
     fresh = bool(body.pop("fresh", False)) if isinstance(body, dict) else False
     # Front door: small talk gets a 200 reply. It took a bucket token above,
     # but takes no slot and is never cached or replayed as a run.

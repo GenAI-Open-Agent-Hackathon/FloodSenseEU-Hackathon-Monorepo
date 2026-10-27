@@ -51,7 +51,7 @@ class FakePost:
 
 def client(script) -> tuple[NightshiftClient, FakePost, list[float]]:
     post, sleeps = FakePost(script), []
-    c = NightshiftClient(post=post, sleep=sleeps.append)
+    c = NightshiftClient(post=post, sleep=sleeps.append, jitter=lambda d: 0.0)
     c.base_url = "http://ns.test/v1"
     return c, post, sleeps
 
@@ -123,11 +123,12 @@ class RetryPolicy(unittest.TestCase):
                 429, headers={"retry-after": after}, request=httpx.Request("POST", URL)
             )
 
-        c, post, sleeps = client([r429("3"), r429("120"), r429("soon"), ok_response()])
-        with Knobs(llm_max_attempts=4, llm_slow_fail_s=60.0):
+        # Retry-After wins (capped at 10 s); junk falls back to 2 s * 2^n.
+        c, post, sleeps = client([r429("3"), r429("soon"), r429("120"), ok_response()])
+        with Knobs(llm_max_attempts=1, llm_slow_fail_s=60.0):
             c.complete("fast", "TASK: x", "u")
         self.assertEqual(len(post.calls), 4)
-        self.assertEqual(sleeps, [3.0, 10.0, 4.5])
+        self.assertEqual(sleeps, [3.0, 4.0, 10.0])
 
     def test_slow_gateway_error_is_not_retried(self) -> None:
         err = httpx.Response(502, text="bad gateway", request=httpx.Request("POST", URL))
