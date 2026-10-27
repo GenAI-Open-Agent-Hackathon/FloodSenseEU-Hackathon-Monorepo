@@ -342,6 +342,7 @@
         "basis": { "enum": ["gauge", "model"], "description": "What the status is measured against: a gauge level or a model." },
         "places": { "type": "array", "items": { "type": "string" } },
         "country": { "type": ["string", "null"], "description": "ISO alpha-2 of the first asked place; picks the official warning links." },
+        "countries": { "type": "array", "items": { "type": "string" }, "description": "ISO alpha-2 of every asked place's country, in order; the UI shows each country's official links." },
         "service": { "type": "string", "description": "The official service to follow, named in words." },
         "context": { "type": ["string", "null"], "description": "A history item framed as history (past flood, source, demo seed when seeded), cut at a sentence boundary. Never presented as current." },
         "next_step": { "type": "string", "minLength": 1 },

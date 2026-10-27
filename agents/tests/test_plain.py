@@ -191,6 +191,21 @@ class RulesTest(unittest.TestCase):
             "We can't fully check Budapest right now.",
         )
 
+    def test_unreadable_timestamp_counts_as_stale(self) -> None:
+        from floodsense_agents.nodes import forecast, quick
+
+        for ts in (None, "", "garbage"):
+            row = {"station": "KÖLN", "water": "RHEIN", "level_cm": 144.0, "ts_utc": ts, "mhw_cm": 725.0}
+            c = quick._gauge_check("KÖLN", row)
+            self.assertTrue(c.stale, ts)
+            self.assertEqual(c.signals, [])
+            fc = Check("Köln", "Rhine", "DE", "gauge", needs=("level",))
+            forecast._level_signal(fc, row, "Normal")
+            self.assertTrue(fc.stale, ts)
+            self.assertEqual(fc.signals, [])
+            out = build_plain([c], asked="48h", claims=CLAIMS)
+            self.assertEqual(out["headline"], "We can't fully check Köln right now.")
+
     def test_a_worrying_status_still_wins_over_a_gap(self) -> None:
         gap = Check("Bonn", "Rhine", "DE", "gauge", needs=("level",))
         out = build_plain([_gauge(plain.ELEVATED, above=True), gap], asked="48h", claims=CLAIMS)
@@ -206,6 +221,39 @@ class RulesTest(unittest.TestCase):
             "The Rhine at Köln is at 412 cm, below its usual high-water mark and falling, and no "
             "significant rain is forecast over the next two days.",
         )
+
+    def test_gauge_reading_alone_is_present_tense_not_forward(self) -> None:
+        out = build_plain([_gauge(plain.NORMAL)], asked="48h", claims=CLAIMS)
+        self.assertEqual(out["headline"], "Köln is at a normal level right now.")
+        self.assertIn("This is today's reading, not a forecast.", out["one_line"])
+        self.assertEqual(out["status"], "normal")
+        # with a rain signal checked, the forward-looking headline is allowed
+        c = _gauge(plain.NORMAL)
+        c.signals.append(Signal("rain", plain.NORMAL))
+        self.assertEqual(
+            build_plain([c], asked="48h", claims=CLAIMS)["headline"], "Nothing alarming expected at Köln."
+        )
+
+    def test_rain_never_says_this_week(self) -> None:
+        c = Check("Köln", "Rhine", "DE", "gauge", needs=("rain",), covers_week=True)
+        c.signals.append(Signal("rain", plain.NORMAL))
+        out = build_plain([c], asked="7d", claims=CLAIMS)
+        self.assertIn("over the next two days", out["one_line"])
+        self.assertNotIn("this week", out["one_line"])
+        eu = build_plain([_river_check()], asked="7d", claims=CLAIMS)["one_line"]
+        self.assertIn("within its normal range this week", eu)
+        self.assertIn("rain is forecast over the next two days", eu)
+
+    def test_high_gauge_still_names_a_model_elevated_place(self) -> None:
+        out = build_plain(
+            [_gauge(plain.ELEVATED, above=True), _river_check(plain.ELEVATED)], asked="48h", claims=CLAIMS
+        )
+        self.assertEqual(
+            out["headline"],
+            "Water is high at Köln. Follow official warnings. Keep an eye on Budapest: "
+            "the river is forecast to run much higher than usual.",
+        )
+        self.assertEqual(out["countries"], ["DE", "HU"])
 
     def test_week_question_without_week_data_says_so(self) -> None:
         out = build_plain([_gauge(plain.NORMAL)], asked="7d", claims=CLAIMS)
@@ -350,8 +398,9 @@ class LaneTest(unittest.TestCase):
         snap = self._run("How high is the Rhine at Köln right now?", z=z)
         self.assertEqual(snap["lane"], "quick")
         p = snap["plain"]
-        self.assertEqual(p["headline"], "Nothing alarming expected at Köln.")
+        self.assertEqual(p["headline"], "Köln is at a normal level right now.")
         self.assertIn("412 cm", p["one_line"])
+        self.assertTrue(p["one_line"].endswith("This is today's reading, not a forecast."))
         self.assertEqual(plain.numbers_outside_claims(p, snap["claims"]), [])
         z = _zetaris(412.0)
         self._mhw(z, 400.0)
@@ -359,6 +408,36 @@ class LaneTest(unittest.TestCase):
             self._run("How high is the Rhine at Köln right now?", z=z)["plain"]["headline"],
             "Water is high at Köln. Follow official warnings.",
         )
+
+    def test_quick_gauge_at_399_rising_is_never_calm(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        def rows(mhw: float, level: float):
+            z = _zetaris(level)
+            earlier = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            with z._lock:
+                z._conn.execute(
+                    "INSERT INTO floodsense.gauge_levels VALUES (?,?,?,?,?)",
+                    ("KÖLN", "RHEIN", earlier, 380.0, "pegelonline"),
+                )
+                z._conn.commit()
+            self._mhw(z, mhw)
+            return z
+
+        q = "How high is the Rhine at Köln right now?"
+        near = self._run(q, z=rows(400.0, 399.0))["plain"]
+        self.assertEqual(near["status"], "watch")
+        self.assertEqual(
+            near["headline"],
+            "Keep an eye on Köln: the water level is close to its usual high-water mark.",
+        )
+        self.assertIn("399 cm", near["one_line"])
+        self.assertIn("rising", near["one_line"])
+        self.assertNotIn("normal level", near["headline"])
+        far = self._run(q, z=rows(900.0, 399.0))["plain"]
+        self.assertEqual(far["headline"], "Köln is at a normal level right now.")
+        self.assertIn("below its usual high-water mark and rising", far["one_line"])
+        self.assertNotIn("Nothing alarming", far["headline"] + far["one_line"])
 
     def test_quick_lane_eu_model_band_is_a_model_estimate(self) -> None:
         z = _zetaris()

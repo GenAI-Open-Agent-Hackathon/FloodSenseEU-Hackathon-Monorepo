@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { adoptRunBody } from "../api/replay";
 import { WARNING_LINKS } from "./safety";
 import {
+  ENGLISH_NOTE,
+  isNonEnglish,
   adoptPlain,
   calmApplies,
   calmChip,
@@ -20,6 +22,7 @@ const PLAIN = {
   basis: "model",
   places: ["Budapest"],
   country: "HU",
+  countries: ["HU"],
   service: "HungaroMet and the water directorate (OVF, vizugy.hu)",
   context: "For context, from the past: Danube at Budapest, 21 September 2024: the river reached its highest level in around a decade. (history, from Wikipedia: 2024 Central European Floods, demo seed; not today's conditions)",
   next_step: "Ask me about another place or open the official warnings.",
@@ -126,6 +129,24 @@ describe("officialLinks", () => {
     for (const country of ["DE", "ES", "HU", "FR", null]) {
       for (const group of officialLinks({ country })) for (const link of group.links) expect(allowed.has(link.url)).toBe(true);
     }
+  });
+});
+
+describe("officialLinks across countries", () => {
+  it("shows each country's links once", () => {
+    expect(officialLinks({ country: "DE", countries: ["DE", "ES", "DE"] })).toEqual([WARNING_LINKS.de, WARNING_LINKS.es]);
+    expect(officialLinks({ country: "DE", countries: ["DE", "HU", "FR"] })).toEqual([WARNING_LINKS.de, WARNING_LINKS.eu]);
+  });
+});
+
+describe("isNonEnglish", () => {
+  it("flags German and Spanish questions, not English ones", () => {
+    expect(isNonEnglish("Wie wird der Rhein in Bonn nächste Woche?")).toBe(true);
+    expect(isNonEnglish("¿Subirá el Danubio esta semana?")).toBe(true);
+    expect(isNonEnglish("Will the Danube at Budapest rise this week?")).toBe(false);
+    expect(isNonEnglish("Do the next 48 hours look safe at Köln?")).toBe(false);
+    expect(isNonEnglish(null)).toBe(false);
+    expect(ENGLISH_NOTE).toBe("Answers are currently in English.");
   });
 });
 

@@ -20,6 +20,8 @@ export interface PlainAnswer {
   places: string[];
   /** ISO alpha-2 of the first asked place; picks the official warning links. */
   country: string | null;
+  /** Every asked place's country, in order; each gets its official links. */
+  countries: string[];
   /** The official service, in words. */
   service: string | null;
   /** A history item, already framed as history by the agents. */
@@ -52,6 +54,7 @@ export function adoptPlain(value: unknown): PlainAnswer | null {
     basis: p.basis === "gauge" ? "gauge" : "model",
     places: Array.isArray(p.places) ? p.places.filter((x): x is string => typeof x === "string") : [],
     country: str(p.country),
+    countries: Array.isArray(p.countries) ? p.countries.filter((x): x is string => typeof x === "string") : [],
     service: str(p.service),
     context: str(p.context),
     nextStep,
@@ -78,10 +81,22 @@ export function horizonWord(p: Pick<PlainAnswer, "horizon">): string {
   return p.horizon === "7d" ? "This week" : "Next two days";
 }
 
-/** Pure: the official warning links for the place's country, from the safety allowlist (nothing invented). */
-export function officialLinks(p: Pick<PlainAnswer, "country">): { title: string; links: readonly WarningLink[] }[] {
-  return warningCountriesForCountry(p.country).map((c) => WARNING_LINKS[c]);
+/** Pure: the official warning links of every asked place's country (once each), from the safety allowlist (nothing invented). */
+export function officialLinks(p: { country: string | null; countries?: readonly string[] }): { title: string; links: readonly WarningLink[] }[] {
+  const countries = p.countries && p.countries.length > 0 ? p.countries : [p.country];
+  const keys = [...new Set(countries.flatMap((c) => warningCountriesForCountry(c)))];
+  return keys.map((k) => WARNING_LINKS[k]);
 }
+
+const NON_ENGLISH =
+  /(?:[¿¡äöüßñ]|\b(?:der|die|das|wird|ist|und|steigt|nächste[nr]?|woche|tage[n]?|morgen|jetzt|heute|pegel|el|los|las|esta|semana|próxim\w*|mañana|hoy|ahora|nivel|cómo|qué|está|sube|lloverá|le|la|les|demain|cette|semaine)\b)/i;
+
+/** Pure: a question that is evidently not English (German, Spanish, French cues). The answers are English for now. */
+export function isNonEnglish(question: string | null | undefined): boolean {
+  return !!question && NON_ENGLISH.test(question.replace(/Köln/g, "Koeln"));
+}
+
+export const ENGLISH_NOTE = "Answers are currently in English.";
 
 /** Pure: the insurer reads the detailed claims first, then the plain headline; the citizen the other way round. */
 export function calmOrder(role: string | null | undefined): "plain-first" | "details-first" {

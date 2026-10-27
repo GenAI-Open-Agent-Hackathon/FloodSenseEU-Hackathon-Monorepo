@@ -7,10 +7,8 @@
 .calm-line { font-size: 1rem; line-height: 1.45; }
 .calm-disclaimer { margin: 0; }
 
-.calm-why > summary { list-style: none; display: inline-block; min-height: 2.25rem; padding: 0.35rem 0; }
-.calm-why > summary::-webkit-details-marker { display: none; }
-.calm-why > summary::before { content: "\25B8\00a0"; }
-.calm-why[open] > summary::before { content: "\25BE\00a0"; }
+/* Native <details>: the summary keeps its own marker and semantics; only padding and focus are styled. */
+.calm-why > summary { padding: 0.45rem 0; }
 .calm-why > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 .calm-context { border: 1px solid var(--border); border-left: 4px solid var(--brand-border); border-radius: var(--radius-sm); background: var(--surface-2); padding: 0.5rem 0.7rem; }

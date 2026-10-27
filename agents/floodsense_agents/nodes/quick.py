@@ -356,7 +356,7 @@ def _gauge_check(ident: str, row: dict | None) -> plain_mod.Check:
     if level is None:
         return c
     age = hours_between(now_utc(), str(row.get("ts_utc") or ""))
-    if age is not None and age > GAUGE_STALE_H:
+    if age is None or age > GAUGE_STALE_H:  # no readable time stamp counts as stale
         c.stale = True
         return c
     th = gauge_threshold(row)

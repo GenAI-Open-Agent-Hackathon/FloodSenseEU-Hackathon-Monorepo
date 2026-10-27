@@ -665,7 +665,7 @@ def _plain_check(p: ForecastPoint, asked_h: str) -> plain_mod.Check:
 def _level_signal(check: plain_mod.Check, row: dict, st: str) -> None:
     """The gauge's level as a plain signal: unknown without a threshold, none when stale."""
     age = hours_between(now_utc(), str(row.get("ts_utc") or ""))
-    if age is not None and age > GAUGE_STALE_H:
+    if age is None or age > GAUGE_STALE_H:  # no readable time stamp counts as stale
         check.stale = True
         return
     th = gauge_threshold(row)

@@ -85,6 +85,8 @@ export interface RecordedRun {
   playbook?: PlaybookItem[];
   /** Quick and forecast lanes: the calm, plain-language answer (see lib/calmAnswer.ts). Absent on other runs. */
   plain?: PlainAnswer | null;
+  /** The question this run answered (body.request.question), when stated. */
+  question?: string | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -202,6 +204,7 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     memoryUsed: Array.isArray(run.memory_used) ? adoptMemoryUsed(run.memory_used) : undefined,
     playbook: adoptPlaybook(run.playbook),
     plain: adoptPlain(run.plain),
+    question: str(rec(run.request)?.question),
   };
 }
 

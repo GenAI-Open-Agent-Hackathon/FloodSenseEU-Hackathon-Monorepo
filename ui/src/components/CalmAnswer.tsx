@@ -1,6 +1,6 @@
 import { useConsoleMaybe } from "../context/ConsoleContext";
 import type { RecordedRun } from "../api/replay";
-import { calmChip, calmOrder, detailClaims, horizonWord, officialLinks, type PlainAnswer } from "../lib/calmAnswer";
+import { calmChip, calmOrder, detailClaims, ENGLISH_NOTE, horizonWord, isNonEnglish, officialLinks, type PlainAnswer } from "../lib/calmAnswer";
 import { SafeLink } from "./SafeLink";
 import { SourceBadges, SourceLegend } from "./SourceBadges";
 import "../styles/calm.css";
@@ -54,6 +54,7 @@ export function CalmAnswer({ run, plain }: { run: RecordedRun; plain: PlainAnswe
       {order === "plain-first" && (
         <details className="disclosure calm-why">
           <summary>Why</summary>
+          {isNonEnglish(run.question) && <p className="note">{ENGLISH_NOTE}</p>}
           {claimList}
         </details>
       )}

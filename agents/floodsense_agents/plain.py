@@ -237,7 +237,8 @@ def _river_phrase(s: Signal, week: bool) -> str:
 
 
 def _rain_clause(s: Signal, week: bool, where: str = "") -> str:
-    when = "in the next few days" if week else "over the next two days"
+    # The rain status is the 48 h total (the weather row also holds 72 h): never "this week".
+    when = "over the next two days"
     return {
         NORMAL: f"no significant rain is forecast{where} {when}",
         WATCH: f"a lot of rain is forecast{where} {when}",
@@ -316,6 +317,7 @@ def build_plain(
     week_ok = asked == D7 and any(c.covers_week for c in checks)
     horizon = D7 if week_ok else H48
     sigs = [(c, s) for c in checks for s in c.signals]
+    forward = any(s.role in ("rain", "river") for _, s in sigs)
 
     top = max((s for _, s in sigs), key=lambda s: _RANK[s.status], default=None)
     status = top.status if top and top.status in (WATCH, ELEVATED) else NORMAL
@@ -342,14 +344,20 @@ def build_plain(
     high = [c.name for c, s in sigs if s.role == "level" and s.above_mhw]
     if high:
         headline = f"Water is high at {join_names(high)}. Follow official warnings."
+        for c in checks:  # another place elevated by a model band is named too
+            if c.name not in high and any(s.status in (WATCH, ELEVATED) for s in c.signals):
+                headline += f" Keep an eye on {c.name}: {_reason(c)}."
     elif status in (WATCH, ELEVATED):
         worst_check = max(
             (c for c in checks if any(s.status in (WATCH, ELEVATED) for s in c.signals)),
             key=lambda c: max(_RANK[s.status] for s in c.signals),
         )
         headline = f"Keep an eye on {worst_check.name}: {_reason(worst_check)}."
-    elif status == NORMAL:
+    elif status == NORMAL and forward:
         headline = f"Nothing alarming expected at {place}."
+    elif status == NORMAL:
+        # Only a present gauge reading was checked: no forecast signal, so no forward-looking claim.
+        headline = f"{place} {'is' if len(set(names)) == 1 else 'are'} at a normal level right now."
     else:
         headline = f"We can't fully check {place} right now."
 
@@ -361,6 +369,8 @@ def build_plain(
     if status in (WATCH, ELEVATED) and any(s.valencia or s.role == "river" for _, s in sigs):
         if all(c.kind == "model" for c, s in sigs if s.status in (WATCH, ELEVATED)):
             sentences.append("This is a model estimate, not a measurement.")
+    if status == NORMAL and not forward:
+        sentences.append("This is today's reading, not a forecast.")
     one_line = " ".join([*sentences, *gaps]) or f"We could not read any data for {place} just now."
 
     countries = [c.country for c in checks]
@@ -376,6 +386,7 @@ def build_plain(
         "basis": basis,
         "places": list(dict.fromkeys(names)),
         "country": next((c for c in countries if c), None),
+        "countries": list(dict.fromkeys(c for c in countries if c)),
         "service": service,
         "context": context,
         "next_step": NEXT_STEP,

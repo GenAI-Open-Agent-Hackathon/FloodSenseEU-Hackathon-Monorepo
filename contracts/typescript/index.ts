@@ -38,6 +38,8 @@ export interface Plain {
   places?: string[];
   /** ISO alpha-2 of the first asked place; picks the official warning links. */
   country?: string | null;
+  /** ISO alpha-2 of every asked place's country; the UI shows each country's official links. */
+  countries?: string[];
   service?: string;
   /** A history item framed as history, cut at a sentence boundary. */
   context?: string | null;

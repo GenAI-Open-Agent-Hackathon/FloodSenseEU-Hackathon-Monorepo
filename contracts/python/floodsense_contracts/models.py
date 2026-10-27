@@ -182,6 +182,7 @@ class Plain(ContractModel):
     basis: Literal["gauge", "model"] | None = None
     places: list[str] = Field(default_factory=list)
     country: str | None = None
+    countries: list[str] = Field(default_factory=list)
     service: str | None = None
     context: str | None = None
     next_step: str = Field(min_length=1)
