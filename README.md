@@ -1,5 +1,33 @@
 # FloodSense EU
 
+FloodSense EU explains why a place in Europe is at flood risk, with a citation for every claim.
+
+Who it is for:
+
+- Citizens: is my street at risk, and what do I do?
+- Civil protection: which areas need attention first, and why?
+- Insurers: which insured sites are exposed, and what do we tell the customer?
+
+![FloodSense EU screenshot](docs/assets/screenshot.png)
+
+<!-- TODO: add docs/assets/screenshot.png -->
+
+Quick start (needs Python 3.10+, Docker Desktop, and your own local Zetaris and Nightshift):
+
+```powershell
+py tasks.py init-env
+py tasks.py up
+```
+
+Then open `http://127.0.0.1:15173/`.
+
+For judges:
+
+- [docs/SUBMISSION.md](docs/SUBMISSION.md): how we use Zetaris, Meterless, Cursor and NVIDIA, limits, and a 30-second tour.
+- [docs/architecture/technical-highlights.md](docs/architecture/technical-highlights.md): technical details with links to the code, and test counts.
+
+---
+
 Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, Track 02). It explains why an area is at risk, with cited, grounded claims. A Skeptic challenges the chain, an LLM-as-a-Judge scores it, and a human approves any outbound action.
 
 The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
