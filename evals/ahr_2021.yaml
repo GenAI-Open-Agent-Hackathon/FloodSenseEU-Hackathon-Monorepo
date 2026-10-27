@@ -30,6 +30,7 @@ items:
   - id: ahr-09
     question: What was known by 15:00 UTC on 14 July 2021?
     replay_ts: "2021-07-14T15:00:00Z"
+    expect: ["rain"]
     forbid: ["1000"]
   - id: ahr-10
     question: How many people died in the Ahr valley flood?
