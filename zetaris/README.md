@@ -47,9 +47,9 @@ Each person creates their own Zetaris API key in their own UI and stores it in `
 
 This folder does not start Zetaris. Zetaris is a separate Docker Compose project on each machine (UI `:3000`, REST `:8888/api/v1.0`, JDBC `:10000`).
 
-## Live river gauges (045-047)
+## Live river gauges (045-050)
 
-`floodsense.gauge_levels` reads `floodsense_live_src.pegel_now_src`, a FILESTORE table over
+048 adds `is_stale` (fetched_at missing or older than 30 minutes); 049/050 are the seed twin (050 fixes KÖLN encoding). `floodsense.gauge_levels` reads `floodsense_live_src.pegel_now_src`, a FILESTORE table over
 `floodsense_live/pegel_now/live.csv`. `python tasks.py pegel-poll` fetches the current PEGELONLINE
 water level, trend (cm/h over about an hour), characteristic values (MNW, MW, MHW, HHW, HSW) and a
 `band` (below / near / above against MHW) for Mainz, Kaub, Koblenz, Andernach, Bonn, Koeln,

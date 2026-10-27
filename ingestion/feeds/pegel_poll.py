@@ -152,7 +152,7 @@ def poll(stations=STATIONS, get=fetch_json, out_dir: str = OUT) -> tuple[str, in
         except Exception as e:
             failed.append(f"{name}: {e}")
             # Keep the station: its last row with its old fetched_at, else an empty row.
-            rows.append(previous.get(name) or empty_row(name, fetched))
+            rows.append(previous.get(name) or previous.get(name.upper()) or empty_row(name, fetched))
     if not fresh:
         return path, 0, failed
     os.makedirs(out_dir, exist_ok=True)

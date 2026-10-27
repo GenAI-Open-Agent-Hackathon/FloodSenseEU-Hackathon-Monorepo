@@ -106,6 +106,30 @@ class PegelPollTest(unittest.TestCase):
             self.assertEqual((kept["station"], kept["level_cm"], kept["fetched_at"]),
                              ("KAPUTT", "158.0", "2026-10-26 20:00:00"))
 
+    def test_mixed_case_name_finds_previous_upper_row(self) -> None:
+        def get(url, params=None):
+            raise OSError("down")
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d, "live.csv")
+            row = ["COCHEM"] + ["1"] * (len(pegel_poll.COLUMNS) - 2) + ["2026-10-26 20:00:00"]
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                csv.writer(f).writerows([pegel_poll.COLUMNS, row])
+            # All fail -> file untouched; so check the row poll() would emit directly.
+            prev = pegel_poll.previous_rows(str(path))
+            name = "Cochem"
+            self.assertNotIn(name, prev)
+            self.assertEqual((prev.get(name) or prev.get(name.upper()))[-1], "2026-10-26 20:00:00")
+            _, n, _ = pegel_poll.poll(("BONN", name), lambda u, p=None: fake_get([])(u, p) if "BONN" in u else get(u), d)
+            with open(path, newline="", encoding="utf-8") as f:
+                kept = list(csv.DictReader(f))[1]
+            self.assertEqual((n, kept["station"], kept["fetched_at"]), (1, "COCHEM", "2026-10-26 20:00:00"))
+
+    def test_050_seed_koeln_is_utf8_bytes(self) -> None:
+        raw = (ROOT / "zetaris" / "migrations" / "050_seed_view_gauge_levels_utf8_koeln.sql").read_bytes()
+        self.assertIn("'KÖLN'".encode("utf-8"), raw)
+        self.assertIn(bytes([0x27, 0x4B, 0xC3, 0x96, 0x4C, 0x4E, 0x27]), raw)
+        self.assertNotIn("Ã".encode("utf-8"), raw)
+
     def test_poll_keeps_last_file_when_all_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             Path(d, "live.csv").write_text("old", encoding="utf-8")
@@ -113,7 +137,7 @@ class PegelPollTest(unittest.TestCase):
             self.assertEqual(n, 0)
             self.assertEqual(Path(d, "live.csv").read_text(encoding="utf-8"), "old")
 
-    def test_columns_match_the_046_view_header(self) -> None:
+    def test_columns_match_the_live_gauge_view_header(self) -> None:
         sql = (ROOT / "zetaris" / "migrations" / "048_view_gauge_levels_is_stale.sql").read_text(encoding="utf-8")
         header = next(line for line in sql.splitlines() if line.startswith("-- columns:"))
         names = [c.strip().split()[0] for c in header.split(":", 1)[1].split(",")]
