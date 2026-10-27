@@ -10,9 +10,11 @@ import {
   sitesLine,
   sourceChips,
   actionChip,
+  reviewEvidence,
+  shortTitle,
 } from "./hitl";
 import type { ReplayCitation } from "../api/replay";
-import { queueFromApproval } from "../components/Approvals";
+import { initialDrafts, queueFromApproval } from "../components/Approvals";
 
 const cit = (layer: string, extra: Partial<ReplayCitation> = {}): ReplayCitation => ({
   id: `${layer}-${extra.title ?? "t"}`,
@@ -67,10 +69,44 @@ describe("approval card logic", () => {
   });
   it("builds approve and edit bodies, refusing what would be a 422", () => {
     expect(buildApprovalBody("approve", " ok ", {}, items)).toEqual({ ok: true, body: { action: "approve", reviewer: "insurer-desk", reviewer_note: "ok" } });
-    expect(buildApprovalBody("edit", "", { A1: "Dear customer" }, items)).toMatchObject({ ok: false });
-    expect(buildApprovalBody("edit", "", { A1: "   " }, items)).toMatchObject({ ok: false, message: expect.stringMatching(/empty/) });
-    expect(buildApprovalBody("edit", "", { A2: "x" }, items)).toMatchObject({ ok: false });
-    expect(buildApprovalBody("edit", "", { A1: "New text" }, items)).toMatchObject({ ok: true, body: { action: "edit", draft_messages: { A1: "New text" } } });
+    expect(buildApprovalBody("edit", "n", { A1: "Dear customer" }, items)).toMatchObject({ ok: false });
+    expect(buildApprovalBody("edit", "n", { A1: "   " }, items)).toMatchObject({ ok: false, message: expect.stringMatching(/empty/) });
+    expect(buildApprovalBody("edit", "n", { A2: "x" }, items)).toMatchObject({ ok: false });
+    expect(buildApprovalBody("edit", "n", { A1: "New text" }, items)).toMatchObject({ ok: true, body: { action: "edit", draft_messages: { A1: "New text" } } });
+  });
+  it("a reject or an edit needs a reviewer note", () => {
+    expect(buildApprovalBody("reject", "  ", {}, items)).toEqual({ ok: false, message: "A note is required to reject." });
+    expect(buildApprovalBody("reject", "wrong area", {}, items)).toEqual({ ok: true, body: { action: "reject", reviewer: "insurer-desk", reviewer_note: "wrong area" } });
+    expect(buildApprovalBody("edit", "", { A1: "New" }, items)).toMatchObject({ ok: false });
+  });
+  it("an edit sends every changed outbound draft, and only those", () => {
+    const three = adoptPlaybook([
+      ...PB,
+      { action_id: "A3", text: "Adjuster", outbound: true, action_type: "dispatch-loss-adjuster", draft_message: "Go" },
+      { action_id: "A4", text: "Public", outbound: true, action_type: "inform-public", draft_message: "Info" },
+    ]);
+    const r = buildApprovalBody("edit", "tone", { A1: "Dear customer, updated", A3: "Go now", A4: "Info" }, three);
+    expect(r).toMatchObject({ ok: true, body: { draft_messages: { A1: "Dear customer, updated", A3: "Go now" } } });
+    expect((r as { body: { draft_messages: Record<string, string> } }).body.draft_messages).not.toHaveProperty("A4");
+  });
+  it("falls back to a short title and a Proposed action chip", () => {
+    const long = "x ".repeat(100).trim();
+    const [item] = adoptPlaybook([{ action_id: "A9", text: long }]);
+    expect(item.title.length).toBeLessThanOrEqual(81);
+    expect(item.title.endsWith("…")).toBe(true);
+    expect(actionChip(item.actionType)).toBe("Proposed action");
+    expect(shortTitle("short")).toBe("short");
+  });
+  it("collects review evidence with grounding per claim", () => {
+    const ev = reviewEvidence({
+      claims: [{ claim_id: "C1", text: "a", citations: [{}, {}] }, { claim_id: "C2", text: "b", citations: [{}] }],
+      judge: [{ claim_id: "C1", grounding: "supported", score: 0.9 }],
+    });
+    expect(ev).toMatchObject({ supported: 1, scored: 1, citations: 3 });
+    expect(ev.claims[1].grounding).toBeNull();
+  });
+  it("initial drafts cover every outbound action", () => {
+    expect(initialDrafts(items)).toEqual({ A1: "Dear customer" });
   });
   it("status lines keep the nothing-was-sent honesty", () => {
     expect(decisionStatusLine("approved")).toBe("Approved — finding saved to H-MEM memory; nothing was sent (demo).");

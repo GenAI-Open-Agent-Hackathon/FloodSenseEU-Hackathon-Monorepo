@@ -13,7 +13,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 - UI: live agent pipeline in Ask FloodSense (`POST /runs?wait=false` + SSE events), with per-node duration, model and summary, visible Skeptic revise / Judge repair loops, elapsed timer, rotating tips, 429 countdown, cached/replay label and intent-reply handling.
 - UI: per-sentence source chips (Zetaris query, Document, Provenance) and a run-level "Memories used" panel from `memory_used`.
-- UI: mock-style approval cards on Approvals for live runs (action type, region, site count, Judge badge, editable draft sent as `draft_messages`, inline 422s). Nothing is sent.
+- UI: mock-style approval cards on Approvals for live runs (action type, region, site count, Judge badge, draft, inline 422s). One run-level decision bar ("This decision applies to all N proposed actions in this run"); Edit makes every outbound draft editable and sends all changed drafts as `draft_messages`. A reject or edit still needs a reviewer note. Claims with Judge grounding and the KPI tiles stay on the page. Nothing is sent.
+- UI: the live answer's badge comes from the SSE `status` event's `served_from`; model provider is derived from the model id (Nemotron → Nightshift, `anthropic/…` → Anthropic (test switch)). Polling fallback stops after 60 s of errors, aborts on unmount or a new question, and an SSE `error` with status 404 is not_found.
 
 ### Fixed
 

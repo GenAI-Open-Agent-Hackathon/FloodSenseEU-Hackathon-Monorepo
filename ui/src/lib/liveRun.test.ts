@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatElapsed, initialLiveState, liveReducer, modelLine, retryAfterSeconds, shortModel, tipFor, WAIT_TIPS, type LiveEvent } from "./liveRun";
-import { classifyStart, turnBadge } from "../api/liveRun";
+import { classifyStart } from "../api/liveRun";
+import { turnBadge } from "./turnBadge";
 import type { RecordedRun } from "../api/replay";
 
 const run = (events: LiveEvent[]) => events.reduce(liveReducer, initialLiveState("r1"));

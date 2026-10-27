@@ -100,13 +100,24 @@ export function shortModel(modelId: string): string {
   return base.replace(/-\d+(\.\d+)?b(-a\d+(\.\d+)?b)?$/i, "");
 }
 
+/** Provider from the model id itself. Nightshift only for NVIDIA Nemotron ids; never guessed for anything else. */
+export function providerOf(modelId: string): string | null {
+  const id = modelId.toLowerCase();
+  if (id.startsWith("nvidia/") && id.includes("nemotron")) return "Nightshift";
+  if (id.startsWith("anthropic/")) return "Anthropic (test switch)";
+  return null;
+}
+
 /** The model line under a finished node: "nemotron-3.5-lightning · Nightshift", "deterministic", "SQL · Zetaris". */
 export function modelLine(modelId: string | null, lane: string | null): string {
   const ids = (modelId ?? "")
     .split(",")
     .map((m) => m.trim())
     .filter((m) => m && m !== "deterministic");
-  if (ids.length) return `${[...new Set(ids.map(shortModel))].join(", ")} · Nightshift`;
+  if (ids.length) return [...new Set(ids.map((id) => {
+    const provider = providerOf(id);
+    return provider ? `${shortModel(id)} · ${provider}` : shortModel(id);
+  }))].join(", ");
   if ((lane ?? "").toLowerCase() === "sql") return "SQL · Zetaris";
   return "deterministic";
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { fetchApproval, postApproval } from "../api/liveRun";
+import { apiBaseUrl } from "../api/config";
 import { plainLanguage } from "../lib/plain";
 import { routeHref } from "../lib/route";
 import { getAwaitingRunId, onAwaitingRunId, setAwaitingRunId } from "../lib/lastRun";
@@ -11,14 +12,17 @@ import {
   cardStatus,
   decisionStatusLine,
   errorDetail,
+  reviewEvidence,
+  shortTitle,
   sitesLine,
   type ApprovalBody,
   type CardStatus,
   type PlaybookItem,
+  type ReviewEvidence,
 } from "../lib/hitl";
 import "../styles/hitl.css";
 
-interface QueueSource {
+export interface QueueSource {
   /** null: the packed fixture, decided locally. */
   runId: string | null;
   summary: string;
@@ -27,6 +31,7 @@ interface QueueSource {
   judgePasses: boolean | null;
   status: CardStatus;
   note: string | null;
+  evidence: ReviewEvidence;
 }
 
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
@@ -43,10 +48,16 @@ export function queueFromApproval(runId: string, body: Record<string, unknown>):
     judgePasses: typeof js?.passes === "boolean" ? js.passes : null,
     status: cardStatus(typeof body.status === "string" ? body.status : null, typeof approval?.status === "string" ? approval.status : null),
     note: null,
+    evidence: reviewEvidence(body),
   };
 }
 
-/** The HITL home. One queue item per playbook action; one decision covers the run. Nothing is sent from here. */
+/** Pure: the edit drafts, starting from every outbound action's current draft. */
+export function initialDrafts(items: readonly PlaybookItem[]): Record<string, string> {
+  return Object.fromEntries(items.filter((i) => i.outbound).map((i) => [i.actionId, i.draftMessage ?? ""]));
+}
+
+/** The HITL home. One card per proposed action; one decision covers the whole run. Nothing is sent from here. */
 export function Approvals() {
   const desk = useConsole();
   const [runId, setRunId] = useState<string | null>(() => getAwaitingRunId());
@@ -83,11 +94,11 @@ export function Approvals() {
     };
   }, [runId]);
 
-  const fixtureActions = desk.answer.playbook_actions ?? [];
+  const answer = desk.answer;
   const fixture: QueueSource = {
     runId: null,
-    summary: desk.answer.question,
-    items: fixtureActions.map((a) => ({
+    summary: answer.question,
+    items: (answer.playbook_actions ?? []).map((a) => ({
       actionId: a.action_id,
       horizonH: null,
       text: plainLanguage(a.detail),
@@ -95,15 +106,19 @@ export function Approvals() {
       outbound: a.outbound ?? false,
       released: a.released ?? false,
       actionType: a.action_type ?? null,
-      title: a.title,
+      title: a.title || shortTitle(a.detail),
       targetRegion: a.target_region ?? null,
       affectedSiteCount: a.affected_site_count ?? null,
       draftMessage: a.draft_message ?? null,
     })),
-    judgeScore: desk.answer.judge?.overall_score ?? null,
+    judgeScore: answer.judge?.overall_score ?? null,
     judgePasses: null,
     status: desk.approval.status,
     note: desk.approval.note ?? null,
+    evidence: reviewEvidence({
+      claims: answer.claims.map((c) => ({ ...c, citations: answer.citations.filter((ci) => ci.claim_id === c.claim_id) })),
+      judge: answer.judge?.claims ?? [],
+    }),
   };
   const source = live ?? fixture;
 
@@ -122,11 +137,9 @@ export function Approvals() {
         cur
           ? {
               ...cur,
-              status: status === "pending" ? (body.action === "reject" ? "rejected" : "approved") : status,
+              status: status === "pending" ? (body.action === "reject" ? "rejected" : body.action === "edit" ? "edited" : "approved") : status,
               note: body.reviewer_note ?? null,
-              items: body.draft_messages
-                ? cur.items.map((i) => (body.draft_messages?.[i.actionId] ? { ...i, draftMessage: body.draft_messages[i.actionId] } : i))
-                : cur.items,
+              items: cur.items.map((i) => (body.draft_messages?.[i.actionId] ? { ...i, draftMessage: body.draft_messages[i.actionId] } : i)),
             }
           : cur,
       );
@@ -136,44 +149,99 @@ export function Approvals() {
     [desk, source.runId],
   );
 
-  const [selected, setSelected] = useState<string | null>(null);
-  const selectedId = selected && source.items.some((i) => i.actionId === selected) ? selected : source.items[0]?.actionId ?? null;
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const startEdit = () => {
+    setDrafts(initialDrafts(source.items));
+    setEditing(true);
+  };
+  const ev = source.evidence;
+  const reviewHref = source.runId ? `${apiBaseUrl()}/runs/${encodeURIComponent(source.runId)}` : routeHref("insurer", "review");
 
   return (
     <div className="approvals hitl">
       <section className="card" aria-label="Approval queue">
         <p className="section-label">Queue</p>
-        <p className="note">
-          {source.runId ? `Live run ${source.runId} · one decision covers all its actions.` : "Packed example run · local preview only."}
-        </p>
+        <p className="note">{source.runId ? `Live run ${source.runId}` : "Packed example run · local preview only."}</p>
         {loadNote && <p className="note">{loadNote}</p>}
+        <dl className="kpis">
+          <div>
+            <dt>Status</dt>
+            <dd>{source.status}</dd>
+          </div>
+          <div>
+            <dt>Judge overall</dt>
+            <dd>{source.judgeScore !== null ? source.judgeScore.toFixed(2) : "—"}</dd>
+          </div>
+          <div>
+            <dt>Claims supported</dt>
+            <dd>{ev.scored > 0 ? `${ev.supported} / ${ev.claims.length}` : "—"}</dd>
+          </div>
+          <div>
+            <dt>Citations</dt>
+            <dd>{ev.citations}</dd>
+          </div>
+        </dl>
         {source.items.length === 0 ? (
-          <p className="note">No playbook action on this run.</p>
+          <p className="note">No proposed action on this run.</p>
         ) : (
           <ul className="approval-list">
             {source.items.map((item) => (
-              <ApprovalItem
+              <ActionCard
                 key={item.actionId}
                 item={item}
                 source={source}
-                isSelected={item.actionId === selectedId}
-                onSelect={() => setSelected(item.actionId)}
-                onDecide={decide}
+                editing={editing && item.outbound}
+                draft={drafts[item.actionId] ?? item.draftMessage ?? ""}
+                onDraft={(text) => setDrafts((d) => ({ ...d, [item.actionId]: text }))}
               />
             ))}
           </ul>
         )}
-        <p className="note">
-          {source.status === "pending" ? `${source.items.length} ${source.items.length === 1 ? "item waits" : "items wait"} for a decision.` : "Nothing is pending."}{" "}
-          Nothing is sent: outbound actions are drafts in this demo.
-        </p>
+        <DecisionBar
+          source={source}
+          editing={editing}
+          drafts={drafts}
+          onStartEdit={startEdit}
+          onCancelEdit={() => setEditing(false)}
+          onDecide={async (body) => {
+            const message = await decide(body);
+            if (!message) setEditing(false);
+            return message;
+          }}
+        />
+        <h3>Reviewed answer</h3>
+        <p>{plainLanguage(source.summary)}</p>
+        {ev.claims.length > 0 && (
+          <ul className="claim-summary">
+            {ev.claims.map((claim) => (
+              <li key={claim.id}>
+                {claim.grounding ? (
+                  <span className={`badge badge-${claim.grounding}`}>
+                    {claim.grounding}
+                    {claim.score !== null ? ` ${claim.score.toFixed(2)}` : ""}
+                  </span>
+                ) : (
+                  <span className="badge">not scored</span>
+                )}{" "}
+                {plainLanguage(claim.text)}
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="button-row">
           <button type="button" className="button" onClick={() => desk.openEvidence("discharge")}>
             Open evidence
           </button>
-          <a className="button ghost" href={routeHref("insurer", "review")}>
-            Read the review chain
-          </a>
+          {source.runId ? (
+            <a className="button ghost" href={reviewHref} target="_blank" rel="noreferrer">
+              Read the review chain of run {source.runId}
+            </a>
+          ) : (
+            <a className="button ghost" href={reviewHref}>
+              Read the review chain
+            </a>
+          )}
           {!source.runId && source.status !== "pending" && (
             <button type="button" className="button ghost" onClick={desk.resetApproval}>
               Reset preview
@@ -196,27 +264,74 @@ function JudgeBadge({ score, passes }: { score: number | null; passes: boolean |
   );
 }
 
-interface ItemProps {
+/** One proposed action: content and its draft. No buttons; the decision is run level. */
+function ActionCard({
+  item,
+  source,
+  editing,
+  draft,
+  onDraft,
+}: {
   item: PlaybookItem;
   source: QueueSource;
-  isSelected: boolean;
-  onSelect: () => void;
-  onDecide: (body: ApprovalBody) => Promise<string | null>;
+  editing: boolean;
+  draft: string;
+  onDraft: (text: string) => void;
+}) {
+  const draftId = useId();
+  return (
+    <li className={`approval approval--${source.status}`}>
+      <div className="approval__summary">
+        <span className={`chip chip--${item.actionType ?? "action"}`}>{actionChip(item.actionType)}</span>
+        <strong>{item.title}</strong>
+        <span className="muted small">
+          {item.targetRegion ?? "region not stated"} · {sitesLine(item.affectedSiteCount)}
+          {item.horizonH !== null ? ` · ${item.horizonH} h` : ""}
+        </span>
+        <JudgeBadge score={source.judgeScore} passes={source.judgePasses} />
+        <span className={`status status--${source.status}`}>{source.status}</span>
+      </div>
+      <div className="approval__detail">
+        {item.text && item.text !== item.title && <p>{plainLanguage(item.text)}</p>}
+        <p className="eyebrow" id={draftId}>
+          Draft message (sent only after approval)
+        </p>
+        {editing ? (
+          <textarea aria-labelledby={draftId} value={draft} rows={5} onChange={(e) => onDraft(e.target.value)} />
+        ) : item.draftMessage ? (
+          <blockquote className="draft">{item.draftMessage}</blockquote>
+        ) : (
+          <p className="note">{item.outbound ? "No draft was built for this action." : "Internal action: no outbound message."}</p>
+        )}
+      </div>
+    </li>
+  );
 }
 
-function ApprovalItem({ item, source, isSelected, onSelect, onDecide }: ItemProps) {
-  const detailId = useId();
+function DecisionBar({
+  source,
+  editing,
+  drafts,
+  onStartEdit,
+  onCancelEdit,
+  onDecide,
+}: {
+  source: QueueSource;
+  editing: boolean;
+  drafts: Record<string, string>;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onDecide: (body: ApprovalBody) => Promise<string | null>;
+}) {
   const [note, setNote] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(item.draftMessage ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => setDraft(item.draftMessage ?? ""), [item.draftMessage]);
-  const status = source.status;
-  const locked = status !== "pending" || busy;
+  const n = source.items.length;
+  const anyOutbound = source.items.some((i) => i.outbound);
+  const locked = source.status !== "pending" || busy;
 
-  const submit = async (action: ApprovalBody["action"], drafts: Record<string, string> = {}) => {
-    const built = buildApprovalBody(action, note, drafts, source.items);
+  const submit = async (action: ApprovalBody["action"]) => {
+    const built = buildApprovalBody(action, note, action === "edit" ? drafts : {}, source.items);
     if (!built.ok) {
       setError(built.message);
       return;
@@ -226,108 +341,65 @@ function ApprovalItem({ item, source, isSelected, onSelect, onDecide }: ItemProp
     try {
       const message = await onDecide(built.body);
       if (message) setError(message);
-      else setEditing(false);
     } finally {
       setBusy(false);
     }
   };
 
+  if (source.status !== "pending") {
+    return (
+      <p className={`status-line status-line--${source.status === "edited" ? "approved" : source.status}`} role="status">
+        {decisionStatusLine(source.status)}
+        {source.note && <> Note: “{source.note}”</>}
+      </p>
+    );
+  }
   return (
-    <li className={`approval approval--${status}${isSelected ? " is-selected" : ""}`}>
-      <button type="button" className="approval__summary" onClick={onSelect} aria-expanded={isSelected} aria-controls={detailId}>
-        <span className={`chip chip--${item.actionType ?? "action"}`}>{actionChip(item.actionType)}</span>
-        <strong>{item.title}</strong>
-        <span className="muted small">
-          {item.targetRegion ?? "region not stated"} · {sitesLine(item.affectedSiteCount)}
-          {item.horizonH !== null ? ` · ${item.horizonH} h` : ""}
-        </span>
-        <JudgeBadge score={source.judgeScore} passes={source.judgePasses} />
-        <span className={`status status--${status}`}>{status}</span>
-      </button>
-
-      {isSelected && (
-        <div className="approval__detail" id={detailId}>
-          <p>{plainLanguage(item.text || source.summary)}</p>
-          <p className="eyebrow">Draft message (sent only after approval)</p>
-          {item.draftMessage || editing ? (
-            editing ? (
-              <label className="field">
-                <span className="sr-only">Edit draft message for {item.title}</span>
-                <textarea value={draft} rows={5} onChange={(e) => setDraft(e.target.value)} disabled={busy} />
-              </label>
-            ) : (
-              <blockquote className="draft">{item.draftMessage}</blockquote>
-            )
-          ) : (
-            <p className="note">{item.outbound ? "No draft was built for this action." : "Internal action: no outbound message."}</p>
-          )}
-          {status === "pending" ? (
-            <>
-              <label className="field">
-                Reviewer note
-                <input
-                  type="text"
-                  placeholder="Optional. Nothing is sent."
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  disabled={locked}
-                />
-              </label>
-              {error && (
-                <p className="error-text" role="alert">
-                  {error}
-                </p>
-              )}
-              <div className="approval__actions">
-                {editing ? (
-                  <>
-                    <button
-                      type="button"
-                      className="button primary"
-                      disabled={locked}
-                      onClick={() => void submit("edit", { [item.actionId]: draft })}
-                      aria-label={`Save edited draft for ${item.title} and approve`}
-                    >
-                      Save edit
-                    </button>
-                    <button
-                      type="button"
-                      className="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setEditing(false);
-                        setDraft(item.draftMessage ?? "");
-                        setError(null);
-                      }}
-                    >
-                      Cancel edit
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button type="button" className="button danger" disabled={locked} onClick={() => void submit("reject")} aria-label={`Reject run with ${item.title}`}>
-                      Reject
-                    </button>
-                    {item.outbound && (
-                      <button type="button" className="button" disabled={locked} onClick={() => setEditing(true)} aria-label={`Edit draft for ${item.title}`}>
-                        Edit
-                      </button>
-                    )}
-                    <button type="button" className="button primary" disabled={locked} onClick={() => void submit("approve")} aria-label={`Approve run with ${item.title}`}>
-                      Approve
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className={`status-line status-line--${status === "edited" ? "approved" : status}`} role="status">
-              {decisionStatusLine(status)}
-              {source.note && <> Note: “{source.note}”</>}
-            </p>
-          )}
-        </div>
+    <div className="decision-bar hitl-decision" role="group" aria-label="Decision for this run">
+      <p className="hitl-scope">
+        This decision applies to all {n} proposed action{n === 1 ? "" : "s"} in this run. Nothing is sent: outbound actions are drafts in this demo.
+      </p>
+      <label className="field">
+        Reviewer note
+        <input
+          type="text"
+          placeholder="Required to reject or edit."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          disabled={locked}
+        />
+      </label>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
       )}
-    </li>
+      <div className="approval__actions">
+        {editing ? (
+          <>
+            <button type="button" className="button primary" disabled={locked} onClick={() => void submit("edit")}>
+              Save edits and approve
+            </button>
+            <button type="button" className="button" disabled={busy} onClick={() => { setError(null); onCancelEdit(); }}>
+              Cancel edit
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="button danger" disabled={locked} onClick={() => void submit("reject")}>
+              Reject run
+            </button>
+            {anyOutbound && (
+              <button type="button" className="button" disabled={locked} onClick={onStartEdit}>
+                Edit drafts
+              </button>
+            )}
+            <button type="button" className="button primary" disabled={locked} onClick={() => void submit("approve")}>
+              Approve run
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

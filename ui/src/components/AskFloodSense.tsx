@@ -3,11 +3,6 @@ import { AgentPipeline, LiveAgentPipeline } from "./AgentPipeline";
 import { RetrievalPanel } from "./RetrievalPanel";
 import { mergeContext } from "../lib/askContext";
 import { capTurns, followUpThreadId, modeForPage, modeLabel } from "../api/ask";
-import { fetchRunSnapshot, startLiveRun, subscribeRunEvents, turnBadge } from "../api/liveRun";
-import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
-import { memoryLine, NO_MEMORIES, sourceChips, type MemoryUsed } from "../lib/hitl";
-import { setAwaitingRunId } from "../lib/lastRun";
-import "../styles/hitl.css";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
@@ -16,6 +11,12 @@ import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting
 import { shownEventId } from "../lib/events";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
+import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
+import { turnBadge } from "../lib/turnBadge";
+import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
+import { memoryLine, NO_MEMORIES, sourceChips, type MemoryUsed } from "../lib/hitl";
+import { setAwaitingRunId } from "../lib/lastRun";
+import "../styles/hitl.css";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
@@ -87,6 +88,8 @@ export function AskFloodSense() {
   // 429: Send waits until this instant, with a countdown.
   const [retryUntil, setRetryUntil] = useState<number | null>(null);
   const [retryLeft, setRetryLeft] = useState(0);
+  // Announced only when the countdown starts and when it ends, not every second.
+  const [retryAnnounce, setRetryAnnounce] = useState("");
   useEffect(() => {
     if (retryUntil === null) return;
     const tick = () => {
@@ -94,6 +97,7 @@ export function AskFloodSense() {
       if (left <= 0) {
         setRetryUntil(null);
         setRetryLeft(0);
+        setRetryAnnounce("You can ask again now.");
       } else setRetryLeft(left);
     };
     tick();
@@ -139,6 +143,10 @@ export function AskFloodSense() {
   const send = async (typed?: string, eventOverride?: string) => {
     const question = (typed ?? draft).trim();
     if (!question || sendingRef.current || retryUntil !== null) return;
+    // A new question ends any earlier stream or poll.
+    stopStreamRef.current?.();
+    stopStreamRef.current = null;
+    inflightRef.current?.abort();
     sendingRef.current = true;
     const controller = new AbortController();
     inflightRef.current = controller;
@@ -173,8 +181,15 @@ export function AskFloodSense() {
     if (result.kind === "run") return finish({ run: result.run });
     if (result.kind === "error") return finish({ error: result.message });
     if (result.kind === "rate_limited") {
-      setRetryUntil(Date.now() + (result.retryAfterS ?? 30) * 1000);
-      return finish({ error: "FloodSense is answering other questions right now. Your question was not started; ask again when the countdown ends." });
+      // One message only: the countdown line. The question goes back to the composer; no turn is added.
+      const secs = result.retryAfterS ?? 30;
+      sendingRef.current = false;
+      inflightRef.current = null;
+      setPending(null);
+      setDraft(question);
+      setRetryUntil(Date.now() + secs * 1000);
+      setRetryAnnounce(`FloodSense is busy. Your question was not started; you can ask again in ${secs} seconds.`);
+      return;
     }
     // 202: a live run. Stream its pipeline, then read the final run.
     const runId = result.runId;
@@ -191,11 +206,15 @@ export function AskFloodSense() {
       if (live.status === "failed") {
         return finish({ error: `Run ${runId} failed after it started. A failed live run is not swapped for a replay; try again.`, live });
       }
+      if (live.status === "error") {
+        return finish({ error: live.error ?? `Lost contact with run ${runId}.`, live });
+      }
       try {
-        const snap = await fetchRunSnapshot(runId, controller.signal);
-        if (snap.run) {
-          if (snap.run.status === "awaiting_approval") setAwaitingRunId(runId);
-          return finish({ run: snap.run });
+        // The badge comes from the stream's served_from, not the GET.
+        const run = await resolveFinalRun(runId, live.servedFrom, { signal: controller.signal });
+        if (run) {
+          if (run.status === "awaiting_approval") setAwaitingRunId(runId);
+          return finish({ run });
         }
         return finish({ error: `Run ${runId} ended (${live.status}) but its answer could not be read.`, live });
       } catch {
@@ -207,7 +226,7 @@ export function AskFloodSense() {
       live = liveReducer(live, event);
       setPending((p) => (p ? { ...p, live } : p));
       if (live.status !== "running") void conclude();
-    });
+    }, { signal: controller.signal });
   };
   const cancel = () => {
     stopStreamRef.current?.();
@@ -429,9 +448,10 @@ export function AskFloodSense() {
                 <p className="ask-bubble">{pending.question}</p>
                 <p className="ask-working">
                   <span>{pending.live ? "Agents are working on your question" : "Starting a live run"}</span>
-                  <span className="ask-elapsed" aria-label={`Elapsed ${formatElapsed(elapsed)}`}>
+                  <span className="ask-elapsed">
                     {" "}
-                    · {formatElapsed(elapsed)}
+                    · <span className="sr-only">elapsed </span>
+                    {formatElapsed(elapsed)}
                   </span>{" "}
                   · {pending.provider}. A full run can take several minutes.{" "}
                   <button type="button" className="ask-link" onClick={cancel} aria-label="Stop watching this run">
@@ -448,10 +468,13 @@ export function AskFloodSense() {
               </div>
             )}
             {retryUntil !== null && (
-              <p className="ask-retry" role="status" aria-live="polite">
-                Busy right now. You can ask again in {formatElapsed(retryLeft)}.
+              <p className="ask-retry" aria-hidden="true">
+                FloodSense is busy; your question was not started. You can ask again in {formatElapsed(retryLeft)}.
               </p>
             )}
+            <p className="sr-only" role="status" aria-live="polite">
+              {retryAnnounce}
+            </p>
           </div>
           <form
             className="ask-composer"

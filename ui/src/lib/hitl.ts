@@ -1,4 +1,5 @@
 import type { ReplayCitation } from "../api/replay";
+import { decisionNoteError } from "./decision";
 
 /* ---------- Source badges per sentence ---------- */
 
@@ -114,7 +115,7 @@ export function adoptPlaybook(value: unknown): PlaybookItem[] {
         outbound: a.outbound === true,
         released: a.released === true,
         actionType: type && type in ACTION_LABELS ? (type as ActionType) : null,
-        title: str(a.title) ?? (text || actionId),
+        title: str(a.title) ?? shortTitle(text || actionId),
         targetRegion: str(a.target_region),
         affectedSiteCount: typeof a.affected_site_count === "number" && Number.isInteger(a.affected_site_count) ? a.affected_site_count : null,
         draftMessage: str(a.draft_message),
@@ -123,8 +124,17 @@ export function adoptPlaybook(value: unknown): PlaybookItem[] {
   });
 }
 
+/** First ~80 characters, cut at a word. */
+export function shortTitle(text: string, max = 80): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 export function actionChip(type: ActionType | null): string {
-  return type ? ACTION_LABELS[type] : "Playbook action";
+  return type ? ACTION_LABELS[type] : "Proposed action";
 }
 
 export function sitesLine(count: number | null): string {
@@ -165,6 +175,8 @@ export function buildApprovalBody(
   drafts: Record<string, string>,
   playbook: readonly PlaybookItem[],
 ): { ok: true; body: ApprovalBody } | { ok: false; message: string } {
+  const noteError = decisionNoteError(action === "approve" ? "approved" : action === "edit" ? "edited" : "rejected", note);
+  if (noteError) return { ok: false, message: noteError };
   const body: ApprovalBody = { action, reviewer: "insurer-desk" };
   if (note.trim()) body.reviewer_note = note.trim();
   if (action !== "edit") return { ok: true, body };
@@ -186,4 +198,50 @@ export function errorDetail(body: unknown): string | null {
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return d.map((x) => rec(x)?.msg).filter((m): m is string => typeof m === "string").join("; ") || null;
   return null;
+}
+
+/* ---------- Review evidence (claims, Judge per claim, KPIs) ---------- */
+
+export interface ReviewClaim {
+  id: string;
+  text: string;
+  grounding: string | null;
+  score: number | null;
+}
+
+export interface ReviewEvidence {
+  claims: ReviewClaim[];
+  supported: number;
+  scored: number;
+  citations: number;
+}
+
+/** Pure: claims with their Judge verdict, from an approval payload or run body. */
+export function reviewEvidence(body: Record<string, unknown>): ReviewEvidence {
+  const judge = new Map<string, { grounding: string | null; score: number | null }>();
+  if (Array.isArray(body.judge)) {
+    for (const raw of body.judge) {
+      const j = rec(raw);
+      const id = j && str(j.claim_id);
+      if (j && id) judge.set(id, { grounding: str(j.grounding), score: num(j.score) });
+    }
+  }
+  let citations = 0;
+  const claims: ReviewClaim[] = Array.isArray(body.claims)
+    ? body.claims.flatMap((raw) => {
+        const c = rec(raw);
+        const text = c && str(c.text);
+        if (!c || !text) return [];
+        if (Array.isArray(c.citations)) citations += c.citations.length;
+        const id = str(c.claim_id) ?? text;
+        const v = judge.get(id);
+        return [{ id, text, grounding: v?.grounding ?? null, score: v?.score ?? null }];
+      })
+    : [];
+  return {
+    claims,
+    supported: claims.filter((c) => c.grounding === "supported").length,
+    scored: claims.filter((c) => c.grounding !== null).length,
+    citations,
+  };
 }
