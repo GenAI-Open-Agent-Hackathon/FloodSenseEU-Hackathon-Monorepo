@@ -8,7 +8,8 @@ Nightshift). The front door classifies the message first:
 1. A rules pre-check. Clear cases (a bare "hi", "thanks", "what can you do",
    or any flood word) are decided without a model call.
 2. Otherwise one fast-lane call (``TASK: front_door``) with a short deadline
-   (FRONT_DOOR_TIMEOUT_S). A failure, a timeout or a bad label falls back to
+   (FRONT_DOOR_TIMEOUT_S, default the API lookup timeout less 0.5 s, so 2.5 s),
+   asked only for a message of at most six words that names no place. A failure, a timeout or a bad label falls back to
    the rules, and the rules fall back to ``flood_question``.
 
 Only the four non-flood intents get a reply, and the reply text is a fixed,
@@ -42,6 +43,8 @@ _FLOOD = re.compile(
     r"valencia|ahr|rhine|rhein|k[oö]ln|cologne|spain|germany|europe|"
     r"copernicus|efas|glofas|hochwasser|inundaci\w*|riada|lluvia\w*|"
     r"station\w*|basin|catchment|weather|safe|danger\w*|damage\w*|"
+    r"riesgo\w*|inund\w*|überschwemm\w*|keller\w*|basement\w*|wet|pegel\w*|"
+    r"crecida\w*|r[ií]o\w*|fluss\w*|flüsse\w*|"
     r"2021|2024|48\s*h|next\s+\d+)\b",
     re.I,
 )
@@ -83,10 +86,31 @@ Do not answer the message."""
 
 
 def _timeout_s() -> float:
+    """The model's budget. Defaults to the API's lookup timeout (CACHE_LOOKUP_TIMEOUT_S,
+    3 s) less a margin, so the API never gives up first and leaves a call running."""
+    raw = os.environ.get("FRONT_DOOR_TIMEOUT_S")
     try:
-        return float(os.environ.get("FRONT_DOOR_TIMEOUT_S", "12"))
+        if raw:
+            return float(raw)
+        return max(0.5, float(os.environ.get("CACHE_LOOKUP_TIMEOUT_S") or 3) - 0.5)
     except ValueError:
-        return 12.0
+        return 2.5
+
+
+MAX_REPLY_WORDS = 6
+_WORD = re.compile(r"[^\W\d_][\w'-]*")
+_SKIP_CAPS = {"i", "floodsense", "ok", "okay"}
+
+
+def _short_without_place(question: str) -> bool:
+    """A model reply label is trusted only for a short message naming no place.
+
+    A capitalised word after the first one is taken as a place (Bonn, Paiporta).
+    """
+    words = _WORD.findall(question or "")
+    if len(words) > MAX_REPLY_WORDS:
+        return False
+    return not any(w[0].isupper() and w.lower() not in _SKIP_CAPS for w in words[1:])
 
 
 def enabled() -> bool:
@@ -135,7 +159,11 @@ def _ask_model(llm: LLM, question: str, timeout: float) -> tuple[str, str] | Non
 def classify(question: str, llm: LLM | None = None) -> tuple[str, str]:
     """(intent, model_id). model_id is "rules" when no model decided."""
     intent, decisive = rules(question)
-    if decisive or llm is None:
+    if decisive:
+        return intent, "rules"
+    if not _short_without_place(question):
+        return "flood_question", "rules"  # long or names a place: the cited run
+    if llm is None:
         return intent, "rules"
     got = _ask_model(llm, question, _timeout_s())
     if got is None:

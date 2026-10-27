@@ -57,6 +57,37 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(fd.rules("tell me a joke"), ("off_topic", False))
 
 
+class FollowUpTest(unittest.TestCase):
+    def test_flood_words_in_more_languages(self) -> None:
+        greet = FakeNightshift({"front_door": lambda s, u: '{"intent": "greeting"}'})
+        for q in [
+            "can you help, my basement is wet",
+            "¿Hay riesgo en Paiporta?",
+            "hello, is Bonn ok?",
+            "Überschwemmungen",
+            "Pegel am Rhein?",
+            "crecida del río",
+        ]:
+            self.assertEqual(fd.classify(q, greet)[0], "flood_question", q)
+        self.assertEqual(greet.calls, [])  # none of these reached the model
+
+    def test_model_label_only_for_short_placeless_messages(self) -> None:
+        greet = FakeNightshift({"front_door": lambda s, u: '{"intent": "off_topic"}'})
+        long = "who won the match between those two teams yesterday evening"
+        self.assertEqual(fd.classify(long, greet), ("flood_question", "rules"))
+        self.assertEqual(fd.classify("what about Paterna", greet), ("flood_question", "rules"))
+        self.assertEqual(greet.calls, [])
+
+    def test_timeout_follows_the_api_lookup_timeout(self) -> None:
+        with mock.patch.dict("os.environ", {"CACHE_LOOKUP_TIMEOUT_S": ""}, clear=False):
+            import os
+
+            os.environ.pop("FRONT_DOOR_TIMEOUT_S", None)
+            self.assertEqual(fd._timeout_s(), 2.5)
+        with mock.patch.dict("os.environ", {"CACHE_LOOKUP_TIMEOUT_S": "5"}):
+            self.assertEqual(fd._timeout_s(), 4.5)
+
+
 class ModelPathTest(unittest.TestCase):
     def test_model_decides_an_ambiguous_message(self) -> None:
         llm = FakeNightshift({"front_door": lambda s, u: '{"intent": "off_topic"}'})
@@ -74,10 +105,10 @@ class ModelPathTest(unittest.TestCase):
     def test_failure_bad_label_and_timeout_fall_back_to_rules(self) -> None:
         self.assertEqual(fd.classify("tell me a joke", _Raising()), ("off_topic", "rules"))
         bad = FakeNightshift({"front_door": lambda s, u: '{"intent": "weather_fact"}'})
-        self.assertEqual(fd.classify("what about Paterna", bad), ("flood_question", "rules"))
+        self.assertEqual(fd.classify("what about tomorrow", bad), ("flood_question", "rules"))
         with mock.patch.dict("os.environ", {"FRONT_DOOR_TIMEOUT_S": "0.05"}):
             self.assertEqual(
-                fd.classify("what about Paterna", _Slow()), ("flood_question", "rules")
+                fd.classify("what about tomorrow", _Slow()), ("flood_question", "rules")
             )
 
 
