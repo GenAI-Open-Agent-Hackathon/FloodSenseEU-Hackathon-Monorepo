@@ -48,6 +48,11 @@ describe("source drawer content", () => {
     expect(e.licence).toMatch(/DL-DE-Zero-2.0/);
     expect(e.link?.href).toBe("https://www.pegelonline.wsv.de/");
     expect(e.notes.join(" ")).toMatch(/Not an official warning/);
+    // Same rule as ingestion/feeds/pegel_poll.py: near = level >= MHW - 0.25 * (MHW - MW).
+    expect(e.notes.join(" ")).toMatch(/within 25 % of the MW\.\.MHW span below MHW/);
+    expect(e.notes.join(" ")).toMatch(/long-term mean high water .*not a warning level/);
+    expect(e.notes.join(" ")).not.toMatch(/80 %|official characteristic/);
+    expect(e.timeLabel).toBe("Measured");
     expect(e.freshness).toBe("Live");
   });
   it("explains a GloFAS model point", () => {
@@ -58,6 +63,7 @@ describe("source drawer content", () => {
     expect(e.licence).toMatch(/CC BY 4.0/);
     expect(e.link?.href).toBe("https://open-meteo.com/en/docs/flood-api");
     expect(e.notes.join(" ")).toMatch(/Model.*not an official warning|Not an official warning/);
+    expect(e.timeLabel).toBe("Modelled");
   });
   it("lists an agent answer's memories", () => {
     const e = evidenceForMemories([
@@ -70,8 +76,10 @@ describe("source drawer content", () => {
     ]);
   });
   it("labels a replay moment as a replay", () => {
-    const e = evidenceForReplay("Ahr", "2021-07-14T00:00:00Z", { fromZetaris: false, badge: "Bundled" }, "rain");
+    const e = evidenceForReplay("Ahr", "2021-07-14T00:00:00Z", { fromZetaris: false, badge: "Bundled" }, "rain", 120);
     expect(e.freshness).toBe("Replay");
+    expect(e.notes.join(" ")).toMatch(/The 120 m³\/s line/);
+    expect(e.timeLabel).toBe("Modelled");
     expect(e.pipeline.join(" ")).toMatch(/not from Zetaris/);
   });
 });
@@ -91,21 +99,29 @@ describe("replay story moments", () => {
   }
   const frames = buildFrames(rows, event);
 
-  it("derives 3-5 dated sentences, oldest first", () => {
+  it("derives 3-5 sentences in time order, daily values by end of the day, and always the peak", () => {
     const m = storyMoments(rows, points, frames, event, true);
     expect(m.length).toBeGreaterThanOrEqual(3);
     expect(m.length).toBeLessThanOrEqual(5);
     expect(m.map((x) => x.text)).toEqual([
-      "14 Jul — river flow at Altenahr crossed the 100 m³/s alert line (daily value).",
       "14 Jul, 06:00 — the heaviest rain fell at Altenahr: 12.5 mm in one hour.",
-      "15 Jul — river flow at Bad Neuenahr crossed the 100 m³/s alert line (daily value).",
+      "By end of 14 Jul — river flow at Altenahr crossed the 100 m³/s alert line (daily value).",
+      "By end of 15 Jul — river flow at Bad Neuenahr crossed the 100 m³/s alert line and peaked at about 420 m³/s (daily value).",
     ]);
-    expect([...m].sort((a, b) => a.iso.localeCompare(b.iso))).toEqual(m);
+    expect([...m].sort((a, b) => a.sortKey.localeCompare(b.sortKey))).toEqual(m);
+    // A daily value never carries an hour.
+    expect(m.filter((x) => x.daily).every((x) => x.iso.length === 10 && !/\d\d:\d\d/.test(x.text))).toBe(true);
   });
-  it("adds the peak when it is not already a crossing moment", () => {
+  it("keeps a separate peak sentence when the peak is not on a crossing day", () => {
     const more = rows.map((r) => (r.point_id === "AHR01" && r.ts_utc.startsWith("2021-07-15") ? { ...r, discharge_m3s: 500 } : r));
     const m = storyMoments(more, points, frames, event, true);
-    expect(m.some((x) => x.text === "15 Jul — river flow peaked at Altenahr, about 500 m³/s.")).toBe(true);
+    expect(m.map((x) => x.text)).toContain("By end of 15 Jul — river flow peaked at Altenahr, about 500 m³/s (daily value).");
+  });
+  it("keeps a daily crossing after an hourly rain moment later the same day", () => {
+    const late = rows.map((r) => (r.point_id === "AHR01" && r.ts_utc === "2021-07-14T18:00:00.000Z" ? { ...r, rain_mm: 20 } : r));
+    const m = storyMoments(late, points, frames, event, true);
+    expect(m[0].text).toMatch(/^14 Jul, 18:00 — the heaviest rain/);
+    expect(m[1].text).toMatch(/^By end of 14 Jul — river flow at Altenahr crossed/);
   });
   it("is empty without frames, and dates by hour for hourly data", () => {
     expect(storyMoments(rows, points, [], event, true)).toEqual([]);

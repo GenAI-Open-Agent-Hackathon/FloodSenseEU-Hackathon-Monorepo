@@ -148,7 +148,7 @@ export function DisasterReplay() {
                 {m.text}{" "}
                 <LiveSourceBadge
                   n={i + 1}
-                  evidence={evidenceForReplay(`${event.name} · ${data.points.find((p) => p.point_id === m.pointId)?.name ?? m.pointId}`, daily && m.topic === "discharge" ? m.iso.slice(0, 10) : m.iso, data, m.topic)}
+                  evidence={evidenceForReplay(`${event.name} · ${data.points.find((p) => p.point_id === m.pointId)?.name ?? m.pointId}`, m.iso, data, m.topic, event.thresholdM3s)}
                 />
               </li>
             ))}

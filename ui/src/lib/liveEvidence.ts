@@ -16,6 +16,8 @@ export interface LiveEvidence {
   view: string;
   queryId: string | null;
   measuredAt: string | null;
+  /** "Measured" for a gauge reading; "Modelled" for a model hour or day (and replay rows). */
+  timeLabel: "Measured" | "Modelled";
   fetchedAt: string | null;
   licence: string;
   link: SourceLink | null;
@@ -67,11 +69,12 @@ export function evidenceForSource(s: WatchSource, meta: ViewMeta): LiveEvidence 
       view: "floodsense.gauge_levels",
       queryId: meta.queryId,
       measuredAt: s.measuredAt,
+      timeLabel: "Measured",
       fetchedAt: fetched(meta),
       licence: "Data licence Germany – Zero – 2.0 (DL-DE-Zero-2.0) · Quelle: WSV, PEGELONLINE",
       link: PEGELONLINE_LINK,
       notes: [
-        "Status compares the level with the station's mean high water (MHW), an official characteristic value; the Watch band at 80 % of MHW is FloodSense's own cut.",
+        "Status compares the level with the station's MHW, the long-term mean high water published by PEGELONLINE (not a warning level). Watch means the level is within 25 % of the MW..MHW span below MHW (level ≥ MHW − 0.25 × (MHW − MW)), FloodSense's own cut.",
         NOT_OFFICIAL,
       ],
       freshness,
@@ -86,6 +89,7 @@ export function evidenceForSource(s: WatchSource, meta: ViewMeta): LiveEvidence 
       view: "floodsense.eu_watch",
       queryId: meta.queryId,
       measuredAt: s.measuredAt,
+      timeLabel: "Modelled",
       fetchedAt: fetched(meta),
       licence: "CC BY 4.0 · Weather data by Open-Meteo.com (Copernicus GloFAS)",
       link: GLOFAS_LINK,
@@ -101,6 +105,7 @@ export function evidenceForSource(s: WatchSource, meta: ViewMeta): LiveEvidence 
     view: "floodsense.hazard_now",
     queryId: meta.queryId,
     measuredAt: s.measuredAt,
+    timeLabel: "Modelled",
     fetchedAt: fetched(meta),
     licence: "CC BY 4.0 · Weather data by Open-Meteo.com (Copernicus GloFAS)",
     link: GLOFAS_LINK,
@@ -116,10 +121,12 @@ export function evidenceForReplay(
   at: string,
   source: { fromZetaris: boolean; badge: string },
   topic: "rain" | "discharge",
+  thresholdM3s: number,
 ): LiveEvidence {
   return {
     title,
-    kind: topic === "rain" ? "Hourly rain (ERA5, recorded)" : "River flow (GloFAS daily, modelled)",
+    kind: topic === "rain" ? "Hourly rain (ERA5 reanalysis)" : "River flow (GloFAS daily, modelled)",
+    timeLabel: "Modelled",
     pipeline: source.fromZetaris
       ? ["Open-Meteo archive (prep CSV)", "Zetaris seed tables", "view floodsense_seed.hazard_timeline"]
       : ["Open-Meteo archive (prep CSV)", "bundled UI fixture (not from Zetaris)"],
@@ -131,7 +138,7 @@ export function evidenceForReplay(
     link: topic === "rain" ? RAIN_LINK : GLOFAS_LINK,
     notes: [
       source.badge,
-      "Replay of a past event, not live. The 100 m³/s line is the FloodSense Watchers line, not an official threshold.",
+      `Replay of a past event, not live. The ${thresholdM3s} m³/s line is the FloodSense Watchers line, not an official threshold.`,
     ],
     freshness: "Replay",
     memories: [],
@@ -147,6 +154,7 @@ export function evidenceForMemories(memories: readonly MemoryUsed[]): LiveEviden
     view: "H-MEM",
     queryId: null,
     measuredAt: null,
+    timeLabel: "Modelled",
     fetchedAt: null,
     licence: "FloodSense approved findings",
     link: null,

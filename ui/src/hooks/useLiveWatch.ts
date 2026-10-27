@@ -6,6 +6,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { buildSources, fromValencia, type WatchSource } from "../lib/euWatch";
 import { summariseGauges, type GaugeSummary } from "../lib/gauges";
 import { summariseAll, type PointNow } from "../lib/now";
+import { oldestFetch } from "../lib/places";
 import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
 
 const REFRESH_MS = 5 * 60_000;
@@ -57,6 +58,8 @@ export interface LiveWatch {
   /** Every live-watch source: PEGELONLINE gauges, eu_watch GloFAS points, Valencia hazard_now points. */
   sources: WatchSource[];
   refresh: () => void;
+  /** Oldest fetch time of the loaded views (ms), or null. */
+  updatedAt: number | null;
 }
 
 /** Valencia demo cuts (config/scenario.ts): elevated -> Watch, the 80 m³/s demo alert line -> Warning. */
@@ -65,7 +68,8 @@ export const VALENCIA_CUTS = { watch: BAND_ELEVATED_M3S, warning: SIMULATED_ALER
 /** The live views behind the citizen pages and Now, read once and shared for five minutes. */
 export function useLiveWatch(): LiveWatch {
   const { points } = useConsole();
-  const gauges = useGaugeLevels();
+  const [tick, setTick] = useState(0);
+  const gauges = useGaugeLevels(tick);
   const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
   const [euWatch, setEuWatch] = useState<EuLoad>({ state: "loading", rows: [], detail: "", queryId: null, fetchedAt: null });
   const [hazard, setHazard] = useState<HazardLoad>({ state: "loading" });
@@ -91,7 +95,6 @@ export function useLiveWatch(): LiveWatch {
       });
   }, []);
 
-  const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
     run(tick > 0, () => alive);
@@ -113,5 +116,10 @@ export function useLiveWatch(): LiveWatch {
   }, [gaugeSummaries, euWatch.rows, valencia, points]);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
-  return { gauges, gaugeSummaries, euWatch, hazard, valencia, sources, refresh };
+  const updatedAt = oldestFetch([
+    gauges.state === "rows" ? (gauges.fetchedAt ?? null) : null,
+    euWatch.state === "rows" ? euWatch.fetchedAt : null,
+    hazard.state === "ready" ? hazard.fetchedAt : null,
+  ]);
+  return { gauges, gaugeSummaries, euWatch, hazard, valencia, sources, refresh, updatedAt };
 }

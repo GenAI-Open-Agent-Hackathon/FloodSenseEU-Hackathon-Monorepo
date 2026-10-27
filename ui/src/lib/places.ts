@@ -6,46 +6,65 @@ import type { EventId } from "./events";
  * Citizen places: every live-watch source (PEGELONLINE gauge, GloFAS point, Valencia model point) plus the
  * Valencia and Ahr replay places. Pure; the data comes from the views, nothing here is invented.
  */
-export type PlainStatus = "normal" | "watch" | "warning" | "unknown";
+/**
+ * Colour of a status chip. Red ("warning") is reserved for a gauge at or above its long-term mean high water;
+ * model bands are amber or neutral, never red; the Valencia demo line is neutral until its 80 m³/s line.
+ */
+export type Tone = "normal" | "watch" | "elevated" | "warning" | "neutral" | "unknown";
 
-export const STATUS_WORD: Record<PlainStatus, string> = {
-  normal: "Normal",
-  watch: "Watch",
-  warning: "Warning",
-  unknown: "No reading",
-};
+export interface StatusView {
+  word: string;
+  tone: Tone;
+  /** Worst first: 0 is shown first. */
+  rank: number;
+}
 
-/** Worst first. */
-export const PLAIN_RANK: Record<PlainStatus, number> = { warning: 0, watch: 1, normal: 2, unknown: 3 };
+const UNKNOWN: StatusView = { word: "No reading", tone: "unknown", rank: 9 };
 
-/** The view band (gauge vs MHW, or the GloFAS model band) as a plain word. */
-export function plainStatus(status: GaugeStatus): PlainStatus {
-  if (status === "over") return "warning";
-  if (status === "near") return "watch";
-  if (status === "ok") return "normal";
-  return "unknown";
+/** The view band of one source as a plain word and tone, by what it is measured against. */
+export function statusView(kind: WatchSource["kind"], status: GaugeStatus): StatusView {
+  if (status === "unknown") return UNKNOWN;
+  if (status === "ok") return { word: "Normal", tone: "normal", rank: 8 };
+  if (kind === "gauge") return status === "over" ? { word: "Warning", tone: "warning", rank: 0 } : { word: "Watch", tone: "watch", rank: 2 };
+  if (kind === "model")
+    return status === "over" ? { word: "Elevated (model)", tone: "elevated", rank: 1 } : { word: "Watch (model)", tone: "watch", rank: 3 };
+  return status === "over"
+    ? { word: "Above 80 m³/s demo line", tone: "elevated", rank: 4 }
+    : { word: "Above 20 m³/s demo line", tone: "neutral", rank: 5 };
 }
 
 /** What the status is measured against, shown next to the word so a model is never read as official. */
 export function basisLabel(kind: WatchSource["kind"]): string {
-  if (kind === "gauge") return "official gauge threshold (MHW)";
+  if (kind === "gauge") return "measured · vs long-term mean high water (not a warning level)";
   if (kind === "valencia") return "model · FloodSense demo line, not official";
   return "model, not an official warning";
 }
 
-/** One calm sentence a person can read without numbers. */
-export function calmSentence(kind: WatchSource["kind"], status: PlainStatus, river: string, name: string): string {
-  const where = river ? `The ${river} at ${name}` : name;
+/** "Measured" for a gauge reading, "Modelled" for a model hour or day. */
+export function timeWord(kind: WatchSource["kind"]): "Measured" | "Modelled" {
+  return kind === "gauge" ? "Measured" : "Modelled";
+}
+
+/** One calm sentence a person can read. Place names keep their own casing. */
+export function calmSentence(kind: WatchSource["kind"], status: GaugeStatus, river: string, name: string): string {
   if (status === "unknown") return `We have no current reading for ${name}.`;
   if (kind === "gauge") {
-    if (status === "normal") return `${where} is at a normal level, below its mean high water mark.`;
-    if (status === "watch") return `${where} is higher than usual and close to its mean high water mark. Keep an eye on official warnings.`;
-    return `${where} is above its mean high water mark. Follow your official warning service.`;
+    const where = river ? `The ${river} at ${name}` : name;
+    if (status === "ok") return `${where} is at a normal level, below its long-term mean high water.`;
+    if (status === "near")
+      return `${where} is close to its long-term mean high water (not a warning level). Keep an eye on official warnings.`;
+    return `${where} is at or above its long-term mean high water (not a warning level). Check your official warning service.`;
   }
-  if (status === "normal") return `Our model shows normal river flow for ${where.charAt(0).toLowerCase()}${where.slice(1)} in the coming days.`;
-  if (status === "watch")
-    return `Our model shows river flow for ${where.charAt(0).toLowerCase()}${where.slice(1)} higher than usual in the coming days. It is a model, not an official warning.`;
-  return `Our model shows river flow for ${where.charAt(0).toLowerCase()}${where.slice(1)} well above usual in the coming days. Check your official warning service.`;
+  if (kind === "model") {
+    const where = river ? `the ${river} at ${name}` : name;
+    if (status === "ok") return `Our model shows normal river flow for ${where} over the next 7 days.`;
+    if (status === "near")
+      return `Our model shows river flow for ${where} somewhat above its recent 30-day normal over the next 7 days. Model, not an official warning.`;
+    return `Our model shows river flow for ${where} at least twice its recent 30-day normal over the next 7 days. That can be seasonal. Model, not an official warning.`;
+  }
+  if (status === "ok") return `Our model shows river flow at ${name} below the FloodSense demo line of 20 m³/s (not official).`;
+  if (status === "near") return `Our model shows river flow at ${name} above the FloodSense demo line of 20 m³/s (not official).`;
+  return `Our model shows river flow at ${name} above the FloodSense demo line of 80 m³/s (not official). Check your official warning service.`;
 }
 
 export interface Place {
@@ -144,15 +163,14 @@ export function searchPlaces(places: readonly Place[], query: string): Place[] {
   });
 }
 
-export function plainOf(s: WatchSource): PlainStatus {
-  return plainStatus(s.status);
+export function plainOf(s: WatchSource): StatusView {
+  return statusView(s.kind, s.status);
 }
 
-/** Worst first, then by ratio (highest first), then name. */
+/** Worst first (gauges above MHW, then elevated model points, ...), then by ratio, then name. */
 export function worstFirst(list: readonly WatchSource[]): WatchSource[] {
   return [...list].sort(
-    (a, b) =>
-      PLAIN_RANK[plainOf(a)] - PLAIN_RANK[plainOf(b)] || (b.ratio ?? -1) - (a.ratio ?? -1) || a.name.localeCompare(b.name),
+    (a, b) => plainOf(a).rank - plainOf(b).rank || (b.ratio ?? -1) - (a.ratio ?? -1) || a.name.localeCompare(b.name),
   );
 }
 
@@ -173,10 +191,69 @@ export function questionForPlace(place: Place): string {
     : `What happened at ${place.name} in the Valencia flood of October 2024?`;
 }
 
-/** Counts per plain status, for "anywhere in our watch". */
-export function statusCounts(list: readonly WatchSource[]): Record<PlainStatus, number> {
-  const out: Record<PlainStatus, number> = { normal: 0, watch: 0, warning: 0, unknown: 0 };
-  for (const s of list) out[plainOf(s)] += 1;
+/**
+ * Pure: the picker's short list with an empty search. The chosen place always comes first (so the current choice
+ * is visible), then the worst three live places, then one Valencia and one Ahr replay place; no duplicates.
+ */
+export function quickPlaces(places: readonly Place[], sources: readonly WatchSource[], chosenId: string | null): Place[] {
+  const ids = [
+    ...(chosenId ? [chosenId] : []),
+    ...worstFirst(sources)
+      .slice(0, 3)
+      .map((s) => s.id),
+    "replay:VAL01",
+    "replay:AHR01",
+  ];
+  const out: Place[] = [];
+  for (const id of ids) {
+    const p = places.find((x) => x.id === id);
+    if (p && !out.includes(p)) out.push(p);
+  }
   return out;
+}
+
+/** Pure: the oldest of the loaded views' fetch times, so "Updated" never overstates freshness. Null if none loaded. */
+export function oldestFetch(times: readonly (number | null | undefined)[]): number | null {
+  const loaded = times.filter((t): t is number => typeof t === "number");
+  return loaded.length ? Math.min(...loaded) : null;
+}
+
+export interface HeadlineCounts {
+  gaugesAbove: number;
+  gaugesNear: number;
+  modelElevated: number;
+  /** Model points in their lower band (GloFAS "near", Valencia above the 20 m³/s demo line). */
+  modelWatch: number;
+  normal: number;
+  unknown: number;
+  total: number;
+}
+
+/** Headline counts that keep gauges above mean high water apart from model points that are elevated. */
+export function headlineCounts(list: readonly WatchSource[]): HeadlineCounts {
+  const out: HeadlineCounts = { gaugesAbove: 0, gaugesNear: 0, modelElevated: 0, modelWatch: 0, normal: 0, unknown: 0, total: list.length };
+  for (const s of list) {
+    if (s.status === "unknown") out.unknown += 1;
+    else if (s.status === "ok") out.normal += 1;
+    else if (s.kind === "gauge") {
+      if (s.status === "over") out.gaugesAbove += 1;
+      else out.gaugesNear += 1;
+    } else if (s.status === "over") out.modelElevated += 1;
+    else out.modelWatch += 1;
+  }
+  return out;
+}
+
+/** "1 gauge above mean high water · 5 model points elevated · 30 normal". Zero parts are left out, normal stays. */
+export function headlineText(c: HeadlineCounts): string {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const parts: string[] = [];
+  if (c.gaugesAbove) parts.push(n(c.gaugesAbove, "gauge above mean high water", "gauges above mean high water"));
+  if (c.gaugesNear) parts.push(n(c.gaugesNear, "gauge close to mean high water", "gauges close to mean high water"));
+  if (c.modelElevated) parts.push(n(c.modelElevated, "model point elevated", "model points elevated"));
+  if (c.modelWatch) parts.push(n(c.modelWatch, "model point slightly up", "model points slightly up"));
+  parts.push(`${c.normal} normal`);
+  if (c.unknown) parts.push(`${c.unknown} no reading`);
+  return parts.join(" · ");
 }
 

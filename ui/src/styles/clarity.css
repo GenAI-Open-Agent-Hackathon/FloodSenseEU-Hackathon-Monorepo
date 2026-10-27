@@ -167,3 +167,26 @@ button.citation-marker[aria-expanded="true"] { background: var(--brand); color: 
 .dr-legend__swatch--rain { background: #2563eb; opacity: 0.45; }
 .dr-legend__swatch--q { height: 3px; background: var(--agp-accent, var(--brand)); }
 .dr-legend__swatch--thr { height: 0; border-top: 2px dashed var(--agp-danger, var(--risk-severe)); }
+
+/* Tones: red only for a gauge at or above MHW; model bands amber; the Valencia demo line neutral or amber. */
+.eu-shape--valencia { border-radius: 2px; width: 10px; height: 10px; }
+.eu-model-icon--valencia::before { transform: none; }
+.eu-shape.eu-tone--normal { background: var(--risk-low); }
+.eu-shape.eu-tone--watch { background: var(--risk-moderate); }
+.eu-shape.eu-tone--elevated { background: var(--warn-ink); }
+.eu-shape.eu-tone--warning { background: var(--risk-severe); }
+.eu-shape.eu-tone--neutral { background: var(--brand-border); }
+.eu-shape.eu-tone--unknown { background: var(--gauge-unknown); }
+.eu-model-icon.eu-tone--normal::before { background: var(--risk-low); }
+.eu-model-icon.eu-tone--watch::before { background: var(--risk-moderate); }
+.eu-model-icon.eu-tone--elevated::before { background: var(--warn-ink); }
+.eu-model-icon.eu-tone--neutral::before { background: var(--brand-border); }
+.eu-model-icon.eu-tone--unknown::before { background: var(--gauge-unknown); }
+.plain-chip--elevated { background: var(--risk-moderate-soft); color: var(--warn-ink); border-color: var(--warn-ink); }
+.plain-chip--neutral { background: var(--brand-soft); color: var(--brand-ink); border-color: var(--brand-border); }
+.plain-chip--lg { font-size: 1.05rem; padding: 0.3rem 0.9rem; }
+.ptw-row--elevated { border-left-color: var(--warn-ink); }
+.ptw-row--neutral { border-left-color: var(--brand-border); }
+.now-lead { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1rem; background: var(--surface); margin: 0.5rem 0 1rem; }
+.now-lead p { margin: 0.3rem 0; overflow-wrap: anywhere; }
+.eu-legend .map-legend { margin: 0.25rem 0 0; }

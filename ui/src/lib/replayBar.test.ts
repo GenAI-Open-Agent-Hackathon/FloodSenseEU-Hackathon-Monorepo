@@ -6,8 +6,8 @@ const ahr = { date: "2021-07-14" };
 
 describe("replayBarView (context strip)", () => {
   it("uses the live-watch wording on Now, on both desks", () => {
-    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live · Valencia model + Europe live watch" });
-    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live · Valencia model + Europe live watch");
+    expect(replayBarView({ role: "citizen", page: "now" }, "EMSR773", valencia, ahr)).toEqual({ kind: "live", text: "Live · Europe live watch" });
+    expect(replayBarView({ role: "insurer", page: "now" }, "EMSR517", valencia, ahr).text).toBe("Live · Europe live watch");
   });
 
   it("says Live data on citizen live pages, and names a chosen replay place plainly", () => {

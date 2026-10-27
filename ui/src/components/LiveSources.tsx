@@ -53,14 +53,18 @@ export function LiveEvidenceView({ evidence }: { evidence: LiveEvidence }) {
           <dt>Zetaris query id</dt>
           <dd>{evidence.queryId ?? "not sent by the API for this read"}</dd>
         </div>
-        <div>
-          <dt>Measured</dt>
-          <dd>{when(evidence.measuredAt)}</dd>
-        </div>
-        <div>
-          <dt>Fetched</dt>
-          <dd>{when(evidence.fetchedAt)}</dd>
-        </div>
+        {evidence.measuredAt && (
+          <div>
+            <dt>{evidence.timeLabel}</dt>
+            <dd>{when(evidence.measuredAt)}</dd>
+          </div>
+        )}
+        {evidence.freshness !== "Replay" && evidence.freshness !== "Run" && (
+          <div>
+            <dt>Fetched</dt>
+            <dd>{when(evidence.fetchedAt)}</dd>
+          </div>
+        )}
         <div>
           <dt>Licence</dt>
           <dd>{evidence.licence}</dd>

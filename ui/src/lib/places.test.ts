@@ -5,11 +5,15 @@ import {
   basisLabel,
   buildPlaces,
   calmSentence,
-  plainStatus,
+  headlineCounts,
+  headlineText,
+  oldestFetch,
   questionForPlace,
+  quickPlaces,
   replayEventOfPlace,
   searchPlaces,
-  statusCounts,
+  statusView,
+  timeWord,
   worstFirst,
 } from "./places";
 import { humanBox } from "./howItWorks";
@@ -64,29 +68,57 @@ const places = buildPlaces(
 );
 
 describe("plain status mapping", () => {
-  it("maps the view bands to Normal / Watch / Warning", () => {
-    expect(plainStatus("ok")).toBe("normal");
-    expect(plainStatus("near")).toBe("watch");
-    expect(plainStatus("over")).toBe("warning");
-    expect(plainStatus("unknown")).toBe("unknown");
+  it("keeps red Warning for gauges at or above MHW only", () => {
+    expect(statusView("gauge", "ok")).toMatchObject({ word: "Normal", tone: "normal" });
+    expect(statusView("gauge", "near")).toMatchObject({ word: "Watch", tone: "watch" });
+    expect(statusView("gauge", "over")).toMatchObject({ word: "Warning", tone: "warning" });
+    expect(statusView("gauge", "unknown")).toMatchObject({ word: "No reading", tone: "unknown" });
   });
-  it("labels the model and the official threshold differently", () => {
-    expect(basisLabel("gauge")).toMatch(/official gauge threshold \(MHW\)/);
+  it("never says Warning or uses red for a model band", () => {
+    expect(statusView("model", "near")).toMatchObject({ word: "Watch (model)", tone: "watch" });
+    expect(statusView("model", "over")).toMatchObject({ word: "Elevated (model)", tone: "elevated" });
+    expect(statusView("valencia", "near")).toMatchObject({ word: "Above 20 m³/s demo line", tone: "neutral" });
+    expect(statusView("valencia", "over").tone).toBe("elevated");
+    for (const kind of ["model", "valencia"] as const)
+      for (const st of ["ok", "near", "over", "unknown"] as const) {
+        expect(statusView(kind, st).word).not.toMatch(/warning/i);
+        expect(statusView(kind, st).tone).not.toBe("warning");
+      }
+  });
+  it("describes MHW as a long-term mean, not a warning level", () => {
+    expect(basisLabel("gauge")).toMatch(/long-term mean high water \(not a warning level\)/);
+    expect(basisLabel("gauge")).not.toMatch(/official/);
     expect(basisLabel("model")).toMatch(/model, not an official warning/);
     expect(basisLabel("valencia")).toMatch(/not official/);
+    expect(timeWord("gauge")).toBe("Measured");
+    expect(timeWord("model")).toBe("Modelled");
+    expect(timeWord("valencia")).toBe("Modelled");
   });
-  it("uses one calm sentence without numbers", () => {
-    const s = calmSentence("gauge", "watch", "Rhine", "Köln");
-    expect(s).toMatch(/^The Rhine at Köln is higher than usual/);
+  it("uses one calm sentence, keeping the place name's casing", () => {
+    const s = calmSentence("gauge", "near", "Rhine", "Köln");
+    expect(s).toMatch(/^The Rhine at Köln is close to its long-term mean high water \(not a warning level\)/);
     expect(s).not.toMatch(/\d/);
-    expect(calmSentence("model", "normal", "Danube", "Budapest")).toMatch(/Our model/);
+    expect(calmSentence("model", "ok", "Danube", "Budapest")).toBe("Our model shows normal river flow for the Danube at Budapest over the next 7 days.");
     expect(calmSentence("gauge", "unknown", "Rhine", "Köln")).toMatch(/no current reading/);
+    const v = calmSentence("valencia", "near", "", "Alfafar centre");
+    expect(v).toBe("Our model shows river flow at Alfafar centre above the FloodSense demo line of 20 m³/s (not official).");
+    expect(v).not.toMatch(/usual/);
   });
-  it("sorts worst first and counts", () => {
+  it("sorts worst first and separates gauges from model points in the counts", () => {
     const order = worstFirst(sources).map((s) => s.name);
     expect(order[0]).toBe("Passau Donau");
-    expect(order.slice(1, 3).sort()).toEqual(["Köln", "Paris"]);
-    expect(statusCounts(sources)).toEqual({ warning: 1, watch: 2, normal: 3, unknown: 0 });
+    expect(order[1]).toBe("Köln");
+    expect(order[2]).toBe("Paris");
+    const c = headlineCounts(sources);
+    expect(c).toMatchObject({ gaugesAbove: 1, gaugesNear: 1, modelElevated: 0, modelWatch: 1, normal: 3, unknown: 0, total: 6 });
+    expect(headlineText(c)).toBe(
+      "1 gauge above mean high water · 1 gauge close to mean high water · 1 model point slightly up · 3 normal",
+    );
+    expect(headlineText(headlineCounts([model("EU09", "Orleans", "Loire", "FR", "over")]))).toBe("1 model point elevated · 0 normal");
+  });
+  it("shows the oldest fetch time as Updated", () => {
+    expect(oldestFetch([3000, null, 1000, undefined])).toBe(1000);
+    expect(oldestFetch([null])).toBeNull();
   });
   it("bands Valencia points by the demo lines", () => {
     const v = (q: number) =>
@@ -113,6 +145,12 @@ describe("place search", () => {
     expect(replayEventOfPlace(null)).toBeNull();
     expect(questionForPlace(places.find((p) => p.name === "Köln")!)).toBe("Is the Rhine at Köln at risk right now?");
     expect(questionForPlace(places.find((p) => p.id === "replay:AHR01")!)).toMatch(/Ahr flood of July 2021/);
+  });
+  it("always shows the chosen place in the picker's short list", () => {
+    const ids = (chosen: string | null) => quickPlaces(places, sources, chosen).map((p) => p.id);
+    expect(ids(null)).toEqual(["gauge:PASSAU DONAU", "gauge:KÖLN", "model:EU01", "replay:VAL01", "replay:AHR01"]);
+    expect(ids("model:EU05")[0]).toBe("model:EU05");
+    expect(ids("gauge:KÖLN").filter((id) => id === "gauge:KÖLN")).toHaveLength(1);
   });
   it("gives each place its country", () => {
     expect(places.find((p) => p.name === "Köln")!.country).toBe("DE");

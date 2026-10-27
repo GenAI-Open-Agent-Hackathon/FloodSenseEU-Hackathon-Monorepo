@@ -38,14 +38,15 @@ import {
   buildPlaces,
   calmSentence,
   countryName,
+  headlineCounts,
+  headlineText,
   plainOf,
   questionForPlace,
+  quickPlaces,
   searchPlaces,
-  statusCounts,
-  STATUS_WORD,
   worstFirst,
   type Place,
-  type PlainStatus,
+  type StatusView,
 } from "../lib/places";
 import { evidenceForSource, GAUGE_PIPELINE, GLOFAS_PIPELINE, HAZARD_NOW_PIPELINE } from "../lib/liveEvidence";
 import type { DischargeBand } from "../types/ui";
@@ -53,13 +54,20 @@ import { CitationList, ProvenanceList } from "./EvidenceDrawer";
 import { MapPanel } from "./MapPanel";
 import { Sparkline } from "./Sparkline";
 import { LiveSourceBadge } from "./LiveSources";
-import { evidenceFor, metaFor, PlaceRow, PlacesToWatch, StatusChip } from "./PlacesToWatch";
+import { evidenceFor, metaFor, PlaceRow, PlacesToWatch, sourceTitle, StatusChip, timeText } from "./PlacesToWatch";
+import { EuWatchMap } from "./EuWatch";
 
 const WHY_CLAIMS = 3;
 const MAX_MATCHES = 12;
 
-/** A replay day's discharge band as a plain status (FloodSense demo cuts, never an official level). */
-const BAND_STATUS: Record<DischargeBand, PlainStatus> = { low: "normal", typical: "normal", elevated: "watch", peak: "warning" };
+/** A replay day's discharge band in plain words (FloodSense demo cuts, never an official level; never red). */
+const BAND_VIEW: Record<DischargeBand, StatusView> = {
+  low: { word: "Normal flow", tone: "normal", rank: 8 },
+  typical: { word: "Normal flow", tone: "normal", rank: 8 },
+  elevated: { word: "Above 20 m³/s demo line", tone: "neutral", rank: 5 },
+  peak: { word: "Above 80 m³/s demo line", tone: "elevated", rank: 4 },
+};
+const NO_READING: StatusView = { word: "No reading", tone: "unknown", rank: 9 };
 
 /** The live views, the place list and the chosen place, shared by every citizen page. */
 function useCitizenPlace(): { live: LiveWatch; places: Place[]; place: Place | null; choose: (p: Place | null) => void } {
@@ -86,14 +94,7 @@ function PlacePicker({ places, place, choose, live }: ReturnType<typeof useCitiz
   const [query, setQuery] = useState("");
   const inputId = useId();
   const matches = query.trim() ? searchPlaces(places, query).slice(0, MAX_MATCHES) : [];
-  const quick = useMemo(() => {
-    const worst = worstFirst(live.sources)
-      .slice(0, 3)
-      .map((s) => places.find((p) => p.id === s.id))
-      .filter((p): p is Place => Boolean(p));
-    const replays = ["replay:VAL01", "replay:AHR01"].map((id) => places.find((p) => p.id === id)).filter((p): p is Place => Boolean(p));
-    return [...worst, ...replays];
-  }, [live.sources, places]);
+  const quick = useMemo(() => quickPlaces(places, live.sources, place?.id ?? null), [live.sources, places, place?.id]);
   const list = query.trim() ? matches : quick;
   return (
     <div className="location-picker">
@@ -128,7 +129,7 @@ function PlacePicker({ places, place, choose, live }: ReturnType<typeof useCitiz
             <strong>{placeLabel(p)}</strong>
             <span>
               {countryName(p.country)}
-              {p.source ? ` · ${STATUS_WORD[plainOf(p.source)]}` : " · past flood"}
+              {p.source ? ` · ${plainOf(p.source).word}` : " · past flood"}
             </span>
           </button>
         ))}
@@ -149,7 +150,16 @@ function warningGroups(place: Place | null): WarningCountry[] {
   return place ? warningCountriesForCountry(place.country, place.name) : ["de", "es", "eu"];
 }
 
-/** General, sourced guidance first (no gate), then the gated, agent-written step, and a way into the chat. */
+/**
+ * The bundled reviewed answer (`fixtures/answer.json`) is the Valencia EMSR773 replay, so its agent-written
+ * playbook step (and its review status) belongs only to a Valencia replay place, never to a live place.
+ */
+const REVIEWED_ANSWER_EVENT = "EMSR773";
+function showsReviewedAnswer(place: Place | null): boolean {
+  return place?.eventId === REVIEWED_ANSWER_EVENT;
+}
+
+/** General, sourced guidance first (no gate), then the reviewed step for the matching past event, and Ask. */
 function ActionCards({ place }: { place: Place | null }) {
   const desk = useConsole();
   return (
@@ -175,7 +185,7 @@ function ActionCards({ place }: { place: Place | null }) {
           </div>
         ))}
       </div>
-      <ReviewedSteps />
+      {showsReviewedAnswer(place) && <ReviewedSteps />}
       <div className="button-row">
         <button
           type="button"
@@ -227,35 +237,35 @@ function ReviewedSteps() {
   );
 }
 
-function when(iso: string | null): string {
-  if (!iso) return "time not given by the view";
-  const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return iso.length === 10
-    ? `Model day ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
-    : `Measured ${d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
-}
-
 /** Replay place: the replay day's discharge, as a plain status, labelled a past flood. */
-function replayReading(place: Place, desk: ReturnType<typeof useConsole>): { status: PlainStatus; m3s: number | null; day: string } {
+function replayReading(place: Place, desk: ReturnType<typeof useConsole>): { view: StatusView; m3s: number | null; day: string } {
   if (place.eventId === "EMSR517") {
     const row = ahrDischarge().find((r) => r.point_id === place.pointId && r.date === desk.ahrDate);
-    return { status: row ? BAND_STATUS[dischargeBand(row.discharge_m3s)] : "unknown", m3s: row?.discharge_m3s ?? null, day: desk.ahrDate };
+    return { view: row ? BAND_VIEW[dischargeBand(row.discharge_m3s)] : NO_READING, m3s: row?.discharge_m3s ?? null, day: desk.ahrDate };
   }
   const row = rowAt(desk.discharge.rows, place.pointId ?? "", desk.date);
-  return { status: row ? BAND_STATUS[dischargeBand(row.discharge_m3s)] : "unknown", m3s: row?.discharge_m3s ?? null, day: desk.date };
+  return { view: row ? BAND_VIEW[dischargeBand(row.discharge_m3s)] : NO_READING, m3s: row?.discharge_m3s ?? null, day: desk.date };
 }
+
+const TONE_CARD: Record<StatusView["tone"], string> = {
+  warning: "severe",
+  elevated: "moderate",
+  watch: "moderate",
+  neutral: "low",
+  normal: "low",
+  unknown: "low",
+};
 
 /** "Risk right now" for the chosen place, or the whole watch when none is chosen. */
 function RiskCard({ ctx }: { ctx: ReturnType<typeof useCitizenPlace> }) {
   const desk = useConsole();
   const { place, live, choose } = ctx;
   if (!place) {
-    const counts = statusCounts(live.sources);
+    const lead = worstFirst(live.sources)[0];
     return (
       <div className="risk-summary">
         <p className="eyebrow">Right now, anywhere in our watch</p>
-        {live.sources.length === 0 ? (
+        {!lead ? (
           <p className="note" role="status">
             {live.gauges.state === "loading" || live.euWatch.state === "loading" || live.hazard.state === "loading"
               ? "Loading live readings…"
@@ -264,28 +274,24 @@ function RiskCard({ ctx }: { ctx: ReturnType<typeof useCitizenPlace> }) {
         ) : (
           <>
             <p className="risk-summary__plain">
-              <strong>
-                {counts.warning === 0 && counts.watch === 0
-                  ? `All ${counts.normal} places with a reading look normal right now.`
-                  : `${counts.warning} warning, ${counts.watch} to watch, ${counts.normal} normal across ${live.sources.length} places.`}
-              </strong>
+              <strong>{headlineText(headlineCounts(live.sources))}.</strong>
             </p>
-            <PlacesToWatch live={live} limit={3} title="Worst first" />
+            <PlacesToWatch live={live} limit={3} title="Most notable first" />
           </>
         )}
-        <p className="note">Choose a place above for its own reading. Not an official warning.</p>
+        <p className="note">Choose a place below for its own reading. Not an official warning.</p>
       </div>
     );
   }
   if (place.kind === "replay") {
     const r = replayReading(place, desk);
     return (
-      <div className={`risk-summary risk-summary--${r.status === "warning" ? "severe" : r.status === "watch" ? "high" : "low"}`}>
+      <div className={`risk-summary risk-summary--${TONE_CARD[r.view.tone]}`}>
         <p className="eyebrow">
           {place.name} · past flood, {formatDay(r.day)}
         </p>
         <p className="risk-summary__plain">
-          <StatusChip status={r.status} />{" "}
+          <StatusChip view={r.view} />{" "}
           <strong>This is a replay of a past flood, not today's situation.</strong>
         </p>
         <details className="disclosure">
@@ -307,22 +313,20 @@ function RiskCard({ ctx }: { ctx: ReturnType<typeof useCitizenPlace> }) {
     );
   }
   const s = place.source!;
-  const status = plainOf(s);
+  const view = plainOf(s);
   return (
-    <div className={`risk-summary risk-summary--${status === "warning" ? "severe" : status === "watch" ? "high" : "low"}`}>
+    <div className={`risk-summary risk-summary--${TONE_CARD[view.tone]}`}>
       <p className="eyebrow">
-        {s.river ? `${s.river} · ` : ""}
-        {s.name} · {countryName(s.country)}
+        {sourceTitle(s)} · {countryName(s.country)}
       </p>
       <p className="risk-summary__plain">
-        <span className={`risk-badge risk-badge--lg plain-chip plain-chip--${status}`}>{STATUS_WORD[status]}</span>{" "}
-        <span className="muted small">{basisLabel(s.kind)}</span>
+        <StatusChip view={view} large /> <span className="muted small">{basisLabel(s.kind)}</span>
       </p>
       <p>
-        {calmSentence(s.kind, status, s.river, s.name)} <LiveSourceBadge n={1} evidence={evidenceFor(live, s)} />
+        {calmSentence(s.kind, s.status, s.river, s.name)} <LiveSourceBadge n={1} evidence={evidenceFor(live, s)} />
       </p>
       <p className="note">
-        {when(s.measuredAt)}
+        {timeText(s.kind, s.measuredAt)}
         {s.live ? " · live" : " · not a fresh live reading"}
       </p>
       <details className="disclosure">
@@ -381,14 +385,17 @@ export function CitizenOverview() {
           </p>
         </div>
       </div>
-      <PlacePicker {...ctx} />
       <div className="grid grid--citizen">
         <section className="card span-2" aria-label="Risk right now">
           <header className="card__header">
-            <h2 className="card__title">Risk right now</h2>
+            <h2 className="card__title">Risk right now{place ? ` · ${place.name}` : ""}</h2>
           </header>
           <div className="card__body">
             <RiskCard ctx={ctx} />
+            <PlacePicker {...ctx} />
+            {place?.source && (
+              <PlacesToWatch live={ctx.live} limit={3} start={2} exclude={place.id} title="Elsewhere in our watch" />
+            )}
             <div className="button-row">
               <a className="button ghost" href={routeHref("citizen", "area")}>
                 See my area
@@ -502,6 +509,7 @@ export function CitizenArea() {
         </header>
         <div className="card__body">
           <RiskCard ctx={ctx} />
+          {place?.source && <EuWatchMap sources={[place.source, ...same]} />}
           {same.length > 0 && (
             <>
               <h3 className="section-title">Also on the {place?.river}</h3>
@@ -519,8 +527,8 @@ export function CitizenArea() {
 }
 
 /**
- * Official guidance and links for the chosen place's country; playbook actions only after an insurer approved them,
- * so a citizen never sees an action no human reviewed.
+ * Official guidance and links for the chosen place's country. The agent-written playbook step of the bundled
+ * Valencia 2024 answer shows only for a Valencia replay place, and only after a person approved it.
  */
 export function CitizenActions() {
   const desk = useConsole();
@@ -541,7 +549,8 @@ export function CitizenActions() {
           </p>
           <ActionCards place={place} />
           <p className="note">
-            Review status: {desk.approval.status}. <a href={routeHref("citizen", "evidence")}>See the evidence</a>.
+            {showsReviewedAnswer(place) ? `Review status of the Valencia 2024 step: ${desk.approval.status}. ` : ""}
+            <a href={routeHref("citizen", "evidence")}>See the evidence</a>.
           </p>
         </div>
       </section>

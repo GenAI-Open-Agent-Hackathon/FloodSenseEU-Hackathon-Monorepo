@@ -4,17 +4,25 @@ import { useConsole } from "../context/ConsoleContext";
 import { useLiveWatch } from "../hooks/useLiveWatch";
 import type { WatchSource } from "../lib/euWatch";
 import { relativeTime } from "../lib/now";
-import { statusCounts } from "../lib/places";
-import { EuWatchLegend, EuWatchList, EuWatchMap } from "./EuWatch";
-import { PlacesToWatch } from "./PlacesToWatch";
+import { basisLabel, calmSentence, headlineCounts, headlineText, plainOf, worstFirst } from "../lib/places";
+import { EuWatchLegend, EuWatchMap } from "./EuWatch";
+import { InsurerNowPage } from "./InsurerNowPage";
+import { LiveSourceBadge } from "./LiveSources";
+import { evidenceFor, PlacesToWatch, sourceTitle, StatusChip, timeText } from "./PlacesToWatch";
+
+/** Now: insurers keep the dense page; citizens get the calm, live-first one. */
+export function NowPage() {
+  const { route } = useConsole();
+  return route === "insurer" ? <InsurerNowPage /> : <CitizenNowPage />;
+}
 
 /**
- * Live page: ONE Europe map with every live-watch source (PEGELONLINE gauges, eu_watch GloFAS points and the
- * Valencia hazard_now points), coloured by plain status, then "Places to watch", worst first. Numbers live under
- * Details; every row has a numbered source that opens the Evidence drawer. Insurers also get the sortable list.
+ * Citizen Now: the chosen place (or the worst place in the watch) first, in one plain sentence with its source;
+ * then ONE Europe map of every live-watch source, the legend behind "How we colour the map", and "Places to watch",
+ * worst first. Numbers only behind Details.
  */
-export function NowPage() {
-  const { openAsk, route } = useConsole();
+function CitizenNowPage() {
+  const { openAsk, placeId } = useConsole();
   const live = useLiveWatch();
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
@@ -22,12 +30,9 @@ export function NowPage() {
     return () => window.clearInterval(tick);
   }, []);
 
-  const counts = statusCounts(live.sources);
-  const gauges = live.sources.filter((s) => s.kind === "gauge").length;
-  const model = live.sources.filter((s) => s.kind === "model").length;
-  const valencia = live.sources.length - gauges - model;
-  const fetchedAt = live.euWatch.fetchedAt ?? (live.hazard.state === "ready" ? live.hazard.fetchedAt : null);
-  const loading = live.gauges.state === "loading" && live.euWatch.state === "loading" && live.hazard.state === "loading";
+  const chosen = live.sources.find((s) => s.id === placeId) ?? null;
+  const lead: WatchSource | null = chosen ?? worstFirst(live.sources)[0] ?? null;
+  const loading = live.gauges.state === "loading" || live.euWatch.state === "loading" || live.hazard.state === "loading";
   const ask = (s: WatchSource) => openAsk(s.question, { page: "now", place: s.name });
 
   return (
@@ -37,10 +42,7 @@ export function NowPage() {
           <h2 className="now-title">Right now, across our watch</h2>
           <p className="now-meta" aria-live="polite">
             <span className="now-live-tag">Live data · Zetaris</span>
-            {fetchedAt ? ` Updated ${relativeTime(fetchedAt, clock)}` : ""}
-            {live.sources.length > 0
-              ? ` · ${counts.warning} warning · ${counts.watch} watch · ${counts.normal} normal${counts.unknown ? ` · ${counts.unknown} no reading` : ""}`
-              : ""}
+            {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
           </p>
         </div>
         <div className="button-row">
@@ -53,37 +55,48 @@ export function NowPage() {
         </div>
       </header>
 
+      {lead ? (
+        <section className="now-lead" aria-label={chosen ? "Your place" : "Most notable place right now"}>
+          <p className="eyebrow">{chosen ? "Your place" : "Most notable right now"}</p>
+          <p>
+            <StatusChip view={plainOf(lead)} large /> <strong>{sourceTitle(lead)}</strong>{" "}
+            <span className="muted small">{lead.country}</span>
+          </p>
+          <p>
+            {calmSentence(lead.kind, lead.status, lead.river, lead.name)}{" "}
+            <LiveSourceBadge n={1} evidence={evidenceFor(live, lead)} />
+          </p>
+          <p className="note">
+            {timeText(lead.kind, lead.measuredAt)} · {basisLabel(lead.kind)}
+          </p>
+          <p className="note">Across the watch: {headlineText(headlineCounts(live.sources))}.</p>
+        </section>
+      ) : (
+        <p className="now-status" role="status">
+          {loading ? "Loading live data…" : "No live readings right now: the live views did not answer. Try Refresh in a few minutes."}
+        </p>
+      )}
+
       <section className="now-region" aria-labelledby="now-eu">
         <div className="now-region-head">
           <h3 className="now-subtitle" id="now-eu">
             Europe · live watch
           </h3>
-          <span className="muted small">
-            {gauges} PEGELONLINE gauges · {model} GloFAS points · {valencia} Valencia points
-          </span>
         </div>
-        <p className="now-note">
-          Circles are measured water levels against official PEGELONLINE characteristic values (MHW). Diamonds are GloFAS
-          model discharge: a model, not an official warning. Faded or dashed markers are not a fresh live reading. Click a
-          place to ask about it.
-        </p>
-        {loading && (
-          <p className="now-status" aria-live="polite">
-            Loading live data…
-          </p>
-        )}
-        {live.euWatch.state === "unavailable" && <p className="note">GloFAS points unavailable: {live.euWatch.detail}</p>}
-        {live.hazard.state === "error" && <p className="note">Valencia points unavailable: {live.hazard.detail}</p>}
-        {live.gauges.state === "unavailable" && <p className="note">Gauges unavailable: {live.gauges.detail}</p>}
-        <EuWatchLegend />
         <EuWatchMap sources={live.sources} />
-        <PlacesToWatch live={live} onAsk={ask} />
-        {route === "insurer" && live.sources.length > 0 && (
-          <details className="disclosure">
-            <summary>All sources (sortable, with numbers)</summary>
-            <EuWatchList sources={live.sources} />
-          </details>
-        )}
+        <details className="disclosure">
+          <summary>How we colour the map</summary>
+          <p className="now-note">
+            Circles are river gauges, measured, against each station's long-term mean high water (not a warning level).
+            Diamonds and squares are GloFAS model points: a model, not an official warning. Faded or dashed markers are not
+            a fresh live reading. Click a place to ask about it.
+          </p>
+          <EuWatchLegend />
+          {live.euWatch.state === "unavailable" && <p className="note">GloFAS points unavailable: {live.euWatch.detail}</p>}
+          {live.hazard.state === "error" && <p className="note">Valencia points unavailable: {live.hazard.detail}</p>}
+          {live.gauges.state === "unavailable" && <p className="note">Gauges unavailable: {live.gauges.detail}</p>}
+        </details>
+        <PlacesToWatch live={live} onAsk={ask} start={2} exclude={lead?.id ?? null} />
         <p className="now-source">
           Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via Zetaris
         </p>

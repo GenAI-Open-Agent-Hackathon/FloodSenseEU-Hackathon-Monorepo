@@ -84,4 +84,6 @@ export const CITIZEN_ADVICE =
 
 export const CITIZEN_ADVICE_SOURCE = "Same advice the FloodSense agents give with every citizen answer";
 
-export const GATE_LINE = "Personalised advice from our agents is reviewed by a person before it's shown.";
+/** Same rule as How it works: answers are not held back; only the agent-written playbook step waits for a person. */
+export const GATE_LINE =
+  "Your answers aren't held back. Only the agent-written step for this past flood is checked by a person before it appears here.";

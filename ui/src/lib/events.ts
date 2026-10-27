@@ -22,7 +22,7 @@ export function headerSubtitle(): string {
 }
 
 /** The Now page's own subtitle (#78 live-watch wording), shown in the context strip on Now. */
-export const NOW_SUBTITLE = "Live · Valencia model + Europe live watch";
+export const NOW_SUBTITLE = "Live · Europe live watch";
 
 /** One map point with real coordinates from the seed rows. */
 export interface MapPoint {
