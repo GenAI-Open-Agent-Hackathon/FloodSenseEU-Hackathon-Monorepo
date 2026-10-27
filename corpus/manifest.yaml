@@ -79,11 +79,11 @@
   path: "pdf/nhess-23-973-2023.pdf"
   placement: "git"
 - doc_id: boe-a-2004-18910
-  title: "Real Decreto Legislativo 7/2004, de 29 de octubre, por el que se aprueba el texto refundido del Estatuto Legal del Consorcio de Compensacion de Seguros (original 2004 text, not consolidated)"
-  publisher: "Agencia Estatal Boletin Oficial del Estado"
+  title: "Real Decreto Legislativo 7/2004, de 29 de octubre, por el que se aprueba el texto refundido del Estatuto Legal del Consorcio de Compensación de Seguros (original 2004 text, not consolidated)"
+  publisher: "Agencia Estatal Boletín Oficial del Estado"
   url: "https://www.boe.es/boe/dias/2004/11/05/pdfs/A36653-36661.pdf"
   licence: "BOE reuse conditions (aviso legal), commercial and non-commercial reuse"
-  attribution: "Fuente de los datos: Agencia Estatal Boletin Oficial del Estado, BOE num. 267, 5 Nov 2004, BOE-A-2004-18910, https://www.boe.es. Original text as published; not the official consolidated version"
+  attribution: "Fuente de los datos: Agencia Estatal Boletín Oficial del Estado, BOE núm. 267, 5 Nov 2004, BOE-A-2004-18910, https://www.boe.es. Original text as published; not the official consolidated version"
   sha256: "157633b780cbcb84c9933976bf17aa48a20c9d1ce52b7c481cbaad63dd7b9330"
   tier: 3
   event_id: null
