@@ -188,17 +188,20 @@ def scope_json(entries: list[dict[str, object]]) -> str:
     """doc_id -> country for event_id null documents, as retrieve_docs reads it.
 
     A null-event document without a country is left out, so no event run sees it.
+    Citizen-audience documents are listed under "watch" only.
     """
     import json
 
-    generic = {
-        str(e["doc_id"]): str(e["country"])
-        for e in entries
-        if e["event_id"] is None and "country" in e
-    }
+    scoped = {str(e["doc_id"]): e for e in entries if e["event_id"] is None and "country" in e}
+    # generic: the insurer add-on of an EMSR773/517 run. Citizen-audience documents
+    # (river history) stay out of it so they cannot take the slots of EIOPA/EEA/BOE.
+    # watch: every scoped document, for a LIVE-EU run.
+    generic = {d: str(e["country"]) for d, e in scoped.items() if e.get("audience") != "citizen"}
+    watch = {d: str(e["country"]) for d, e in scoped.items()}
     body = {
         "note": "Generated from corpus/manifest.yaml by python scripts/rag_corpus.py --write-scope",
         "generic": dict(sorted(generic.items())),
+        "watch": dict(sorted(watch.items())),
     }
     return json.dumps(body, indent=2, ensure_ascii=False) + "\n"
 

@@ -185,3 +185,198 @@
   language: "en"
   year: 2007
   country: "EU"
+- doc_id: wiki-1997-central-european-flood
+  title: "1997 Central European flood (Wikipedia, revision 1368946079)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=1997_Central_European_flood&oldid=1368946079"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"1997 Central European flood\", English Wikipedia, revision 1368946079 (2026-08-12), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=1997_Central_European_flood&oldid=1368946079. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "a5f20d8b4d47b38519cd06efb93048c2e400565df26d4c0227c3e2539dbdc180"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-1997-central-european-flood.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 1997
+  country: "EU"
+- doc_id: wiki-2002-european-floods
+  title: "2002 European floods (Wikipedia, revision 1374296101)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2002_European_floods&oldid=1374296101"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2002 European floods\", English Wikipedia, revision 1374296101 (2026-09-11), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2002_European_floods&oldid=1374296101. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "ec23064ea908c1139a23b05426f8e7233f5706de9a45612c6080186eee564e72"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2002-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2002
+  country: "EU"
+- doc_id: wiki-2010-central-european-floods
+  title: "2010 Central European floods (Wikipedia, revision 1359816549)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2010_Central_European_floods&oldid=1359816549"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2010 Central European floods\", English Wikipedia, revision 1359816549 (2026-06-17), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2010_Central_European_floods&oldid=1359816549. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "362350d28abeca0254cb0874fbf547da6dedac664f4ea324571c1eefefb7e95b"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2010-central-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2010
+  country: "PL"
+- doc_id: wiki-2013-european-floods
+  title: "2013 European floods (Wikipedia, revision 1372735297)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2013_European_floods&oldid=1372735297"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2013 European floods\", English Wikipedia, revision 1372735297 (2026-09-02), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2013_European_floods&oldid=1372735297. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "2e1b1fb291ae625a21c7c553d0c310a5ea39f76f83d91cdd3b0acdec86324648"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2013-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2013
+  country: "EU"
+- doc_id: wiki-2016-european-floods
+  title: "2016 European floods (Wikipedia, revision 1360455033)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2016_European_floods&oldid=1360455033"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2016 European floods\", English Wikipedia, revision 1360455033 (2026-06-21), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2016_European_floods&oldid=1360455033. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "3884d430ca2029c09dd076c64cc45cd32ae44d011bc8c5077bdfc46fe0d223ee"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2016-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2016
+  country: "EU"
+- doc_id: wiki-2021-european-floods
+  title: "2021 European floods (Wikipedia, revision 1375935659)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2021_European_floods&oldid=1375935659"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2021 European floods\", English Wikipedia, revision 1375935659 (2026-09-21), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2021_European_floods&oldid=1375935659. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "3eda590227555cd4f5ebb15de9a4758d86131374d6a9a707fe204567d66e505e"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2021-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2021
+  country: "EU"
+- doc_id: wiki-2024-central-european-floods
+  title: "2024 Central European floods (Wikipedia, revision 1377676053)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2024_Central_European_floods&oldid=1377676053"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2024 Central European floods\", English Wikipedia, revision 1377676053 (2026-09-30), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2024_Central_European_floods&oldid=1377676053. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "527cc958ed2be4c407cfcebad0d9d69ef788f5f77ba46a52c7f14668b93432b4"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2024-central-european-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2024
+  country: "EU"
+- doc_id: wiki-2024-spanish-floods
+  title: "2024 Spanish floods (Wikipedia, revision 1379732613)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=2024_Spanish_floods&oldid=1379732613"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"2024 Spanish floods\", English Wikipedia, revision 1379732613 (2026-10-11), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=2024_Spanish_floods&oldid=1379732613. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "63582386707f868953961290252ed7b1c549fac688b803c1155a4154ff5e41ab"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-2024-spanish-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2024
+  country: "ES"
+- doc_id: wiki-seine
+  title: "Seine (Wikipedia, revision 1381786474)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=Seine&oldid=1381786474"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"Seine\", English Wikipedia, revision 1381786474 (2026-10-24), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=Seine&oldid=1381786474. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "0f14ea7e251f061bf286379e748bb297662e9e8e3c23e7f45653830df55ba48e"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-seine.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2026
+  country: "FR"
+- doc_id: wiki-moselle
+  title: "Moselle (Wikipedia, revision 1374522670)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=Moselle&oldid=1374522670"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"Moselle\", English Wikipedia, revision 1374522670 (2026-09-12), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=Moselle&oldid=1374522670. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "a1031164a7976ed8886a8b822e5fdab4d5b1404420ce1963401379396edfdc3e"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-moselle.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2026
+  country: "EU"
+- doc_id: wiki-neckar
+  title: "Neckar (Wikipedia, revision 1381972636)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=Neckar&oldid=1381972636"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"Neckar\", English Wikipedia, revision 1381972636 (2026-10-25), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=Neckar&oldid=1381972636. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "ebfb762a77ef339e6afb10b6fd8363b66be24f81f1e680fcf3350f2bf2269965"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-neckar.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2026
+  country: "DE"
+- doc_id: wiki-flood-control-netherlands
+  title: "Flood control in the Netherlands (Wikipedia, revision 1369449074)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=Flood_control_in_the_Netherlands&oldid=1369449074"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"Flood control in the Netherlands\", English Wikipedia, revision 1369449074 (2026-08-15), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=Flood_control_in_the_Netherlands&oldid=1369449074. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "dff8ff6b152b2662f4bd77ef9695fe06ab530ccc3e22dc8609e25fd8b34c5d15"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-flood-control-netherlands.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2026
+  country: "EU"
+- doc_id: wiki-list-of-floods
+  title: "List of floods (Wikipedia, revision 1380945599)"
+  publisher: "Wikipedia (Wikimedia Foundation)"
+  url: "https://en.wikipedia.org/w/index.php?title=List_of_floods&oldid=1380945599"
+  licence: "CC-BY-SA-4.0"
+  attribution: "Wikipedia contributors, \"List of floods\", English Wikipedia, revision 1380945599 (2026-10-18), CC BY-SA 4.0, https://en.wikipedia.org/w/index.php?title=List_of_floods&oldid=1380945599. Paragraph text only, accessed 27 Oct 2026"
+  sha256: "b605f6309d87c6a3ca5cc2ec45f2e86610d6318af56f509095721a219bb8379f"
+  tier: 3
+  event_id: null
+  path: "pdf/wiki-list-of-floods.html"
+  placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2026
+  country: "EU"
