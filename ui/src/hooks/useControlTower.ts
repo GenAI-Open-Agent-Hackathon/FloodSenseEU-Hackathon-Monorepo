@@ -28,6 +28,8 @@ export interface ControlTowerState {
   /** Polite, rare announcement for a screen reader; "" when none. */
   announce: string;
   mode: "demo" | "live";
+  /** Demo mode only: the live agents service did not answer a one-off probe. */
+  liveDown: boolean;
   /** Recorded demo data is shown instead of a live feed. */
   demo: DemoFeed | null;
   showDemo: () => void;
@@ -47,6 +49,7 @@ export function useControlTower(): ControlTowerState {
   const [switching, setSwitching] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [demoFeed, setDemoFeed] = useState<DemoFeed | null>(null);
+  const [liveDown, setLiveDown] = useState(false);
   const [tick, setTick] = useState(0);
   const loaded = useRef(false);
   const known = useRef<Set<string>>(new Set());
@@ -214,6 +217,11 @@ export function useControlTower(): ControlTowerState {
       wasDemo.current = true;
       setReachable(false);
       showDemo();
+      const ctrl = new AbortController();
+      void fetchWatchStatus(ctrl.signal).then((r) => {
+        if (!ctrl.signal.aborted) setLiveDown(!r.ok);
+      });
+      return () => ctrl.abort();
     } else if (wasDemo.current) {
       wasDemo.current = false;
       known.current = new Set();
@@ -226,6 +234,7 @@ export function useControlTower(): ControlTowerState {
       setReachable(null);
       setTick((t) => t + 1);
     }
+    return undefined;
   }, [demoOn, showDemo]);
 
   return {
@@ -239,6 +248,7 @@ export function useControlTower(): ControlTowerState {
     switching,
     announce,
     mode,
+    liveDown,
     demo: demoFeed,
     showDemo,
     scanNow,

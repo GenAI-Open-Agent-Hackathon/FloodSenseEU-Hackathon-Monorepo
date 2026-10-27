@@ -23,6 +23,7 @@ import {
   repeatNote,
   tiles,
   unreachableText,
+  DEMO_LIVE_DOWN_HINT,
   type WatchEvent,
   type WatchStatus,
 } from "./controlTower";
@@ -176,6 +177,12 @@ describe("states", () => {
     expect(loopState({ reachable: true, status: status({ last_cycle: null }) })).toBe("first");
     expect(loopState({ reachable: true, status: status({ last_cycle: null, loop: { enabled: false, alive: false, interval_s: 300, next_cycle_at: null } }) })).toBe("off");
     expect(loopState({ reachable: true, status: status() })).toBe("running");
+  });
+  it("demo mode renders the recorded feed, never the unreachable state", () => {
+    expect(loopState({ reachable: false, status: status(), demo: true })).toBe("running");
+    expect(loopState({ reachable: false, status: null, demo: true })).toBe("loading");
+    expect(loopState({ reachable: false, status: status(), demo: false })).toBe("down");
+    expect(DEMO_LIVE_DOWN_HINT).not.toContain("cannot be read");
   });
   it("offers demo data only in demo mode", () => {
     expect(appMode("?mode=demo", "")).toBe("demo");

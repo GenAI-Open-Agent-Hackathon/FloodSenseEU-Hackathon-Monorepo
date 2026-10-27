@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { runBadge } from "../api/ask";
 import { fetchPastRuns } from "../api/pastRuns";
 import { useConsole } from "../context/ConsoleContext";
-import { eventLabel, newestCompletedFullRun } from "../lib/approvalQueue";
+import { completedFullRuns, eventLabel, preferJudgePass } from "../lib/approvalQueue";
 import { adoptRunBody, fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import sampleRun from "../fixtures/run_f16733274f1c.json";
 import { AgentPipeline } from "./AgentPipeline";
@@ -69,11 +69,21 @@ export function useReviewRun(): { run: RecordedRun | null; source: Source } {
     setSource({ kind: "none", label });
     void fetchPastRuns(50, controller.signal).then(async (list) => {
       if (controller.signal.aborted || !list.ok) return;
-      const row = newestCompletedFullRun(list.rows, mode, eventId);
+      // The newest run that passed the Judge (looking at the latest few); else the newest. The row list carries no verdict.
+      const candidates = completedFullRuns(list.rows, mode, eventId).slice(0, 6);
+      const loaded: Record<string, RecordedRun> = {};
+      const verdicts: Record<string, boolean | null> = {};
+      for (const c of candidates) {
+        const r = await fetchRecordedRun(c.runId, undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        if (!r) continue;
+        loaded[c.runId] = r;
+        verdicts[c.runId] = r.judgePasses;
+        if (r.judgePasses === true) break;
+      }
+      const row = preferJudgePass(candidates.filter((c) => loaded[c.runId]), verdicts);
       if (!row) return;
-      const r = await fetchRecordedRun(row.runId, undefined, controller.signal);
-      if (controller.signal.aborted || !r) return;
-      setRun(r);
+      setRun(loaded[row.runId]);
       setSource({ kind: "newest", id: row.runId, label, question: row.question });
     });
     return () => controller.abort();

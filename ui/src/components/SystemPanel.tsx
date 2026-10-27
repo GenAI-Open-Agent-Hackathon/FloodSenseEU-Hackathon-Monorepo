@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchSystem } from "../api/system";
+import { SEEDED_MEMORY_CHIP, seededMemoryNote } from "../lib/hitl";
 import {
   SYSTEM_POLL_MS,
   countText,
@@ -105,9 +106,12 @@ function MemoryCard({ status }: { status: SystemStatus | null }) {
         <ul className="system-list">
           {m.latest.map((item) => (
             <li key={item.id || item.text}>
-              <p className="system-text">{item.text}</p>
+              <p className="system-text">
+                {item.text}
+                {seededMemoryNote(item) && <span className="note"> {seededMemoryNote(item)}</span>}
+              </p>
               <p className="system-meta">
-                {item.seeded && <span className="chip chip--sample">seeded</span>} run {item.runId ?? "–"} · approved{" "}
+                {item.seeded && <span className="chip chip--sample">{seededMemoryNote(item) ? SEEDED_MEMORY_CHIP : "seeded"}</span>} run {item.runId ?? "–"} · approved{" "}
                 {shortUtc(item.approvedAt)}
               </p>
             </li>

@@ -24,6 +24,7 @@ import {
   repeatNote,
   tiles,
   unreachableText,
+  DEMO_LIVE_DOWN_HINT,
   type FeedFilter,
   type WatchAgent,
   type WatchEvent,
@@ -85,7 +86,7 @@ function ControlTowerBody() {
   const live = useLiveWatch();
   const ct = useControlTower();
   const [filter, setFilter] = useState<FeedFilter>({ agent: "all", place: "all" });
-  const state = loopState({ reachable: ct.reachable, status: ct.status });
+  const state = loopState({ reachable: ct.reachable, status: ct.status, demo: ct.mode === "demo" });
   const clock = useNow(state === "first");
 
   const counts = useMemo(() => headlineCounts(live.sources), [live.sources]);
@@ -97,7 +98,7 @@ function ControlTowerBody() {
   const places = useMemo(() => placeOptions(ct.events), [ct.events]);
   const awaiting = ct.status?.awaiting_run_ids ?? [];
   const auto = ct.status?.auto_assess ?? null;
-  const showingDemo = ct.demo !== null && ct.reachable === false;
+  const showingDemo = ct.mode === "demo" && ct.demo !== null;
 
   const openApprovals = (runId: string) => {
     setAwaitingRunId(runId);
@@ -113,7 +114,7 @@ function ControlTowerBody() {
         </div>
         {!readOnly && (
           <div className="button-row">
-            <button type="button" className="now-refresh" onClick={ct.scanNow} disabled={ct.scanning || state === "down"}>
+            <button type="button" className="now-refresh" onClick={ct.scanNow} disabled={ct.scanning || state === "down" || ct.mode === "demo"}>
               {ct.scanning ? "Scanning…" : "Scan now"}
             </button>
           </div>
@@ -176,6 +177,7 @@ function ControlTowerBody() {
           Demo data, not live: recorded from a real scan at {hhmm(ct.demo.recordedAt)} UTC on {ct.demo.recordedAt.slice(0, 10)}. {ct.demo.note}
         </p>
       )}
+      {showingDemo && ct.liveDown && <p className="note">{DEMO_LIVE_DOWN_HINT}</p>}
       {state === "loading" && ct.reachable === null && (
         <p className="ct-state" role="status">
           Connecting to the watch loop…
@@ -250,7 +252,7 @@ function ControlTowerBody() {
                   type="checkbox"
                   role="switch"
                   checked={!!auto?.enabled}
-                  disabled={ct.switching || !auto || !!auto.blocked || state === "down"}
+                  disabled={ct.switching || !auto || !!auto.blocked || state === "down" || ct.mode === "demo"}
                   onChange={(e) => ct.setAutoAssess(e.target.checked)}
                 />
                 <span>{AUTO_ASSESS_LABEL}</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxStatuses, feedsMode } from "./howItWorks";
+import { boxStatuses, feedsMode, zetarisHealth } from "./howItWorks";
 import { parseSystem } from "./system";
 
 const config = {
@@ -53,5 +53,35 @@ describe("boxStatuses", () => {
     expect(feedsMode(config)).toBe("seed data");
     expect(feedsMode({ kind: "ok", body: { flags: { FF_LIVE_DATA: true } } })).toBe("live feeds");
     expect(feedsMode({ kind: "down" })).toBeNull();
+  });
+});
+
+describe("zetarisHealth", () => {
+  const now = Date.parse("2026-10-27T12:00:00Z");
+  const ok = { hits: 5, misses: 1, staleServes: 0, lastError: null };
+  const bad = (detail: string, at = "2026-10-27T11:55:00Z") => ({ hits: 0, misses: 2, staleServes: 2, lastError: { at, detail } });
+  it("is running when reads work and none fail", () => {
+    expect(zetarisHealth({ gauge_levels: ok }, null, now).state).toBe("ok");
+    expect(zetarisHealth({ gauge_levels: { ...ok, lastError: { at: "2026-10-27T11:00:00Z", detail: "429" } } }, null, now).state).toBe("ok");
+  });
+  it("is amber when some views fail, and never red for a rate limit", () => {
+    const r = zetarisHealth({ gauge_levels: ok, hazard_now: bad("upstream 429 Too Many Requests") }, "rows", now);
+    expect(r).toEqual({ state: "partial", note: "feed rate-limited by Open-Meteo" });
+    expect(zetarisHealth({ gauge_levels: ok, eu_watch: bad("timeout") }, null, now)).toEqual({ state: "partial", note: "some views are failing: eu_watch" });
+    expect(zetarisHealth({ eu_watch: bad("429") }, null, now).state).toBe("partial");
+  });
+  it("is not reachable only when every read fails for another reason", () => {
+    expect(zetarisHealth({ gauge_levels: bad("connection refused"), eu_watch: bad("timeout") }, "unavailable", now).state).toBe("down");
+  });
+  it("falls back to the gauge read, then to unknown", () => {
+    expect(zetarisHealth(null, "rows", now).state).toBe("ok");
+    expect(zetarisHealth(null, "unavailable", now).state).toBe("down");
+    expect(zetarisHealth(null, null, now).state).toBe("unknown");
+    expect(zetarisHealth({}, null, now).state).toBe("unknown");
+  });
+  it("drives the Zetaris box of boxStatuses", () => {
+    const sys = parseSystem({ views_cache: { views: { gauge_levels: { hits: 3, misses: 1 } } }, models: { ok: true } });
+    expect(boxStatuses(config, sys, null, now).zetaris).toBe("ok");
+    expect(boxStatuses(config, null, null, now).zetaris).toBe("unknown");
   });
 });

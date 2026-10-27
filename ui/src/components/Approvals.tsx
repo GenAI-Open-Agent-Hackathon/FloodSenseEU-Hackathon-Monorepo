@@ -15,6 +15,7 @@ import {
   curateQueue,
   earlierText,
   pickSelection,
+  type RunQuality,
   queueRowLine,
   readHidden,
   writeHidden,
@@ -123,7 +124,7 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
 
   const [hidden, setHidden] = useState<Set<string>>(() => readHidden(safeStorage()));
   const [showHidden, setShowHidden] = useState(false);
-  const [counts, setCounts] = useState<Record<string, { outbound: number; total: number }>>({});
+  const [counts, setCounts] = useState<Record<string, RunQuality>>({});
   const base = useMemo(() => {
     const rows = past && past.ok ? past.rows : [];
     const own = operator ? rows.filter((row) => tracked.some((r) => r.runId === row.runId)) : rows;
@@ -145,7 +146,12 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
         .then(({ status, body }) => {
           if (gone) return;
           const items = status === 200 && body ? queueFromApproval(id, body).items : [];
-          const n = { outbound: items.filter((i) => i.outbound).length, total: items.length };
+          const n: RunQuality = {
+            outbound: items.filter((i) => i.outbound).length,
+            total: items.length,
+            passes: status === 200 && body ? queueFromApproval(id, body).judgePasses : null,
+            stale: status === 200 && !!body && /STALE/.test(JSON.stringify([body.summary, body.claims, body.trace])),
+          };
           setCounts((m) => (m[id] === undefined ? { ...m, [id]: n } : m));
         })
         .catch(() => {
@@ -169,7 +175,7 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
       writeHidden(safeStorage(), next);
       return next;
     });
-  const auto = pickSelection(queue, picked === EXAMPLE ? null : picked, handoff);
+  const auto = pickSelection(queue, picked === EXAMPLE ? null : picked, handoff, counts);
   // A run decided here stays on screen with its outcome, even after it leaves the awaiting list.
   const pickedDecided = !!picked && picked !== EXAMPLE && (() => {
     const l = loaded[picked];
