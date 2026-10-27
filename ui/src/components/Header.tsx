@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
 import { servingLabel } from "../lib/format";
+import { headerSubtitle } from "../lib/events";
 import { honestyChip, originPill } from "../lib/origin";
 import { OriginList, ServingLine } from "./Banners";
 import { applyTheme, readTheme, type ThemeName } from "../lib/theme";
@@ -57,7 +58,7 @@ export function Header() {
           </span>
           <div>
             <p className="product">FloodSense EU</p>
-            <p className="product-sub">Valencia replay · EMSR773</p>
+            <p className="product-sub">{headerSubtitle(desk.page, desk.eventId)}</p>
           </div>
         </div>
         <nav className="nav-links" aria-label="Workspace">

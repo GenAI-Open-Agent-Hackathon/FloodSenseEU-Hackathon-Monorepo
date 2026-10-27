@@ -1091,3 +1091,27 @@ a.button.primary { color: #f4fffc; }
   .leaflet-map { height: 300px; }
   .view__title { font-size: 1.3rem; }
 }
+
+/* Sites / map: event points on Leaflet. Colours reuse the discharge band tokens. */
+.site-pin { background: transparent; border: 0; }
+.site-pin__dot {
+  display: block; width: 22px; height: 22px; border-radius: 999px; box-sizing: border-box;
+  border: 2px solid var(--marker-stroke); background: var(--band, var(--band-low)); box-shadow: 0 0 0 1px var(--border);
+}
+.site-pin__dot[data-band="low"] { --band: var(--band-low); }
+.site-pin__dot[data-band="typical"] { --band: var(--band-typical); }
+.site-pin__dot[data-band="elevated"] { --band: var(--band-elevated); }
+.site-pin__dot[data-band="peak"] { --band: var(--band-peak); }
+.site-pin__dot[data-selected="true"] { box-shadow: 0 0 0 4px color-mix(in srgb, var(--band) 40%, transparent), 0 0 0 1px var(--ink); }
+.site-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+.leaflet-tooltip.site-label { padding: 0.05rem 0.4rem; font-size: 0.75rem; font-weight: 650; }
+.leaflet-tooltip.site-label.is-selected { background: var(--ink); color: var(--bg); }
+.exposure-site { fill: var(--accent-strong); fill-opacity: 0.7; stroke: var(--marker-stroke); stroke-width: 1; }
+
+/* Approvals: the decision buttons sit clear of the review note. */
+.decision-bar .field + .error-text { margin: 0.5rem 0 0; }
+.decision-bar .button-row { margin-top: 0.8rem; }
+
+/* Now: one labelled section per region. */
+.now-region { display: grid; gap: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 0.8rem; min-width: 0; }
+.now-region-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem; }

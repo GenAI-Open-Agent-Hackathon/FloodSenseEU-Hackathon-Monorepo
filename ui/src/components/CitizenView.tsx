@@ -277,7 +277,7 @@ export function CitizenArea() {
 
   return (
     <div className="citizen-grid">
-      <MapPanel exposureDefault={false} />
+      <MapPanel exposureDefault={false} fixedEvent="EMSR773" />
       <section className="card" aria-label="Plain-language discharge">
         <p className="section-label">My area</p>
         <h2>{point ? point.name : desk.pointId}</h2>

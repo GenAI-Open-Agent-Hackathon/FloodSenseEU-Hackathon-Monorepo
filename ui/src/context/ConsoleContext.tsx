@@ -33,6 +33,7 @@ import {
 import { fixtureDischargeNotice, replayNotice, seedRowsNotice } from "../lib/notices";
 import type { AskContext } from "../lib/askContext";
 import { parseHash, routeHref, type DeskRoute, type PageId } from "../lib/route";
+import { DEFAULT_EVENT_ID, type EventId } from "../lib/events";
 import type { Answer, Approval, ApprovalStatus } from "../types/contract";
 import type { EvidenceTopic, Notice, RouteId } from "../types/ui";
 import type {
@@ -68,6 +69,9 @@ export interface ConsoleValue {
   setDate: (date: string) => void;
   pointId: string;
   setPointId: (pointId: string) => void;
+  /** Selected event (Replay, Sites / map, Portfolio, header). One value for the whole console. */
+  eventId: EventId;
+  setEventId: (eventId: EventId) => void;
   evidenceOpen: boolean;
   evidenceTopic: EvidenceTopic;
   openEvidence: (topic: EvidenceTopic) => void;
@@ -162,6 +166,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
   const dates = useMemo(() => datesOf(discharge.rows), [discharge.rows]);
   const [date, setDateState] = useState(DEFAULT_DATE);
   const [pointId, setPointId] = useState(DEFAULT_POINT_ID);
+  const [eventId, setEventId] = useState<EventId>(DEFAULT_EVENT_ID);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceTopic, setEvidenceTopic] = useState<EvidenceTopic>("discharge");
   const [askOpen, setAskOpen] = useState(false);
@@ -389,6 +394,8 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       setDate,
       pointId,
       setPointId,
+      eventId,
+      setEventId,
       evidenceOpen,
       evidenceTopic,
       openEvidence,
@@ -426,6 +433,7 @@ function ReadyConsole({ bundle, children }: { bundle: FixtureBundle; children: R
       date,
       setDate,
       pointId,
+      eventId,
       evidenceOpen,
       evidenceTopic,
       openEvidence,

@@ -50,7 +50,7 @@ Demo dates, the simulation window, map bounds, band cuts, the 8 km drill-down ra
 
 The insurer desk shows:
 
-- a schematic Valencia map with one marker per `point_id`
+- a Leaflet + OpenStreetMap map (Sites / map, `src/components/MapPanel.tsx`) for the selected event: Valencia 2024 (EMSR773, VAL01-VAL08 from `valencia_points`) or Ahr 2021 (EMSR517, AHR01-AHR04 Altenahr, Bad Neuenahr-Ahrweiler, Schuld, Dernau, the `floodsense_seed` rows from `ingestion/prep/ahr_hazard.py`). Markers sit at the rows' lat/lon, are coloured by discharge band, carry a permanent place label (code and value in the popup), and fit the event's bounds. Exposed sites are a toggleable layer for EMSR773; Ahr has no insured book, so the toggle is off and Portfolio says so. There is no river line.
 - a replay-date slider across the discharge dates
 - a drill-down that names the `discharge_daily` columns and the hazard columns when that day is in the extract
 - an evidence drawer, “Why this source”, opened from the drill-down
@@ -60,7 +60,9 @@ Approve, edit, and reject stay in the browser. Nothing is sent.
 
 The alert control steps 28–31 Oct 2024 and adds a notice if modelled discharge crosses 80 m³/s (`SIMULATED_ALERT_M3S` in `src/config/scenario.ts`). That threshold is a demo line for the map. It is not the Watchers anomaly, which is 100 m³/s (`anomaly_discharge` in `agents/floodsense_agents/governance.py`). `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
 
-The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls.
+The selected event is one value in `ConsoleContext` (`eventId`, default EMSR773), shared by Replay, Sites / map, Portfolio and the header subtitle (`headerSubtitle` in `src/lib/events.ts`: the event on replay pages, "Live" on Now). Now has two labelled sections: Spain · Valencia (Open-Meteo/GloFAS model) and Germany · Rhine & Mosel (PEGELONLINE live gauges, with the gauge map and band / MHW / stale cards).
+
+The citizen page uses the same points, dates, and discharge series, in plain language, without the review controls. Its My area map stays on Valencia.
 
 ### Look and citizen Overview
 

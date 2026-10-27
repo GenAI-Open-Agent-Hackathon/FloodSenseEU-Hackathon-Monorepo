@@ -172,7 +172,7 @@ describe("disaster replay timeline", () => {
     expect(clampStep(-3, 96)).toBe(0);
     expect(clampStep(200, 96)).toBe(95);
     expect(nextStep(95, 96)).toBe(0);
-    expect(readingsAt(rows, frames[30]).size).toBe(3);
+    expect(readingsAt(rows, frames[30]).size).toBe(4);
   });
 
   it("marks the moment discharge crosses the line", () => {

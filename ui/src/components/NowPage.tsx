@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NEXT_48H_QUESTION } from "../api/ask";
-import { fetchGaugeLevels, fetchHazardNow, type HazardNowResult } from "../api/now";
+import { fetchHazardNow, type HazardNowResult } from "../api/now";
 import { useConsole } from "../context/ConsoleContext";
-import { latestPastStamp, relativeTime, sparkSeries, summariseAll, type GaugeLevelRow, type PointNow, type Trend } from "../lib/now";
+import { useGaugeLevels } from "../hooks/useGaugeLevels";
+import { summariseGauges } from "../lib/gauges";
+import { latestPastStamp, relativeTime, sparkSeries, summariseAll, type PointNow, type Trend } from "../lib/now";
 import { pointById } from "../lib/series";
+import { GaugeList, GaugeMap } from "./GaugeMap";
 import { Sparkline } from "./Sparkline";
 
 const REFRESH_MS = 5 * 60_000;
@@ -14,8 +17,6 @@ type Load =
   | { state: "loading" }
   | { state: "error"; detail: string }
   | { state: "ready"; data: HazardNowResult; fetchedAt: number };
-
-type Gauges = { state: "loading" } | { state: "error" } | { state: "ready"; rows: GaugeLevelRow[] };
 
 function localTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -32,11 +33,15 @@ const TREND_TEXT: Record<Trend, { arrow: string; label: string }> = {
   unknown: { arrow: "·", label: "no 24 h comparison" },
 };
 
-/** Live hourly view of the eight Valencia points. Its own fetch; never falls back to the replay fixture. */
+/**
+ * Live page, one labelled section per region: the eight Valencia points (Open-Meteo/GloFAS model, own fetch, never the
+ * replay fixture) and the Rhine & Mosel PEGELONLINE gauges (gauge_levels view, shared with the citizen gauge map).
+ */
 export function NowPage() {
   const { points, openAsk } = useConsole();
   const [load, setLoad] = useState<Load>({ state: "loading" });
-  const [gauges, setGauges] = useState<Gauges>({ state: "loading" });
+  const gauges = useGaugeLevels();
+  const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
   const [clock, setClock] = useState(() => Date.now());
   const controller = useRef<AbortController | null>(null);
 
@@ -52,13 +57,6 @@ export function NowPage() {
       .catch((error: unknown) => {
         if (ctrl.signal.aborted) return;
         setLoad({ state: "error", detail: error instanceof Error ? error.message : "request failed" });
-      });
-    fetchGaugeLevels(ctrl.signal)
-      .then((rows) => {
-        if (!ctrl.signal.aborted) setGauges({ state: "ready", rows });
-      })
-      .catch(() => {
-        if (!ctrl.signal.aborted) setGauges({ state: "error" });
       });
   }, []);
 
@@ -110,7 +108,13 @@ export function NowPage() {
           </button>
         </div>
       </header>
-      <p className="now-note">{MODEL_NOTE}. Dashed line and “forecast” values are model forecasts.</p>
+      <section className="now-region" aria-labelledby="now-es">
+        <div className="now-region-head">
+          <h3 className="now-subtitle" id="now-es">
+            Spain · Valencia (Open-Meteo/GloFAS model)
+          </h3>
+        </div>
+        <p className="now-note">{MODEL_NOTE}. Dashed line and “forecast” values are model forecasts.</p>
 
       {load.state === "loading" && (
         <p className="now-status" aria-live="polite">
@@ -134,26 +138,20 @@ export function NowPage() {
           ))}
         </div>
       )}
+        <p className="now-source">{ATTRIBUTION}</p>
+      </section>
 
-      <section className="now-gauges">
-        <h3 className="now-subtitle">Water levels (Rhine, PEGELONLINE)</h3>
-        {gauges.state === "loading" && <p className="now-status">Loading gauge readings…</p>}
-        {gauges.state === "error" && <p className="now-status">Could not load gauge readings.</p>}
-        {gauges.state === "ready" && gauges.rows.length === 0 && <p className="now-status">No live gauge readings yet.</p>}
-        {gauges.state === "ready" && gauges.rows.length > 0 && (
-          <ul className="now-gauge-list">
-            {gauges.rows.map((row, index) => (
-              <li key={`${row.station}-${row.ts_utc ?? index}`}>
-                <strong>{row.station}</strong>
-                {row.water ? ` (${row.water})` : ""}: {row.level_cm === null ? "no reading" : `${fmt(row.level_cm, 0)} cm`}
-                {row.ts_utc ? ` · ${localTime(row.ts_utc)}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="now-region" aria-labelledby="now-de">
+        <div className="now-region-head">
+          <h3 className="now-subtitle" id="now-de">
+            Germany · Rhine &amp; Mosel (PEGELONLINE live gauges)
+          </h3>
+        </div>
+        <p className="now-note">Measured water levels. Colour and bar compare each level with the station's MHW; dashed or Stale means not a fresh live reading.</p>
+        <GaugeMap load={gauges} gauges={gaugeSummaries} />
+        <GaugeList load={gauges} gauges={gaugeSummaries} />
         <p className="now-source">Quelle: WSV, PEGELONLINE</p>
       </section>
-      <p className="now-source">{ATTRIBUTION}</p>
     </div>
   );
 }
