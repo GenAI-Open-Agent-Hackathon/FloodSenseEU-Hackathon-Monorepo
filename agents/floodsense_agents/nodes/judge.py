@@ -25,7 +25,7 @@ import math
 import time
 
 from floodsense_agents.models import Citation, Claim, Evidence, JudgeScore, JudgeSummary
-from floodsense_agents.nightshift import parse_json
+from floodsense_agents.nightshift import map_ordered, parse_json
 from floodsense_agents.prompts import JUDGE, rows_block
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, trace
@@ -175,7 +175,8 @@ def evaluate(
             flagged_claim_ids=[],
             model_id="deterministic",
         )
-    scores = [score_claim(c, evidence, deps) for c in claims]
+    # One grounding call per claim, concurrently; scores keep claim order.
+    scores = map_ordered(lambda c: score_claim(c, evidence, deps), claims)
     n = len(scores)
     with_numbers = [s for s, c in zip(scores, claims) if c.numbers]
     h = sum(1 for s in scores if s.grounding == "unsupported") / n
@@ -230,14 +231,22 @@ def make(deps: Deps):
     return judge
 
 
-def route_after_judge(state: FloodState) -> str:
+def needs_repair(state: FloodState) -> bool:
+    """Flagged claims, a repair round left, and (unless configured) a failing run.
+
+    The Judge router and the Playbook both read this, so they never disagree.
+    A run that already passes goes to the human with its flags shown.
+    """
     rep = state.get("judge_summary") or {}
-    if (
-        rep.get("flagged_claim_ids")
-        and state.get("repair_rounds", 0) < settings.judge_repair_rounds
-    ):
-        return "repair"
-    return "hitl"
+    if not rep.get("flagged_claim_ids"):
+        return False
+    if state.get("repair_rounds", 0) >= settings.judge_repair_rounds:
+        return False
+    return settings.judge_repair_when_passing or not rep.get("passes")
+
+
+def route_after_judge(state: FloodState) -> str:
+    return "repair" if needs_repair(state) else "hitl"
 
 
 # kept for the skeleton's import surface

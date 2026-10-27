@@ -16,7 +16,7 @@ import time
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
 from floodsense_agents.live import LIVE_ROWS, is_live, points_sql
 from floodsense_agents.models import Evidence, Hypothesis
-from floodsense_agents.nightshift import parse_json
+from floodsense_agents.nightshift import map_ordered, parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
 from floodsense_agents.prompts import SKEPTIC, rows_block
 from floodsense_agents.settings import settings
@@ -207,14 +207,33 @@ def _generic_ok(h: Hypothesis, state: FloodState) -> tuple[bool, str]:
             ]
             # Live: an answered hazard_now threshold query with no rows is the
             # evidence for "nothing crosses". Only an errored or missing query is not.
-            if live and qids and any(
-                q in ev and not ev[q].get("error") and "hazard_now" in str(ev[q].get("view"))
-                for q in qids
+            if (
+                live
+                and qids
+                and any(
+                    q in ev and not ev[q].get("error") and "hazard_now" in str(ev[q].get("view"))
+                    for q in qids
+                )
             ):
                 continue
             if not qids or not any(ev.get(q, {}).get("row_count", 0) > 0 for q in qids):
                 return False, f"claim {c['claim_id']} cites no query with rows"
     return True, ""
+
+
+def _rationale(deps: Deps, prompt: str) -> tuple[str, str] | None:
+    """(rationale text or '', model_id) from the fast lane, or None if the call failed."""
+    try:
+        text, model_id = deps.llm.complete("fast", SKEPTIC, prompt)
+    except Exception as e:
+        log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+        return None
+    try:
+        js = parse_json(text)
+    except Exception as e:
+        log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+        return "", model_id
+    return (str(js["rationale"])[:240] if js.get("rationale") else ""), model_id
 
 
 def make(deps: Deps):
@@ -223,6 +242,7 @@ def make(deps: Deps):
         hyps = [Hypothesis(**h) for h in state["hypotheses"]]
         new_ev: list[Evidence] = []
         model_id = None
+        prompts: list[str] = []
         for h in hyps:
             ok, why = _generic_ok(h, state)
             rounds, qids, notes = 0, [], []
@@ -246,20 +266,22 @@ def make(deps: Deps):
                 verdict, rationale = "proposed", "unchecked: no counter-check applies to this link"
             elif not ok and rounds == 0 and is_live(state):
                 verdict, rationale = "proposed", f"unchecked: {why}"
-            try:  # optional model rationale from the same rows
-                text, model_id = deps.llm.complete(
-                    "fast",
-                    SKEPTIC,
-                    f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
-                    f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "
-                    f"{verdict} ({rationale})",
-                )
-                js = parse_json(text)
-                if js.get("rationale"):
-                    rationale = f"{rationale} | model: {str(js['rationale'])[:240]}"
-            except Exception as e:
-                log.debug("skeptic: model rationale skipped (%s)", str(e)[:100])
+            prompt = (
+                f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
+                f"{rows_block(new_ev[-rounds:] if rounds else [])}\nDETERMINISTIC RESULT: "
+                f"{verdict} ({rationale})"
+            )
             h.status, h.rounds, h.evidence, h.rationale = verdict, rounds, qids, rationale
+            prompts.append(prompt)
+        # Optional model rationales from the same rows: one call per hypothesis,
+        # concurrently. Applied in hypothesis order, so the output is the same
+        # as the serial loop; model_id is the last call that answered.
+        for h, reply in zip(hyps, map_ordered(lambda p: _rationale(deps, p), prompts)):
+            if reply is None:
+                continue
+            extra, model_id = reply
+            if extra:
+                h.rationale = f"{h.rationale} | model: {extra}"
         n_bad = sum(1 for h in hyps if h.status == "not_supported")
         return {
             "hypotheses": [h.model_dump() for h in hyps],
