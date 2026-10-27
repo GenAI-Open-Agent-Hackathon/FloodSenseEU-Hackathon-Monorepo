@@ -32,6 +32,8 @@ Rebuild from the repo root with the venv interpreter. The EMS zips come from the
 .\.venv\Scripts\python.exe ingestion\prep\synthetic_portfolio.py
 ```
 
+Ahr extract (`ahr_*.csv`): These values are far below the literature: ERA5 smooths the storm (14 Jul about 45-60 mm at AHR01/AHR02/AHR04, 108 mm at AHR03 Schuld) and the GloFAS peak is 213-285 m3/s on 14 Jul against ~1000 m3/s reconstructed at Altenahr. Do not quote literature figures as values of these views.
+
 ## Headline numbers (for the demo and for checking views later)
 
 - EMSR773 layers staged: AOI01 (Valencia province), AOI02 (Plana de Utiel), AOI03 (Horta Sud, DEL and GRA), AOI04 (Algemesí). Event 2024-10-29 14:30 UTC.
