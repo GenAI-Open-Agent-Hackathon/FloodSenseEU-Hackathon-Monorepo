@@ -240,6 +240,7 @@ def front_door(req: Any, llm: LLM | None) -> dict | None:
     answer, suggestions = reply_text(intent, getattr(ctx, "role", None))
     return {
         "kind": "reply",
+        "lane": "reply",  # router.py: the reply lane
         "intent": intent,
         "answer": answer,
         "suggestions": suggestions,

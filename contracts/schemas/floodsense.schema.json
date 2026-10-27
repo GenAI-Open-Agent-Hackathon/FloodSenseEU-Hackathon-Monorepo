@@ -283,7 +283,15 @@
           "type": "array",
           "items": { "$ref": "#/$defs/playbook_action" }
         },
-        "judge": { "$ref": "#/$defs/judge" }
+        "judge": { "$ref": "#/$defs/judge" },
+        "lane": {
+          "enum": ["quick", "full"],
+          "description": "Which agent path answered: quick (live watcher, one fast-lane call, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
+        },
+        "router_reason": {
+          "type": "string",
+          "description": "Why the router chose the lane, and any escalation (\"escalated: ...\")."
+        }
       }
     },
     "answer_cache_rule": {
@@ -324,7 +332,8 @@
           "minLength": 1,
           "description": "The fast-lane model that classified the message, or \"rules\"."
         },
-        "latency_ms": { "type": "integer", "minimum": 0 }
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "lane": { "const": "reply", "description": "The router lane: always reply here." }
       }
     },
     "run_response": {

@@ -28,7 +28,10 @@ POST /runs                        start a run; returns when the graph pauses for
                                   {"fresh": true} skips the cache
 POST /runs (small talk)           200 {kind: reply, intent, answer, suggestions, model_id, latency_ms}:
                                   the agents' front door answered; no run_id, no slot, never cached.
-                                  Counts against the per-client bucket.
+                                  Counts against the per-client bucket. lane: reply.
+POST /runs (live reading)         the router's quick lane: status answered, lane quick, no approval.
+                                  Cached with CACHE_TTL_LIVE_S once the Judge passes it; a repeat
+                                  is served_from cache.
 POST /runs?wait=false             202 {run_id, thread_id, status: running} at once; follow /runs/{id}/events.
                                   Same bucket and in-flight cap; the slot is held until the run
                                   leaves `running`. A cache hit or a replay fallback still answers 200.
@@ -62,6 +65,7 @@ from app.cache import (
     is_follow_up,
     mark_cached,
     past_row_matches,
+    quick_answered,
     same_ask,
 )
 from app.project import project_run
@@ -228,6 +232,9 @@ async def _from_cache(body: dict) -> dict | None:
         "age_s": age,
         "expires_in_s": max(0, int(entry.ttl_s - age)),
     }
+    if quick_answered(run) and not run.get("cached_at"):
+        # A quick answer read the live views: its cache label is the time it was stored.
+        run["cached_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(entry.stored_at))
     return mark_cached(run)
 
 
@@ -363,6 +370,7 @@ async def _hold_slot_until_done(run_id: str) -> None:
             else:
                 down_since = None
             if code == 200 and isinstance(run, dict) and run.get("status") != "running":
+                await _remember_quick(run)
                 return
             await asyncio.sleep(SLOT_POLL_S)
     finally:
@@ -403,6 +411,19 @@ async def _start_async(body: Any) -> Response:
         status_code=r.status_code,
         media_type=r.headers.get("content-type", "application/json"),
     )
+
+
+async def _remember_quick(run: Any) -> bool:
+    """Cache a quick-lane answer (status answered, Judge passed) with the live TTL.
+
+    A full-lane run is cached on approval instead (post_approval).
+    """
+    if not cache.settings.semantic_cache or not isinstance(run, dict) or not quick_answered(run):
+        return False
+    flags = await _flag_fingerprint()
+    if flags is None:
+        return False
+    return await asyncio.to_thread(cache.remember, run, flags)
 
 
 async def _front_door(body: Any) -> dict | None:
@@ -471,6 +492,11 @@ async def start_run(request: Request) -> Response:
             replay = await _replay_for(body, reason, failed_run_id=failed_id)
             if replay is not None:
                 return _json_run(replay, 200)
+    if resp.status_code < 300 and settings.semantic_cache:
+        try:
+            await _remember_quick(json.loads(resp.body))
+        except ValueError:
+            pass
     return resp
 
 

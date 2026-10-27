@@ -70,6 +70,10 @@ export interface RecordedRun {
   provider?: string | null;
   /** A declined run's scope.elsewhere: the event that does hold the question, when the gate named one. */
   elsewhere?: string | null;
+  /** Router lane (contracts Lane): quick = live watcher + one fast call, full = deep run. Null on older runs. */
+  lane?: "quick" | "full" | null;
+  /** Why the router chose the lane, including any "escalated: ..." note. */
+  routerReason?: string | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -165,6 +169,8 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
     mode: modeOf(run.mode),
     eventId: str(run.event_id),
     elsewhere: str(rec(run.scope)?.elsewhere),
+    lane: run.lane === "quick" || run.lane === "full" ? run.lane : null,
+    routerReason: str(run.router_reason),
     reviseRounds: num(run.revise_rounds) ?? 0,
     repairRounds: num(run.repair_rounds) ?? 0,
     judgeClaims: Array.isArray(run.judge)

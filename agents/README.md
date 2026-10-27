@@ -65,6 +65,32 @@ The product UI is the Vite console in `ui/` (compose publishes it on `127.0.0.1:
 
 `replay_ts` is the "now" of a replay: the Watchers and the Investigator only see rows at or before it, so the demo can step through 29 Oct 2024 hour by hour.
 
+## Router agent and lanes
+
+The front door above is the router's `reply` lane. A message that reaches a run is routed by `router.py` in `Runtime._prepare` to one of two run lanes, and the choice is on the snapshot (`lane`, `router_reason`) and is the first trace entry (`{node: "router", summary: "chose quick: live level question about KÖLN"}`), so the UI pipeline and `GET /runs/{id}/events` show it.
+
+```mermaid
+flowchart LR
+  M[message] --> FD{front door}
+  FD -- greeting / help / thanks / off_topic --> R[reply lane: template, no run]
+  FD -- flood question --> RT{router}
+  RT -- live word + known place --> S1[scope]
+  RT -- why / replay / past date / exposure / policy / claim / alert / document, explicit event_id / replay_ts / doc_query --> S2[scope]
+  S1 --> LW[live_watch: gauge_levels, hazard_now, eu_watch] --> QA[quick_answer: one fast call, 2-4 cited claims] --> QJ{deterministic Judge}
+  QJ -- pass --> A[status answered]
+  QJ -- flag --> E[escalate]
+  LW -- no live rows --> E
+  QA -- model failed / no claim --> E
+  E --> W[watchers]
+  S2 --> W --> I[investigator ⇄ skeptic] --> X[exposure] --> P[playbook] --> J[judge] --> H[HITL]
+```
+
+- **Rules first.** A deep word (why, explain, replay, happened, past, exposure, policy, claim, insured, sites, alert, draft, document, report, bulletin, evidence ...) or a past date (`live.classify`) means `full`. A live word (now, today, current, level, how high, rising, falling, next 48 hours, jetzt, Pegel, ahora ...) plus a known place, station or river (event vocabulary, point names, the Rhine gauges, and a short list such as Danube, Budapest, Köln) means `quick`. A live word or a place alone is ambiguous and asks the fast lane once (`TASK: router`, `{"lane": "quick" | "full"}`, same deadline as the front door). A failure, a timeout or a bad label means `full`.
+- **Always full:** an explicit `event_id`, `replay_ts` or a `doc_query` that differs from the question (the front door's rule, so the evals keep their path), `mode=event`, and `FF_QUICK_LANE=false`.
+- **Quick lane** (`nodes/quick.py`): Scope (reused), `live_watch` (three live reads and provenance in parallel through the run's Zetaris client: the latest `gauge_levels` reading per station via `live.gauge_latest_sql`, a per-point `hazard_now` summary of past and forecast rows, and `SELECT * FROM {schema}.eu_watch`; a view that errors, such as `eu_watch` before `feat/eu-live-watch` lands, is noted on the trace and left out of the evidence), `quick_answer` (one `meterless/fast` call, `TASK: quick_answer`, bounded by `QUICK_LANE_TIMEOUT_S`, default 20 s, writing 2-4 claims that each cite a `query_id` of those reads; numbers go through `investigator.cited_numbers` and citations through `investigator.cite`), then the Judge's deterministic checks (`judge.evaluate` with no model; a claim whose numbers are not in its cited rows is flagged). A pass ends the run with `status: "answered"`, no Playbook and no approval (`approval.status` stays `not_reached`). With fakes it runs in milliseconds; on Nightshift it is one fast call plus three parallel Zetaris reads, about 8-20 s.
+- **Escalation.** No live rows, a failed or empty model reply, or any Judge flag sends the same run on to `watchers` and the full lane. The `escalate` node sets `lane: "full"`, appends `; escalated: <why>` to `router_reason` and adds `{node: "router", summary: "escalated: judge flagged Q1; running the full lane"}` to the trace. A place no event holds (Budapest) is answered only from `eu_watch` rows that name it; otherwise the scope decline stands.
+- **Cache.** The API caches a quick answer that the Judge passed with `CACHE_TTL_LIVE_S`; a repeat is `served_from: "cache"`, labelled "Cached answer ... not live" (see `api/README.md`).
+
 ## LLM provider switch (local benchmarking only)
 
 Every model call goes to Nightshift (NVIDIA Nemotron). That is the default, and

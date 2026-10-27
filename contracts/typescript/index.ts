@@ -10,6 +10,8 @@ export type CitationLayer = "a" | "b" | "c";
 export type Storage = "full_text" | "pointer";
 export type Grounding = "supported" | "partial" | "unsupported";
 export type ServedFrom = "live" | "cache" | "replay";
+/** Router lane. reply: front-door reply; quick: live watcher + one fast call; full: deep run. */
+export type Lane = "reply" | "quick" | "full";
 export type ApprovalStatus = "pending" | "approved" | "edited" | "rejected";
 export type ModelId =
   | "meterless/fast"
@@ -143,6 +145,10 @@ export interface Answer {
   cached_at?: string | null;
   playbook_actions?: PlaybookAction[];
   judge?: Judge;
+  /** Which agent path answered. Omitted by runs recorded before the router. */
+  lane?: Exclude<Lane, "reply">;
+  /** Why the router chose the lane, including any "escalated: ..." note. */
+  router_reason?: string;
 }
 
 export type ReplyIntent = "greeting" | "help" | "thanks" | "off_topic";
@@ -157,6 +163,7 @@ export interface ReplyResponse {
   /** The fast-lane model that classified the message, or "rules". */
   model_id: string;
   latency_ms: number;
+  lane?: "reply";
 }
 
 /** What POST /runs returns. */
