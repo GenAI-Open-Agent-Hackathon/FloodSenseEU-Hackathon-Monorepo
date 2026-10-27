@@ -122,6 +122,7 @@ class AhrReplay(unittest.TestCase):
         self.assertEqual(out["judge_summary"]["flagged_claim_ids"], [])
 
 
+@mock.patch.dict("os.environ", {"FF_QUICK_LANE": "false"})  # full-lane test
 class RhineNow(unittest.TestCase):
     def test_live_levels_trend_and_threshold(self) -> None:
         out = run("How high is the Rhine at Köln right now?", z=gauged(threshold=True))

@@ -79,6 +79,13 @@ class ProjectionTest(unittest.TestCase):
         self.assertEqual(answer["lane"], "quick")
         self.assertIn("KÖLN", answer["router_reason"])
 
+    def test_quick_lane_flag_is_in_the_cache_fingerprint(self) -> None:
+        from app.cache import fingerprint
+
+        on = fingerprint({"flags": {"FF_QUICK_LANE": True}})
+        self.assertIn("FF_QUICK_LANE=True", on)
+        self.assertNotEqual(on, fingerprint({"flags": {"FF_QUICK_LANE": False}}))
+
     def test_unknown_lane_is_left_out(self) -> None:
         body = quick_run()
         body["lane"] = "sideways"
@@ -126,7 +133,9 @@ class QuickCacheTest(unittest.TestCase):
             return httpx.Response(404, json={})
 
         cache = AnswerCache(
-            CacheSettings(semantic_cache=True, cached_replay=False, ttl_live_s=900, ttl_replay_s=86400)
+            CacheSettings(
+                semantic_cache=True, cached_replay=False, ttl_live_s=900, ttl_replay_s=86400
+            )
         )
         self.limiter = RateLimiter(
             RateLimitSettings(runs_per_min=3, max_concurrent_runs=2, concurrency_retry_after_s=5),

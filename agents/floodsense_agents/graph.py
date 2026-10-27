@@ -4,7 +4,7 @@
            └─ watchers → investigator → skeptic ─┬─ not_supported & no revise yet → revise → investigator
                                        └─ → exposure → playbook → judge ─┬─ flagged & repair left → playbook (repair) → judge
                                                                           └─ → hitl (interrupt) → learn → END
-    scope ── lane=quick → live_watch → quick_answer → quick_judge ─┬─ pass → END (answered)
+    scope ── in scope, lane=quick → live_watch → quick_answer → quick_judge ─┬─ pass → END (answered)
                                                                     └─ flag / no data → escalate → watchers
 FF_SKEPTIC=false skips the Skeptic, FF_JUDGE=false skips the Judge, FF_HITL=false auto-approves (dev only).
 
@@ -117,7 +117,7 @@ def build_graph(
     g.add_conditional_edges(
         "live_watch",
         quick.route_after_live_watch,
-        {"quick_answer": "quick_answer", "escalate": "escalate", "declined": END},
+        {"quick_answer": "quick_answer", "escalate": "escalate"},
     )
     g.add_conditional_edges(
         "quick_answer",
@@ -127,7 +127,9 @@ def build_graph(
     g.add_conditional_edges(
         "quick_judge", quick.route_after_quick_judge, {"done": END, "escalate": "escalate"}
     )
-    g.add_edge("escalate", "watchers")
+    g.add_conditional_edges(
+        "escalate", quick.route_after_escalate, {"watchers": "watchers", "declined": END}
+    )
     g.add_edge("watchers", "investigator")
 
     if use_skeptic:

@@ -178,6 +178,7 @@ def _with_readings() -> FakeZetaris:
     return z
 
 
+@mock.patch.dict("os.environ", {"FF_QUICK_LANE": "false"})  # full-lane test
 @mock.patch.object(settings, "live_data", True)
 class FullRun(unittest.TestCase):
     def _run(self, question: str, z: FakeZetaris | None = None) -> dict:

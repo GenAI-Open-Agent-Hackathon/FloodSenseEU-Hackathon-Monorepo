@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import re
 import sys
 import unittest
 from pathlib import Path
@@ -12,27 +10,31 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from floodsense_agents import router  # noqa: E402
-from floodsense_agents.models import RunRequest  # noqa: E402
+from floodsense_agents.models import Evidence, RunRequest  # noqa: E402
 from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
+from floodsense_agents.nodes import quick  # noqa: E402
 from floodsense_agents.runtime import Runtime  # noqa: E402
 from floodsense_agents.settings import settings  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
 from floodsense_agents.zetaris import FakeZetaris, now_utc  # noqa: E402
 
-_QID = re.compile(r"query_id=(\S+) view=(\S+)")
+KOELN = "How high is the Rhine at Köln?"
 
 
-def _qid(user: str, view: str) -> str:
-    return next(q for q, v in _QID.findall(user) if v.endswith(view))
-
-
-def _zetaris_with_koeln() -> FakeZetaris:
+def _zetaris(gauges=(("KÖLN", "RHEIN", 412.0),), eu=()) -> FakeZetaris:
     z = FakeZetaris()
     with z._lock:
-        z._conn.execute(
-            "INSERT INTO floodsense.gauge_levels VALUES (?,?,?,?,?)",
-            ("KÖLN", "RHEIN", now_utc(), 412.0, "pegelonline"),
-        )
+        for station, water, level in gauges:
+            z._conn.execute(
+                "INSERT INTO floodsense.gauge_levels VALUES (?,?,?,?,?)",
+                (station, water, now_utc(), level, "pegelonline"),
+            )
+        for pid, q, fmax, med, band in eu:
+            z._conn.execute(
+                "UPDATE floodsense.eu_watch SET discharge_m3s=?, forecast_max_m3s=?, "
+                "past30_median_m3s=?, band=? WHERE point_id=?",
+                (q, fmax, med, band, pid),
+            )
         z._conn.commit()
     return z
 
@@ -42,16 +44,23 @@ class _Raising:
         raise RuntimeError("gateway 502")
 
 
+@mock.patch.object(settings, "live_data", True)
 class RouterRulesTest(unittest.TestCase):
     def test_live_questions_with_a_place_go_quick(self) -> None:
         for q, place in [
-            ("How high is the Rhine at Köln?", "RHINE"),
+            (KOELN, "KÖLN"),
             ("Is any Valencia point at risk in the next 48 hours?", "VALENCIA"),
-            ("Is the Danube at Budapest rising?", "DANUBE"),
+            ("Is the Danube at Budapest rising?", "BUDAPEST"),
+            ("Is the Elbe in Dresden rising now?", "DRESDEN"),
         ]:
             lane, why = router.rules(q)
             self.assertEqual(lane, "quick", q)
             self.assertIn(place, why)
+
+    def test_watch_places_come_from_watch_py(self) -> None:
+        for w in ("budapest", "szeged", "vltava", "dresden", "porta"):
+            self.assertIn(w, router.PLACES)
+        self.assertNotIn("main", router.PLACES)
 
     def test_deep_words_go_full(self) -> None:
         for q in [
@@ -69,115 +78,195 @@ class RouterRulesTest(unittest.TestCase):
         self.assertIsNone(router.rules("Tell me about Valencia")[0])
 
     def test_route_records_a_reason(self) -> None:
-        got = router.route(RunRequest(question="How high is the Rhine at Köln?"))
-        self.assertEqual(got["lane"], "quick")
-        self.assertEqual(got["model_id"], "rules")
-        self.assertTrue(got["reason"].startswith("chose quick: live level question about"))
+        got = router.route(RunRequest(question=KOELN))
+        self.assertEqual((got["lane"], got["model_id"]), ("quick", "rules"))
+        self.assertEqual(got["reason"], "chose quick: live level question about KÖLN")
 
     def test_explicit_requests_stay_full_for_the_evals(self) -> None:
-        q = "How high is the Rhine at Köln?"
         for req in (
-            RunRequest(question=q, event_id="EMSR517"),
-            RunRequest(question=q, replay_ts="2021-07-14T18:00:00Z"),
-            RunRequest(question=q, doc_query="EFAS bulletin"),
-            RunRequest(question=q, mode="event"),
+            RunRequest(question=KOELN, event_id="EMSR517"),
+            RunRequest(question=KOELN, replay_ts="2021-07-14T18:00:00Z"),
+            RunRequest(question=KOELN, doc_query="EFAS bulletin"),
+            RunRequest(question=KOELN, mode="event"),
         ):
             self.assertEqual(router.route(req)["lane"], "full")
 
     def test_flag_off(self) -> None:
         with mock.patch.dict("os.environ", {"FF_QUICK_LANE": "false"}):
-            self.assertEqual(router.route(RunRequest(question="Rhine level at Köln now?"))["lane"], "full")
+            self.assertEqual(router.route(RunRequest(question=KOELN))["lane"], "full")
 
 
+class LiveDataOffTest(unittest.TestCase):
+    @mock.patch.object(settings, "live_data", False)
+    def test_no_quick_answer_for_now_without_live_data(self) -> None:
+        got = router.route(RunRequest(question=KOELN))
+        self.assertEqual(got["lane"], "full")
+        self.assertIn("FF_LIVE_DATA", got["reason"])
+
+
+@mock.patch.object(settings, "live_data", True)
 class RouterModelTest(unittest.TestCase):
     def test_model_decides_only_ambiguous(self) -> None:
         llm = FakeNightshift({"router": lambda s, u: '{"lane": "quick"}'})
         got = router.route(RunRequest(question="Is it rising now?"), llm)
         self.assertEqual((got["lane"], got["model_id"]), ("quick", "fake-fast"))
         self.assertEqual(llm.calls[0][:2], ("fast", "router"))
-        router.route(RunRequest(question="How high is the Rhine at Köln?"), llm)
-        self.assertEqual(len(llm.calls), 1)  # rules decided the second one
+        router.route(RunRequest(question=KOELN), llm)
+        self.assertEqual(len(llm.calls), 1)
 
     def test_failure_or_bad_label_means_full(self) -> None:
-        self.assertEqual(router.route(RunRequest(question="Is it rising now?"), _Raising())["lane"], "full")
+        q = RunRequest(question="Is it rising now?")
+        self.assertEqual(router.route(q, _Raising())["lane"], "full")
         bad = FakeNightshift({"router": lambda s, u: '{"lane": "sideways"}'})
-        self.assertEqual(router.route(RunRequest(question="Is it rising now?"), bad)["lane"], "full")
+        self.assertEqual(router.route(q, bad)["lane"], "full")
+
+    def test_router_has_its_own_pool(self) -> None:
+        from floodsense_agents import front_door
+
+        self.assertIsNot(router._POOL, front_door._POOL)
 
 
-def _koeln_answer(number: float):
-    def answer(system: str, user: str) -> str:
-        qid = _qid(user, "gauge_levels")
-        return json.dumps(
-            {
-                "claims": [
-                    {"text": f"The Rhine at KÖLN reads {number:g} cm.", "query_ids": [qid]},
-                    {"text": "This is the latest PEGELONLINE reading for KÖLN.", "query_ids": [qid]},
-                ]
-            }
-        )
+class DeclineTest(unittest.TestCase):
+    def test_scope_decline_is_never_overridden(self) -> None:
+        declined = {"scope": {"in_scope": False, "elsewhere": None}, "lane": "quick"}
+        self.assertEqual(quick.route_after_scope(declined), "declined")
+        self.assertEqual(quick.route_after_escalate(declined), "declined")
+        self.assertEqual(quick.route_after_escalate({"scope": {"in_scope": True}}), "watchers")
 
-    return answer
+
+class LeadTest(unittest.TestCase):
+    def test_lead_may_not_add_numbers_or_places(self) -> None:
+        from floodsense_agents.models import Claim
+
+        claims = [
+            Claim(claim_id="Q1", text="KÖLN (RHEIN) gauge: latest level 412 cm (PEGELONLINE).")
+        ]
+        self.assertTrue(quick.lead_ok("Köln is at 412 cm right now.", claims))
+        self.assertTrue(quick.lead_ok("Here is the latest reading for KÖLN.", claims))
+        self.assertFalse(quick.lead_ok("KÖLN is at 500 cm.", claims))
+        self.assertFalse(quick.lead_ok("Bonn and KÖLN are both fine.", claims))
 
 
 @mock.patch.object(settings, "live_data", True)
 class QuickLaneTest(unittest.TestCase):
-    def _run(self, llm, question="How high is the Rhine at Köln?"):
-        deps = Deps(zetaris=_zetaris_with_koeln(), llm=llm, memory=NoMemory())
+    def _run(self, question=KOELN, z=None, llm=None):
+        deps = Deps(zetaris=z or _zetaris(), llm=llm or FakeNightshift(), memory=NoMemory())
         return Runtime(deps=deps).start(RunRequest(question=question))
 
-    def test_quick_answer_passes_the_judge(self) -> None:
-        llm = FakeNightshift({"quick_answer": _koeln_answer(412)})
-        snap = self._run(llm)
-        self.assertEqual(snap["lane"], "quick")
-        self.assertEqual(snap["status"], "answered")
-        self.assertTrue(snap["router_reason"].startswith("chose quick"))
+    def test_quick_answer_is_deterministic_and_passes_the_judge(self) -> None:
+        llm = FakeNightshift(
+            {"quick_lead": lambda s, u: '{"lead": "Here is the latest reading for KÖLN."}'}
+        )
+        snap = self._run(llm=llm)
+        self.assertEqual(
+            (snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"]
+        )
         self.assertTrue(snap["judge_summary"]["passes"])
         self.assertEqual(snap["approval"]["status"], "not_reached")
         self.assertEqual(snap["playbook"], [])
-        nodes = [e["node"] for e in snap["trace"]]
-        self.assertEqual(nodes, ["router", "scope", "live_watch", "quick_answer", "judge"])
-        self.assertIn("live level question about", snap["trace"][0]["summary"])
-        for claim in snap["claims"]:
-            self.assertTrue(claim["citations"])
-            self.assertIn(claim["citations"][0]["query_id"], snap["evidence"])
-        # One fast-lane call answered; nothing went to the deep lane.
-        self.assertEqual([c[:2] for c in llm.calls], [("fast", "quick_answer")])
+        self.assertEqual(
+            [e["node"] for e in snap["trace"]],
+            ["router", "scope", "live_watch", "quick_answer", "judge"],
+        )
+        self.assertEqual(len(snap["claims"]), 1)
+        claim = snap["claims"][0]
+        self.assertIn("412 cm", claim["text"])
+        self.assertEqual(claim["numbers"], [412.0])
+        self.assertEqual(snap["summary"], "Here is the latest reading for KÖLN.")
+        self.assertEqual([c[:2] for c in llm.calls], [("fast", "quick_lead")])
+        sql = snap["evidence"][claim["citations"][0]["query_id"]]["sql"]
+        self.assertIn("g.station IN ('KÖLN')", sql)
 
-    def test_judge_flag_escalates_to_the_full_lane(self) -> None:
-        llm = FakeNightshift({"quick_answer": _koeln_answer(999)})
-        snap = self._run(llm)
+    def test_a_lead_naming_another_place_is_dropped(self) -> None:
+        llm = FakeNightshift({"quick_lead": lambda s, u: '{"lead": "Bonn is at 900 cm."}'})
+        snap = self._run(llm=llm)
+        self.assertEqual(snap["status"], "answered")
+        self.assertNotIn("Bonn", snap["summary"])
+        self.assertIn("412", snap["summary"])
+
+    def test_one_places_figure_never_appears_for_another(self) -> None:
+        z = _zetaris(
+            gauges=(
+                ("REGENSBURG EISERNE BRÜCKE", "DONAU", 301.0),
+                ("PASSAU DONAU", "DONAU", 577.0),
+            ),
+            eu=(
+                ("EU07", 1810.0, 2400.0, 1700.0, "below"),
+                ("EU08", 2210.0, 2600.0, 2000.0, "below"),
+            ),
+        )
+        snap = self._run("Is the Danube rising now?", z=z)
+        self.assertEqual(
+            (snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"]
+        )
+        self.assertEqual(len(snap["claims"]), 4)
+        all_values = {301.0, 577.0, 1810.0, 2400.0, 1700.0, 2210.0, 2600.0, 2000.0}
+        for claim in snap["claims"]:
+            ids = {c["query_id"] for c in claim["citations"] if c.get("query_id")}
+            self.assertEqual(len(ids), 1)
+            rows = snap["evidence"][ids.pop()]["rows_sample"]
+            self.assertEqual(len(rows), 1)
+            own = {
+                float(v)
+                for v in rows[0].values()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+            }
+            for n in claim["numbers"]:
+                self.assertIn(n, own)
+            for other in all_values - own:
+                self.assertNotIn(f"{other:g}", claim["text"])
+
+    def test_a_crossed_figure_is_flagged_and_escalates(self) -> None:
+        z = _zetaris(gauges=(("KÖLN", "RHEIN", 412.0), ("BONN", "RHEIN", 380.0)))
+
+        def crossed(row):
+            return f"{row['station']} level 380 cm.", [380.0]  # BONN's figure on every gauge
+
+        with mock.patch.dict(quick._TEMPLATES, {"gauge": crossed}):
+            snap = self._run("How high is the Rhine at Köln and Bonn now?", z=z)
         self.assertEqual(snap["lane"], "full")
         self.assertIn("escalated: judge flagged Q1", snap["router_reason"])
-        nodes = [e["node"] for e in snap["trace"]]
-        self.assertIn("watchers", nodes)
-        esc = [e for e in snap["trace"] if e["node"] == "router" and "escalated" in e["summary"]]
-        self.assertEqual(len(esc), 1)
-        self.assertEqual(snap["status"], "awaiting_approval")
-        self.assertFalse(any(c["claim_id"].startswith("Q") for c in snap["claims"]))
+        self.assertEqual(
+            len(
+                [e for e in snap["trace"] if e["node"] == "router" and "escalated" in e["summary"]]
+            ),
+            1,
+        )
+        self.assertIn("watchers", [e["node"] for e in snap["trace"]])
 
     def test_missing_data_escalates(self) -> None:
-        deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift(), memory=NoMemory())
-        snap = Runtime(deps=deps).start(RunRequest(question="How high is the Rhine at Köln?"))
+        snap = self._run(z=_zetaris(gauges=()))
         self.assertEqual(snap["lane"], "full")
         self.assertIn("escalated: no live rows", snap["router_reason"])
 
     def test_valencia_forecast_from_hazard_now(self) -> None:
-        def answer(system: str, user: str) -> str:
-            qid = _qid(user, "hazard_now")
-            return json.dumps(
-                {
-                    "claims": [
-                        {"text": "Paiporta has a forecast peak discharge of 180 m3/s.", "query_ids": [qid]},
-                        {"text": "Chiva has a forecast hour of 34 mm rain.", "query_ids": [qid]},
-                    ]
-                }
-            )
-
-        snap = self._run(
-            FakeNightshift({"quick_answer": answer}),
-            "Is any Valencia point at risk in the next 48 hours?",
+        snap = self._run("Is Paiporta at risk in the next 48 hours?")
+        self.assertEqual(
+            (snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"]
         )
-        self.assertEqual((snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"])
+        self.assertEqual(len(snap["claims"]), 1)
+        self.assertIn("Paiporta (VAL01)", snap["claims"][0]["text"])
+        self.assertIn(180.0, snap["claims"][0]["numbers"])
+
+    def test_budapest_from_eu_watch_only_its_row(self) -> None:
+        z = _zetaris(gauges=(), eu=(("EU08", 2210.0, 2600.0, 2000.0, "below"),))
+        snap = self._run("Is the Danube at Budapest rising?", z=z)
+        self.assertEqual(
+            (snap["lane"], snap["status"]), ("quick", "answered"), snap["router_reason"]
+        )
+        self.assertIn("model", snap["claims"][0]["text"])
+        ev = list(snap["evidence"].values())
+        self.assertEqual([e["rows_sample"][0]["point_id"] for e in ev], ["EU08"])
+
+    def test_own_row_matches_name_river_and_id_only(self) -> None:
+        ev = Evidence(
+            query_id="x",
+            view="floodsense.eu_watch",
+            sql="",
+            executed_at_utc=now_utc(),
+            rows_sample=[{"point_id": "EU08", "name": "Vienna", "river": "Danube"}],
+        )
+        self.assertIsNone(quick._own_row("eu", "EU08", ev))
 
 
 if __name__ == "__main__":

@@ -31,7 +31,9 @@ const run = adoptRunBody(sample as unknown as Record<string, unknown>, "f1673327
 describe("buildPipeline", () => {
   it("keeps the canonical node order and folds world_model into badges", () => {
     const model = buildPipeline(run);
-    expect(model.nodes.map((n) => n.id)).toEqual([...PIPELINE_ORDER]);
+    // A run recorded before the router has no router or quick-lane steps, so they are not drawn.
+    const routerSteps = ["router", "live_watch", "quick_answer"];
+    expect(model.nodes.map((n) => n.id)).toEqual(PIPELINE_ORDER.filter((id) => !routerSteps.includes(id)));
     expect(model.nodes.some((n) => (n.id as string) === "world_model")).toBe(false);
   });
 

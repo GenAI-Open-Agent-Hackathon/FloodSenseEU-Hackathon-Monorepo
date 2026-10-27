@@ -22,10 +22,13 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
 from floodsense_agents import front_door
+from floodsense_agents.settings import settings
+from floodsense_agents.watch import STATIONS, place_words, watch_target
 from floodsense_agents.events import EVENTS, POINT_NAMES, RHINE_GAUGES
 from floodsense_agents.live import classify as live_classify
 from floodsense_agents.nightshift import LLM, parse_json
@@ -52,18 +55,15 @@ _DEEP = re.compile(
     r"compare|warum|por\s+qu[eé])\b",
     re.I,
 )
-_RIVERS_AND_CITIES = {
-    "rhine", "rhein", "danube", "donau", "duna", "elbe", "oder", "mosel",
-    "moselle", "ahr", "turia", "magro", "poyo", "jucar", "júcar", "ebro",
-    "köln", "koeln", "koln", "cologne", "bonn", "koblenz", "mainz", "düsseldorf",
-    "dusseldorf", "duisburg", "kaub", "budapest", "vienna", "wien", "bratislava",
-    "passau", "regensburg", "dresden", "magdeburg", "hamburg", "valencia", "paiporta",
-    "chiva", "catarroja", "sinzig", "altenahr", "neuenahr",
-}
+# Ordinary words that are also river names; watch_target reads them only in context.
+_AMBIGUOUS = {"main", "ems", "oder", "po"}
 
 
 def _known_places() -> set[str]:
-    words = set(_RIVERS_AND_CITIES)
+    # The Europe live-watch cities, rivers and stations (watch.py, PR #78): not copied here.
+    words = {w.lower() for p in place_words() for w in re.findall(r"[^\W\d_]{3,}", p)}
+    words |= {w.lower() for s, _ in STATIONS for w in re.findall(r"[^\W\d_]{3,}", s)}
+    words |= {"valencia", "ahr", "turia", "magro", "poyo"}
     for ev in EVENTS.values():
         for phrase in (ev.region, ev.river, ev.catchment, *ev.place_names):
             words |= {w.lower() for w in re.findall(r"[^\W\d_]{3,}", phrase or "")}
@@ -71,10 +71,14 @@ def _known_places() -> set[str]:
         words |= {w.lower() for w in re.findall(r"[^\W\d_]{3,}", name)}
     for station, water in RHINE_GAUGES:
         words |= {station.lower(), water.lower()}
-    return words - {"river", "the", "and", "bad", "region", "catchment", "basin"}
+    stop = {"river", "the", "and", "bad", "region", "catchment", "basin", "der", "an"}
+    stop |= {"european", "europe", "rivers", "basins", "live", "watch"}
+    return words - stop - _AMBIGUOUS
 
 
 PLACES = _known_places()
+# Its own small pool: a timed-out router call never holds a front-door worker.
+_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="router")
 _WORD = re.compile(r"[^\W\d_][\w'-]*")
 
 SYSTEM = """TASK: router
@@ -94,6 +98,9 @@ def enabled() -> bool:
 
 def place_in(question: str, context: Any = None) -> str | None:
     """The first known place, station or river the message names, upper-cased."""
+    target = watch_target(question or "")
+    if target and target.get("word"):
+        return str(target["word"]).upper()
     for w in _WORD.findall(question or ""):
         if w.lower() in PLACES:
             return w.upper()
@@ -134,7 +141,7 @@ def _kind(word: str) -> str:
 
 
 def _ask_model(llm: LLM, question: str, timeout: float) -> tuple[str, str] | None:
-    fut = front_door._POOL.submit(llm.complete, "fast", SYSTEM, question[:500])
+    fut = _POOL.submit(llm.complete, "fast", SYSTEM, question[:500])
     try:
         text, model_id = fut.result(timeout=timeout)
         lane = str(parse_json(text).get("lane", "")).strip().lower()
@@ -169,6 +176,9 @@ def route(req: Any, llm: LLM | None = None) -> dict[str, Any]:
         return out(FULL, "mode=event requested")
     if not enabled():
         return out(FULL, "FF_QUICK_LANE is off")
+    if not settings.live_data:
+        # The seed schema holds no present: the quick lane would answer "now" from a replay.
+        return out(FULL, "live data is off (FF_LIVE_DATA), so nothing answers now")
     ctx = getattr(req, "context", None)
     lane, reason = rules(req.question, ctx)
     if lane is not None:
