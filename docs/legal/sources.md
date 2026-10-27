@@ -88,7 +88,7 @@ Checked 23 Oct 2026 by Saleeta. Working rule, not legal advice (see GAMEPLAN, da
 - Full text may be stored. The corpus file is the publisher PDF (10 MB). Event `EMSR517`.
 
 ### 13. NHESS German flood warning system, July 2021
-- Article: https://nhess.copernicus.org/articles/23/973/2023/ (Thieken et al. 2023). Covers the warning chain (DWD, state flood centres, BBK/NINA and warning apps) as seen by affected residents.
+- Article: https://nhess.copernicus.org/articles/23/973/2023/ (Thieken et al. 2023). Covers how official warnings reached affected residents in July 2021 (the abstract speaks of the flood forecasting, warning and response system; it does not name DWD, state centres or NINA).
 - PDF: https://nhess.copernicus.org/articles/23/973/2023/nhess-23-973-2023.pdf
 - Licence: CC BY 4.0, stated on the article page (https://creativecommons.org/licenses/by/4.0/).
 - Full text may be stored. The corpus file is the publisher PDF. Event `EMSR517`.
