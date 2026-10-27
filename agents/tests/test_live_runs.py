@@ -164,22 +164,32 @@ class CardFieldsTest(unittest.TestCase):
         r = c.post(f"/runs/{run['run_id']}/approval", json={"action": "edit"})
         self.assertEqual(r.status_code, 422)
 
-    def test_model_draft_with_an_uncited_number_is_replaced(self) -> None:
+    def test_model_draft_text_never_reaches_the_draft(self) -> None:
         state = {
-            "claims": [{"claim_id": "C1", "text": "7 policies are exposed.", "numbers": [7]}],
+            "claims": [{"claim_id": "C1", "text": "VAL03 reached 5 m3/s.", "numbers": [5]}],
             "event": {"name": "Valencia", "region": "Valencia"},
             "exposure": {},
         }
         act = PlaybookAction(
-            action_id="A1", horizon_h=6, text="Tell policyholders.", claim_ids=["C1"], outbound=True
+            action_id="A1",
+            horizon_h=6,
+            text="Tell policyholders in Paris about 9 deaths.",
+            claim_ids=["C1"],
+            outbound=True,
         )
-        bad = playbook.fill_card(act, state, {"draft_message": "12 sites flooded."})
-        self.assertNotIn("12", bad.draft_message)
-        self.assertIn("7 policies are exposed.", bad.draft_message)
-        good = playbook.fill_card(act, state, {"draft_message": "7 of your policies are exposed."})
-        self.assertEqual(good.draft_message, "7 of your policies are exposed.")
-        self.assertEqual(good.action_type, "notify-policyholders")
-        self.assertIsNone(good.affected_site_count)  # exposure unknown
+        # Same number, other unit, a place and an organisation nobody cited.
+        out = playbook.fill_card(
+            act, state, {"draft_message": "5 deaths in Paris, says Red Cross."}
+        )
+        for bad in ("deaths", "Paris", "Red Cross", "9"):
+            self.assertNotIn(bad, out.draft_message)
+        self.assertEqual(
+            out.draft_message,
+            "FloodSense EU flood update (Valencia). VAL03 reached 5 m3/s. "
+            + playbook.STEPS["notify-policyholders"],
+        )
+        self.assertEqual(out.action_type, "notify-policyholders")
+        self.assertIsNone(out.affected_site_count)  # exposure unknown
         quiet = PlaybookAction(
             action_id="A2", horizon_h=24, text="Keep watching.", claim_ids=["C1"]
         )
@@ -189,6 +199,89 @@ class CardFieldsTest(unittest.TestCase):
         a = PlaybookAction(action_id="A1", horizon_h=6, text="x")
         self.assertIsNone(a.action_type)
         self.assertIsNone(a.draft_message)
+
+
+class EditValidationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.c = _client()
+        self.run = self.c.post("/runs", json=Q).json()
+        self.url = f"/runs/{self.run['run_id']}/approval"
+        self.out = next(a for a in self.run["playbook"] if a["outbound"])
+        self.inner = next((a for a in self.run["playbook"] if not a["outbound"]), None)
+
+    def _edit(self, **kw) -> int:
+        return self.c.post(self.url, json={"action": "edit", **kw}).status_code
+
+    def test_bad_edits_are_422_and_the_run_still_waits(self) -> None:
+        aid = self.out["action_id"]
+        self.assertEqual(self._edit(draft_messages={aid: "   "}), 422)
+        self.assertEqual(self._edit(draft_messages={"A99": "text"}), 422)
+        if self.inner:
+            self.assertEqual(self._edit(draft_messages={self.inner["action_id"]: "x"}), 422)
+        self.assertEqual(self._edit(draft_messages={aid: self.out["draft_message"]}), 422)
+        self.assertEqual(self._edit(edits=self.run["summary"]), 422)
+        self.assertEqual(
+            self.c.post(
+                self.url, json={"action": "approve", "draft_messages": {aid: "x"}}
+            ).status_code,
+            422,
+        )
+        self.assertEqual(
+            self.c.get(f"/runs/{self.run['run_id']}").json()["status"], "awaiting_approval"
+        )
+        self.assertEqual(self._edit(edits="A reviewer's summary."), 200)
+
+
+class FailureTest(unittest.TestCase):
+    def test_failure_stands_when_the_checkpoint_write_fails(self) -> None:
+        c = _client()
+        rt = service.runtime()
+
+        def boom(*a, **kw):
+            raise RuntimeError("graph broke")
+
+        with (
+            mock.patch.object(rt.graph, "stream", side_effect=boom),
+            mock.patch.object(rt.graph, "update_state", side_effect=OSError("disk full")),
+        ):
+            run_id = c.post("/runs?wait=false", json=Q).json()["run_id"]
+            body = _wait(c, run_id)
+        self.assertEqual(body["status"], "failed")
+        self.assertIn("graph broke", body["error"])
+        events = _sse(c.get(f"/runs/{run_id}/events").text)
+        self.assertEqual(events[-1], ("status", {**events[-1][1], "status": "failed"}))
+
+    def test_sse_on_a_vanished_run_ends_with_not_found(self) -> None:
+        c = _client()
+        rt = service.runtime()
+        rt.live["feedfeedfeed"] = {"started": [], "done": False}
+        calls = {"n": 0}
+        real = rt.snapshot
+
+        def flaky(run_id):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return real(run_id)
+            from floodsense_agents.runtime import RunNotFound
+
+            raise RunNotFound(run_id)
+
+        with mock.patch.object(rt, "snapshot", side_effect=flaky):
+            events = _sse(c.get("/runs/feedfeedfeed/events").text)
+        self.assertEqual(events[-1][0], "status")
+        self.assertEqual(events[-1][1]["status"], "not_found")
+
+    def test_live_is_pruned(self) -> None:
+        from floodsense_agents import runtime as rtmod
+
+        _client()
+        rt = service.runtime()
+        for i in range(rtmod.LIVE_MAX + 10):
+            rt._track(f"r{i}")
+            rt.live[f"r{i}"]["done"] = True
+        rt._track("last")
+        self.assertLessEqual(len(rt.live), rtmod.LIVE_MAX)
+        self.assertIn("last", rt.live)
 
 
 class FakeMemory:

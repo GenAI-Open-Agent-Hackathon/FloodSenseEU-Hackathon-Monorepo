@@ -34,11 +34,9 @@ At most 4 actions, each text at most 30 words.
 For each action also give:
 - action_type: one of notify-policyholders | dispatch-loss-adjuster | flag-underwriting-review | inform-public
 - title: at most 6 words
-- draft_message (outbound actions only): the exact message that would be sent after approval, at most 60 words.
-  It may state ONLY facts and numbers that appear in the claims it cites; no other figures, places or dates.
 Reply with ONE JSON object:
 {"actions": [{"action_id": "A1", "horizon_h": 6, "text": "...", "claim_ids": ["C4"], "outbound": true,
-  "action_type": "notify-policyholders", "title": "...", "draft_message": "..."}, ...]}"""
+  "action_type": "notify-policyholders", "title": "..."}, ...]}"""
 
 JUDGE = """TASK: judge
 You are an independent grounding judge. For ONE claim and the evidence rows it cites, decide:

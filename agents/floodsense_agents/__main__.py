@@ -420,12 +420,36 @@ def get_approval(run_id: str):
         raise HTTPException(409, str(e))
 
 
+def _check_edit(run: dict, decision: ApprovalDecision) -> None:
+    """422 unless an edit changes something, and only outbound drafts of this run."""
+    drafts = decision.draft_messages or {}
+    outbound = {a.get("action_id"): a for a in run.get("playbook") or [] if a.get("outbound")}
+    for aid, text in drafts.items():
+        if not (text or "").strip():
+            raise HTTPException(422, f"draft_messages[{aid}] is empty")
+        if aid not in outbound:
+            raise HTTPException(422, f"{aid} is not an outbound action of this run")
+    summary = (decision.edits or "").strip()
+    changes_summary = bool(summary) and summary != (run.get("summary") or "").strip()
+    changes_draft = any(
+        text.strip() != (outbound[aid].get("draft_message") or "").strip()
+        for aid, text in drafts.items()
+    )
+    if not (changes_summary or changes_draft):
+        raise HTTPException(422, "action=edit must change the summary or a draft_message")
+
+
 @app.post("/runs/{run_id}/approval")
 def post_approval(run_id: str, decision: ApprovalDecision):
-    if decision.action == "edit" and not (
-        (decision.edits or "").strip() or any((decision.draft_messages or {}).values())
-    ):
-        raise HTTPException(422, "action=edit requires edits or draft_messages")
+    if decision.action != "edit" and decision.draft_messages:
+        raise HTTPException(422, "draft_messages go with action=edit only")
+    if decision.action == "edit":
+        try:
+            run = runtime().snapshot(run_id)
+        except RunNotFound:
+            raise HTTPException(404, f"run {run_id} not found")
+        if run["status"] == "awaiting_approval":  # otherwise resume answers 409
+            _check_edit(run, decision)
     try:
         return _envelope(runtime().resume(run_id, decision))
     except RunNotFound:
@@ -453,7 +477,13 @@ async def events(run_id: str):
     async def gen():
         sent, begun, t0 = 0, 0, time.time()
         while time.time() - t0 < 900:
-            s = await asyncio.to_thread(rt.snapshot, run_id)
+            try:
+                s = await asyncio.to_thread(rt.snapshot, run_id)
+            except RunNotFound:
+                # A background run that died before its first checkpoint.
+                gone = {"run_id": run_id, "status": "not_found", "served_from": None, "cached_at": None}
+                yield f"event: status\ndata: {json.dumps(gone)}\n\n"
+                return
             # Background runs only: a node has begun but not yet written its entry.
             starts = rt.started(run_id)
             for ev in starts[begun:]:

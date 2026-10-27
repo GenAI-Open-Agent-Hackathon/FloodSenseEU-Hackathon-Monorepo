@@ -89,7 +89,12 @@ def hitl(state: FloodState) -> dict:
         }
     # N2: an edit with no text used to fall through to "approved". The API
     # rejects it at 422, but a graph resumed directly reached here.
-    drafts = {k: v.strip() for k, v in (decision.draft_messages or {}).items() if (v or "").strip()}
+    outbound_ids = {a.get("action_id") for a in state.get("playbook", []) if a.get("outbound")}
+    raw_drafts = decision.draft_messages or {}
+    # The service checks this at 422; a graph resumed directly is checked here.
+    if any(not (v or "").strip() or k not in outbound_ids for k, v in raw_drafts.items()):
+        raise ValueError("draft_messages must be non-empty and name outbound actions")
+    drafts = {k: v.strip() for k, v in raw_drafts.items()}
     new_summary = (decision.edits or "").strip()
     if decision.action == "edit" and not (new_summary or drafts):
         raise ValueError("an edit needs replacement text; send reject to hold instead")

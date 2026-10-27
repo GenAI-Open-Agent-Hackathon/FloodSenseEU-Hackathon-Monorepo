@@ -31,6 +31,7 @@ from floodsense_agents.zetaris import now_utc
 log = logging.getLogger("floodsense.runtime")
 # Short-term thread memory: how much of a conversation a follow-up carries.
 THREAD_TURNS_MAX = 3
+LIVE_MAX = 64  # runs kept in Runtime.live; the oldest finished ones are dropped first
 TURN_SUMMARY_MAX = 600
 STATE_KEYS = (
     "run_id",
@@ -123,14 +124,21 @@ class Runtime:
 
     def snapshot(self, run_id: str) -> dict[str, Any]:
         snap = self.graph.get_state(self.cfg(run_id))
+        error = (self.live.get(run_id) or {}).get("error")
         if not snap or not snap.values:
-            if not self.is_running(run_id):
+            if error:
+                v, paused = {"run_id": run_id, "status": "failed", "error": error}, False
+            elif self.is_running(run_id):
+                # Accepted, no checkpoint yet: the first node is still working.
+                v, paused = {"run_id": run_id, "status": "running"}, False
+            else:
                 raise RunNotFound(run_id)
-            # Accepted, no checkpoint yet: the first node is still working.
-            snap, v, paused = None, {"run_id": run_id, "status": "running"}, False
         else:
             v = dict(snap.values)
             paused = bool(snap.tasks and any(getattr(t, "interrupts", None) for t in snap.tasks))
+            if error and v.get("status") != "failed":
+                v.update(status="failed", error=error)
+                paused = False
         out = {k: v.get(k) for k in STATE_KEYS}
         for k, empty in (
             ("anomalies", []),
@@ -238,7 +246,7 @@ class Runtime:
         a client continuing a conversation hears when it is not.
         """
         self._rebuild_index()
-        rows = [r for r in self.index.values() if r.get("thread_id") == thread_id]
+        rows = [r for r in list(self.index.values()) if r.get("thread_id") == thread_id]
         if not rows:
             raise ThreadNotFound(thread_id)
         rows.sort(key=lambda r: r.get("created_at") or "")
@@ -256,8 +264,7 @@ class Runtime:
         anything is accepted.
         """
         run_id, inputs, provider = self._prepare(req)
-        with self._live_lock:
-            self.live[run_id] = {"started": [], "done": False}
+        self._track(run_id)
         threading.Thread(
             target=self._execute,
             args=(run_id, inputs, provider),
@@ -283,6 +290,7 @@ class Runtime:
     def _execute(
         self, run_id: str, inputs: dict[str, Any], provider: str, *, stream: bool = False
     ) -> None:
+        self._track(run_id)
         token = current_provider.set(provider)
         try:
             if stream:
@@ -292,15 +300,31 @@ class Runtime:
                 self.graph.invoke(inputs, self.cfg(run_id))
         except Exception as e:
             log.exception("run %s failed", run_id)
-            self.graph.update_state(self.cfg(run_id), {"status": "failed", "error": str(e)[:500]})
+            error = str(e)[:500]
+            # Kept in memory too, so the run reads failed even when the
+            # checkpoint write below fails as well.
+            with self._live_lock:
+                self.live[run_id]["error"] = error
+            try:
+                self.graph.update_state(self.cfg(run_id), {"status": "failed", "error": error})
+            except Exception as e2:  # noqa: BLE001 - the in-memory mark stands
+                log.warning("run %s: could not record the failure: %s", run_id, str(e2)[:120])
         finally:
             current_provider.reset(token)
+            with self._live_lock:
+                self.live[run_id]["done"] = True
             try:
                 self._index_row(run_id)
-            finally:
-                with self._live_lock:
-                    if run_id in self.live:
-                        self.live[run_id]["done"] = True
+            except Exception as e3:  # noqa: BLE001 - listing is best effort
+                log.warning("run %s: could not index: %s", run_id, str(e3)[:120])
+
+    def _track(self, run_id: str) -> None:
+        """Register a run in self.live, dropping the oldest finished ones past LIVE_MAX."""
+        with self._live_lock:
+            self.live.setdefault(run_id, {"started": [], "done": False})
+            done = [k for k, e in self.live.items() if e["done"]]
+            for k in done[: max(0, len(self.live) - LIVE_MAX)]:
+                del self.live[k]
 
     def _prepare(self, req: RunRequest) -> tuple[str, dict[str, Any], str]:
         run_id = uuid.uuid4().hex[:12]
@@ -385,7 +409,7 @@ class Runtime:
 
     def past(self, limit: int = 50, thread_id: str | None = None) -> list[dict[str, Any]]:
         whole = self._rebuild_index()
-        rows = [r for r in self.index.values() if not thread_id or r.get("thread_id") == thread_id]
+        rows = [r for r in list(self.index.values()) if not thread_id or r.get("thread_id") == thread_id]
         rows = sorted(rows, key=lambda r: r["updated_at"], reverse=True)[:limit]
         for r in rows:
             r["scope"] = "all runs on this checkpointer" if whole else "this process only"

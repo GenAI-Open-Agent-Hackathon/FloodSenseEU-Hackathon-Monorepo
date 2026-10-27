@@ -142,6 +142,21 @@ class AsyncRunTest(unittest.TestCase):
         self.assertEqual(r.json()["run_id"], "r9")
         self.assertEqual(self.limiter.slots.in_flight, 0)
 
+    def test_slot_freed_once_the_agents_stay_down(self) -> None:
+        async def flaky(method, path, body=None, params=None, timeout=None):
+            if method == "POST":
+                return httpx.Response(202, json={"run_id": "r1", "status": "running"})
+            raise httpx.ConnectError("refused")
+
+        with (
+            mock.patch.object(api, "_agents_request", side_effect=flaky),
+            mock.patch.object(api, "SLOT_DOWN_RELEASE_S", 0.1),
+            TestClient(api.app) as c,
+        ):
+            self.assertEqual(c.post("/runs?wait=false", json={"question": "q"}).status_code, 202)
+            self.assertEqual(self.limiter.slots.in_flight, 1)
+            self._until(lambda: self.limiter.slots.in_flight == 0)
+
 
 class ProjectCardFieldsTest(unittest.TestCase):
     def test_card_fields_are_copied_when_well_typed(self) -> None:

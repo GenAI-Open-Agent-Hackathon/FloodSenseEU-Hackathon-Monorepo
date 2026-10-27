@@ -133,8 +133,8 @@ class PlaybookAction(ContractModel):
     target_region: str | None = None
     affected_site_count: int | None = Field(default=None, ge=0)
     draft_message: str | None = None
-    outbound: bool | None = None
-    released: bool | None = None
+    outbound: bool = False
+    released: bool = False
 
 
 class Approval(ContractModel):

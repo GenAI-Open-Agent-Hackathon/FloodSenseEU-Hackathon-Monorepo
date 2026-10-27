@@ -335,20 +335,30 @@ def _wants_async(request: Request) -> bool:
 _HOLDERS: set[asyncio.Task] = set()
 SLOT_POLL_S = 1.0
 SLOT_HOLD_MAX_S = 900.0
+SLOT_DOWN_RELEASE_S = 30.0  # consecutive seconds of agents errors before the slot is freed
 
 
 async def _hold_slot_until_done(run_id: str) -> None:
     """Keep one in-flight slot until the async run leaves `running`.
 
     The slot is released when the graph pauses for approval, ends or fails, or
-    when the agents stop knowing the run, or after SLOT_HOLD_MAX_S at worst.
+    when the agents stop knowing the run, after SLOT_DOWN_RELEASE_S of the agents
+    being unreachable or erroring, or after SLOT_HOLD_MAX_S at worst.
     """
     t0 = time.monotonic()
+    down_since: float | None = None
     try:
         while time.monotonic() - t0 < SLOT_HOLD_MAX_S:
             code, run = await _agents_json("GET", f"/runs/{run_id}", timeout=_lookup_timeout())
             if code == 404:
                 return
+            if code >= 500 or run is None:
+                # Agents down or erroring: give the slot back after SLOT_DOWN_RELEASE_S.
+                down_since = down_since if down_since is not None else time.monotonic()
+                if time.monotonic() - down_since >= SLOT_DOWN_RELEASE_S:
+                    return
+            else:
+                down_since = None
             if code == 200 and isinstance(run, dict) and run.get("status") != "running":
                 return
             await asyncio.sleep(SLOT_POLL_S)

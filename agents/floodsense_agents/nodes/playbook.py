@@ -89,6 +89,13 @@ TITLES = {
     "flag-underwriting-review": "Flag for underwriting review",
     "inform-public": "Inform the public",
 }
+# Fixed closing line per action type. No number, place or organisation.
+STEPS = {
+    "notify-policyholders": "Please keep yourself safe and keep records of any damage for your claim.",
+    "dispatch-loss-adjuster": "A loss adjuster will contact you to arrange a visit.",
+    "flag-underwriting-review": "This is flagged for underwriting review.",
+    "inform-public": "Please follow the instructions of the local authorities.",
+}
 DRAFT_CLAIMS_MAX = 3
 
 
@@ -133,7 +140,12 @@ def affected_sites(state: FloodState) -> int | None:
 
 
 def draft_for(action: PlaybookAction, state: FloodState) -> str | None:
-    """The message an outbound action would send: cited claim texts only, plus the step."""
+    """The message an outbound action would send.
+
+    Deterministic only: a fixed template, the event region from the event
+    spec, the cited claims' texts verbatim and a fixed step per action type.
+    No model text reaches it, so it can state nothing the cited claims do not.
+    """
     if not action.outbound:
         return None
     claims = {c["claim_id"]: c for c in state.get("claims") or []}
@@ -142,25 +154,9 @@ def draft_for(action: PlaybookAction, state: FloodState) -> str | None:
         return None
     # The region only: the event name carries a date, which no claim cites.
     head = (state.get("event") or {}).get("region")
-    body = " ".join(facts)
-    # The step is added only when it states no number of its own.
-    step = f" Recommended step: {action.text}" if not numbers_in(action.text) else ""
-    return (f"FloodSense EU flood update ({head}). " if head else "FloodSense EU flood update. ") + (
-        f"{body}{step}"
-    )
-
-
-def _draft_is_cited(draft: str, action: PlaybookAction, state: FloodState) -> bool:
-    """Every number in a model draft appears in a claim the action cites."""
-    claims = {c["claim_id"]: c for c in state.get("claims") or []}
-    allowed: set[float] = set()
-    for i in action.claim_ids:
-        c = claims.get(i)
-        if not c:
-            continue
-        allowed |= {round(float(n), 3) for n in c.get("numbers") or []}
-        allowed |= {round(float(n), 3) for n in numbers_in(c.get("text") or "")}
-    return all(round(float(n), 3) in allowed for n in numbers_in(draft))
+    step = STEPS.get(action.action_type or "", "")
+    intro = f"FloodSense EU flood update ({head}). " if head else "FloodSense EU flood update. "
+    return intro + " ".join(facts) + (f" {step}" if step else "")
 
 
 def fill_card(
@@ -174,19 +170,17 @@ def fill_card(
     if kind not in ACTION_TYPES:
         kind = infer_type(action.text)
     title = str(raw.get("title") or "").strip()[:80] or (TITLES.get(kind) if kind else None)
-    draft = str(raw.get("draft_message") or "").strip() if action.outbound else ""
-    if not draft or not _draft_is_cited(draft, action, state):
-        draft = draft_for(action, state) or ""
     ev = state.get("event") or {}
-    return action.model_copy(
+    out = action.model_copy(
         update={
             "action_type": kind,
             "title": title or " ".join(action.text.split()[:6]).rstrip(".,;:"),
             "target_region": ev.get("region") or None,
             "affected_site_count": affected_sites(state),
-            "draft_message": draft or None,
         }
     )
+    # A model's draft_message is ignored: the draft is built, never written freely.
+    return out.model_copy(update={"draft_message": draft_for(out, state)})
 
 
 MAX_ACTIONS = 4  # the prompt asks for at most 4; more are cut, not shown
