@@ -14,9 +14,9 @@ Sponsor tech 10 (Zetaris, Meterless Nightshift / H-MEM / World Model, NVIDIA Nem
 
 - **Router** picks a lane per message (`agents/floodsense_agents/router.py`, `front_door.py`):
   - `reply`: greetings, help, thanks, off-topic. Fixed templates, instant.
-  - `quick`: live level questions. Reads Zetaris views, deterministic cited claims, deterministic Judge. No model call, ~1 s.
+  - `quick`: live level questions. Reads Zetaris views, deterministic cited claims, deterministic Judge. No model writes the answer, ~1 s.
   - `forecast`: "next 48 h / this week" for the 45 watched places. DWD ICON rain (Open-Meteo) + GloFAS + gauges + past
-    pattern + H-MEM. No model call, 1-4 s.
+    pattern + H-MEM. No model writes the answer, 1-4 s.
   - `full`: Scope, Watchers, Memory (H-MEM), Investigator and Skeptic loop, Exposure, Playbook, Judge repair loop, human
     approval. About 5-6 min on Nightshift. Explicit `event_id`, `replay_ts` or a `doc_query` different from the question
     always go here, so the evals are stable.
@@ -68,8 +68,8 @@ There are no open feature branches to merge. The `feat/control-tower` and `feat/
 Workflow used all day: branch, coding agent, independent review agent, review findings as PR comments, rework, re-review, CI green, merge, delete branch, update docs and CHANGELOG in every PR. `gh` is at `C:\Program Files\GitHub CLI\gh.exe`; `gh pr view --comments` fails with this token, so use `gh api repos/<owner>/<repo>/issues/<n>/comments`.
 
 ### Verified on the live stack
-- The approve-and-remember loop: approving run `f6cc4adbc438` took the H-MEM count from 212 to 214, and the next Orléans forecast recalled the new memory (`mem-213`).
-- Last end-to-end run on Nightshift: 0% hallucination and 100% coverage on every scenario. Quick lane about 1 s, forecast lane 1 to 4 s (no model calls), full lane 5 to 6 minutes on Nemotron.
+- The approve-and-remember loop: approving run `f6cc4adbc438` took the H-MEM count from 212 to 214 and the next Orléans forecast recalled the new memory (`mem-213`); this was observed on the demo machine on 27 Oct and is not stored as an artifact.
+- Last end-to-end run on Nightshift: 0% hallucination and 100% coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day). Quick lane about 1 s, forecast lane 1 to 4 s (no model writes the answer), full lane 5 to 6 minutes on Nemotron.
 - 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 
 ### Known bugs and weak spots

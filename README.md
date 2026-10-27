@@ -1,6 +1,6 @@
 # FloodSense EU
 
-FloodSense EU explains why a place in Europe is at flood risk, with a citation for every sentence: a Zetaris query, a stored document passage, or a memory a person approved. It watches 45 places live, answers plain questions in seconds, runs a full multi-agent investigation when a question needs one, and never sends anything out until a person approves it.
+FloodSense EU explains why a place in Europe is at flood risk, with a citation for every sentence: a Zetaris query, a stored document passage, or a memory a person approved. It watches 45 places live, answers plain questions in seconds, runs a full multi-agent investigation when a question needs one, and nothing leaves the system until a person approves it.
 
 Open Agent Hackathon 2026, Track 02. Release 1.0.0: [release notes](docs/RELEASE-NOTES-v1.0.0.md), [changelog](CHANGELOG.md).
 
@@ -16,7 +16,7 @@ One console, switched in the header (Citizen | Insurer | Civil protection):
 
 The header also has **Live | Past flood** (Ahr 2021, Valencia 2024) and a **Demo data** switch. The **Control tower** shows a rule-based watch loop (no model calls) scanning the 45 sources on its own; an opt-in, capped auto-assess may start a full run but never approves anything.
 
-Each message goes through a router with four lanes: `reply` (greetings and help), `quick` (a live reading, about 1 s), `forecast` (the next 48 hours or this week, 1 to 4 s) and `full` (the multi-agent run with the Skeptic, the Judge and human approval, 5 to 6 minutes on Nemotron). The first three make no model call.
+Each message goes through a router with four lanes: `reply` (greetings and help), `quick` (a live reading, about 1 s), `forecast` (the next 48 hours or this week, 1 to 4 s) and `full` (the multi-agent run with the Skeptic, the Judge and human approval, 5 to 6 minutes on Nemotron). The first three build their answers from data and fixed templates, without a model; only an ambiguous message may use one short classification call on the fast lane.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ flowchart LR
   API["API (FastAPI) :18000<br/>runs, SSE, approval, /watch, /views<br/>Redis cache, rate limits, views cache"]
   subgraph AG["Agent runtime (LangGraph)"]
     ROUTER{Router}
-    LANES["reply / quick / forecast<br/>no model call"]
+    LANES["reply / quick / forecast<br/>answers built without a model"]
     FULL["full lane: Scope, Watchers, Memory,<br/>Investigator, Skeptic, Exposure,<br/>Playbook, Judge, human approval"]
     TOWER["Control tower<br/>watch loop, no model calls"]
   end
@@ -58,7 +58,7 @@ flowchart LR
   POLL --> ZET
 ```
 
-The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and the only chat model path is Nightshift.
+The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and the chat model path is Nightshift (a test-only provider switch exists, off by default and needs a key that is not in the repo).
 
 ## How the sponsors are used
 

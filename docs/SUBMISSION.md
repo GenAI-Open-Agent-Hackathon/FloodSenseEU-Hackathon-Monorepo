@@ -78,7 +78,7 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 
 ## What is built
 
-- A router with four lanes (`reply`, `quick`, `forecast`, `full`). The full lane is a LangGraph agent: Scope, Watchers, Memory, Investigator, Skeptic (revise loop), Exposure, Playbook, Judge (repair loop), human approval, Learn. The other three lanes make no model call.
+- A router with four lanes (`reply`, `quick`, `forecast`, `full`). The full lane is a LangGraph agent: Scope, Watchers, Memory, Investigator, Skeptic (revise loop), Exposure, Playbook, Judge (repair loop), human approval, Learn. The other three lanes build their answers without a model (only an ambiguous message may use one short classification call).
 - A Control tower: a rule-based watch loop over 45 sources with an activity feed, and an opt-in, capped auto-assess that never approves.
 - Three citation layers: (a) Zetaris data rows, (b) source provenance, (c) document passages with hash-checked quotes.
 - Live mode: a `hazard_now` view with past and forecast rows, a mode classifier for "now" vs past-event questions, and a staleness flag.

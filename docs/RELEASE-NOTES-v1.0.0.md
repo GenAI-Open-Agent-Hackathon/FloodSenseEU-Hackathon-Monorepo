@@ -39,6 +39,8 @@ A router picks a lane for every message and records it as the first step of the 
 | `forecast` | "Do the next 48 hours look safe at Köln?" DWD ICON rain (via Open-Meteo), GloFAS discharge, gauge level and trend, past pattern and H-MEM recall | none | 1 to 4 s |
 | `full` | Why, replay, exposure, policies, documents. Scope, Watchers, Memory, Investigator and Skeptic loop, Exposure, Playbook, Judge repair loop, human approval | Nemotron via Nightshift | 5 to 6 minutes |
 
+Model calls in the first three lanes: none write the answer. Only an ambiguous message may use one short classification call on the Nightshift fast lane (the front door and the router).
+
 An explicit `event_id`, a `replay_ts` or a `doc_query` different from the question always goes to the full lane, so the evaluations are stable. A quick or forecast answer with no data, or any Judge flag, escalates the same run into the full lane.
 
 ## Grounded by design
@@ -52,7 +54,7 @@ An explicit `event_id`, a `replay_ts` or a `doc_query` different from the questi
 
 Nothing outbound leaves without a person: approve, edit or reject, with a reviewer note for edit and reject. Only after an approve or edit does the Learn step write to H-MEM. A reject writes nothing.
 
-The approve-and-remember loop was verified end to end on the live stack. Approving run `f6cc4adbc438` took the H-MEM count from 212 to 214. The next Orléans forecast question recalled the new memory (`mem-213`) and listed it in `memory_used`.
+The approve-and-remember loop was verified end to end on the live stack. Approving run `f6cc4adbc438` took the H-MEM count from 212 to 214 (observed on the demo machine on 27 Oct; not stored as an artifact). The next Orléans forecast question recalled the new memory (`mem-213`) and listed it in `memory_used`.
 
 ## Data
 
@@ -75,7 +77,7 @@ Documents: 25 documents and 1,859 passages in pgvector, including four insurer a
 
 ## Evaluations
 
-- Last end-to-end run on Nightshift: 0% hallucination and 100% citation coverage on every scenario.
+- Last end-to-end run on Nightshift: 0% hallucination and 100% citation coverage on every scenario of the 27 Oct end-to-end run (the stored Nightshift eval evidence is the 4-item subset of that day).
 - 27 Oct 2026 subset on Nightshift (4 items): hallucination 0%, citation coverage 100%, numeric match 100%, Judge pass 100%. Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
 - 27 Oct 2026 full set (21 items) on a test provider (Anthropic Sonnet, test switch only): hallucination 5.6% (Valencia) and 9.1% (Ahr). Almost all of the Ahr loss is one item, ahr-09, which produced no claims. Report: [evals/2026-10-27-anthropic.md](evals/2026-10-27-anthropic.md).
 - Memory is switched off in evals, so seeded or approved memories can never lift a score.
