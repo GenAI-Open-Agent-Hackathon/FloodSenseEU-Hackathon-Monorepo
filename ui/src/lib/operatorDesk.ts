@@ -132,7 +132,7 @@ export function operatorContext(s: WatchSource, page = "situation"): AskContext 
 
 /** The forecast lane's question: a forecast cue plus the place name routes it to the deterministic lane (no model call). */
 export function forecastQuestion(s: WatchSource): string {
-  return `Do the next 48 hours look safe at ${s.name}?`;
+  return `What does the next 48 hours outlook show for ${s.name}?`;
 }
 
 /**
@@ -199,9 +199,26 @@ export const SCRIPT_KEYS: readonly ScriptKey[] = [
 const RIVER_DE: Record<string, string> = {
   Rhine: "Rhein", Danube: "Donau", Vistula: "Weichsel", Meuse: "Maas", Vltava: "Moldau", Tisza: "Theiß", Rhone: "Rhône",
 };
+const RIVER_ES: Record<string, string> = {
+  Rhine: "Rin", Danube: "Danubio", Vistula: "Vístula", Meuse: "Mosa", Vltava: "Moldava", Rhone: "Ródano", Seine: "Sena",
+};
+const PLACE_DE: Record<string, string> = { Vienna: "Wien", Prague: "Prag", Warsaw: "Warschau", Liege: "Lüttich", Orleans: "Orléans" };
+const PLACE_ES: Record<string, string> = { Vienna: "Viena", Prague: "Praga", Warsaw: "Varsovia", Liege: "Lieja" };
+
+/** Pure: "13:15 UTC, 27 Oct" for a reading time, "27 Oct (model day)" for a model day, else "an unknown time". */
+export function readingTime(iso: string | null): string {
+  if (!iso) return "an unknown time";
+  const date = iso.length === 10;
+  const d = new Date(date ? `${iso}T00:00:00Z` : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  if (date) return `${day} (model day)`;
+  const hm = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${hm} UTC, ${day}`;
+}
 
 interface Names {
-  /** "Rhine gauge at Köln" (en), "Köln (Rhein)" (de, es): follows "The" / "Der Pegel" / "El medidor". */
+  /** "Rhine gauge at Köln" (en), "Köln (Rhein)" (de), "Köln (Rin)" (es): follows "The" / "Der Pegel" / "La estación de aforo". */
   gauge: string;
   /** "the Rhine at Köln" (en), "Köln (Rhein)" (de, es): the place in a model sentence. */
   where: string;
@@ -209,67 +226,100 @@ interface Names {
   name: string;
 }
 
+// No line below says a level is "normal" or "safe", and none calls a level "not a warning level": the official
+// warning levels belong to the Land's (or the country's) flood service, and staff are told to check them.
 const STATE: Record<Lang, Record<ScriptKey, (n: Names) => string>> = {
   en: {
-    "gauge-ok": (n) => `The ${n.gauge} shows a normal water level, below its long-term mean high water.`,
-    "gauge-near": (n) => `The ${n.gauge} is close to its long-term mean high water. That is not a warning level.`,
-    "gauge-over": (n) => `The ${n.gauge} is at or above its long-term mean high water. That is not a warning level, but it is higher than usual.`,
-    "model-ok": (n) => `Our model shows normal river flow for ${n.where} over the next 7 days.`,
-    "model-near": (n) => `Our model shows river flow for ${n.where} somewhat above its recent 30-day normal over the next 7 days.`,
-    "model-over": (n) => `Our model shows river flow for ${n.where} at least twice its recent 30-day normal over the next 7 days. That can be seasonal.`,
-    "demo-ok": (n) => `Our model shows river flow at ${n.name} below FloodSense's own screening line.`,
+    "gauge-ok": (n) => `The ${n.gauge} shows a level below its long-term mean high water.`,
+    "gauge-near": (n) => `The ${n.gauge} is close to its long-term mean high water.`,
+    "gauge-over": (n) => `The ${n.gauge} is at or above its long-term mean high water.`,
+    "model-ok": (n) => `For ${n.where}, the model does not show unusual river flow this week. This is not a guarantee and not an official forecast.`,
+    "model-near": (n) => `Over the next 7 days our model shows river flow for ${n.where} somewhat above what has been usual in the last 30 days.`,
+    "model-over": (n) => `Over the next 7 days our model shows river flow for ${n.where} at least twice what has been usual in the last 30 days.`,
+    "demo-ok": (n) => `Our model shows river flow at ${n.name} below FloodSense's own screening line. This is not a guarantee.`,
     "demo-near": (n) => `Our model shows river flow at ${n.name} above FloodSense's first screening line. That is not an official threshold.`,
     "demo-over": (n) => `Our model shows river flow at ${n.name} above FloodSense's higher screening line. That is not an official threshold.`,
     unknown: (n) => `We have no current reading for ${n.name}.`,
   },
   de: {
-    "gauge-ok": (n) => `Der Pegel ${n.gauge} zeigt einen normalen Wasserstand, unter dem langjährigen mittleren Hochwasser.`,
-    "gauge-near": (n) => `Der Pegel ${n.gauge} liegt nahe am langjährigen mittleren Hochwasser. Das ist keine Warnstufe.`,
-    "gauge-over": (n) => `Der Pegel ${n.gauge} liegt auf oder über dem langjährigen mittleren Hochwasser. Das ist keine Warnstufe, aber höher als üblich.`,
-    "model-ok": (n) => `Unser Modell zeigt für ${n.where} in den nächsten 7 Tagen einen normalen Abfluss.`,
-    "model-near": (n) => `Unser Modell zeigt für ${n.where} in den nächsten 7 Tagen einen etwas höheren Abfluss als in den letzten 30 Tagen üblich.`,
-    "model-over": (n) => `Unser Modell zeigt für ${n.where} in den nächsten 7 Tagen mindestens den doppelten Abfluss der letzten 30 Tage. Das kann jahreszeitlich bedingt sein.`,
-    "demo-ok": (n) => `Unser Modell zeigt für ${n.name} einen Abfluss unter der FloodSense-eigenen Prüfschwelle.`,
+    "gauge-ok": (n) => `Der Pegel ${n.gauge} zeigt einen Wasserstand unter dem langjährigen mittleren Hochwasser.`,
+    "gauge-near": (n) => `Der Pegel ${n.gauge} liegt nahe am langjährigen mittleren Hochwasser.`,
+    "gauge-over": (n) => `Der Pegel ${n.gauge} liegt auf oder über dem langjährigen mittleren Hochwasser.`,
+    "model-ok": (n) => `Für ${n.where} zeigt das Modell diese Woche keinen ungewöhnlichen Abfluss. Das ist keine Garantie und keine amtliche Vorhersage.`,
+    "model-near": (n) => `Unser Modell zeigt für ${n.where} in den nächsten 7 Tagen einen etwas höheren Abfluss, als in den letzten 30 Tagen üblich war.`,
+    "model-over": (n) => `Unser Modell zeigt für ${n.where} in den nächsten 7 Tagen einen mindestens doppelt so hohen Abfluss, wie in den letzten 30 Tagen üblich war.`,
+    "demo-ok": (n) => `Unser Modell zeigt für ${n.name} einen Abfluss unter der FloodSense-eigenen Prüfschwelle. Das ist keine Garantie.`,
     "demo-near": (n) => `Unser Modell zeigt für ${n.name} einen Abfluss über der ersten FloodSense-eigenen Prüfschwelle. Das ist kein amtlicher Schwellenwert.`,
     "demo-over": (n) => `Unser Modell zeigt für ${n.name} einen Abfluss über der höheren FloodSense-eigenen Prüfschwelle. Das ist kein amtlicher Schwellenwert.`,
     unknown: (n) => `Für ${n.name} liegt uns gerade kein aktueller Messwert vor.`,
   },
   es: {
-    "gauge-ok": (n) => `El medidor ${n.gauge} muestra un nivel de agua normal, por debajo de su nivel medio de crecida a largo plazo.`,
-    "gauge-near": (n) => `El medidor ${n.gauge} está cerca de su nivel medio de crecida a largo plazo. No es un nivel de aviso.`,
-    "gauge-over": (n) => `El medidor ${n.gauge} está en o por encima de su nivel medio de crecida a largo plazo. No es un nivel de aviso, pero es más alto de lo habitual.`,
-    "model-ok": (n) => `Nuestro modelo muestra un caudal normal para ${n.where} en los próximos 7 días.`,
-    "model-near": (n) => `Nuestro modelo muestra un caudal para ${n.where} algo por encima de lo normal de los últimos 30 días en los próximos 7 días.`,
-    "model-over": (n) => `Nuestro modelo muestra un caudal para ${n.where} de al menos el doble de lo normal de los últimos 30 días en los próximos 7 días. Puede ser estacional.`,
-    "demo-ok": (n) => `Nuestro modelo muestra un caudal en ${n.name} por debajo de la línea de control propia de FloodSense.`,
+    "gauge-ok": (n) => `La estación de aforo ${n.gauge} muestra un nivel por debajo de su nivel medio de crecida a largo plazo.`,
+    "gauge-near": (n) => `La estación de aforo ${n.gauge} está cerca de su nivel medio de crecida a largo plazo.`,
+    "gauge-over": (n) => `La estación de aforo ${n.gauge} está en o por encima de su nivel medio de crecida a largo plazo.`,
+    "model-ok": (n) => `Para ${n.where}, el modelo no muestra un caudal inusual esta semana. No es una garantía ni una previsión oficial.`,
+    "model-near": (n) => `Para los próximos 7 días, nuestro modelo muestra en ${n.where} un caudal algo superior al habitual de los últimos 30 días.`,
+    "model-over": (n) => `Para los próximos 7 días, nuestro modelo muestra en ${n.where} un caudal de al menos el doble del habitual de los últimos 30 días.`,
+    "demo-ok": (n) => `Nuestro modelo muestra un caudal en ${n.name} por debajo de la línea de control propia de FloodSense. No es una garantía.`,
     "demo-near": (n) => `Nuestro modelo muestra un caudal en ${n.name} por encima de la primera línea de control de FloodSense. No es un umbral oficial.`,
     "demo-over": (n) => `Nuestro modelo muestra un caudal en ${n.name} por encima de la línea de control más alta de FloodSense. No es un umbral oficial.`,
     unknown: (n) => `No tenemos una lectura actual para ${n.name}.`,
   },
 };
 
+const STALE: Record<Lang, (time: string) => string> = {
+  en: (t) => `This reading is from ${t} and may be out of date. Do not read it out as the current situation.`,
+  de: (t) => `Dieser Wert stammt von ${t} und ist möglicherweise veraltet. Bitte nicht als aktuelle Lage vorlesen.`,
+  es: (t) => `Esta lectura es de ${t} y puede estar desactualizada. No la lea como la situación actual.`,
+};
+
 const LIMIT: Record<Lang, { gauge: string; model: string; unknown: string }> = {
   en: {
     gauge: "This is a measurement of the water level, not a forecast.",
     model: "This is a model, not a measurement and not an official warning.",
-    unknown: "So I cannot say how the river is doing there.",
+    unknown: "So I cannot tell you how the river is doing there right now.",
   },
   de: {
     gauge: "Das ist eine Messung des Wasserstands, keine Vorhersage.",
     model: "Das ist eine Modellrechnung, keine Messung und keine amtliche Warnung.",
-    unknown: "Ich kann daher nicht sagen, wie die Lage dort ist.",
+    unknown: "Ich kann Ihnen daher jetzt nicht sagen, wie die Lage dort ist.",
   },
   es: {
     gauge: "Esto es una medición del nivel de agua, no una previsión.",
     model: "Esto es un modelo, no una medición ni un aviso oficial.",
-    unknown: "Por eso no puedo decir cómo está el río allí.",
+    unknown: "Por eso ahora no puedo decirle cómo está el río allí.",
   },
 };
 
-const OFFICIAL_LINE: Record<Lang, (channels: string) => string> = {
-  en: (c) => `For warnings and advice please use the official channels: ${c}.`,
-  de: (c) => `Warnungen und Hinweise finden Sie bei den amtlichen Stellen: ${c}.`,
-  es: (c) => `Para avisos y recomendaciones use los canales oficiales: ${c}.`,
+/** Added after a raised gauge: the warning levels are the flood service's, not FloodSense's. */
+const LEVELS: Record<Lang, { de: string; other: string }> = {
+  en: {
+    de: "Official flood warning levels (Meldestufen) are set by your Land's flood service. Check them.",
+    other: "Official warning levels are set by your national flood service. Check them.",
+  },
+  de: {
+    de: "Die amtlichen Meldestufen legt der Hochwassermeldedienst Ihres Landes fest. Bitte prüfen Sie diese.",
+    other: "Die amtlichen Warnstufen legt der nationale Hochwasserdienst fest. Bitte prüfen Sie diese.",
+  },
+  es: {
+    de: "Los niveles de aviso oficiales los fija el servicio de inundaciones de su Land. Compruébelos.",
+    other: "Los niveles de aviso oficiales los fija su servicio nacional de inundaciones. Compruébelos.",
+  },
+};
+
+const OFFICIAL_LINE: Record<Lang, { list: (channels: string) => string; national: string }> = {
+  en: {
+    list: (c) => `Please check the official warning service for current warnings and warning levels: ${c}.`,
+    national: "Please check your national warning service (Meteoalarm) for current warnings and warning levels.",
+  },
+  de: {
+    list: (c) => `Bitte prüfen Sie die aktuellen Warnungen und Warnstufen bei den amtlichen Stellen: ${c}.`,
+    national: "Bitte prüfen Sie die aktuellen Warnungen und Warnstufen beim nationalen Warndienst (Meteoalarm).",
+  },
+  es: {
+    list: (c) => `Compruebe los avisos y niveles de aviso vigentes en los canales oficiales: ${c}.`,
+    national: "Compruebe los avisos y niveles de aviso vigentes en su servicio nacional de avisos (Meteoalarm).",
+  },
 };
 
 const EMERGENCY: Record<Lang, string> = {
@@ -278,6 +328,7 @@ const EMERGENCY: Record<Lang, string> = {
   es: "En una emergencia llame al 112.",
 };
 
+/** Object of "refer to ...": accusative in German. */
 const NATIONAL: Record<Lang, string> = {
   en: "your national warning service (Meteoalarm)",
   de: "den nationalen Warndienst (Meteoalarm)",
@@ -313,7 +364,7 @@ const CAN: Record<Lang, [string, string, string, string]> = {
     "Anrufern sagen: im Notfall die 112 anrufen.",
   ],
   es: [
-    "Leer las líneas de estado de arriba: lo que muestra el medidor o el modelo, nada más.",
+    "Leer las líneas de estado de arriba: lo que muestra la estación de aforo o el modelo, nada más.",
     "Decir que FloodSense es una evaluación basada en modelos y no un aviso oficial.",
     "Indicar los canales oficiales de arriba.",
     "Decir a quien llama que llame al 112 en una emergencia.",
@@ -363,6 +414,8 @@ export interface CallScript {
   lang: Lang;
   key: ScriptKey;
   status: StatusView;
+  /** True when the reading is not live: the script then says it may be out of date and states no level. */
+  stale: boolean;
   /** "What to tell callers": three or four lines. */
   say: ScriptLine[];
   channels: ScriptChannel[];
@@ -383,25 +436,39 @@ function channelsFor(country: string, kind?: WatchSource["kind"]): ScriptChannel
   }));
 }
 
-/** Pure: a fixed template filled from the status and the place's names. Same input, same output; no model call. */
+/**
+ * Pure: a fixed template filled from the status and the place's names. Same input, same output; no model call.
+ * A source that is not live (stale gauge, seed or missing model reading) never has its state read out: the script
+ * says the reading is from its time and may be out of date.
+ */
 export function buildCallScript(s: WatchSource, lang: Lang): CallScript {
   const key = scriptKey(s.kind, s.status);
   const status = statusView(s.kind, s.status);
   const de = s.country.toUpperCase() === "DE";
-  const river = lang === "de" ? (RIVER_DE[s.river] ?? s.river) : s.river;
+  const stale = key !== "unknown" && !s.live;
+  const river = lang === "de" ? (RIVER_DE[s.river] ?? s.river) : lang === "es" ? (RIVER_ES[s.river] ?? s.river) : s.river;
+  const place = lang === "de" ? (PLACE_DE[s.name] ?? s.name) : lang === "es" ? (PLACE_ES[s.name] ?? s.name) : s.name;
   const names: Names =
     lang === "en"
-      ? { gauge: river ? `${river} gauge at ${s.name}` : `gauge at ${s.name}`, where: river ? `the ${river} at ${s.name}` : s.name, name: s.name }
-      : { gauge: river ? `${s.name} (${river})` : s.name, where: river ? `${s.name} (${river})` : s.name, name: s.name };
-  const text = STATE[lang][key](names);
-  const limitKind = key === "unknown" ? "unknown" : s.kind === "gauge" ? "gauge" : "model";
+      ? { gauge: river ? `${river} gauge at ${place}` : `gauge at ${place}`, where: river ? `the ${river} at ${place}` : place, name: place }
+      : { gauge: river ? `${place} (${river})` : place, where: river ? `${place} (${river})` : place, name: place };
+  const limitKind = key === "unknown" || stale ? "unknown" : s.kind === "gauge" ? "gauge" : "model";
   const channels = channelsFor(s.country, s.kind);
   const es = s.country.toUpperCase() === "ES";
-  const officialList = de ? DE_CHANNELS[lang] : es ? (s.kind === "valencia" ? ES_VALENCIA_CHANNELS : ES_CHANNELS) : NATIONAL[lang];
+  const official = OFFICIAL_LINE[lang];
+  const officialText = de
+    ? official.list(DE_CHANNELS[lang])
+    : es
+      ? official.list(s.kind === "valencia" ? ES_VALENCIA_CHANNELS : ES_CHANNELS)
+      : official.national;
+  const raised = !stale && s.kind === "gauge" && (key === "gauge-near" || key === "gauge-over");
+  const limit = `${LIMIT[lang][limitKind]}${raised ? ` ${de ? LEVELS[lang].de : LEVELS[lang].other}` : ""}`;
   const say: ScriptLine[] = [
-    { text, src: ["reading", "rule"] },
-    { text: LIMIT[lang][limitKind], src: [limitKind === "gauge" ? "reading" : "rule"] },
-    { text: OFFICIAL_LINE[lang](officialList), src: ["official"] },
+    stale
+      ? { text: STALE[lang](readingTime(s.measuredAt)), src: ["reading"] }
+      : { text: STATE[lang][key](names), src: ["reading", "rule"] },
+    { text: limit, src: [limitKind === "gauge" ? "reading" : "rule"].concat(raised ? ["official"] : []) as ScriptSrc[] },
+    { text: officialText, src: ["official"] },
     { text: EMERGENCY[lang], src: ["official"] },
   ];
   const refer = de ? REFER_DE[lang] : NATIONAL[lang];
@@ -411,6 +478,7 @@ export function buildCallScript(s: WatchSource, lang: Lang): CallScript {
     lang,
     key,
     status,
+    stale,
     say,
     channels,
     canSay: [
@@ -547,6 +615,57 @@ export function splitForecastClaims(claims: readonly ReplayClaim[]): { outlook: 
 
 /* ---------- Brief ---------- */
 
+/* ---------- Coverage and the outlook gate ---------- */
+
+export const WATCH_TOTAL = 45;
+
+export interface ViewState {
+  /** The view's name: gauge_levels, eu_watch, hazard_now. */
+  name: string;
+  state: string;
+}
+
+export interface Coverage {
+  loaded: number;
+  failed: string[];
+  loading: boolean;
+  partial: boolean;
+  text: string;
+}
+
+/** Pure: "N of 45 sources loaded" and the views that did not answer. Never says "all" unless all 45 are in. */
+export function coverageOf(loaded: number, views: readonly ViewState[]): Coverage {
+  const loading = views.some((v) => v.state === "loading");
+  const failed = views.filter((v) => v.state === "unavailable" || v.state === "error" || v.state === "empty").map((v) => v.name);
+  const partial = !loading && (failed.length > 0 || loaded < WATCH_TOTAL);
+  const text = loading
+    ? `${loaded} of ${WATCH_TOTAL} sources loaded so far.`
+    : partial
+      ? `${loaded} of ${WATCH_TOTAL} sources loaded.${failed.length ? ` Not loaded: ${failed.join(", ")}.` : ""} This board is incomplete: a river or place that is missing here is not "normal", it is unknown.`
+      : `All ${WATCH_TOTAL} sources loaded.`;
+  return { loaded, failed, loading, partial, text };
+}
+
+/** Pure: true only when /config says the forecast lane is on and live data is on (otherwise the router sends the question to the full lane). */
+export function forecastLaneEnabled(config: unknown): boolean {
+  const flags = rec(rec(config)?.flags);
+  return flags?.FF_FORECAST_LANE === true && flags?.FF_LIVE_DATA === true;
+}
+
+/**
+ * Pure: null when the question for this place is known to route to the forecast lane, else why not. A gauge whose
+ * shortname fails the RunContext pattern (digits or brackets, e.g. "FRANKFURT1 (ODER)") is named only in the
+ * question, which the router may send to the quick or the full lane, so no run is posted for it.
+ */
+export function outlookBlocked(s: WatchSource): string | null {
+  if (s.kind === "gauge") {
+    const station = s.id.slice("gauge:".length);
+    if (!STATION_OK.test(station)) return `the gauge name "${station}" cannot be sent safely to the forecast lane`;
+  }
+  if (!PLACE_OK.test(s.name)) return "the place name cannot be sent to the forecast lane";
+  return null;
+}
+
 export interface BriefInput {
   now: Date;
   source: WatchSource;
@@ -554,6 +673,8 @@ export interface BriefInput {
   group: RiverGroup;
   measuredText: string;
   evidence: LiveEvidence | null;
+  /** How many of the 45 sources loaded; a partial board is flagged at the top of the brief. */
+  coverage?: Coverage;
   forecast: ForecastBrief | null;
   /** Outlook and history sentences. Their marks are [R1], [R2], ... so they never collide with the script's [1]..[4]. */
   outlookLines: string[];
@@ -577,7 +698,10 @@ export function buildBrief(input: BriefInput): string {
   out.push("FloodSense EU · Civil protection brief");
   out.push(`Created: ${utc(input.now)} (this browser's clock)`);
   out.push(`Place: ${s.name}${s.river ? `, ${s.river}` : ""}, ${countryName(s.country)}`);
-  out.push(`Status now: ${script.status.word} · ${input.measuredText} · ${basisLabel(s.kind)}`);
+  if (input.coverage?.partial) out.push(`WARNING, PARTIAL DATA: ${input.coverage.text}`);
+  out.push(
+    `Status: ${script.status.word} · ${input.measuredText} · ${s.live ? "live reading" : "NOT LIVE (stale, seed or no model reading): may be out of date, do not read it out as current"} · ${basisLabel(s.kind)}`,
+  );
   out.push("");
   out.push(`${group.river} (${countryName(group.country)}), ${group.ordered === "km" ? "upstream to downstream" : "watch-list order, not a flow order"}:`);
   group.sources.forEach((x, i) => out.push(`  ${i + 1}. ${x.name}: ${plainOf(x).word}${x.id === s.id ? "  <- this place" : ""}`));

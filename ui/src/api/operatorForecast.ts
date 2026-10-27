@@ -1,6 +1,7 @@
 import type { WatchSource } from "../lib/euWatch";
 import { DEFAULT_PROVIDER } from "../lib/llmProvider";
-import { forecastBriefFrom, forecastQuestion, operatorContext, type ForecastBrief } from "../lib/operatorDesk";
+import { forecastBriefFrom, forecastLaneEnabled, forecastQuestion, operatorContext, outlookBlocked, type ForecastBrief } from "../lib/operatorDesk";
+import { fetchAgentsConfig } from "./config";
 import type { RecordedRun } from "./replay";
 import { fetchRunSnapshot, startLiveRun } from "./liveRun";
 
@@ -18,6 +19,15 @@ const GIVE_UP_MS = 45_000;
  * unavailable, never repainted as one.
  */
 export async function loadForecast(source: WatchSource, signal?: AbortSignal): Promise<ForecastLoad> {
+  // Never post a run unless the lane is known to be deterministic for this place: a place the router might send
+  // to the full lane would cost a multi-minute, multi-model run on every selection.
+  const blocked = outlookBlocked(source);
+  if (blocked) return { state: "unavailable", message: `Outlook not available: ${blocked}.` };
+  const config = await fetchAgentsConfig(signal);
+  if (config.kind !== "ok") return { state: "unavailable", message: "Outlook not available: the agents' /config did not answer, so the forecast lane cannot be confirmed." };
+  if (!forecastLaneEnabled(config.body)) {
+    return { state: "unavailable", message: "Outlook not available: the forecast lane or live data is switched off on this deployment." };
+  }
   const start = await startLiveRun(
     { question: forecastQuestion(source), provider: DEFAULT_PROVIDER, allowedProviders: [], context: operatorContext(source) },
     signal,

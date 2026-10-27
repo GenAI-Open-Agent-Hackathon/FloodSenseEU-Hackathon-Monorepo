@@ -90,7 +90,7 @@ describe("operator greeting", () => {
       expect(g.suggestions).toEqual([
         "Which gauges on the Elbe are above normal?",
         "Brief me on the Rhine at Köln",
-        "Is the next 48 h safe along the Danube?",
+        "What does the 48 h outlook show along the Danube?",
       ]);
       expect(g.text).toMatch(/script for callers/);
       expect(g.text).toMatch(/cites its sources/);

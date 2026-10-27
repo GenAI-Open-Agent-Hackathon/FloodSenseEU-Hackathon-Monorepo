@@ -139,7 +139,7 @@ class ReplyTest(unittest.TestCase):
             [
                 "Which gauges on the Elbe are above normal?",
                 "Brief me on the Rhine at Köln",
-                "Is the next 48 h safe along the Danube?",
+                "What does the 48 h outlook show along the Danube?",
             ],
         )
         # Every operator suggestion is a flood question, so a click goes to a run, never a reply.

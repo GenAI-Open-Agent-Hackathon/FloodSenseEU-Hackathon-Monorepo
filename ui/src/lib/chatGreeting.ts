@@ -16,7 +16,7 @@ const OPERATOR_TEXT = "Hi! I'm FloodSense. I can brief you on any watched place 
 const OPERATOR_SUGGESTIONS = [
   "Which gauges on the Elbe are above normal?",
   "Brief me on the Rhine at Köln",
-  "Is the next 48 h safe along the Danube?",
+  "What does the 48 h outlook show along the Danube?",
 ] as const;
 
 const CITIZEN_SUGGESTIONS = [

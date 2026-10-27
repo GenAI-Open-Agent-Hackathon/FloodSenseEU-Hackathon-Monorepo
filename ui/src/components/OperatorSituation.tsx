@@ -23,7 +23,10 @@ import {
   scriptSources,
   screeningView,
   splitForecastClaims,
+  coverageOf,
+  readingTime,
   type CallScript,
+  type Coverage,
   type Lang,
   type ScriptLine,
   type ScriptSrc,
@@ -38,6 +41,8 @@ import "../styles/operator.css";
 
 /*
  * TODO(#90, feat/mode-toggle-coherence): the global Live | Past mode and the Demo switch are not on main yet.
+ * When merging #90: hide its ModeSwitch on the operator desk (or show "Live only"), and keep the operator early
+ * return in screenContextFor, the operator branch in greetingFor and the operator filter in Approvals.
  * When ConsoleContext exposes the mode, show "Switch to Live to see this" here in Past mode (or the replay of the
  * chosen flood where one exists). Until then this desk is Live only: it reads the live views and the forecast lane.
  */
@@ -104,6 +109,11 @@ export function OperatorSituation() {
   const { outlook, refresh } = useOutlook(focus);
 
   const loading = live.gauges.state === "loading" || live.euWatch.state === "loading" || live.hazard.state === "loading";
+  const coverage = coverageOf(live.sources.length, [
+    { name: "gauge_levels", state: live.gauges.state },
+    { name: "eu_watch", state: live.euWatch.state },
+    { name: "hazard_now", state: live.hazard.state === "ready" ? "rows" : live.hazard.state },
+  ]);
   const country = group?.country ?? countries[0] ?? "";
   const countryGroups = groups.filter((g) => g.country === country);
   const langs = languagesFor(focus?.country ?? "DE");
@@ -115,7 +125,7 @@ export function OperatorSituation() {
         <div>
           <p className="eyebrow">Civil protection</p>
           <h2 className="now-title">Situation board</h2>
-          <p className="now-meta" aria-live="polite">
+          <p className="now-meta">
             <span className="now-live-tag">Live data · Zetaris</span>
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
           </p>
@@ -167,7 +177,10 @@ export function OperatorSituation() {
                 ))}
               </select>
             </label>
-            <p className="note op-picker__counts">All 45 watched places: {headlineText(headlineCounts(live.sources))}.</p>
+            <p className={`note op-picker__counts${coverage.partial ? " op-partial" : ""}`} role={coverage.partial ? "alert" : undefined}>
+              {coverage.partial && <strong>Partial data. </strong>}
+              {coverage.text} {coverage.loaded > 0 ? `Of those: ${headlineText(headlineCounts(live.sources))}.` : ""}
+            </p>
           </section>
 
           <section className="card" aria-labelledby="op-river">
@@ -203,6 +216,7 @@ export function OperatorSituation() {
             langs={langs}
             onLang={setLang}
             evidence={evidenceFor(live, focus)}
+            coverage={coverage}
           />
         </>
       )}
@@ -261,7 +275,9 @@ function FocusBrief({
   langs,
   onLang,
   evidence,
+  coverage,
 }: {
+  coverage: Coverage;
   s: WatchSource;
   group: ReturnType<typeof buildRiverGroups>[number];
   outlook: Outlook;
@@ -289,6 +305,7 @@ function FocusBrief({
       group,
       measuredText: measured,
       evidence,
+      coverage,
       forecast: outlook.state === "ready" ? outlook.brief : null,
       outlookLines: (split?.outlook ?? []).map((c) => `- ${c.text} ${marks(c.id)}`.trim()),
       historyLines: (split?.history ?? []).map((h) => `- ${h.heading}: ${h.claim.text} ${marks(h.claim.id)}`.trim()),
@@ -314,6 +331,11 @@ function FocusBrief({
         <p>
           {calmSentence(s.kind, s.status, s.river, s.name)} <LiveSourceBadge n={1} evidence={evidence} />
         </p>
+        {!s.live && (
+          <p className="op-partial note" role="alert">
+            This reading is from {readingTime(s.measuredAt)} and may be out of date. Do not read it out as the current situation.
+          </p>
+        )}
         <p className="note">
           {measured} · {basisLabel(s.kind)} · {s.live ? "live" : "not live (stale or seed)"}
         </p>
@@ -493,7 +515,7 @@ function CallScriptCard({
 }) {
   const sources = scriptSources(s, evidence, measured);
   return (
-    <section className="card op-script" aria-labelledby="op-script-title" lang={lang}>
+    <section className="card op-script" aria-labelledby="op-script-title">
       <div className="op-head">
         <div>
           <p className="section-label">For the hotline</p>
@@ -513,7 +535,7 @@ function CallScriptCard({
       <p className="note">Fixed wording filled from the status. No model writes it and it adds no advice of its own.</p>
 
       <h4 className="op-h4">What to tell callers</h4>
-      <ol className="op-script__say">
+      <ol className="op-script__say" lang={lang}>
         <Lines lines={script.say} evidence={evidence} />
       </ol>
       <p className="note">Official channels</p>
@@ -533,13 +555,13 @@ function CallScriptCard({
       <div className="op-two">
         <div>
           <h4 className="op-h4 op-h4--ok">What you can say</h4>
-          <ul>
+          <ul lang={lang}>
             <Lines lines={script.canSay} evidence={evidence} />
           </ul>
         </div>
         <div>
           <h4 className="op-h4 op-h4--no">What you must not say</h4>
-          <ul>
+          <ul lang={lang}>
             <Lines lines={script.mustNot} evidence={evidence} />
           </ul>
         </div>
@@ -555,7 +577,7 @@ function CallScriptCard({
       <p className="op-footer">
         {script.footerLocal && (
           <>
-            {script.footerLocal}
+            <span lang={lang}>{script.footerLocal}</span>
             <br />
           </>
         )}

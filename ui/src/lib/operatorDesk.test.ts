@@ -10,6 +10,10 @@ import {
   badgeText,
   buildBrief,
   buildCallScript,
+  coverageOf,
+  forecastLaneEnabled,
+  outlookBlocked,
+  readingTime,
   buildRiverGroups,
   defaultGroup,
   escalationQuestion,
@@ -180,17 +184,17 @@ describe("call script", () => {
 
   it("reads the state from the source: raised gauge text is not the normal text, and a model is never called a measurement", () => {
     const gauge = (status: WatchSource["status"]) => buildCallScript(src({ id: "g", name: "Köln", status }), "en").say[0].text;
-    expect(gauge("ok")).toMatch(/normal water level/);
+    expect(gauge("ok")).toMatch(/below its long-term mean high water/);
     expect(gauge("near")).toMatch(/close to its long-term mean high water/);
     expect(gauge("over")).toMatch(/at or above its long-term mean high water/);
-    expect(gauge("over")).toMatch(/not a warning level/);
+    expect(buildCallScript(src({ id: "g", name: "Köln", status: "over" }), "en").say[1].text).toMatch(/Meldestufen/);
     const model = buildCallScript(src({ id: "m", name: "Paris", kind: "model", river: "Seine", country: "FR", status: "over" }), "en");
-    expect(model.say[0].text).toMatch(/Our model/);
+    expect(model.say[0].text).toMatch(/our model/);
     expect(model.say[1].text).toMatch(/not a measurement/);
     expect(model.status.tone).toBe("elevated");
     const unknown = buildCallScript(src({ id: "u", name: "Köln", status: "unknown" }), "en");
     expect(unknown.say[0].text).toBe("We have no current reading for Köln.");
-    expect(unknown.say[1].text).toMatch(/cannot say/);
+    expect(unknown.say[1].text).toMatch(/cannot tell you/);
   });
 
   it("follows the statusView words: a model band is amber, never red", () => {
@@ -266,7 +270,7 @@ describe("runs for the operator desk", () => {
   });
 
   it("asks the forecast lane by place name and the full lane for the escalation", () => {
-    expect(forecastQuestion(src({ id: "g", name: "Köln" }))).toBe("Do the next 48 hours look safe at Köln?");
+    expect(forecastQuestion(src({ id: "g", name: "Köln" }))).toBe("What does the next 48 hours outlook show for Köln?");
     const q = escalationQuestion(src({ id: "g", name: "Köln" }), plainOf(src({ id: "g", name: "Köln", status: "over" })));
     expect(q).toMatch(/civil protection/);
     expect(q).toMatch(/Draft an alert/); // a router "deep" word: the full lane, not the quick forecast
@@ -359,7 +363,7 @@ describe("brief text", () => {
     });
     expect(text).toContain("Created: 2026-10-27 13:41 UTC");
     expect(text).toContain("Place: Köln, Rhine, Germany");
-    expect(text).toContain("Status now: Above mean high water");
+    expect(text).toContain("Status: Above mean high water");
     expect(text).toContain("upstream to downstream");
     expect(text.indexOf("Mainz")).toBeLessThan(text.indexOf("Köln: Above"));
     expect(text).toContain("<- this place");
@@ -386,5 +390,135 @@ describe("brief text", () => {
     const text = buildBrief({ ...base, source: VAL, group: unordered, script: buildCallScript(VAL, "es") });
     expect(text).toContain("watch-list order, not a flow order");
     expect(text).toContain("Call script (Español)");
+  });
+});
+
+describe("review round 1: conservative script wording", () => {
+  const all = (s: WatchSource) => LANGS.flatMap((l) => buildCallScript(s, l).say.map((x) => x.text));
+
+  it("never claims 'not a warning level', 'seasonal', 'normal' or an all-clear", () => {
+    for (const kind of KINDS)
+      for (const status of STATUSES) {
+        const text = all(src({ id: "x", name: "Köln", kind, status })).join(" ");
+        expect(text).not.toMatch(/not a warning level|keine Warnstufe|No es un nivel de aviso|seasonal|jahreszeitlich|estacional/i);
+        expect(text).not.toMatch(/\bnormal(en)?\b/i);
+      }
+  });
+
+  it("tells staff to check the official warning service for every status, live or not", () => {
+    for (const live of [true, false])
+      for (const kind of KINDS)
+        for (const status of STATUSES)
+          for (const lang of LANGS) {
+            const s = buildCallScript(src({ id: "x", name: "Köln", kind, status, live }), lang);
+            expect(s.say[2].src).toEqual(["official"]);
+            expect(s.say[2].text).toMatch(/warn|Warn|aviso/i);
+          }
+  });
+
+  it("points a raised gauge at the Land's Meldestufen, and a non-German one at the national service", () => {
+    const de = buildCallScript(src({ id: "x", name: "Köln", status: "over" }), "de").say[1].text;
+    expect(de).toMatch(/Meldestufen legt der Hochwassermeldedienst Ihres Landes fest/);
+    const fr = buildCallScript(src({ id: "x", name: "Paris", status: "near", country: "FR", river: "Seine" }), "en").say[1].text;
+    expect(fr).toMatch(/national flood service/);
+  });
+
+  it("does not sound like an all-clear for a week", () => {
+    const model = buildCallScript(src({ id: "m", name: "Paris", kind: "model", river: "Seine", country: "FR", status: "ok" }), "en").say[0].text;
+    expect(model).toBe("For the Seine at Paris, the model does not show unusual river flow this week. This is not a guarantee and not an official forecast.");
+    expect(buildCallScript(src({ id: "m", name: "Paris", kind: "model", status: "ok" }), "de").say[0].text).toMatch(/keine Garantie und keine amtliche Vorhersage/);
+  });
+
+  it("says a stale or non-live reading is from its time and states no level", () => {
+    for (const lang of LANGS)
+      for (const kind of KINDS) {
+        const s = buildCallScript(src({ id: "x", name: "Köln", kind, status: "over", live: false, measuredAt: "2026-10-27T05:15:00Z" }), lang);
+        expect(s.stale).toBe(true);
+        expect(s.say[0].text).toContain("05:15 UTC, 27 Oct");
+        expect(s.say[0].text).toMatch(/may be out of date|möglicherweise veraltet|puede estar desactualizada/);
+        expect(s.say.map((l) => l.text).join(" ")).not.toMatch(/mean high water|mittleren Hochwasser|crecida|screening line|Prüfschwelle/);
+      }
+    expect(buildCallScript(src({ id: "x", name: "Köln", live: true }), "en").stale).toBe(false);
+    expect(readingTime(null)).toBe("an unknown time");
+    expect(readingTime("2026-10-27")).toBe("27 Oct (model day)");
+  });
+
+  it("uses the usual wording and localised names in German and Spanish", () => {
+    const over = (lang: Lang) => buildCallScript(src({ id: "m", name: "Vienna", kind: "model", river: "Danube", country: "AT", status: "over" }), lang).say[0].text;
+    expect(over("de")).toBe("Unser Modell zeigt für Wien (Donau) in den nächsten 7 Tagen einen mindestens doppelt so hohen Abfluss, wie in den letzten 30 Tagen üblich war.");
+    expect(over("es")).toMatch(/Viena \(Danubio\).*al menos el doble del habitual/);
+    expect(buildCallScript(src({ id: "g", name: "Köln", status: "ok", country: "ES" }), "es").say[0].text).toMatch(/^La estación de aforo/);
+    for (const kind of KINDS)
+      for (const status of STATUSES)
+        expect(buildCallScript(src({ id: "x", name: "Köln", kind, status }), "es").say.map((l) => l.text).join(" ")).not.toMatch(/medidor/);
+  });
+
+  it("uses the national service in the right case in each language", () => {
+    const fr = (lang: Lang) => buildCallScript(src({ id: "p", name: "Paris", kind: "model", country: "FR", river: "Seine", status: "ok" }), lang).say[2].text;
+    expect(fr("de")).toBe("Bitte prüfen Sie die aktuellen Warnungen und Warnstufen beim nationalen Warndienst (Meteoalarm).");
+    expect(fr("en")).toMatch(/your national warning service \(Meteoalarm\)/);
+  });
+
+  it("keeps prompts away from 'safe'", () => {
+    expect(forecastQuestion(src({ id: "g", name: "Köln" }))).not.toMatch(/safe/i);
+  });
+});
+
+describe("review round 1: coverage and the outlook gate", () => {
+  const ok = [
+    { name: "gauge_levels", state: "rows" },
+    { name: "eu_watch", state: "rows" },
+    { name: "hazard_now", state: "rows" },
+  ];
+
+  it("says all 45 only when 45 loaded and nothing failed", () => {
+    expect(coverageOf(45, ok)).toMatchObject({ partial: false, text: "All 45 sources loaded." });
+  });
+
+  it("names the failed views and warns when sources are missing", () => {
+    const c = coverageOf(34, [ok[0], { name: "eu_watch", state: "unavailable" }, ok[2]]);
+    expect(c.partial).toBe(true);
+    expect(c.failed).toEqual(["eu_watch"]);
+    expect(c.text).toMatch(/^34 of 45 sources loaded\. Not loaded: eu_watch\./);
+    expect(c.text).not.toMatch(/All 45/);
+    expect(coverageOf(40, ok).partial).toBe(true);
+    expect(coverageOf(0, [{ name: "gauge_levels", state: "loading" }]).partial).toBe(false);
+  });
+
+  it("flags partial data and the live flag in the brief", () => {
+    const s = src({ id: "gauge:KÖLN", name: "Köln", status: "over", live: false, measuredAt: "2026-10-27T05:15:00Z" });
+    const group = buildRiverGroups([s])[0];
+    const text = buildBrief({
+      now: new Date("2026-10-27T13:41:00Z"),
+      source: s,
+      group,
+      measuredText: "Measured 27 Oct, 05:15 UTC",
+      evidence: null,
+      coverage: coverageOf(34, [ok[0], { name: "eu_watch", state: "unavailable" }, ok[2]]),
+      forecast: null,
+      outlookLines: [],
+      historyLines: [],
+      runQueryIds: [],
+      script: buildCallScript(s, "en"),
+    });
+    expect(text).toContain("WARNING, PARTIAL DATA: 34 of 45 sources loaded. Not loaded: eu_watch.");
+    expect(text).toContain("NOT LIVE (stale, seed or no model reading)");
+    expect(text).toContain("Measured 27 Oct, 05:15 UTC");
+    expect(text).toContain("This reading is from 05:15 UTC, 27 Oct and may be out of date");
+  });
+
+  it("posts a forecast run only when /config says the lane and live data are on", () => {
+    expect(forecastLaneEnabled({ flags: { FF_FORECAST_LANE: true, FF_LIVE_DATA: true } })).toBe(true);
+    expect(forecastLaneEnabled({ flags: { FF_FORECAST_LANE: false, FF_LIVE_DATA: true } })).toBe(false);
+    expect(forecastLaneEnabled({ flags: { FF_FORECAST_LANE: true, FF_LIVE_DATA: false } })).toBe(false);
+    expect(forecastLaneEnabled({ flags: {} })).toBe(false);
+    expect(forecastLaneEnabled(null)).toBe(false);
+  });
+
+  it("does not post for a gauge whose name the router could send to another lane (Frankfurt1 (Oder))", () => {
+    expect(outlookBlocked(src({ id: "gauge:FRANKFURT1 (ODER)", name: "Frankfurt1 (Oder)" }))).toMatch(/cannot be sent safely/);
+    expect(outlookBlocked(src({ id: "gauge:KÖLN", name: "Köln" }))).toBeNull();
+    expect(outlookBlocked(VAL)).toBeNull();
+    expect(outlookBlocked(VIENNA)).toBeNull();
   });
 });
