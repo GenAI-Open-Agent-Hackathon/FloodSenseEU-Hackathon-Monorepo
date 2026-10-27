@@ -23,6 +23,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- Skeptic: the rain-before-peak counter-check now uses the observed discharge peak (the highest discharge row in the replay window). While the river is still rising, or when the window has no discharge row, it uses the replay clock instead. A replay before the peak (Ahr, 14 Jul 2021 15:00 UTC) keeps its rain link, and rain that falls only after an observed peak fails the check. The rain x discharge cross join is gone.
 - Ask answers stay inside the panel: an implicit grid column grew to the longest quote and pushed text past the edge. Each source's attribution is listed once.
 - The API exposes `x-query-id`, `x-schema`, `x-executed-at`, `x-dropped-rows`, `x-truncated` and `Retry-After` to the browser.
 - A chain the Skeptic emptied still carries a summary ([#53](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/53), closes #52).

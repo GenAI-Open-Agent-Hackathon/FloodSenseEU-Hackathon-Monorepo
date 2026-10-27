@@ -155,16 +155,25 @@ def _checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[
                 clock,
             ),
             (
-                "rain started before the discharge peak",
-                # Before the peak (a replay clock mid-event) the last discharge row may
-                # predate the rain, so the clock t1 also counts: the rain began before
-                # the latest known discharge or before now. No rain x discharge join.
+                "rain started before the observed discharge peak (or before now while rising)",
+                # Reference time: peak_ts, the ts of the highest discharge row in the
+                # clocked window (argmax; ties take the earliest). If that row is also the
+                # latest non-null discharge row, the river is still rising (or the gauge
+                # stopped at its peak) and no fall is observed, so the reference is t1,
+                # the clock. No discharge row at all: t1 as well. Daily 00:00 rows are not
+                # read here; only hourly hazard_timeline rows with a discharge value count.
+                # Passes iff first rain <= reference. Placeholders in text order:
+                #   rain window (t0, t1), CASE fallback t1, peak window (t0, t1),
+                #   latest window (t0, t1), COALESCE fallback t1.
                 f"SELECT MIN(r.ts_utc) AS first_rain FROM {s}.hazard_timeline r WHERE "
                 f"r.point_id IN ({rain_pts}) AND r.rain_mm > 0 AND r.ts_utc BETWEEN ? AND ? "
-                f"HAVING MIN(r.ts_utc) < COALESCE((SELECT MAX(d.ts_utc) FROM {s}.hazard_timeline d "
-                f"WHERE d.point_id IN ({river_pts}) AND d.discharge_m3s IS NOT NULL AND d.ts_utc "
-                f"BETWEEN ? AND ?), ?) OR MIN(r.ts_utc) < ?",
-                clock + clock + (t1, t1),
+                f"HAVING MIN(r.ts_utc) <= COALESCE((SELECT CASE WHEN p.ts_utc < l.last_ts THEN "
+                f"p.ts_utc ELSE ? END FROM (SELECT ts_utc FROM {s}.hazard_timeline WHERE "
+                f"point_id IN ({river_pts}) AND discharge_m3s IS NOT NULL AND ts_utc BETWEEN ? AND ? "
+                f"ORDER BY discharge_m3s DESC, ts_utc ASC LIMIT 1) p, (SELECT MAX(ts_utc) AS last_ts "
+                f"FROM {s}.hazard_timeline WHERE point_id IN ({river_pts}) AND discharge_m3s IS NOT "
+                f"NULL AND ts_utc BETWEEN ? AND ?) l), ?)",
+                clock + (t1,) + clock + clock + (t1,),
             ),
         ]
     if h.link == "catchment->river":
