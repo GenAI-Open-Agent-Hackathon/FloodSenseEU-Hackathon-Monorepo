@@ -1,6 +1,10 @@
-# Layer (c) corpus. Tier 1 and Tier 2 only. Tier 3 has no file yet.
+# Layer (c) corpus. Tier 1 and 2 belong to one event; Tier 3 may have event_id null.
 # placement git: the file is committed under corpus/pdf/. fetch-rag-corpus
 # checks sha256 and does not download these. It does not embed.
+# audience (insurer, citizen, authority), language (ISO 639-1), year and country
+# (ISO 3166 alpha-2, or EU) are optional metadata, not stored in rag.chunks.
+# country scopes event_id-null documents: retrieve_docs reads it from
+# agents/floodsense_agents/rag_scope.json (python scripts/rag_corpus.py --write-scope).
 - doc_id: emsr773-aoi03-del
   title: "[EMSR773] Horta Sud (AOI03): Delineation Map"
   publisher: "Copernicus Emergency Management Service"
@@ -12,6 +16,10 @@
   event_id: "EMSR773"
   path: "pdf/emsr773-aoi03-delineation-map.pdf"
   placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2024
+  country: "ES"
 - doc_id: emsr517-aoi15-gra
   title: "[EMSR517] Bad Neuenahr-Ahrweiler (AOI15): Grading Map"
   publisher: "Copernicus Emergency Management Service"
@@ -23,6 +31,10 @@
   event_id: "EMSR517"
   path: "pdf/emsr517-aoi15-grading-map.pdf"
   placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2021
+  country: "DE"
 - doc_id: hess-29-6715-2025
   title: "Torrential rainfall in Valencia, Spain, recorded by personal weather stations preceding and during the 29 October 2024 floods"
   publisher: "Copernicus Publications"
@@ -34,6 +46,10 @@
   event_id: "EMSR773"
   path: "pdf/hess-29-6715-2025.pdf"
   placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2025
+  country: "ES"
 - doc_id: nhess-23-1287-2023
   title: "A multi-disciplinary analysis of the exceptional flood event of July 2021 in central Europe – Part 2: Historical context and relation to climate change"
   publisher: "Copernicus Publications"
@@ -45,6 +61,10 @@
   event_id: "EMSR517"
   path: "pdf/nhess-23-1287-2023.pdf"
   placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2023
+  country: "DE"
 - doc_id: easyxlab-s19
   title: "What the maps did not show: dwellings inside the observed extent of the October 2024 DANA in Valencia, and the official flood maps"
   publisher: "EasyxLab"
@@ -56,6 +76,10 @@
   event_id: "EMSR773"
   path: "pdf/easyxlab-s19.html"
   placement: "git"
+  audience: "insurer"
+  language: "en"
+  year: 2026
+  country: "ES"
 - doc_id: nhess-23-525-2023
   title: "A multi-disciplinary analysis of the exceptional flood event of July 2021 in central Europe - Part 1: Event description and analysis"
   publisher: "Copernicus Publications"
@@ -67,6 +91,10 @@
   event_id: "EMSR517"
   path: "pdf/nhess-23-525-2023.pdf"
   placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2023
+  country: "DE"
 - doc_id: nhess-23-973-2023
   title: "Performance of the flood warning system in Germany in July 2021 - insights from affected residents"
   publisher: "Copernicus Publications"
@@ -78,6 +106,10 @@
   event_id: "EMSR517"
   path: "pdf/nhess-23-973-2023.pdf"
   placement: "git"
+  audience: "citizen"
+  language: "en"
+  year: 2023
+  country: "DE"
 - doc_id: boe-a-2004-18910
   title: "Real Decreto Legislativo 7/2004, de 29 de octubre, por el que se aprueba el texto refundido del Estatuto Legal del Consorcio de Compensación de Seguros (original 2004 text, not consolidated)"
   publisher: "Agencia Estatal Boletín Oficial del Estado"
@@ -89,3 +121,67 @@
   event_id: null
   path: "pdf/boe-a-2004-18910-original.pdf"
   placement: "git"
+  audience: "insurer"
+  language: "es"
+  year: 2004
+  country: "ES"
+- doc_id: eea-briefing-economic-losses-2025
+  title: "Economic losses and fatalities from weather- and climate-related extremes (EEA briefing, published 2 Jul 2025)"
+  publisher: "European Environment Agency"
+  url: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-from-climate-extremes"
+  licence: "CC-BY-4.0 (EEA re-use policy)"
+  attribution: "European Environment Agency (2025), Economic losses and fatalities from weather- and climate-related extremes, CC BY 4.0, https://www.eea.europa.eu/en/analysis/publications/economic-losses-from-climate-extremes"
+  sha256: "bc49d0342703a866152271ee52dbc2f90de3ba97e93215a2aac1529013f040a2"
+  tier: 3
+  event_id: null
+  path: "pdf/eea-briefing-economic-losses-2025.html"
+  placement: "git"
+  audience: "insurer"
+  language: "en"
+  year: 2025
+  country: "EU"
+- doc_id: eea-briefing-economic-losses-2022
+  title: "Economic losses and fatalities from weather- and climate-related events in Europe (EEA briefing, published 3 Feb 2022)"
+  publisher: "European Environment Agency"
+  url: "https://www.eea.europa.eu/en/analysis/publications/economic-losses-and-fatalities-from-weather-and-climate-related-events-in-europe"
+  licence: "CC-BY-4.0 (EEA re-use policy)"
+  attribution: "European Environment Agency (2022), Economic losses and fatalities from weather- and climate-related events in Europe, CC BY 4.0, https://www.eea.europa.eu/en/analysis/publications/economic-losses-and-fatalities-from-weather-and-climate-related-events-in-europe"
+  sha256: "4764a9ec6214763a21cd39097b110f8764a14af3575e5bca11836ad15ed30b1e"
+  tier: 3
+  event_id: null
+  path: "pdf/eea-briefing-economic-losses-2022.html"
+  placement: "git"
+  audience: "insurer"
+  language: "en"
+  year: 2022
+  country: "EU"
+- doc_id: eiopa-19-485
+  title: "EIOPA Staff Discussion Paper: Protection gap for natural catastrophes (EIOPA-19/485, September 2019)"
+  publisher: "European Insurance and Occupational Pensions Authority"
+  url: "https://register.eiopa.europa.eu/Publications/EIOPA-19-485_EIOPA%20Staff_Discussion_Paper_Protection_Gap.pdf"
+  licence: "EIOPA legal notice: reproduction authorised without prior permission, source acknowledged"
+  attribution: "Source: EIOPA - European Insurance and Occupational Pensions Authority, https://eiopa.europa.eu/, EIOPA-19/485 (2019)"
+  sha256: "ae9066fd3330fe44a56f307b01cc8f91c428b3c41721b849175e4a40696d857e"
+  tier: 3
+  event_id: null
+  path: "pdf/eiopa-19-485-protection-gap.pdf"
+  placement: "git"
+  audience: "insurer"
+  language: "en"
+  year: 2019
+  country: "EU"
+- doc_id: eu-floods-directive-2007-60-ec
+  title: "Directive 2007/60/EC of the European Parliament and of the Council of 23 October 2007 on the assessment and management of flood risks (OJ L 288, 6.11.2007)"
+  publisher: "Publications Office of the European Union (EUR-Lex)"
+  url: "https://eur-lex.europa.eu/eli/dir/2007/60/oj"
+  licence: "Commission reuse policy (Decision 2011/833/EU), reuse with source acknowledged"
+  attribution: "© European Union, https://eur-lex.europa.eu, Directive 2007/60/EC, OJ L 288, 6.11.2007, p. 27-34. Only the Official Journal text is authentic"
+  sha256: "7ac86d1fdfc4966cfbb8bf6025a377f59a290abdd6bad7089e133c4c6e661ce9"
+  tier: 3
+  event_id: null
+  path: "pdf/eu-floods-directive-2007-60-ec.pdf"
+  placement: "git"
+  audience: "authority"
+  language: "en"
+  year: 2007
+  country: "EU"

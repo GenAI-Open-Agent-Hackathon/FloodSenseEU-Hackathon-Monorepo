@@ -34,6 +34,12 @@ FIELDS = (
     "path",
     "placement",
 )
+# Optional metadata: who the document is for, its language, and its year.
+OPTIONAL_FIELDS = ("audience", "language", "year", "country")
+AUDIENCES = ("insurer", "citizen", "authority")
+_LANGUAGE = re.compile(r"^[a-z]{2}$")
+_COUNTRY = re.compile(r"^[A-Z]{2}$")
+SCOPE_FILE = Path("agents") / "floodsense_agents" / "rag_scope.json"
 _DOC_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SHA = re.compile(r"^[a-f0-9]{64}$")
 _ITEM = re.compile(r"^- ([a-z0-9_]+): (.*)$")
@@ -94,7 +100,7 @@ def parse_manifest(text: str) -> list[dict[str, object]]:
                 raise CorpusError(f"line {number}: expected '- doc_id: ...'")
             raise CorpusError(f"line {number}: expected 'key: value'")
         key, raw = match.group(1), match.group(2)
-        if key not in FIELDS:
+        if key not in FIELDS and key not in OPTIONAL_FIELDS:
             raise CorpusError(f"line {number}: unknown field {key}")
         try:
             value = _scalar(raw)
@@ -161,7 +167,47 @@ def _check(entry: dict[str, object], index: int) -> dict[str, object]:
         or any(part in ("", ".", "..") for part in parts)
     ):
         raise CorpusError(f"{doc_id}: path must stay under corpus/{prefix}/")
+    if "audience" in entry and entry["audience"] not in AUDIENCES:
+        raise CorpusError(f"{doc_id}: audience must be insurer, citizen, or authority")
+    if "language" in entry:
+        language = entry["language"]
+        if not isinstance(language, str) or not _LANGUAGE.fullmatch(language):
+            raise CorpusError(f"{doc_id}: language must be a two-letter ISO 639-1 code")
+    if "year" in entry:
+        year = entry["year"]
+        if isinstance(year, bool) or not isinstance(year, int) or not 1900 <= year <= 2100:
+            raise CorpusError(f"{doc_id}: year must be a four-digit year")
+    if "country" in entry:
+        country = entry["country"]
+        if not isinstance(country, str) or not _COUNTRY.fullmatch(country):
+            raise CorpusError(f"{doc_id}: country must be an ISO 3166 alpha-2 code or EU")
     return entry
+
+
+def scope_json(entries: list[dict[str, object]]) -> str:
+    """doc_id -> country for event_id null documents, as retrieve_docs reads it.
+
+    A null-event document without a country is left out, so no event run sees it.
+    """
+    import json
+
+    generic = {
+        str(e["doc_id"]): str(e["country"])
+        for e in entries
+        if e["event_id"] is None and "country" in e
+    }
+    body = {
+        "note": "Generated from corpus/manifest.yaml by python scripts/rag_corpus.py --write-scope",
+        "generic": dict(sorted(generic.items())),
+    }
+    return json.dumps(body, indent=2, ensure_ascii=False) + "\n"
+
+
+def write_scope(root: Path) -> int:
+    entries = parse_manifest((root / MANIFEST).read_text(encoding="utf-8"))
+    (root / SCOPE_FILE).write_text(scope_json(entries), encoding="utf-8", newline="\n")
+    print(f"rag corpus: wrote {SCOPE_FILE.as_posix()}")
+    return 0
 
 
 def _destination(root: Path, rel: str) -> Path:
@@ -284,6 +330,8 @@ def fetch_rag_corpus(root: Path, *, opener=None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv == ["--write-scope"]:
+        return write_scope(ROOT)
     if argv:
         print("fetch-rag-corpus takes no arguments", file=sys.stderr)
         return 2

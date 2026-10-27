@@ -131,6 +131,19 @@ export interface Approval {
   judge?: Judge;
 }
 
+/** A past approved finding H-MEM recalled for the Investigator. Context, never evidence. */
+export interface MemoryUsed {
+  memory_id: string;
+  run_id?: string | null;
+  claim_id?: string | null;
+  approved_at?: string | null;
+  text: string;
+  relevance?: number | null;
+  reviewer?: string | null;
+  /** True for items added by tasks.py demo-seed, not by an analyst. */
+  seeded: boolean;
+}
+
 export interface Answer {
   run_id: string;
   question: string;
@@ -149,6 +162,7 @@ export interface Answer {
   lane?: Exclude<Lane, "reply">;
   /** Why the router chose the lane, including any "escalated: ..." note. */
   router_reason?: string;
+  memory_used?: MemoryUsed[];
 }
 
 export type ReplyIntent = "greeting" | "help" | "thanks" | "off_topic";

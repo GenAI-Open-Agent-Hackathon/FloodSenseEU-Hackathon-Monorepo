@@ -165,6 +165,7 @@ def _live_retrieve(zetaris):
             default_embedder,
             default_hydrate,
             default_search,
+            default_search_generic,
             retrieve_docs,
         )
 
@@ -175,6 +176,7 @@ def _live_retrieve(zetaris):
             embedder=default_embedder,
             search=default_search,
             hydrate=lambda ids: default_hydrate(ids, zetaris),
+            search_generic=default_search_generic,
         )
 
     return retrieve

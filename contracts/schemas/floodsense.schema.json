@@ -252,6 +252,22 @@
         }
       }
     },
+    "memory_used": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One past approved finding H-MEM recalled for the Investigator. Context only, never evidence. seeded is true for items added by tasks.py demo-seed, not by an analyst.",
+      "required": ["memory_id", "text", "seeded"],
+      "properties": {
+        "memory_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": ["string", "null"] },
+        "claim_id": { "type": ["string", "null"] },
+        "approved_at": { "type": ["string", "null"] },
+        "text": { "type": "string" },
+        "relevance": { "type": ["number", "null"] },
+        "reviewer": { "type": ["string", "null"] },
+        "seeded": { "type": "boolean" }
+      }
+    },
     "answer_fields": {
       "type": "object",
       "additionalProperties": false,
@@ -286,11 +302,15 @@
         "judge": { "$ref": "#/$defs/judge" },
         "lane": {
           "enum": ["quick", "full"],
-          "description": "Which agent path answered: quick (live watcher, one fast-lane call, deterministic Judge; no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
+          "description": "Which agent path answered: quick (live watcher, deterministic template claims, deterministic Judge; no model call, no playbook, no HITL) or full (the deep investigation). Omitted by runs recorded before the router."
         },
         "router_reason": {
           "type": "string",
           "description": "Why the router chose the lane, and any escalation (\"escalated: ...\")."
+        },
+        "memory_used": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/memory_used" }
         }
       }
     },

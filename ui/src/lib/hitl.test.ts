@@ -1,5 +1,9 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { MemoriesPanel } from "../components/AskFloodSense";
 import {
+  SEEDED_MEMORY_CHIP,
   adoptMemoryUsed,
   adoptPlaybook,
   buildApprovalBody,
@@ -48,6 +52,26 @@ describe("memories", () => {
     expect(memoryLine(m[0])).toBe("Recalled from approved run abc on 26 Oct 2026: Turia peak");
     expect(adoptMemoryUsed(undefined)).toEqual([]);
     expect(NO_MEMORIES).toMatch(/this run starts fresh/);
+    expect(m[0].seeded).toBe(false);
+    expect(m[0].reviewer).toBeNull();
+  });
+
+  it("keeps seeded and reviewer, and never calls a seed analyst-approved", () => {
+    const [seed, real] = adoptMemoryUsed([
+      { memory_id: "s1", run_id: "demo-seed-ahr-altenahr", approved_at: "2026-10-27T09:00:00Z", text: "Altenahr 249.61 m3/s", reviewer: "demo-seed", seeded: true },
+      { memory_id: "r1", run_id: "abc", text: "Turia peak", reviewer: "ana", seeded: "yes" },
+    ]);
+    expect(seed.seeded).toBe(true);
+    expect(seed.reviewer).toBe("demo-seed");
+    expect(real.seeded).toBe(false);
+    expect(real.reviewer).toBe("ana");
+    expect(memoryLine(seed)).toBe("Seeded for the demo as run demo-seed-ahr-altenahr on 27 Oct 2026: Altenahr 249.61 m3/s");
+    expect(memoryLine(seed)).not.toMatch(/approved run/);
+    expect(SEEDED_MEMORY_CHIP).toBe("Demo seed — not analyst-approved");
+    const html = renderToStaticMarkup(createElement(MemoriesPanel, { memories: [seed, real] }));
+    expect(html.match(/Demo seed — not analyst-approved/g)?.length).toBe(1);
+    expect(html).toContain('class="chip chip--sample">Demo seed — not analyst-approved</span>');
+    expect(html).toContain("Recalled from approved run abc");
   });
 });
 

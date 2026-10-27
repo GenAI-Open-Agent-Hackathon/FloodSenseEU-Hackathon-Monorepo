@@ -192,6 +192,68 @@ def cmd_zetaris_sync(root: Path, runner: Runner) -> int:
     return runner([sys.executable, str(script)], root)
 
 
+def demo_seed_argv(root: Path, action: str) -> list[str]:
+    """Seed or reset inside the running api container (it has REDIS_URL and reaches the engines)."""
+    return compose_argv(root, "exec", "-T", "api", "python", "-m", "app.demo_seed", action)
+
+
+def cmd_demo_seed(root: Path, runner: Runner, action: str) -> int:
+    return runner(demo_seed_argv(root, action), root)
+
+
+RATELIMIT_REQUESTS = 12
+
+
+def ratelimit_burst(
+    base: str, n: int = RATELIMIT_REQUESTS, opener: Callable[..., object] | None = None
+) -> list[tuple[int, str | None]]:
+    """POST /runs n times with a JSON list body. Returns (status, Retry-After) per request.
+
+    The token bucket is taken before the body is read, so each request counts.
+    A list is not a run request: the API skips the cache, the agents answer 422
+    at once, and no run starts. Only the limiter's answer matters here.
+    """
+    import urllib.error  # noqa: PLC0415
+    import urllib.request  # noqa: PLC0415
+
+    open_url = opener or urllib.request.urlopen
+    out: list[tuple[int, str | None]] = []
+    for _ in range(n):
+        req = urllib.request.Request(
+            f"{base.rstrip('/')}/runs",
+            data=b"[]",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with open_url(req, timeout=10) as resp:  # type: ignore[attr-defined]
+                out.append((resp.status, resp.headers.get("Retry-After")))
+        except urllib.error.HTTPError as e:
+            out.append((e.code, e.headers.get("Retry-After") if e.headers else None))
+        except OSError as e:
+            print(f"API not reachable at {base}: {e}", file=sys.stderr)
+            out.append((0, None))
+            break
+    return out
+
+
+def cmd_demo_ratelimit(base: str | None = None, opener: Callable[..., object] | None = None) -> int:
+    base = base or f"http://127.0.0.1:{os.environ.get('FLOODSENSE_API_PORT', '18000')}"
+    print(f"Firing {RATELIMIT_REQUESTS} quick POST /runs at {base} (empty body: no run starts)")
+    results = ratelimit_burst(base, opener=opener)
+    limited = 0
+    for i, (status, retry) in enumerate(results, 1):
+        if status == 0:
+            return 1
+        if status == 429:
+            limited += 1
+            print(f"  {i:2d}  429 Too Many Requests  Retry-After: {retry}s")
+        else:
+            print(f"  {i:2d}  {status} passed the limiter (the agents rejected the empty body)")
+    print(f"{limited} of {len(results)} refused with 429. GET /system counts them.")
+    return 0 if limited else 1
+
+
 # tests/test_tasks.py requires every test step to start with this interpreter.
 # The script still runs `npm test` in ui/ (Vitest).
 _UI_NPM_TEST = """\
@@ -535,6 +597,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Does not embed and does not start Docker."
         ),
     )
+    sub.add_parser(
+        "demo-seed",
+        help="Seed H-MEM with labelled findings and warm Redis with 2 approved runs (stack must be up).",
+    )
+    sub.add_parser("demo-reset", help="Remove what demo-seed wrote to Redis. H-MEM is not cleared.")
+    sub.add_parser(
+        "demo-ratelimit",
+        help="Fire 12 quick POST /runs at the API and print each 429 and Retry-After.",
+    )
     sub.add_parser("test", help="Compile and run unit tests with this interpreter.")
     sub.add_parser(
         "engines-test",
@@ -581,6 +652,12 @@ def main(
         return cmd_zetaris_sync(root, run)
     if command == "fetch-rag-corpus":
         return cmd_fetch_rag_corpus(root)
+    if command == "demo-seed":
+        return cmd_demo_seed(root, run, "seed")
+    if command == "demo-reset":
+        return cmd_demo_seed(root, run, "reset")
+    if command == "demo-ratelimit":
+        return cmd_demo_ratelimit()
     if command == "test":
         return cmd_test(root, run)
     if command == "engines-test":
