@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Germany-first demo story. A question about the Rhine, Köln, Bonn, Koblenz, the Ahr, NRW or Rheinland-Pfalz with no `event_id` runs on EMSR517, and an explicit `event_id` always stands. Live mode on EMSR517 reads PEGELONLINE `gauge_levels`: level, UTC time and age, trend, `mhw_cm` and `band`, with stale readings labelled as stale. It says plainly when `hazard_now` has no German point, and that it is not an official warning (Hochwassermeldedienst / DWD). `RunRequest.context` (page, role, place, point_id, station, event_id, replay_date) is strictly validated. It focuses the queries, phrases the answer for citizens or insurers, is recorded on the scope trace, and is part of the API cache key. The Ask chat no longer sends a default `event_id`.
 - Test-only LLM provider switch for local benchmarking. With `LLM_PROVIDER_SWITCH=true` and `ANTHROPIC_API_KEY` set, a run may carry `llm_provider: "anthropic"`; trace `model_id` reads `anthropic/<model>`. `GET /config` lists `llm_providers`; the operator console and the desk header show a select only when more than one is listed. The API semantic cache and replay matching key on the provider. Off by default; the demo and the submission run Nightshift.
 - Ask FloodSense chat. The popup has a composer: a question starts a run through `POST /runs` (with `doc_query`, the header's LLM choice when offered, and the thread of the last live answer), shows a working state with Cancel, and renders the answer with its citations, layer (c) quotes, Judge score, flagged claims and trace. A fresh run is labelled Live with its model; cache and replay keep their labels. A run awaiting approval links to Approvals. The recorded run stays the first message.
 - Now page on both desks, first in the nav. It reads live `floodsense.hazard_now` through `GET /views/hazard_now`: per point the latest hourly discharge and rain, 24 h rain, trend against 24 h ago, the 48 h forecast peak, and a sparkline with a now divider and a dashed forecast. It refreshes every 5 minutes, names the Zetaris query, and says "Could not load live data" instead of falling back to fixtures. Modelled GloFAS discharge, not an official warning.
@@ -19,6 +20,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- Ahr (EMSR517) replay: the footprint count is limited to the event bbox, so the Ahr chain no longer counts the Valencia portfolio as EMSR517's. AHR02 is labelled Bad Neuenahr-Ahrweiler.
 - Ask answers stay inside the panel: an implicit grid column grew to the longest quote and pushed text past the edge. Each source's attribution is listed once.
 - The API exposes `x-query-id`, `x-schema`, `x-executed-at`, `x-dropped-rows`, `x-truncated` and `Retry-After` to the browser.
 - A chain the Skeptic emptied still carries a summary ([#53](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/53), closes #52).

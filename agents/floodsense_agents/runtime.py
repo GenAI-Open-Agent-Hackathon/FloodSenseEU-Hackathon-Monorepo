@@ -220,7 +220,7 @@ class Runtime:
     def start(self, req: RunRequest) -> dict[str, Any]:
         run_id = uuid.uuid4().hex[:12]
         # A Rhine / Köln / Ahr question on the default event runs on EMSR517.
-        routed, _why = route_event(
+        routed, route_why = route_event(
             req.question, req.event_id, req.context.model_dump() if req.context else None
         )
         ev = spec(routed)
@@ -237,6 +237,7 @@ class Runtime:
                     "thread_id": thread_id,
                     "thread": turns,
                     "event_id": ev.event_id,
+                    "event_route": route_why,
                     "customer_id": req.customer_id,
                     "replay_ts": req.replay_ts,
                     "request": req.model_dump(),

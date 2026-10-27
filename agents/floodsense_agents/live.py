@@ -202,7 +202,13 @@ def gauge_latest_sql(schema: str) -> str:
 
 
 def gauge_threshold(row: dict) -> tuple[str, float] | None:
-    """(column, value) of the station's threshold, when the view carries one."""
+    """(column, value) of the station's threshold, when the view carries one.
+
+    mhw_cm (mean high water, PR #58 contract) first; otherwise any matching name.
+    """
+    mhw = row.get("mhw_cm")
+    if isinstance(mhw, (int, float)) and not isinstance(mhw, bool):
+        return "mhw_cm", float(mhw)
     for key, value in row.items():
         if key in ("level_cm", "prev_cm") or not GAUGE_THRESHOLD_COL.search(str(key)):
             continue

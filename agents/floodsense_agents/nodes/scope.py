@@ -244,6 +244,8 @@ def make():
         # and the run body read the same answer.
         mode = resolve_mode(request)
         note = f"; mode {mode['mode']}: {mode['reason']}"
+        if state.get("event_route"):
+            note += f"; event {state['event_id']}: {state['event_route']}"
         ctx = {k: v for k, v in (request.get("context") or {}).items() if v}
         if ctx:
             note += "; context " + ", ".join(f"{k}={v}" for k, v in sorted(ctx.items()))

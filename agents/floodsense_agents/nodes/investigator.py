@@ -600,14 +600,19 @@ def _live_deterministic(
 
 
 def _trend(row: dict) -> str:
+    rate = row.get("trend_cm_h")
+    if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+        if abs(rate) < 0.5:
+            return f"steady ({_fmt(rate)} cm/h, trend_cm_h)"
+        word = "rising" if rate > 0 else "falling"
+        return f"{word} {_fmt(abs(rate))} cm/h (trend_cm_h)"
     prev, prev_ts, level = row.get("prev_cm"), row.get("prev_utc"), row.get("level_cm")
     if prev is None or not prev_ts or prev_ts == row.get("ts_utc"):
         return "no earlier reading to show a trend"
+    # Only cited cells: the earlier and the latest level, no derived difference.
     delta = float(level) - float(prev)
-    if abs(delta) < 2:
-        return f"steady since {prev_ts} ({_fmt(prev)} cm)"
-    word = "rising" if delta > 0 else "falling"
-    return f"{word}, {_fmt(abs(round(delta, 1)))} cm since {prev_ts} ({_fmt(prev)} cm)"
+    word = "steady" if abs(delta) < 2 else ("rising" if delta > 0 else "falling")
+    return f"{word}, from {_fmt(prev)} cm at {prev_ts} to {_fmt(level)} cm"
 
 
 def _rhine_live(
@@ -701,15 +706,33 @@ def _rhine_live(
         numbers = [r["level_cm"]]
         if r.get("prev_cm") is not None and r.get("prev_utc") != r.get("ts_utc"):
             numbers.append(r["prev_cm"])
-        text = (
-            f"{r['station']} ({r.get('water') or '?'}): {_fmt(r['level_cm'])} cm at "
-            f"{r['ts_utc']} ({rel}); {_trend(r)}"
+        rate = r.get("trend_cm_h")
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+            numbers.append(rate)
+        flagged_stale = str(r.get("is_stale")).strip().lower() in ("true", "1", "yes")
+        if flagged_stale:
+            stale_any = True
+        when_txt = (
+            f"stale reading from {r['ts_utc']} ({rel}), not a current level"
+            if flagged_stale
+            else f"at {r['ts_utc']} ({rel})"
         )
+        text = (
+            f"{r['station']} ({r.get('water') or '?'}): {_fmt(r['level_cm'])} cm {when_txt}; "
+            f"{_trend(r)}"
+        )
+        band = str(r.get("band") or "").lower()
+        if band in ("below", "near", "above"):
+            text += f"; band '{band}' (PEGELONLINE level band)"
         thr = gauge_threshold(r)
         if thr:
             col, value = thr
             numbers.append(value)
-            at_or_over = float(r["level_cm"]) >= value
+            at_or_over = (
+                band == "above" if band in ("below", "near", "above") else float(r["level_cm"]) >= value
+            )
+            if flagged_stale:
+                at_or_over = False
             if at_or_over:
                 over.append(r["station"])
             text += (
@@ -722,16 +745,20 @@ def _rhine_live(
     if not stations:
         ids.append(
             claim(
-                f"{s}.gauge_levels holds no live PEGELONLINE reading (seed rows carry no level), "
-                f"so there is no current Rhine water level to report. {OFFICIAL_NOTE}",
+                f"Status: {s}.gauge_levels holds no live PEGELONLINE reading (seed rows carry no "
+                f"level), so there is no current Rhine water level to report. {OFFICIAL_NOTE}",
                 "fact",
                 [readings],
-                [0],
+                [],
             )
         )
         statement = f"No current Rhine gauge level in {s}.gauge_levels"
     else:
-        listed = ", ".join(f"{r['station']} {_fmt(r['level_cm'])} cm" for r in stations[:8])
+        listed = ", ".join(
+            f"{r['station']} {_fmt(r['level_cm'])} cm"
+            + (" (stale)" if str(r.get("is_stale")).strip().lower() in ("true", "1", "yes") else "")
+            for r in stations[:8]
+        )
         statement = f"Rhine gauges now (PEGELONLINE): {listed}" + (
             f"; at or above threshold: {', '.join(over)}" if over else ""
         )

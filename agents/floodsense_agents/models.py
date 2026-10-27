@@ -218,7 +218,9 @@ class RunContext(BaseModel):
 
 class RunRequest(BaseModel):
     question: str
-    event_id: str = "EMSR773"  # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
+    # None lets events.route_event pick: context, then the question (Rhine, Köln, Ahr ->
+    # EMSR517), else EMSR773. An explicit id always stands.
+    event_id: str | None = None  # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
     customer_id: str = "demo-insurer"
     replay_ts: str | None = (
         None  # "now" of the replay, e.g. 2024-10-29T16:00:00Z; null = whole window

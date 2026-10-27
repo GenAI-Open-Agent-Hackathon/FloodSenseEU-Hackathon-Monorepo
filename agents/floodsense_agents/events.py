@@ -74,13 +74,19 @@ GERMAN_PLACES: tuple[str, ...] = (
     "Rheinland-Pfalz",
     "Rhineland-Palatinate",
 )
+# "Ahr" in any case (AHR too) and the AHR point ids route to EMSR517.
 _GERMAN_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(w) for w in (*GERMAN_PLACES, "Ahr", "Altenahr", "Ahrweiler"))
-    + r")\b",
+    + r"|AHR\d{2})\b",
     re.IGNORECASE | re.UNICODE,
 )
+# Every Valencia town in POINT_NAMES (Catarroja, Sedaví, ...) keeps a question in Valencia.
 _VALENCIA_RE = re.compile(
-    r"\b(?:valencia|val[eè]ncia|spain|españa|espana|chiva|paiporta|poyo|dana)\b",
+    r"\b(?:"
+    + "|".join(
+        re.escape(name) for pid, name in POINT_NAMES.items() if pid.startswith("VAL")
+    )
+    + r"|valencia|val[eè]ncia|spain|españa|espana|poyo|dana|VAL\d{2})\b",
     re.IGNORECASE | re.UNICODE,
 )
 DEFAULT_EVENT = "EMSR773"
@@ -215,19 +221,19 @@ def _context_event(context: dict | None) -> tuple[str, str] | None:
 def route_event(
     question: str, event_id: str | None, context: dict | None = None
 ) -> tuple[str, str]:
-    """(event_id, reason). A German question on the default event goes to EMSR517.
+    """(event_id, reason). An explicit event_id always stands; only None is routed.
 
-    RunRequest.event_id defaults to EMSR773 and the UI always sends one, so the
-    default cannot mean "the caller chose Valencia". Any other event_id stands.
-    On the default, the user's selection (context) wins, then the question.
-    A question that also names Valencia stays where it is (the gate decides).
+    Unset: the user's selection (context) wins, then a German question (Rhine,
+    Köln, Ahr, AHR01 ...) goes to EMSR517, else EMSR773. A question that also
+    names a Valencia town stays on EMSR773 (the scope gate decides).
     """
-    chosen = spec(event_id or DEFAULT_EVENT).event_id
-    if chosen == DEFAULT_EVENT:
-        picked = _context_event(context)
-        if picked:
-            return picked
+    if event_id:
+        chosen = spec(event_id).event_id
+        return chosen, f"event_id {chosen} requested"
+    picked = _context_event(context)
+    if picked:
+        return picked
     word = names_germany(question)
-    if chosen == DEFAULT_EVENT and word and not _VALENCIA_RE.search(question or ""):
+    if word and not _VALENCIA_RE.search(question or ""):
         return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"
-    return chosen, f"event_id {chosen}"
+    return DEFAULT_EVENT, f"no event_id; default {DEFAULT_EVENT}"

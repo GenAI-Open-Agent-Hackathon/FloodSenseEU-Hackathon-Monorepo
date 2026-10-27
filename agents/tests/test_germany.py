@@ -65,20 +65,34 @@ class Routing(unittest.TestCase):
             "Why did the Ahr flood?",
             "Is Germany at risk?",
         ):
-            self.assertEqual(route_event(q, "EMSR773")[0], "EMSR517", q)
+            self.assertEqual(route_event(q, None)[0], "EMSR517", q)
 
     def test_other_questions_keep_their_event(self) -> None:
-        self.assertEqual(route_event("Why were our sites flooded?", "EMSR773")[0], "EMSR773")
+        self.assertEqual(route_event("Why were our sites flooded?", None)[0], "EMSR773")
         self.assertEqual(route_event("Rain in Chiva?", None)[0], "EMSR773")
         # Naming Valencia too leaves it to the scope gate.
-        self.assertEqual(route_event("Valencia or the Rhine?", "EMSR773")[0], "EMSR773")
+        self.assertEqual(route_event("Valencia or the Rhine?", None)[0], "EMSR773")
         # A non-default event is the caller's choice.
         self.assertEqual(route_event("Köln?", "ahr_2021")[0], "EMSR517")
+
+    def test_explicit_valencia_is_never_routed(self) -> None:
+        self.assertEqual(route_event("How high is the Rhine at Köln?", "EMSR773")[0], "EMSR773")
+        self.assertEqual(route_event("What now?", "EMSR773", {"station": "BONN"})[0], "EMSR773")
+
+    def test_ahr_acronym_and_point_ids_route(self) -> None:
+        for q in ("What is the AHR doing now?", "Status of AHR01?", "ahr level?"):
+            self.assertEqual(route_event(q, None)[0], "EMSR517", q)
+
+    def test_every_valencia_town_keeps_valencia(self) -> None:
+        for town in ("Catarroja", "Sedaví", "Alfafar", "Benetússer", "Algemesí", "Utiel"):
+            self.assertEqual(route_event(f"{town} or the Rhine?", None)[0], "EMSR773", town)
 
     def test_a_run_without_event_id_is_routed(self) -> None:
         out = run("How high is the Rhine at Köln right now?")
         self.assertEqual(out["event_id"], "EMSR517")
         self.assertEqual(out["mode"]["mode"], "live")
+        gate = next(t for t in out["trace"] if t["node"] == "scope")
+        self.assertIn("event EMSR517: question names", gate["summary"])
 
 
 class AhrReplay(unittest.TestCase):
@@ -118,7 +132,7 @@ class RhineNow(unittest.TestCase):
         koeln = by_station["KÖLN"]
         self.assertIn("420 cm", koeln)
         self.assertRegex(koeln, r"\((?:\d+ h ago|this hour)\)")
-        self.assertIn("rising, 18 cm", koeln)
+        self.assertRegex(koeln, r"rising, from 402 cm at \S+ to 420 cm")
         self.assertIn("at or above the station threshold 400 cm (threshold_cm)", koeln)
         self.assertIn("steady", by_station["BONN"])
         self.assertIn("no threshold", by_station["BONN"])
@@ -131,6 +145,29 @@ class RhineNow(unittest.TestCase):
         self.assertTrue(gauge_h["evidence"])
         self.assertEqual(out["judge_summary"]["flagged_claim_ids"], [])
 
+    def test_pr58_columns_mhw_band_trend_and_stale(self) -> None:
+        z = gauged()
+        for col in ("trend_cm_h REAL", "mhw_cm REAL", "band TEXT", "is_stale INTEGER"):
+            z._conn.execute(f"ALTER TABLE floodsense.gauge_levels ADD COLUMN {col}")
+        z._conn.execute(
+            "UPDATE floodsense.gauge_levels SET trend_cm_h = 2.5, mhw_cm = 410, band = 'above', "
+            "is_stale = 0 WHERE station = 'KÖLN'"
+        )
+        z._conn.execute(
+            "UPDATE floodsense.gauge_levels SET trend_cm_h = -1, mhw_cm = 500, band = 'near', "
+            "is_stale = 1 WHERE station = 'BONN'"
+        )
+        out = run("How high is the Rhine at Köln right now?", z=z)
+        texts = {c["text"].split(" ")[0]: c["text"] for c in out["claims"]}
+        self.assertIn("rising 2.5 cm/h (trend_cm_h)", texts["KÖLN"])
+        self.assertIn("at or above the station threshold 410 cm (mhw_cm)", texts["KÖLN"])
+        self.assertIn("band 'above'", texts["KÖLN"])
+        self.assertIn("stale reading from", texts["BONN"])
+        self.assertIn("below the station threshold", texts["BONN"])
+        self.assertIn("BONN 455 cm (stale)", out["summary"])
+        self.assertIn("STALE", out["summary"])
+        self.assertEqual(out["judge_summary"]["flagged_claim_ids"], [])
+
     def test_no_live_reading_is_said_plainly(self) -> None:
         out = run("Wie hoch ist der Rhein in Bonn jetzt?")
         self.assertEqual(out["event_id"], "EMSR517")
@@ -139,7 +176,8 @@ class RhineNow(unittest.TestCase):
         qids = gauge_qids(out)
         self.assertTrue(
             any(
-                "no live PEGELONLINE reading" in c["text"]
+                c["text"].startswith("Status:") and not c["numbers"]
+                and "no live PEGELONLINE reading" in c["text"]
                 and any(x.get("query_id") in qids for x in c["citations"])
                 for c in out["claims"]
             )
@@ -165,12 +203,12 @@ class Context(unittest.TestCase):
                 RunRequest(question="q", context=bad)
 
     def test_selection_wins_over_the_default_event(self) -> None:
-        self.assertEqual(route_event("What now?", "EMSR773", {"station": "BONN"})[0], "EMSR517")
-        self.assertEqual(route_event("What now?", "EMSR773", {"point_id": "AHR01"})[0], "EMSR517")
-        self.assertEqual(route_event("What now?", "EMSR773", {"place": "Köln"})[0], "EMSR517")
-        self.assertEqual(route_event("Rhine?", "EMSR773", {"event_id": "EMSR773"})[0], "EMSR773")
+        self.assertEqual(route_event("What now?", None, {"station": "BONN"})[0], "EMSR517")
+        self.assertEqual(route_event("What now?", None, {"point_id": "AHR01"})[0], "EMSR517")
+        self.assertEqual(route_event("What now?", None, {"place": "Köln"})[0], "EMSR517")
+        self.assertEqual(route_event("Rhine?", None, {"event_id": "EMSR773"})[0], "EMSR773")
         # An unknown point is not trusted.
-        self.assertEqual(route_event("What now?", "EMSR773", {"point_id": "XYZ99"})[0], "EMSR773")
+        self.assertEqual(route_event("What now?", None, {"point_id": "XYZ99"})[0], "EMSR773")
 
     def test_station_focus_role_and_trace(self) -> None:
         out = run(
