@@ -222,6 +222,7 @@ export function useControlTower(): ControlTowerState {
       setEvents([]);
       setFresh(new Set());
       setDemoFeed(null);
+      setStatus(null);
       setReachable(null);
       setTick((t) => t + 1);
     }
