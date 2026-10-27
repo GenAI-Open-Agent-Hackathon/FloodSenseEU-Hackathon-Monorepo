@@ -3,6 +3,10 @@
   python tasks.py pegel-poll                 # one poll, write the CSV, copy it into the Zetaris driver
   python tasks.py pegel-poll --interval 600  # repeat every 10 minutes
   python ingestion/feeds/pegel_poll.py --no-stage   # write the CSV only
+  python ingestion/feeds/pegel_poll.py --service    # container loop: retry with backoff, state file
+  python ingestion/feeds/pegel_poll.py --health     # exit 1 when the last staged copy is too old
+
+In docker compose the service `pegel-poller` runs --service (see compose.yaml), so no host process is needed.
 
 Writes ingestion/raw/live/pegel_now/live.csv (git-ignored), one row per station, and with
 --stage (default) copies it to <container>:/home/zetaris/customer-data/shared/floodsense_live/pegel_now/
@@ -34,6 +38,11 @@ OUT = os.path.join(HERE, "..", "raw", "live", "pegel_now")
 DEST = "/home/zetaris/customer-data/shared/floodsense_live/pegel_now"
 UA = "FloodSenseEU-hackathon/0.1 (non-commercial)"
 SOURCE = "ds_pegelonline"
+# Touched after every successful stage. --health reads its age. Not data, never copied anywhere.
+STATE = os.path.join(OUT, ".last_staged")
+DEFAULT_INTERVAL_S = 600
+BACKOFF_BASE_S = 30
+BACKOFF_CAP_S = 300
 
 # PEGELONLINE shortnames, chosen on 2026-10-27 from the REST API: every one has a W
 # timeseries with MW and MHW characteristic values. Grouped by federal waterway,
@@ -250,6 +259,77 @@ def stage(path: str, container: str) -> None:
     )
 
 
+def backoff_s(failures: int, base: int = BACKOFF_BASE_S, cap: int = BACKOFF_CAP_S) -> int:
+    """Seconds to wait after the Nth consecutive failure (1-based): base, 2x, 4x ... up to cap."""
+    return min(cap, base * 2 ** max(0, failures - 1))
+
+
+def log(msg: str, err: bool = False) -> None:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"{ts} pegel-poller: {msg}", file=sys.stderr if err else sys.stdout, flush=True)
+
+
+def cycle(container: str, poll_fn=None, stage_fn=None, mark=None) -> tuple[bool, str]:
+    """One poll plus one stage. Returns (ok, one-line summary). Never raises."""
+    poll_fn = poll_fn or poll
+    stage_fn = stage_fn or stage
+    mark = mark or mark_staged
+    try:
+        path, fresh, failed = poll_fn()
+    except Exception as e:
+        return False, f"poll crashed: {e}"
+    for f in failed:
+        log(f"station failed {f}", err=True)
+    if not fresh:
+        return False, f"polled {len(STATIONS)} stations, 0 fresh: PEGELONLINE unreachable, nothing staged"
+    try:
+        stage_fn(path, container)
+    except Exception as e:
+        return False, (
+            f"polled {len(STATIONS)} stations, {fresh} fresh, but staging into {container} failed "
+            f"(is the Zetaris stack up?): {e}"
+        )
+    mark()
+    return True, f"polled {len(STATIONS)} stations, {fresh} fresh, staged to {container}:{DEST}/live.csv"
+
+
+def mark_staged(path: str = STATE) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(stamp(datetime.now(timezone.utc)) + "\n")
+
+
+def health(interval: int, path: str = STATE, now=time.time) -> tuple[bool, str]:
+    """Healthy when the last successful stage is at most 2x interval old."""
+    try:
+        age = now() - os.path.getmtime(path)
+    except OSError:
+        return False, "no successful stage yet"
+    limit = 2 * interval
+    return age <= limit, f"last staged {int(age)}s ago (limit {limit}s)"
+
+
+def serve(
+    interval: int, container: str, cycle_fn=cycle, sleep=time.sleep, max_cycles: int | None = None
+) -> int:
+    """Poll forever. Failures are logged on stderr and retried with backoff, never fatal."""
+    failures, done = 0, 0
+    log(f"start: every {interval}s, container {container}. Quelle: WSV, PEGELONLINE")
+    while max_cycles is None or done < max_cycles:
+        done += 1
+        ok, msg = cycle_fn(container)
+        if ok:
+            failures = 0
+            log(f"{msg}; next in {interval}s")
+            wait = interval
+        else:
+            failures += 1
+            wait = min(backoff_s(failures), interval)
+            log(f"FAILED (attempt {failures}): {msg}; retry in {wait}s", err=True)
+        sleep(wait)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -260,10 +340,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--no-stage", action="store_true", help="do not copy into the Zetaris container"
     )
+    ap.add_argument("--service", action="store_true", help="container loop with retry and backoff")
+    ap.add_argument("--health", action="store_true", help="exit 1 if the last stage is >2x interval old")
     ap.add_argument(
-        "--container", default=os.environ.get("ZETARIS_DRIVER_CONTAINER", "zetaris-driver-1")
+        "--container",
+        default=os.environ.get("ZETARIS_CONTAINER")
+        or os.environ.get("ZETARIS_DRIVER_CONTAINER", "zetaris-driver-1"),
     )
     a = ap.parse_args(argv)
+    if a.service or a.health:
+        interval = a.interval or int(os.environ.get("POLL_INTERVAL_S") or DEFAULT_INTERVAL_S)
+        if a.health:
+            ok, msg = health(interval)
+            print(msg)
+            return 0 if ok else 1
+        return serve(interval, a.container)
     while True:
         path, n, failed = poll()
         for f in failed:
