@@ -233,3 +233,56 @@ class ReplyResponse(ContractModel):
 
 # What POST /runs returns.
 RunResponse = Answer | ReplyResponse
+
+
+# ---- Control tower (GET /watch/events, /watch/stream, /watch/status) ----
+
+WatchKind = Literal[
+    "detected", "checked", "exposure", "drafted", "awaiting_approval", "approved", "info"
+]
+WatchAgent = Literal["Watch", "Forecast", "Exposure", "Playbook", "Judge", "Human"]
+WatchTone = Literal["normal", "watch", "elevated", "neutral", "unknown"]
+
+
+class WatchSource(ContractModel):
+    """The contract view and the Zetaris query id behind an event."""
+
+    view: str = Field(min_length=1)
+    query_id: str | None = None
+
+
+class WatchEvent(ContractModel):
+    """One activity-feed row. Fixed-template text; no model writes it."""
+
+    id: str = Field(pattern=r"^w[0-9]{8}$")
+    ts: str = Field(pattern=DATE_TIME)
+    kind: WatchKind
+    agent: WatchAgent
+    place_id: str | None = None
+    place: str
+    river: str
+    country: str
+    status: str
+    tone: WatchTone
+    text: str = Field(min_length=1)
+    run_id: str | None = None
+    source: WatchSource
+    data: dict[str, Any]
+
+
+class WatchStatus(ContractModel):
+    """GET /watch/status: loop, last scan, counts and the auto-assess switch with its caps."""
+
+    note: str
+    loop: dict[str, Any]
+    scanning: bool
+    started_at: str = Field(pattern=DATE_TIME)
+    last_cycle: dict[str, Any] | None = None
+    counts: dict[str, Any]
+    latest_event_id: str | None = None
+    awaiting_run_ids: list[str]
+    auto_assess: dict[str, Any]
+    persisted: bool
+    persisted_reason: str | None = None
+    served_from: ServedFrom
+    cached_at: str | None = None

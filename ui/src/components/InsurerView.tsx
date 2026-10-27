@@ -6,6 +6,7 @@ import { Drilldown } from "./Drilldown";
 import { MapPanel } from "./MapPanel";
 import { NowPage } from "./NowPage";
 import { Portfolio } from "./Portfolio";
+import { ControlTower } from "./ControlTower";
 import { HowItWorks } from "./HowItWorks";
 import { ReviewColumn } from "./ReviewColumn";
 import { SystemPanel } from "./SystemPanel";
@@ -51,6 +52,8 @@ export function InsurerView({ page }: { page: InsurerPage }) {
           <ReviewColumn />
         </div>
       );
+    case "tower":
+      return <ControlTower />;
     case "how":
       return <HowItWorks />;
   }

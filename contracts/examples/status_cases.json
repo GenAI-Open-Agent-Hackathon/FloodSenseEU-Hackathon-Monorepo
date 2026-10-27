@@ -1,0 +1,42 @@
+{
+  "description": "Plain-status parity: the UI (ui/src/lib/places.ts statusView, gauges.ts, euWatch.ts) and the control tower (agents tower.py) must agree. Both test suites read this file.",
+  "words": [
+    { "kind": "gauge", "status": "over", "word": "Above mean high water", "tone": "elevated", "rank": 0 },
+    { "kind": "gauge", "status": "near", "word": "Close to mean high water", "tone": "watch", "rank": 2 },
+    { "kind": "gauge", "status": "ok", "word": "Normal", "tone": "normal", "rank": 8 },
+    { "kind": "gauge", "status": "unknown", "word": "No reading", "tone": "unknown", "rank": 9 },
+    { "kind": "model", "status": "over", "word": "Elevated (model)", "tone": "elevated", "rank": 1 },
+    { "kind": "model", "status": "near", "word": "Watch (model)", "tone": "watch", "rank": 3 },
+    { "kind": "model", "status": "ok", "word": "Normal", "tone": "normal", "rank": 8 },
+    { "kind": "model", "status": "unknown", "word": "No reading", "tone": "unknown", "rank": 9 },
+    { "kind": "valencia", "status": "over", "word": "Above 80 m³/s demo line", "tone": "elevated", "rank": 4 },
+    { "kind": "valencia", "status": "near", "word": "Above 20 m³/s demo line", "tone": "neutral", "rank": 5 },
+    { "kind": "valencia", "status": "ok", "word": "Normal", "tone": "normal", "rank": 8 },
+    { "kind": "valencia", "status": "unknown", "word": "No reading", "tone": "unknown", "rank": 9 }
+  ],
+  "gauge_rows": [
+    { "name": "above, fresh", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 812, "mhw_cm": 780, "band": "above", "is_stale": false }, "stale": false, "band_status": "over", "event_status": "over" },
+    { "name": "near, fresh", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 700, "mhw_cm": 780, "band": "near", "is_stale": "false" }, "stale": false, "band_status": "near", "event_status": "near" },
+    { "name": "below, fresh", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 300, "mhw_cm": 780, "band": "below", "is_stale": false }, "stale": false, "band_status": "ok", "event_status": "ok" },
+    { "name": "above but flagged stale", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 812, "mhw_cm": 780, "band": "above", "is_stale": true }, "stale": true, "band_status": "over", "event_status": "unknown" },
+    { "name": "above, is_stale missing means stale", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 812, "mhw_cm": 780, "band": "above" }, "stale": true, "band_status": "over", "event_status": "unknown" },
+    { "name": "unknown band stays unknown", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 812, "mhw_cm": 780, "band": "unknown", "is_stale": false }, "stale": false, "band_status": "unknown", "event_status": "unknown" },
+    { "name": "no band is not computed from the level", "row": { "station": "KÖLN", "water": "RHEIN", "ts_utc": "2026-10-27T12:45:00Z", "level_cm": 812, "mhw_cm": 780, "is_stale": false }, "stale": false, "band_status": "unknown", "event_status": "unknown" }
+  ],
+  "model_bands": [
+    { "band": "above", "status": "over" },
+    { "band": "near", "status": "near" },
+    { "band": "below", "status": "ok" },
+    { "band": "unknown", "status": "unknown" },
+    { "band": "", "status": "unknown" },
+    { "band": "severe", "status": "unknown" }
+  ],
+  "valencia": [
+    { "name": "forecast above the 80 line", "now": 4.0, "forecast_max": 180.0, "status": "over" },
+    { "name": "now above the 20 line", "now": 25.0, "forecast_max": 4.0, "status": "near" },
+    { "name": "both low", "now": 4.0, "forecast_max": 5.0, "status": "ok" },
+    { "name": "exactly on the 20 line", "now": 20.0, "forecast_max": null, "status": "near" },
+    { "name": "exactly on the 80 line", "now": null, "forecast_max": 80.0, "status": "over" },
+    { "name": "no reading", "now": null, "forecast_max": null, "status": "unknown" }
+  ]
+}
