@@ -95,14 +95,14 @@ flowchart LR
 
 ## Test counts
 
-Run on 27 Oct 2026 on branch `docs/submission` after merging `main` at `e4dc897`, Windows, Python 3.12.
+Python suites run on 27 Oct 2026 on branch `docs/release-v1` at `main` `c9ff924`, Windows, Python 3.12 (the UI row was not re-run for the release and is from an earlier `main`).
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| agents | `python -I -m unittest discover -s tests` in `agents/` | 341 passed |
-| api | `python -I -m unittest discover -s tests` in `api/` | 142 passed |
-| scripts | `python -I -m unittest discover -s scripts/tests` | 115 passed |
-| contracts | `python -I -m unittest discover -s contracts/tests` | 10 passed |
+| agents | `python -I -m unittest discover -s tests` in `agents/` | 579 passed |
+| api | `python -I -m unittest discover -s tests` in `api/` | 220 passed |
+| scripts | `python -I -m unittest discover -s scripts/tests` | 129 passed |
+| contracts | `python -I -m unittest discover -s contracts/tests` | 12 passed |
 | ui | `npx vitest run` in `ui/` | 128 passed (19 files) |
 
 CI runs the same suites with `python tasks.py test` on every pull request.

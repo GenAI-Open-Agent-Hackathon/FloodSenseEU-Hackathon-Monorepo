@@ -13,7 +13,7 @@ What it does. Agents read hazard, exposure, gauge, provenance and document metad
 Where in the code:
 
 - Client: `agents/floodsense_agents/zetaris.py`. Views the agents may read: `contracts/views.yaml`.
-- Migrations: `zetaris/migrations/*.sql` (numbered, `001` to `052`). Examples: `010_seed_sources.sql` (FILESTORE CSV tables), `003_create_rest_table_glofas_discharge.sql` (REST table), `034_create_view_hazard_now.sql` (live view), `015_create_view_provenance.sql`.
+- Migrations: `zetaris/migrations/*.sql` (numbered, up to `073`). Examples: `010_seed_sources.sql` (FILESTORE CSV tables), `003_create_rest_table_glofas_discharge.sql` (REST table), `034_create_view_hazard_now.sql` (live view), `015_create_view_provenance.sql`.
 - Sync and verify: `scripts/zetaris_sync.py` (applies pending migrations, then runs `DESCRIBE` and a row count for each declared view). `py tasks.py zetaris-sync`.
 - CI dry run: `.github/workflows/ci.yml`, step "Zetaris migrations (dry run)".
 - Document passages: `agents/floodsense_agents/retrieve_docs.py` ranks in Postgres, then reads text and licence through Zetaris ([ADR 0009](adr/0009-vector-search-next-to-zetaris.md)).
@@ -55,11 +55,16 @@ The NVIDIA chat key lives only in Nightshift's Providers tab. `NVIDIA_NIM_API_KE
 
 ### Cursor: how we built it
 
-What it does. The team used Cursor to write and review code. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests.
+What it does. Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests. The repository's coding, review and documentation work also used Claude Code (Anthropic) with independent review agents: every change went through a branch, an independent review and a pull request (see the pull requests in this repository). The same wording is in the README, "How we built it".
+
+<!-- TEAM: confirm Cursor wording -->
+<!-- TEAM-EDITABLE-BLOCK START (Cursor details) -->
+Which features each person used, and example pull requests: the team fills this in. Not verified from the repository, which records only the skill below.
+<!-- TEAM-EDITABLE-BLOCK END -->
 
 Where in the code: `.cursor/skills/floodsense-pr-review/SKILL.md` (see [CHANGELOG.md](../CHANGELOG.md), PR #35).
 
-How a judge can see it. Read the skill file. **TODO(team): Cursor feature details** (which features each person used, with links to example PRs).
+How a judge can see it. Read the skill file and the pull request history: each pull request shows its branch, its review comments and the changelog line it added.
 
 ## Problem and users
 
@@ -73,18 +78,19 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 
 ## What is built
 
-- A LangGraph agent: Scope, Watchers, Investigator, Skeptic (revise loop), Exposure, Playbook, Judge (repair loop), human approval, Learn.
+- A router with four lanes (`reply`, `quick`, `forecast`, `full`). The full lane is a LangGraph agent: Scope, Watchers, Memory, Investigator, Skeptic (revise loop), Exposure, Playbook, Judge (repair loop), human approval, Learn. The other three lanes make no model call.
+- A Control tower: a rule-based watch loop over 45 sources with an activity feed, and an opt-in, capped auto-assess that never approves.
 - Three citation layers: (a) Zetaris data rows, (b) source provenance, (c) document passages with hash-checked quotes.
 - Live mode: a `hazard_now` view with past and forecast rows, a mode classifier for "now" vs past-event questions, and a staleness flag.
-- A web UI with two desks. Citizen: Now, Overview, My area, What to do, Evidence. Insurer: Now, Approvals, Portfolio, Sites / map, Alerts, Review.
-- An API with a semantic cache, labelled replay, and rate limits.
+- A web UI with three desks and a global Live | Past flood | Demo data switch. Citizen: Now, Replay, Overview, My area, What to do, Evidence, How it works. Insurer: Control tower, Now, Replay, Approvals, Portfolio, Sites / map, Alerts, Review, System, How it works. Civil protection: Situation board, Approvals, How it works.
+- An API with a semantic cache, labelled replay, rate limits, a views cache that serves the last good copy when Open-Meteo rate-limits, and `/watch/*` for the Control tower.
 - Seeded demo events: Valencia 2024 and Ahr 2021 (`evals/valencia_2024.yaml`, `evals/ahr_2021.yaml`).
 
 ## Honest limits
 
 - The insurer portfolio is synthetic. It is labelled as synthetic in the data (`zetaris/migrations/018_label_exposure_synthetic.sql`) and in the UI.
 - Discharge comes from Open-Meteo (GloFAS-based model output). It is modelled data, not an official warning.
-- The forecast lane's weather forecast is Open-Meteo with the DWD ICON model (CC BY 4.0; DWD is the data originator). The Open-Meteo free API is non-commercial only (under 10,000 calls/day; one forecast question is about 45 calls), so a commercial product needs a paid plan. The status Normal / Watch / Warning is FloodSense's own screening, not an official warning.
+- The forecast lane's weather forecast is Open-Meteo with the DWD ICON model (CC BY 4.0; DWD is the data originator). The Open-Meteo free API is non-commercial only (under 10,000 calls/day; one forecast question is about 45 calls), so a commercial product needs a paid plan. The status Normal / Watch / Elevated is FloodSense's own screening, not an official warning.
 - EFAS real-time data is for partner organisations only. We do not use it.
 - The Ahr gauges are not on PEGELONLINE. They belong to the Rhineland-Palatinate state service, so the Ahr is replay only. Live gauges are WSV stations on PEGELONLINE (`ingestion/feeds/pegel_poll.py`).
 - Ahr 2021 replay data is reanalysis: ERA5 rain (Open-Meteo Historical Weather API) and GloFAS discharge (Open-Meteo Flood API). Both are far below the published figures for this storm (for example about 1000 m3/s reconstructed at Altenahr). We do not quote literature figures as values of these views (`zetaris/migrations/051_seed_discharge_daily_ahr.sql`, `052_seed_hazard_timeline_ahr.sql`).

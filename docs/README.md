@@ -3,6 +3,11 @@
 Owner: Mihir (architecture, ADRs, security review). The Architect is one role among five peers, not a team lead.
 
 - [GAMEPLAN.md](GAMEPLAN.md) — how we ship FloodSense EU this week.
+- [RELEASE-NOTES-v1.0.0.md](RELEASE-NOTES-v1.0.0.md) — judge-facing notes for 1.0.0.
+- [HANDOVER.md](HANDOVER.md) — final state of `main` and what remains for humans.
+- [SUBMISSION.md](SUBMISSION.md) — sponsor usage, evaluation, honest limits.
+- [DECK-FACTS.md](DECK-FACTS.md) — event figures for the deck, quoted from the stored corpus.
+- [legal/sources.md](legal/sources.md) — every source, licence and attribution. Stored third-party content: [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 - [RELEASING.md](RELEASING.md) — changelog lines on each pull request, the 20:00 tag, and the GitHub Release.
 - [OWNERSHIP.md](OWNERSHIP.md) — who reviews which paths. This is not an enforced CODEOWNERS file.
 - [architecture/c4.md](architecture/c4.md) — system context, containers, and the agent graph.
