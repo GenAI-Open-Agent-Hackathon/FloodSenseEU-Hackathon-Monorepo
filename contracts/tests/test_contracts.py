@@ -30,6 +30,7 @@ from floodsense_contracts.models import (  # noqa: E402
     MemoryUsed,
     ModelId,
     PlaybookAction,
+    Plain,
     ReplyResponse,
     WatchEvent,
     WatchSource,
@@ -50,6 +51,7 @@ MODELS = {
     "playbook_action": PlaybookAction,
     "approval": Approval,
     "memory_used": MemoryUsed,
+    "plain": Plain,
     "answer_fields": Answer,
     "reply_response": ReplyResponse,
     "watch_source": WatchSource,
@@ -67,6 +69,7 @@ EXAMPLES = {
     "answer": ("answer_live.json", Answer),
     "reply_response": ("reply.json", ReplyResponse),
     "watch_event": ("watch_event.json", WatchEvent),
+    "plain": ("plain.json", Plain),
 }
 
 

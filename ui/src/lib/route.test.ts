@@ -139,3 +139,22 @@ describe("Control tower page", () => {
     expect(pageLabel({ role: "citizen", page: "tower" })).toBe("How we watch");
   });
 });
+
+describe("operator desk", () => {
+  it("opens the Situation board at #/operator and reads its pages", () => {
+    expect(parseHash("#/operator")).toEqual({ role: "operator", page: "situation" });
+    expect(parseHash("#/operator/approvals")).toEqual({ role: "operator", page: "approvals" });
+    expect(parseHash("#/operator/how")).toEqual({ role: "operator", page: "how" });
+    expect(parseHash("#/operator/nonsense")).toEqual({ role: "operator", page: "situation" });
+    expect(parseHash("#/operator/situation/extra")).toEqual({ role: "operator", page: "situation" });
+    expect(routeHref("operator", "situation")).toBe("#/operator");
+    expect(routeHref("operator", "approvals")).toBe("#/operator/approvals");
+    expect(DESK_NAV.operator.map((i) => i.page)).toEqual(["situation", "approvals", "how"]);
+    expect(pageLabel({ role: "operator", page: "situation" })).toBe("Situation board");
+  });
+
+  it("leaves the other desks homes alone", () => {
+    expect(parseHash("")).toEqual({ role: "insurer", page: "approvals" });
+    expect(parseHash("#/citizen")).toEqual({ role: "citizen", page: "overview" });
+  });
+});

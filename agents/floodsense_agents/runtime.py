@@ -67,6 +67,7 @@ STATE_KEYS = (
     "lane",
     "router_reason",
     "forecast",
+    "plain",
 )
 
 

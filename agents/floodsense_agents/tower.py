@@ -777,7 +777,7 @@ class ControlTower:
         saved = self.state.load()
         self.prev: dict[str, str] = dict(saved.get("statuses") or {})
         # No state file yet: the first scan only learns what is raised. It never auto-assesses.
-        self._baseline = not saved
+        self._baseline = not saved.get("statuses")
         # The caps live in the state file. Without it a restart would forget them, so auto-assess
         # fails closed (it stays off, and /watch/status says why).
         self.persisted_reason: str | None = None
@@ -920,7 +920,10 @@ class ControlTower:
         finally:
             # Even when the rest of the scan raised, what was read is what the next scan diffs against.
             self.prev = new_prev
-            self._save()
+            if (
+                new_prev or not self._baseline
+            ):  # an empty first read writes no state that would mark everything new
+                self._save()
 
     def _scan(self, trigger, t0, started, schema, z, sources, errors, new_prev) -> dict:
         flagged: list[tuple[Source, str | None]] = []
@@ -1040,7 +1043,10 @@ class ControlTower:
                 data={"sources": len(sources), "elevated": elevated, "new": len(flagged)},
             )
         self._first_cycle_done = True
-        self._baseline = False
+        if (
+            sources
+        ):  # a scan that read nothing (every view down) has learned nothing: stay in baseline
+            self._baseline = False
         self.last_cycle = summary
         return summary
 

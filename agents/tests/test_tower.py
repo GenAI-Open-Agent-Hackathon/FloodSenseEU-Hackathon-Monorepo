@@ -492,6 +492,24 @@ class AutoAssessTest(unittest.TestCase):
         self.assertEqual(rt.started, [])
         self.assertEqual(t.auto_status()["used_day"], 0)
 
+    def test_a_first_scan_that_reads_nothing_keeps_the_baseline(self):
+        rt = FakeRuntime()
+        stub = full_stub(fail={"gauge_levels", "eu_watch", "hazard_now"})
+        t = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True)
+        out = t.cycle()
+        self.assertEqual(out["sources"], 0)
+        self.assertFalse(
+            (Path(self.tmp.name) / "watch_state.json").exists()
+        )  # nothing learned, nothing saved
+        stub.fail = set()
+        t.cycle()  # the real first read: announced, never auto-assessed
+        self.assertEqual(rt.started, [])
+        stub.rows["eu_watch"].append(eu("EU07", "Vienna", "Danube", "AT", band="above"))
+        self.assertIsNotNone(t.cycle()["auto_assess_run_id"])
+        # a restart after an empty first scan is still a first start
+        t2 = make(full_stub(), tempfile.mkdtemp(), runtime=lambda: rt, auto_assess=True)
+        self.assertTrue(t2._baseline)
+
     def test_switch_and_the_one_per_hour_cap(self):
         clock = Clock()
         rt = FakeRuntime()
@@ -536,7 +554,7 @@ class AutoAssessTest(unittest.TestCase):
     def test_three_per_day_cap(self):
         clock = Clock()
         rt = FakeRuntime()
-        stub = Stub(eus=[])
+        stub = Stub(eus=[eu("EU08", "Budapest", "Danube", "HU", band="below", fmax=100, med=120)])
         t = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock)
         t.cycle()  # baseline
         started = []
@@ -552,7 +570,7 @@ class AutoAssessTest(unittest.TestCase):
 
     def test_the_cap_is_saved_before_the_run_starts_and_survives_a_restart(self):
         clock = Clock()
-        stub = Stub(eus=[])
+        stub = Stub(eus=[eu("EU08", "Budapest", "Danube", "HU", band="below", fmax=100, med=120)])
 
         class Crash(FakeRuntime):
             def start_async(self, req):
@@ -576,7 +594,7 @@ class AutoAssessTest(unittest.TestCase):
             def start_async(self, req):
                 raise RuntimeError("no")
 
-        stub = Stub(eus=[])
+        stub = Stub(eus=[eu("EU08", "Budapest", "Danube", "HU", band="below", fmax=100, med=120)])
         t = make(stub, self.tmp.name, runtime=lambda: Fails(), auto_assess=True)
         t.cycle()
         stub.rows["eu_watch"].append(eu("EU07", "Vienna", "Danube", "AT", band="above"))
@@ -586,7 +604,7 @@ class AutoAssessTest(unittest.TestCase):
 
     def test_unpersisted_state_fails_closed(self):
         rt = FakeRuntime()
-        stub = Stub(eus=[])
+        stub = Stub(eus=[eu("EU08", "Budapest", "Danube", "HU", band="below", fmax=100, med=120)])
         t = tower.ControlTower(
             lambda: stub, lambda: rt, data_dir=None, loop_enabled=False, auto_assess=True
         )

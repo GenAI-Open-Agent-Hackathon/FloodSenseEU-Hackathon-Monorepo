@@ -137,6 +137,28 @@ class ForecastLaneTest(unittest.TestCase):
         body["lane"] = "full"
         self.assertNotIn("forecast", project_run(body)["answer"])
 
+    def test_plain_object_passes_through_on_quick_and_forecast_only(self) -> None:
+        plain = {
+            "headline": "Nothing alarming expected at Köln.",
+            "one_line": "The Rhine at Köln is below its usual high-water mark.",
+            "horizon": "48h",
+            "status": "normal",
+            "next_step": "Ask me about another place or open the official warnings.",
+            "disclaimer": "Model-based check, not an official warning. Follow DWD.",
+            "details": ["Q1"],
+        }
+        for lane, make in (("forecast", forecast_run), ("quick", quick_run)):
+            body = make()
+            body["plain"] = plain
+            self.assertEqual(project_run(body)["answer"]["plain"], plain, lane)
+        body = forecast_run()
+        body["plain"] = plain
+        body["lane"] = "full"
+        self.assertNotIn("plain", project_run(body)["answer"])
+        body = forecast_run()
+        body["plain"] = {}
+        self.assertNotIn("plain", project_run(body)["answer"])
+
     def test_forecast_flag_is_in_the_cache_fingerprint(self) -> None:
         from app.cache import fingerprint
 
