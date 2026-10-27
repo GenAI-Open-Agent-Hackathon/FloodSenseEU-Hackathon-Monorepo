@@ -151,6 +151,39 @@ class ViewsTest(unittest.TestCase):
         self._client(z).get("/views/exposure_join", params={"event_id": "x' OR 1=1"})
         self.assertNotIn("WHERE", z.sql[0])
 
+    def test_replay_source_reads_floodsense_seed_for_the_event_points(self) -> None:
+        z = FakeZetaris()
+        z._conn.execute("DELETE FROM floodsense.hazard_timeline WHERE point_id LIKE 'AHR%'")
+        z._conn.commit()
+        c = self._client(z)
+        with mock.patch.object(settings, "live_data", True):
+            live = c.get("/views/hazard_timeline", params={"event_id": "EMSR517"})
+            r = c.get("/views/hazard_timeline", params={"event_id": "EMSR517", "source": "replay"})
+            d = c.get("/views/discharge_daily", params={"event_id": "ahr_2021", "source": "replay"})
+        self.assertEqual(live.headers["x-schema"], "floodsense")
+        self.assertFalse(any(row["point_id"].startswith("AHR") for row in live.json()))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["x-schema"], "floodsense_seed")
+        self.assertEqual(r.headers["x-source"], "replay")
+        ids = {row["point_id"] for row in r.json()}
+        self.assertTrue(ids)
+        self.assertTrue(all(i.startswith("AHR") for i in ids), ids)
+        self.assertEqual(d.status_code, 200)
+        self.assertTrue(all(row["point_id"].startswith("AHR") for row in d.json()))
+
+    def test_replay_source_is_allowlisted(self) -> None:
+        z = StringZetaris()
+        c = self._client(z)
+        bad = [
+            ("exposure_join", {"event_id": "EMSR517", "source": "replay"}),
+            ("hazard_timeline", {"source": "replay"}),
+            ("hazard_timeline", {"event_id": "x' OR 1=1", "source": "replay"}),
+            ("hazard_timeline", {"event_id": "EMSR517", "source": "floodsense_seed"}),
+        ]
+        for name, params in bad:
+            self.assertEqual(c.get(f"/views/{name}", params=params).status_code, 422, params)
+        self.assertEqual(z.sql, [])
+
     def test_a_failed_read_is_502(self) -> None:
         # hazard_now is dropped from this fake, so the read errors.
         self.assertEqual(self._client(_without_hazard_now()).get("/views/hazard_now").status_code, 502)

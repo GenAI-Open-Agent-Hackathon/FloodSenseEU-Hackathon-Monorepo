@@ -70,6 +70,9 @@ class Claim(BaseModel):
     )  # numbers stated in the text; the Judge checks each against the cited rows
     citations: list[Citation] = Field(default_factory=list)
     hypothesis_id: str | None = None  # which causal link the claim backs
+    # Numbers the Investigator took off `numbers`, each {value, reason}: a date
+    # part, a named declared line, or a coordinate filter. Kept for audit.
+    numbers_dropped: list[dict] = Field(default_factory=list)
 
 
 class Hypothesis(BaseModel):

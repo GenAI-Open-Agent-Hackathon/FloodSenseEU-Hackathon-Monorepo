@@ -51,7 +51,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 
 from floodsense_agents import __version__
 from floodsense_agents import desk, labelling
-from floodsense_agents.events import spec
+from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import available_providers
 from floodsense_agents.readiness import report as readiness_report
@@ -524,14 +524,40 @@ def _usable(name: str, row: dict) -> bool:
     return True
 
 
+# ?source=replay: the views an event replay reads (events.hazard_schema), whatever
+# FF_LIVE_DATA says. The live floodsense hazard views hold Valencia only; the Ahr
+# 2021 extract (migrations 051/052) is in floodsense_seed.
+
+
+def _replay_from(name: str, event_id: str | None) -> tuple[str, str]:
+    """(schema, WHERE clause) for a replay read of one hazard view, or HTTP 4xx."""
+    if name not in HAZARD_VIEWS:
+        raise HTTPException(422, f"source=replay serves {', '.join(HAZARD_VIEWS)} only")
+    key = ALIASES.get(event_id or "", event_id or "")
+    if key not in EVENTS or not EVENTS[key].point_ids:
+        raise HTTPException(422, f"source=replay needs event_id, one of {', '.join(EVENTS)}")
+    schema = hazard_schema(EVENTS[key].as_dict(), "floodsense_seed")
+    ids = ", ".join(f"'{p}'" for p in EVENTS[key].point_ids)
+    return schema, f" WHERE point_id IN ({ids})"
+
+
 @app.get("/views/{name}")
-def get_view(name: str, event_id: str | None = None):
-    """Rows of one contract view, from the schema the graph reads (FF_LIVE_DATA)."""
+def get_view(name: str, event_id: str | None = None, source: str | None = None):
+    """Rows of one contract view, from the schema the graph reads (FF_LIVE_DATA).
+
+    source=replay reads the event's replay schema (floodsense_seed for the Ahr)
+    for hazard_timeline / discharge_daily, filtered to that event's point ids.
+    """
     types = VIEW_COLUMNS.get(name)
     if types is None:
         raise HTTPException(404, f"unknown view {name!r}")
-    sql = f"SELECT * FROM {settings.schema}.{name}"
-    if event_id is not None and name in _EVENT_VIEWS:
+    if source not in (None, "", "replay"):
+        raise HTTPException(422, "source must be 'replay' or absent")
+    schema, where = settings.schema, ""
+    if source == "replay":
+        schema, where = _replay_from(name, event_id)
+    sql = f"SELECT * FROM {schema}.{name}{where}"
+    if event_id is not None and name in _EVENT_VIEWS and not where:
         if not _EVENT_ID.fullmatch(event_id):
             raise HTTPException(422, "event_id must be letters, digits, _ or -")
         sql += f" WHERE event_id = '{event_id}'"
@@ -552,7 +578,8 @@ def get_view(name: str, event_id: str | None = None):
     rows = [r for r in coerced if _usable(name, r)]
     headers = {
         "x-query-id": ev.query_id,
-        "x-schema": settings.schema,
+        "x-schema": schema,
+        "x-source": "replay" if source == "replay" else "configured",
         "x-executed-at": ev.executed_at_utc,
         "x-dropped-rows": str(len(coerced) - len(rows)),
         "cache-control": "no-store",
