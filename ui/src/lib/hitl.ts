@@ -184,8 +184,10 @@ export function buildApprovalBody(
   for (const [id, text] of Object.entries(drafts)) {
     const item = playbook.find((p) => p.actionId === id);
     if (!item || !item.outbound) return { ok: false, message: `${id} is not an outbound action; only outbound drafts can be edited.` };
+    // Unchanged drafts (including ones that were blank to begin with) are skipped before the empty check.
+    if (text.trim() === (item.draftMessage ?? "").trim()) continue;
     if (!text.trim()) return { ok: false, message: "The draft message cannot be empty." };
-    if (text.trim() !== (item.draftMessage ?? "").trim()) changed[id] = text;
+    changed[id] = text;
   }
   if (Object.keys(changed).length === 0) return { ok: false, message: "Nothing changed. Edit the draft before saving, or approve it as it is." };
   body.draft_messages = changed;

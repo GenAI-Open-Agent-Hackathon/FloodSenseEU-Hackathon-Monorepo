@@ -89,6 +89,16 @@ describe("approval card logic", () => {
     expect(r).toMatchObject({ ok: true, body: { draft_messages: { A1: "Dear customer, updated", A3: "Go now" } } });
     expect((r as { body: { draft_messages: Record<string, string> } }).body.draft_messages).not.toHaveProperty("A4");
   });
+  it("an edit to one draft saves even when another outbound draft is blank", () => {
+    const mixed = adoptPlaybook([
+      ...PB,
+      { action_id: "A5", text: "Blank", outbound: true, draft_message: null },
+    ]);
+    const drafts: Record<string, string> = { ...initialDrafts(mixed), A1: "Dear customer, revised" };
+    expect(drafts.A5).toBe("");
+    expect(buildApprovalBody("edit", "n", drafts, mixed)).toMatchObject({ ok: true, body: { draft_messages: { A1: "Dear customer, revised" } } });
+    expect(buildApprovalBody("edit", "n", { A1: "  " }, mixed)).toMatchObject({ ok: false, message: expect.stringMatching(/empty/) });
+  });
   it("falls back to a short title and a Proposed action chip", () => {
     const long = "x ".repeat(100).trim();
     const [item] = adoptPlaybook([{ action_id: "A9", text: long }]);

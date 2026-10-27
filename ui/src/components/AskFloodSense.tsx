@@ -16,6 +16,7 @@ import { turnBadge } from "../lib/turnBadge";
 import { formatElapsed, initialLiveState, liveReducer, tipFor, type LiveRunState } from "../lib/liveRun";
 import { memoryLine, NO_MEMORIES, sourceChips, type MemoryUsed } from "../lib/hitl";
 import { setAwaitingRunId } from "../lib/lastRun";
+import { friendlyError, statusFromMessage } from "../lib/friendlyError";
 import "../styles/hitl.css";
 
 const FOCUSABLE =
@@ -436,10 +437,13 @@ export function AskFloodSense() {
                     )}
                   </>
                 ) : (
-                  <>
-                    <p className="ask-error">{turn.error}</p>
-                    {turn.live && <LiveAgentPipeline state={turn.live} />}
-                  </>
+                  <ErrorTurn
+                    raw={turn.error ?? ""}
+                    role={deskRoute.role}
+                    live={turn.live ?? null}
+                    recorded={recorded}
+                    onRetry={pending === null && retryUntil === null ? () => void send(turn.question) : undefined}
+                  />
                 )}
               </div>
             ))}
@@ -600,6 +604,47 @@ function RecordedAnswer({
         <RetrievalPanel run={run} />
         <p className="note">Trace recorded with run {run.runId}.</p>
       </details>
+    </>
+  );
+}
+
+/** A failed turn: friendly, role-aware text, Retry, an optional recorded answer, and the stripped detail collapsed. */
+function ErrorTurn({
+  raw,
+  role,
+  live,
+  recorded,
+  onRetry,
+}: {
+  raw: string;
+  role: string;
+  live: LiveRunState | null;
+  recorded: RecordedRun | null;
+  onRetry?: () => void;
+}) {
+  const info = friendlyError(statusFromMessage(raw), raw, role);
+  return (
+    <>
+      <p className="ask-error">{info.text}</p>
+      {info.retry && (
+        <div className="button-row">
+          <button type="button" className="button" disabled={!onRetry} onClick={onRetry} aria-label="Retry this question">
+            Retry
+          </button>
+        </div>
+      )}
+      {info.offerRecorded && recorded && (
+        <div className="ask-fallback">
+          <RecordedAnswer run={recorded} badge={`Latest recorded answer · not live · run ${recorded.runId}`} />
+        </div>
+      )}
+      {live && <LiveAgentPipeline state={live} />}
+      {info.technical && (
+        <details className="disclosure">
+          <summary>Technical detail</summary>
+          <p className="note">{info.technical}</p>
+        </details>
+      )}
     </>
   );
 }
