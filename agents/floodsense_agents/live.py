@@ -12,6 +12,10 @@ resolve_mode() decides, deterministically:
   question about now      live (EN, ES, DE time words below)
   anything else           event
 
+A German event (EMSR517) in live mode is "the Rhine right now": the
+Investigator reads {schema}.gauge_levels (PEGELONLINE) and says plainly when
+hazard_now holds no German point.
+
 api/app/cache.py keeps a copy of LIVE_PATTERNS so a cache key agrees with the
 mode the agents will pick. Change both together.
 """
@@ -120,6 +124,51 @@ def live_points(event: dict) -> tuple[str, ...]:
 
 def points_sql(event: dict) -> str:
     return ", ".join(f"'{p}'" for p in live_points(event))
+
+
+# Germany in live mode: PEGELONLINE water levels in {schema}.gauge_levels.
+# The seed rows (migration 043) carry no level and source seed:pegelonline.
+GAUGE_LIVE_ROWS = "level_cm IS NOT NULL AND (source IS NULL OR source <> 'seed:pegelonline')"
+# The reading this many places back is the trend baseline: about 3 h at the
+# 15-minute PEGELONLINE interval. A station with fewer readings uses its oldest.
+GAUGE_TREND_LAG = 13
+# A reading older than this is reported as stale.
+GAUGE_STALE_H = 6
+# gauge_levels may gain an optional per-station threshold column. Its name is
+# not fixed yet, so any numeric column whose name matches this is the threshold.
+GAUGE_THRESHOLD_COL = re.compile(r"threshold|warn|alert|mhw|hsw|stufe|limit", re.IGNORECASE)
+OFFICIAL_NOTE = (
+    "Not an official warning; official: Hochwassermeldedienst (Länder) / DWD."
+)
+
+
+def has_gauges(event: dict) -> bool:
+    return bool(event.get("gauges"))
+
+
+def gauge_latest_sql(schema: str) -> str:
+    """Latest live reading per station plus a trend baseline, every column kept.
+
+    `g.*` so an optional threshold column comes along when the view has one.
+    """
+    lag = GAUGE_TREND_LAG
+    return (
+        f"WITH r AS (SELECT g.*, ROW_NUMBER() OVER (PARTITION BY g.station ORDER BY g.ts_utc "
+        f"DESC) AS rn, COUNT(*) OVER (PARTITION BY g.station) AS n FROM {schema}.gauge_levels g "
+        f"WHERE {GAUGE_LIVE_ROWS}) SELECT a.*, b.ts_utc AS prev_utc, b.level_cm AS prev_cm "
+        f"FROM r a LEFT JOIN r b ON b.station = a.station AND b.rn = CASE WHEN a.n < {lag} "
+        f"THEN a.n ELSE {lag} END WHERE a.rn = 1 ORDER BY a.water, a.station"
+    )
+
+
+def gauge_threshold(row: dict) -> tuple[str, float] | None:
+    """(column, value) of the station's threshold, when the view carries one."""
+    for key, value in row.items():
+        if key in ("level_cm", "prev_cm") or not GAUGE_THRESHOLD_COL.search(str(key)):
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(key), float(value)
+    return None
 
 
 def horizon_word(horizon: str | None) -> str:

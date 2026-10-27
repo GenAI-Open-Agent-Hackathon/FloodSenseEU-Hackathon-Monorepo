@@ -14,7 +14,7 @@ import logging
 import time
 
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
-from floodsense_agents.live import LIVE_ROWS, is_live, points_sql
+from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, is_live, points_sql
 from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import parse_json
 from floodsense_agents.nodes.watchers import last_complete_day, window
@@ -48,6 +48,29 @@ def _footprint_checks(s: str) -> list[tuple[str, str, tuple[str, ...]]]:
     ]
 
 
+def _gauge_checks(s: str, found: dict) -> list[tuple[str, str, tuple[str, ...]]]:
+    """The Rhine gauge hypothesis, checked against gauge_levels in its own direction."""
+    stations = found.get("gauge_stations") or []
+    if not stations:
+        return [
+            (
+                "gauge_levels holds no live reading",
+                f"SELECT COUNT(*) AS n FROM {s}.gauge_levels WHERE {GAUGE_LIVE_ROWS} HAVING COUNT(*) = 0",
+                (),
+            )
+        ]
+    names = ", ".join("'" + str(x).replace("'", "''") + "'" for x in stations)
+    return [
+        (
+            "every cited station has a live reading in gauge_levels",
+            f"SELECT COUNT(DISTINCT station) AS stations FROM {s}.gauge_levels WHERE "
+            f"{GAUGE_LIVE_ROWS} AND station IN ({names}) HAVING COUNT(DISTINCT station) = "
+            f"{len(stations)}",
+            (),
+        )
+    ]
+
+
 def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, tuple[str, ...]]]:
     """Live counter-checks: the same view the claims cite (hazard_now), other predicates.
 
@@ -60,6 +83,8 @@ def _live_checks_for(h: Hypothesis, state: FloodState) -> list[tuple[str, str, t
     found = state.get("live_findings") or {}
     rain_at = DEFINITIONS["anomaly_rain"].value
     flow_at = DEFINITIONS["anomaly_discharge"].value
+    if found.get("gauge_hypothesis") == h.id:
+        return _gauge_checks(s, found)
     if h.link == "rain->catchment":
         direction = (
             ("forecast rain reaches the anomaly line", f">= {rain_at}")

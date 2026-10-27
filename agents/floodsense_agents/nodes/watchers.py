@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timedelta
 
 from floodsense_agents.governance import DEFINITIONS
-from floodsense_agents.live import LIVE_ROWS, horizon_word, is_live, points_sql
+from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, horizon_word, is_live, points_sql
 from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -114,7 +114,14 @@ def make(deps: Deps):
             ),
         }
         # Valencia lists none. The Ahr lists the Rhine gauges between Koblenz and Bonn.
-        if state["event"].get("gauges") and not live:
+        if state["event"].get("gauges") and live:
+            # The Rhine right now: live PEGELONLINE rows only, newest first.
+            q["gauges"] = (
+                f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
+                f"WHERE {GAUGE_LIVE_ROWS} ORDER BY ts_utc DESC, station",
+                None,
+            )
+        elif state["event"].get("gauges"):
             q["gauges"] = (
                 f"SELECT station, water, ts_utc, level_cm, source FROM {s}.gauge_levels "
                 f"WHERE ts_utc BETWEEN ? AND ? ORDER BY station, ts_utc",

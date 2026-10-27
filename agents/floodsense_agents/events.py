@@ -12,6 +12,7 @@ floodsense_seed hazard and discharge views hold the Valencia series only.
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 
 # Order is ingestion/prep/valencia_points.csv and migration 003.
@@ -20,7 +21,7 @@ VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
 AHR_POINT_IDS: tuple[str, ...] = ("AHR01", "AHR02", "AHR03", "AHR04")
 
 # Place names for claim text. Municipality from valencia_points.csv, and the
-# town name from feeds.py. AHR02 is Ahrweiler, the short name the scope gate uses.
+# town name from feeds.py. AHR02 is Bad Neuenahr-Ahrweiler; the scope gate also takes "Ahrweiler".
 POINT_NAMES: dict[str, str] = {
     "VAL01": "Paiporta",
     "VAL02": "Catarroja",
@@ -31,7 +32,7 @@ POINT_NAMES: dict[str, str] = {
     "VAL07": "Chiva",
     "VAL08": "Utiel",
     "AHR01": "Altenahr",
-    "AHR02": "Ahrweiler",
+    "AHR02": "Bad Neuenahr-Ahrweiler",
     "AHR03": "Schuld",
     "AHR04": "Dernau",
 }
@@ -51,6 +52,45 @@ RHINE_GAUGES: tuple[tuple[str, str], ...] = (
     ("KÖLN", "RHEIN"),
     ("KOBLENZ", "RHEIN"),
 )
+
+# Words that put a question in Germany. They join the EMSR517 vocabulary (the
+# scope gate) and route a default-event question there (route_event). In live
+# mode EMSR517 is "the Rhine right now": gauge_levels, not the 2021 window.
+GERMAN_PLACES: tuple[str, ...] = (
+    "Rhine",
+    "Rhein",
+    "Köln",
+    "Koeln",
+    "Cologne",
+    "Bonn",
+    "Koblenz",
+    "Mosel",
+    "Moselle",
+    "Ahrtal",
+    "Germany",
+    "Deutschland",
+    "NRW",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Rhineland-Palatinate",
+)
+_GERMAN_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in (*GERMAN_PLACES, "Ahr", "Altenahr", "Ahrweiler"))
+    + r")\b",
+    re.IGNORECASE | re.UNICODE,
+)
+_VALENCIA_RE = re.compile(
+    r"\b(?:valencia|val[eè]ncia|spain|españa|espana|chiva|paiporta|poyo|dana)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+DEFAULT_EVENT = "EMSR773"
+GERMAN_EVENT = "EMSR517"
+
+
+def names_germany(question: str) -> str | None:
+    """The first German place word of a question, or None."""
+    m = _GERMAN_RE.search(question or "")
+    return m.group(0) if m else None
 
 
 @dataclass(frozen=True)
@@ -133,7 +173,7 @@ EVENTS: dict[str, EventSpec] = {
             ("2021-07-15T06:00:00Z", "Copernicus publishes the footprint"),
         ),
         RHINE_GAUGES,
-        ("Altenahr", "Ahrweiler"),
+        ("Altenahr", "Ahrweiler", "Bad Neuenahr-Ahrweiler", *GERMAN_PLACES),
     ),
 }
 ALIASES = {"valencia_2024": "EMSR773", "ahr_2021": "EMSR517"}
@@ -147,3 +187,17 @@ def spec(event_id: str) -> EventSpec:
             f"{', '.join(ALIASES)})"
         )
     return EVENTS[key]
+
+
+def route_event(question: str, event_id: str | None) -> tuple[str, str]:
+    """(event_id, reason). A German question on the default event goes to EMSR517.
+
+    RunRequest.event_id defaults to EMSR773 and the UI always sends one, so the
+    default cannot mean "the caller chose Valencia". Any other event_id stands.
+    A question that also names Valencia stays where it is (the gate decides).
+    """
+    chosen = spec(event_id or DEFAULT_EVENT).event_id
+    word = names_germany(question)
+    if chosen == DEFAULT_EVENT and word and not _VALENCIA_RE.search(question or ""):
+        return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"
+    return chosen, f"event_id {chosen}"
