@@ -11,6 +11,14 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
+- Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."
+- UI Ask: a declined answer that names the other event shows "Ask about Ahr 2021 instead" (or Valencia 2024), which re-sends the question with that event.
+- UI Ask opens with a greeting and three suggested questions fitted to role and page. The recorded run moved behind "See an example answer", labelled "Recorded run · not live".
+- UI citizen "What should I do?" shows general guidance right away ("Follow your official warning service" plus the agents' existing citizen advice, verbatim) and an Ask FloodSense button; only the agent-written tailored step waits for human review.
+- UI citizen "What should I do?" adds "In an emergency call 112." and official warning-service links for the shown place's country (Spain: Protección Civil, AEMET warnings, 112 Comunitat Valenciana; Germany: NINA (BBK), warnung.bund.de, DWD warnings, hochwasserzentralen.de; both when unclear). `SafeLink` now sets `rel="noopener noreferrer"` and has a visually hidden "(opens in new tab)".
+- Agents routing uses strong place signals only (full-word place names and point ids); generic words such as "Valley", "Bad", "Ravine" or "Province" no longer reroute. The other-event decline names the German Rhine/Ahr case by its spec name and keeps the asked words' capitalisation.
+- UI Ask suggestions follow the event the page shows; "Recorded run · not live" shows once, only with the example.
+- UI header subtitle follows the event the page shows, by the same rule as the replay strip. Citizen pages say "Valencia replay · EMSR773", not "Ahr 2021 replay", while the strip shows Paiporta.
 - UI replay strip follows the event the page shows: with Ahr 2021 selected, Insurer Sites / map and Replay show the Ahr date and point ("14 Jul 2021 · AHR01 Altenahr") instead of Valencia. Simulate playback only steps the Valencia date, so on Ahr pages the strip no longer says Playing/Paused; it labels a running run "Valencia simulation playing" and keeps Stop. Other pages are unchanged.
 
 ### Added

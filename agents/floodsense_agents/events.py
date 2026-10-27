@@ -247,22 +247,65 @@ def _context_event(context: dict | None) -> tuple[str, str] | None:
     return None
 
 
+def _place_re(event_id: str) -> re.Pattern[str]:
+    ev = EVENTS[event_id]
+    names = {*ev.place_names, *(n for p, n in POINT_NAMES.items() if p in ev.point_ids)}
+    names |= set(ev.point_ids)
+    alts = sorted(names, key=len, reverse=True)
+    return re.compile(
+        r"(?<!\w)(?:" + "|".join(re.escape(n) for n in alts) + r")(?!\w)",
+        re.IGNORECASE | re.UNICODE,
+    )
+
+
+_PLACE_RES: dict[str, re.Pattern[str]] = {e: _place_re(e) for e in EVENTS}
+
+
+def question_event(question: str) -> tuple[str, str] | None:
+    """(event_id, word) when the question names places of exactly one event, else None.
+
+    Strong place signals only: German place words and AHR ids (names_germany),
+    Valencia towns and VAL ids (_VALENCIA_RE), and each event's real place names
+    (EventSpec.place_names, POINT_NAMES), all as full words. Generic words from
+    the scope vocabulary (valley, ravine, province, bad, ...) never reroute.
+    A question naming both events, or neither, returns None.
+    """
+    text = question or ""
+    hits: dict[str, str] = {}
+    word = names_germany(text)
+    if word:
+        hits[GERMAN_EVENT] = word
+    m = _VALENCIA_RE.search(text)
+    if m:
+        hits.setdefault(DEFAULT_EVENT, m.group(0))
+    for ev_id, rx in _PLACE_RES.items():
+        found = rx.search(text)
+        if found:
+            hits.setdefault(ev_id, found.group(0))
+    if len(hits) != 1:
+        return None
+    ((ev, w),) = hits.items()
+    return ev, w
+
+
 def route_event(
     question: str, event_id: str | None, context: dict | None = None
 ) -> tuple[str, str]:
     """(event_id, reason). An explicit event_id always stands; only None is routed.
 
-    Unset: the user's selection (context) wins, then a German question (Rhine,
-    Köln, Ahr, AHR01 ...) goes to EMSR517, else EMSR773. A question that also
-    names a Valencia town stays on EMSR773 (the scope gate decides).
+    Unset: a question that names places of exactly one event (Rhine, Köln, Ahr,
+    Paiporta, ...) goes to that event, even over the user's selection. A question
+    naming no place (or both events) follows the selection (context), else
+    EMSR773.
     """
     if event_id:
         chosen = spec(event_id).event_id
         return chosen, f"event_id {chosen} requested"
+    named = question_event(question)
+    if named:
+        ev, word = named
+        return ev, f"question names '{word}', so the run uses {ev}"
     picked = _context_event(context)
     if picked:
         return picked
-    word = names_germany(question)
-    if word and not _VALENCIA_RE.search(question or ""):
-        return GERMAN_EVENT, f"question names '{word}' (Germany), so the run uses {GERMAN_EVENT}"
     return DEFAULT_EVENT, f"no event_id; default {DEFAULT_EVENT}"

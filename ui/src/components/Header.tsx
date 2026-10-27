@@ -58,7 +58,7 @@ export function Header() {
           </span>
           <div>
             <p className="product">FloodSense EU</p>
-            <p className="product-sub">{headerSubtitle(desk.page, desk.eventId)}</p>
+            <p className="product-sub">{headerSubtitle(desk.deskRoute, desk.eventId)}</p>
           </div>
         </div>
         <nav className="nav-links" aria-label="Workspace">

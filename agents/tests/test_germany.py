@@ -213,7 +213,9 @@ class Context(unittest.TestCase):
         self.assertEqual(route_event("What now?", None, {"station": "BONN"})[0], "EMSR517")
         self.assertEqual(route_event("What now?", None, {"point_id": "AHR01"})[0], "EMSR517")
         self.assertEqual(route_event("What now?", None, {"place": "Köln"})[0], "EMSR517")
-        self.assertEqual(route_event("Rhine?", None, {"event_id": "EMSR773"})[0], "EMSR773")
+        self.assertEqual(route_event("What now?", None, {"event_id": "EMSR517"})[0], "EMSR517")
+        # A question naming one event's place beats the selection.
+        self.assertEqual(route_event("Rhine?", None, {"event_id": "EMSR773"})[0], "EMSR517")
         # An unknown point is not trusted.
         self.assertEqual(route_event("What now?", None, {"point_id": "XYZ99"})[0], "EMSR773")
 

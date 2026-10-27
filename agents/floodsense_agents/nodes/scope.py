@@ -194,6 +194,35 @@ def _sentence(text: str) -> str:
     return text[:1].upper() + text[1:] if text else text
 
 
+# How a person names each event's case: (the case, where we are). The German case
+# also holds the live Rhine gauges, so it is named for both, not only the 2021 flood.
+_PLAIN: dict[str, tuple[str, str]] = {
+    "EMSR773": ("the Valencia case", "Valencia"),
+    "EMSR517": ("the German Rhine/Ahr case", "the German Rhine/Ahr case"),
+}
+
+
+def _as_asked(question: str, words: set[str]) -> list[str]:
+    """The matched words in the capitalisation the person typed, in question order."""
+    out: list[str] = []
+    for m in _WORD.finditer(question or ""):
+        w = m.group(0)
+        if w.lower() in words and w not in out:
+            out.append(w)
+    return out or sorted(words)
+
+
+def elsewhere_reason(event_id: str, other: str, hit: set[str], question: str = "") -> str:
+    """A warm decline that still says plainly why: the words belong to the other event."""
+    case, _ = _PLAIN.get(other, (f"case {other}", ""))
+    _, here = _PLAIN.get(event_id, ("", spec(event_id).region))
+    return (
+        f"That's about {case} ({other}: {spec(other).name}). I'm looking at {here} "
+        f"({event_id}) here, and this run holds no data on {', '.join(_as_asked(question, hit))}. "
+        f"Switch to {case} and I'll answer it."
+    )
+
+
 def check(question: str, event_id: str) -> dict:
     """Decide whether this run can honestly take the question on."""
     asked = _tokens(question)
@@ -216,10 +245,7 @@ def check(question: str, event_id: str) -> dict:
                 "in_scope": False,
                 "elsewhere": other,
                 "asked": sorted(asked),
-                "reason": _sentence(
-                    f"{', '.join(sorted(hit))} belongs to {other} ({spec(other).name}), "
-                    f"not to {event_id}. Open that case instead."
-                ),
+                "reason": elsewhere_reason(event_id, other, hit, question),
             }
 
     return {

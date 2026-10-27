@@ -7,6 +7,8 @@ import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
 import { servingLabel, servingQualifier } from "../lib/format";
+import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
+import { shownEventId } from "../lib/events";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
 
@@ -22,12 +24,17 @@ interface Turn {
 
 /**
  * Gmail-style dock, bottom right. Non-modal: it never covers or pushes the page, and it never opens on a route change.
- * The first message is the recorded run (VITE_REPLAY_RUN_ID) or the fixture already on the desk. The composer posts
+ * It opens with a greeting and three suggested questions fitted to the role and page. The recorded run
+ * (VITE_REPLAY_RUN_ID, or the fixture on the desk) waits behind "See an example answer". The composer posts
  * a question to POST /runs; each answer is labelled by its own served_from, so a replay is never called live.
  */
 export function AskFloodSense() {
   const desk = useConsole();
-  const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page } = desk;
+  const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page, deskRoute } =
+    desk;
+  const greeting = greetingFor(deskRoute, shownEventId(deskRoute, desk.eventId));
+  const exampleId = useId();
+  const [showExample, setShowExample] = useState(false);
   // agents-visual: screen context (and a replay moment, when the popup was opened from Replay).
   const { askContext, screenContext } = desk;
   const panelId = useId();
@@ -47,8 +54,6 @@ export function AskFloodSense() {
   const dismissRef = useRef(dismiss);
   dismissRef.current = dismiss;
   const serving = servingLabel(answer);
-  const when = serving.kind === "cached" ? `${serving.text} UTC` : serving.text;
-  const badge = serving.kind === "live" ? "Live" : servingQualifier(serving) === "cache" ? "Cached" : "Replay";
   const hasLayerC = answer.citations.some((citation) => citation.layer === "c");
   // Optional recorded run. Unset or failed keeps the fixture answer.
   const [recorded, setRecorded] = useState<RecordedRun | null>(null);
@@ -101,8 +106,8 @@ export function AskFloodSense() {
     if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [pending, askOpen]);
 
-  const send = async () => {
-    const question = draft.trim();
+  const send = async (typed?: string, eventOverride?: string) => {
+    const question = (typed ?? draft).trim();
     if (!question || sendingRef.current) return;
     sendingRef.current = true;
     const controller = new AbortController();
@@ -110,7 +115,7 @@ export function AskFloodSense() {
     const allowed = llmProviders.includes(llmProvider);
     // Follow-ups continue the thread of the newest answered run.
     const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
-    setDraft("");
+    if (typed === undefined) setDraft("");
     setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider" });
     const result = await askFloodSense(
       {
@@ -120,7 +125,7 @@ export function AskFloodSense() {
         threadId: followUpThreadId(previous),
         mode: modeForPage(page),
         context: mergeContext(screenContext(), askContext),
-        ...(askContext?.event_id ? { eventId: askContext.event_id } : {}),
+        ...(eventOverride ? { eventId: eventOverride } : askContext?.event_id ? { eventId: askContext.event_id } : {}),
       },
       controller.signal,
     );
@@ -204,13 +209,6 @@ export function AskFloodSense() {
           <header className="ask-head">
             <div>
               <h2 id={titleId}>Ask FloodSense</h2>
-              {recorded ? (
-                <p className="ask-badge ask-badge-replay">Recorded run · not live</p>
-              ) : (
-                <p className={`ask-badge ask-badge-${serving.kind}`}>
-                  {badge} · {when}
-                </p>
-              )}
               <div className="segmented segmented--small ask-modes" role="group" aria-label="Answer mode">
                 <span className="segmented__option is-active" title="Answers are grounded in retrieved, cited sources">
                   With retrieval
@@ -229,9 +227,38 @@ export function AskFloodSense() {
               nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
             }}
           >
-            <div className="ask-turn">
+            <div className="ask-turn ask-greeting">
+              <p className="ask-question">{greeting.text}</p>
+              <ul className="ask-suggestions" aria-label="Suggested questions">
+                {greeting.suggestions.map((q) => (
+                  <li key={q}>
+                    <button
+                      type="button"
+                      className="ask-suggestion"
+                      disabled={pending !== null}
+                      onClick={() => void send(q)}
+                    >
+                      {q}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="ask-link"
+                aria-expanded={showExample}
+                aria-controls={exampleId}
+                onClick={() => setShowExample((v) => !v)}
+              >
+                {showExample ? "Hide the example answer" : "See an example answer"}
+              </button>
+            </div>
+            <div className="ask-turn" id={exampleId} hidden={!showExample}>
+              {showExample && (
+              <>
+              {!recorded && <p className="ask-badge ask-badge-replay">Example · Recorded run · not live</p>}
               {recorded ? (
-                <RecordedAnswer run={recorded} badge={`Recorded run · not live · ${recorded.runId}`} />
+                <RecordedAnswer run={recorded} badge={`Example · Recorded run · not live · ${recorded.runId}`} />
               ) : (
                 <>
                   <p className="note">
@@ -285,6 +312,8 @@ export function AskFloodSense() {
                   Open evidence
                 </button>
               </div>
+              </>
+              )}
             </div>
             {turns.map((turn, i) => (
               <div
@@ -295,7 +324,13 @@ export function AskFloodSense() {
               >
                 <p className="ask-bubble">{turn.question}</p>
                 {turn.run ? (
-                  <RecordedAnswer run={turn.run} badge={runBadge(turn.run)} />
+                  <RecordedAnswer
+                    run={turn.run}
+                    badge={runBadge(turn.run)}
+                    onSwitch={
+                      pending === null && switchTarget(turn.run) ? (eventId) => void send(turn.question, eventId) : undefined
+                    }
+                  />
                 ) : (
                   <p className="ask-error">
                     {turn.error}
@@ -354,7 +389,17 @@ export function AskFloodSense() {
 }
 
 /** An agent run, labelled by its own served_from: live, cache or replay. */
-function RecordedAnswer({ run, badge }: { run: RecordedRun; badge: string }) {
+function RecordedAnswer({
+  run,
+  badge,
+  onSwitch,
+}: {
+  run: RecordedRun;
+  badge: string;
+  /** A declined run that names the event holding the question: re-ask it there. */
+  onSwitch?: (eventId: string) => void;
+}) {
+  const switchLabel = run.elsewhere ? switchEventLabel(run.elsewhere) : null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
   return (
     <>
@@ -367,6 +412,13 @@ function RecordedAnswer({ run, badge }: { run: RecordedRun; badge: string }) {
         </p>
       )}
       <p className="ask-question">{run.summary}</p>
+      {onSwitch && run.elsewhere && switchLabel && (
+        <div className="button-row">
+          <button type="button" className="button" onClick={() => onSwitch(run.elsewhere as string)}>
+            {switchLabel}
+          </button>
+        </div>
+      )}
       <ul className="ask-claims">
         {run.claims.map((claim) => (
           <li key={claim.id}>
