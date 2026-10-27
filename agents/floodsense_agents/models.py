@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Layer = Literal["a", "b", "c"]
 Grounding = Literal["supported", "partial", "unsupported"]
@@ -197,9 +197,30 @@ def normalize_utc(value: str) -> str:
     return f"{date}T{hour}:{minute}:{second or '00'}Z"
 
 
+class RunContext(BaseModel):
+    """What the user is looking at. Allowlisted keys, short strings only.
+
+    Never an SQL identifier: point_id is used only when it is a known point
+    (events.POINT_NAMES), station only as an escaped string literal, and
+    event_id only through events.spec.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    page: str | None = Field(default=None, pattern=r"^[a-z][a-z_-]{0,23}$")
+    role: Literal["citizen", "insurer"] | None = None
+    place: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[\w .,'()-]+$")
+    point_id: str | None = Field(default=None, pattern=r"^[A-Z]{3}\d{2}$")
+    station: str | None = Field(default=None, pattern=r"^[A-Za-zÄÖÜäöüß .-]{2,40}$")
+    event_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_]{1,24}$")
+    replay_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 class RunRequest(BaseModel):
     question: str
-    event_id: str = "EMSR773"  # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
+    # None lets events.route_event pick: context, then the question (Rhine, Köln, Ahr ->
+    # EMSR517), else EMSR773. An explicit id always stands.
+    event_id: str | None = None  # Copernicus activation; EMSR773 Valencia 2024, EMSR517 Ahr 2021
     customer_id: str = "demo-insurer"
     replay_ts: str | None = (
         None  # "now" of the replay, e.g. 2024-10-29T16:00:00Z; null = whole window
@@ -219,6 +240,9 @@ class RunRequest(BaseModel):
     # the ~48 h forecast). Null lets live.resolve_mode classify the question.
     # replay_ts set always means event.
     mode: Literal["event", "live"] | None = None
+    # extra: what the user is looking at (page, role, place, point, station).
+    # A selected station, point or place wins over the default event.
+    context: RunContext | None = None
 
     @field_validator("llm_provider")
     @classmethod

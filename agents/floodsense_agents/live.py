@@ -12,6 +12,10 @@ resolve_mode() decides, deterministically:
   question about now      live (EN, ES, DE time words below)
   anything else           event
 
+A German event (EMSR517) in live mode is "the Rhine right now": the
+Investigator reads {schema}.gauge_levels (PEGELONLINE) and says plainly when
+hazard_now holds no German point.
+
 api/app/cache.py keeps a copy of LIVE_PATTERNS so a cache key agrees with the
 mode the agents will pick. Change both together.
 """
@@ -118,8 +122,99 @@ def live_points(event: dict) -> tuple[str, ...]:
     return VALENCIA_POINT_IDS
 
 
-def points_sql(event: dict) -> str:
-    return ", ".join(f"'{p}'" for p in live_points(event))
+def focus(state: dict) -> dict:
+    """The user's selection, mapped to known values only. Never an identifier.
+
+    point_id: kept only when it is one of the event's warehouse points.
+    station: uppercased and quote-escaped, for use as a string literal.
+    role: citizen | insurer | None.
+    """
+    ctx = (state.get("request") or {}).get("context") or {}
+    pid = ctx.get("point_id")
+    station = ctx.get("station")
+    station = str(station).upper().replace("'", "''") if station else None
+    return {
+        "point_id": pid if pid in live_points(state.get("event") or {}) else None,
+        "station": station,
+        "role": ctx.get("role") if ctx.get("role") in ("citizen", "insurer") else None,
+        "page": ctx.get("page"),
+        "place": ctx.get("place"),
+    }
+
+
+def points_sql(event: dict, point_id: str | None = None) -> str:
+    """The event's points, or the one selected point when it is one of them."""
+    pts = live_points(event)
+    if point_id in pts:
+        pts = (point_id,)
+    return ", ".join(f"'{p}'" for p in pts)
+
+
+CITIZEN_ADVICE = (
+    "What to do: follow the official warnings (Germany: Hochwassermeldedienst of your Land, "
+    "DWD, NINA app; Spain: AEMET, ES-Alert, Protección Civil); keep away from riverbanks, "
+    "underpasses and cellars; call 112 in an emergency."
+)
+
+
+def phrase_for_role(summary: str, role: str | None, exposure_line: str | None = None) -> str:
+    """Citizen: plain wording and what to do. Insurer: exposure first."""
+    if role == "citizen":
+        return f"In plain words: {summary} {CITIZEN_ADVICE}"
+    if role == "insurer" and exposure_line:
+        return f"Exposure: {exposure_line}. {summary}"
+    return summary
+
+
+# Germany in live mode: PEGELONLINE water levels in {schema}.gauge_levels.
+# The seed rows (migration 043) carry no level and source seed:pegelonline.
+GAUGE_LIVE_ROWS = "level_cm IS NOT NULL AND (source IS NULL OR source <> 'seed:pegelonline')"
+# The reading this many places back is the trend baseline: about 3 h at the
+# 15-minute PEGELONLINE interval. A station with fewer readings uses its oldest.
+GAUGE_TREND_LAG = 13
+# A reading older than this is reported as stale.
+GAUGE_STALE_H = 6
+# gauge_levels may gain an optional per-station threshold column. Its name is
+# not fixed yet, so any numeric column whose name matches this is the threshold.
+GAUGE_THRESHOLD_COL = re.compile(r"threshold|warn|alert|mhw|hsw|stufe|limit", re.IGNORECASE)
+OFFICIAL_NOTE = (
+    "Not an official warning; official: Hochwassermeldedienst (Länder) / DWD."
+)
+
+
+def has_gauges(event: dict) -> bool:
+    return bool(event.get("gauges"))
+
+
+def gauge_latest_sql(schema: str) -> str:
+    """Latest live reading per station plus a trend baseline, every column kept.
+
+    `g.*` so an optional threshold column comes along when the view has one.
+    """
+    lag = GAUGE_TREND_LAG
+    return (
+        f"WITH r AS (SELECT g.*, ROW_NUMBER() OVER (PARTITION BY g.station ORDER BY g.ts_utc "
+        f"DESC) AS rn, COUNT(*) OVER (PARTITION BY g.station) AS n FROM {schema}.gauge_levels g "
+        f"WHERE {GAUGE_LIVE_ROWS}) SELECT a.*, b.ts_utc AS prev_utc, b.level_cm AS prev_cm "
+        f"FROM r a LEFT JOIN r b ON b.station = a.station AND b.rn = CASE WHEN a.n < {lag} "
+        f"THEN a.n ELSE {lag} END WHERE a.rn = 1 ORDER BY a.water, a.station"
+    )
+
+
+def gauge_threshold(row: dict) -> tuple[str, float] | None:
+    """(column, value) of the station's threshold, when the view carries one.
+
+    mhw_cm (mean high water, PR #58 contract) first; otherwise any matching name.
+    """
+    mhw = row.get("mhw_cm")
+    if isinstance(mhw, (int, float)) and not isinstance(mhw, bool):
+        return "mhw_cm", float(mhw)
+    for key, value in row.items():
+        if key in ("level_cm", "prev_cm") or not GAUGE_THRESHOLD_COL.search(str(key)):
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(key), float(value)
+    return None
 
 
 def horizon_word(horizon: str | None) -> str:

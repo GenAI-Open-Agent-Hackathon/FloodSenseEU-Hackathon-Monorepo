@@ -107,6 +107,24 @@ class FoldAndKeyTest(unittest.TestCase):
         self.assertNotEqual(key_of(q, "f"), key_of({**q, "replay_ts": "2024-10-29T16:00:00Z"}, "f"))
         self.assertNotEqual(key_of(q, "f"), key_of(q, "g"))
 
+    def test_a_routed_german_run_replays_for_the_same_ask(self) -> None:
+        from app.cache import same_ask
+
+        ask = {"question": "How high is the Rhine at Köln right now?", "mode": "live"}
+        run = {
+            "event_id": "EMSR517",
+            "mode": {"mode": "live"},
+            "request": {**ask, "event_id": None},
+        }
+        self.assertTrue(same_ask(ask, run))
+        self.assertFalse(same_ask({**ask, "event_id": "EMSR517"}, run))
+
+    def test_context_is_part_of_the_key_so_places_do_not_cross(self) -> None:
+        q = {"question": "level now?", "context": {"station": "BONN"}}
+        self.assertNotEqual(key_of(q, "f"), key_of({**q, "context": {"station": "KÖLN"}}, "f"))
+        self.assertNotEqual(key_of(q, "f"), key_of({"question": "level now?"}, "f"))
+        self.assertEqual(key_of({"question": "q", "context": {}}, "f"), key_of({"question": "q"}, "f"))
+
     def test_zone_less_and_short_clocks_share_the_canonical_key(self) -> None:
         canonical = {"question": "q", "replay_ts": "2024-10-29T16:00:00Z"}
         forms = (

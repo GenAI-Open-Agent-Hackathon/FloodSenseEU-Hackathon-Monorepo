@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { AgentPipeline } from "./AgentPipeline";
 import { RetrievalPanel } from "./RetrievalPanel";
 import { mergeContext } from "../lib/askContext";
-import { askFloodSense, capTurns, DEFAULT_EVENT_ID, followUpThreadId, modeForPage, modeLabel, runBadge } from "../api/ask";
+import { askFloodSense, capTurns, followUpThreadId, modeForPage, modeLabel, runBadge } from "../api/ask";
 import { fetchRecordedRun, replayRunId, type RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
 import { citationMarks, citationsForClaim, numberedCitations } from "../lib/citations";
@@ -115,7 +115,6 @@ export function AskFloodSense() {
     const result = await askFloodSense(
       {
         question,
-        eventId: DEFAULT_EVENT_ID,
         provider: llmProvider,
         allowedProviders: llmProviders,
         threadId: followUpThreadId(previous),

@@ -66,6 +66,7 @@ class FloodState(TypedDict, total=False):
     # extra
     request: dict[str, Any]  # RunRequest
     event: dict[str, Any]  # EventSpec
+    event_route: str  # why this event: events.route_event reason
     evidence: dict[str, dict[str, Any]]  # query_id -> Evidence
     provenance: list[dict[str, Any]]  # rows of the provenance view (layer b)
     claims: list[dict[str, Any]]  # Claim[]

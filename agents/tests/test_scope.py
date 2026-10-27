@@ -65,11 +65,16 @@ class ScopeRuleTest(unittest.TestCase):
         self.assertIn("EMSR517", verdict["reason"])
         self.assertIn("Open that case", verdict["reason"])
 
-    def test_a_question_nothing_covers_is_refused_with_what_we_do_hold(self) -> None:
+    def test_the_rhine_on_a_valencia_run_names_the_ahr_case(self) -> None:
         verdict = scope.check("What is the risk on the Rhine at Koeln?", "EMSR773")
         self.assertFalse(verdict["in_scope"])
+        self.assertEqual(verdict["elsewhere"], "EMSR517")
+
+    def test_a_question_nothing_covers_is_refused_with_what_we_do_hold(self) -> None:
+        verdict = scope.check("What is the risk on the Danube at Vienna?", "EMSR773")
+        self.assertFalse(verdict["in_scope"])
         self.assertIsNone(verdict["elsewhere"])
-        self.assertIn("rhine", verdict["reason"].lower())
+        self.assertIn("danube", verdict["reason"].lower())
         self.assertIn("hazard_timeline", verdict["reason"])
         self.assertIn("gauge_levels", verdict["reason"])
         self.assertIn("Valencia", verdict["reason"])
@@ -120,13 +125,13 @@ class ScopeRunTest(unittest.TestCase):
         self.assertTrue(run["playbook"])
 
     def test_a_refused_question_produces_no_answer_at_all(self) -> None:
-        run = self.run_with("What is the risk on the Rhine at Koeln?")
+        run = self.run_with("What is the risk on the Danube at Vienna?")
         self.assertEqual(run["status"], "out_of_scope")
         self.assertEqual(run["claims"], [])
         self.assertEqual(run["playbook"], [])
         self.assertEqual(run["hypotheses"], [])
         self.assertFalse(run["exposure"])
-        self.assertIn("rhine", run["summary"].lower())
+        self.assertIn("danube", run["summary"].lower())
 
     def test_a_refusal_reads_nothing_and_calls_no_model(self) -> None:
         z = Counting()
@@ -137,7 +142,7 @@ class ScopeRunTest(unittest.TestCase):
         self.assertEqual(run["model_ids"], [])
 
     def test_the_refusal_is_on_the_trace_so_it_can_be_audited(self) -> None:
-        run = self.run_with("What is the risk on the Rhine at Koeln?")
+        run = self.run_with("What is the risk on the Danube at Vienna?")
         gate = next(t for t in run["trace"] if t["node"] == "scope")
         self.assertIn("declined", gate["summary"])
         self.assertFalse(run["scope"]["in_scope"])

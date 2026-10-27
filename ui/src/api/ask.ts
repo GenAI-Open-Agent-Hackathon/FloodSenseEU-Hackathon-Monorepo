@@ -55,9 +55,11 @@ export function buildRunRequest(input: AskInput): Record<string, unknown> {
   const question = input.question.trim();
   const body: Record<string, string> = {
     question,
-    event_id: input.eventId || DEFAULT_EVENT_ID,
     doc_query: question,
   };
+  // No event_id unless the page has one: the agents route an unset event by the
+  // question (Rhine, Köln, Ahr -> EMSR517) and default to EMSR773 otherwise.
+  if (input.eventId) body.event_id = input.eventId;
   if (input.allowedProviders.includes(input.provider)) body.llm_provider = input.provider;
   if (input.threadId) body.thread_id = input.threadId;
   if (input.mode) body.mode = input.mode;

@@ -74,7 +74,7 @@ class PointVocabularyTest(unittest.TestCase):
         self.assertEqual(point_label("VAL07"), "Chiva (VAL07)")
         self.assertEqual(point_label("VAL01"), "Paiporta (VAL01)")
         self.assertEqual(point_label("AHR01"), "Altenahr (AHR01)")
-        self.assertEqual(point_label("AHR02"), "Ahrweiler (AHR02)")
+        self.assertEqual(point_label("AHR02"), "Bad Neuenahr-Ahrweiler (AHR02)")
         self.assertTrue(set(valencia.river_points + valencia.rain_points).isdisjoint(SLUGS))
         self.assertTrue(set(ahr.river_points + ahr.rain_points).isdisjoint(SLUGS))
 

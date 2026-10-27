@@ -233,6 +233,7 @@ def key_of(request: dict[str, Any], flags: str) -> tuple:
         request.get("lang") or DEFAULT_LANG,
         fold(str(request.get("doc_query") or "")),
         _provider_of(request),
+        _context_of(request),
         flags,
     )
 
@@ -337,7 +338,24 @@ def _customer_of(source: dict[str, Any]) -> str:
 
 
 def _event_of(source: dict[str, Any]) -> str:
-    return canonical_event(source.get("event_id") or _request_of(source).get("event_id"))
+    # The request's event first: a run routed to EMSR517 by its question still
+    # answers the ask that sent EMSR773 (agents events.route_event).
+    # A run's own event_id may be the routed one; its request is what was asked.
+    request = source.get("request")
+    # A request that carries the key (every RunRequest dump does) decides, even as None.
+    if isinstance(request, dict) and "event_id" in request:
+        return canonical_event(request.get("event_id"))
+    return canonical_event(source.get("event_id"))
+
+
+def _context_of(source: dict[str, Any]) -> tuple:
+    """What the user was looking at, so a cached answer never crosses places or roles."""
+    ctx = source.get("context")
+    if not isinstance(ctx, dict):
+        ctx = _request_of(source).get("context")
+    if not isinstance(ctx, dict):
+        return ()
+    return tuple(sorted((str(k), str(v)) for k, v in ctx.items() if v not in (None, "")))
 
 
 def ask_of(source: dict[str, Any]) -> tuple:
@@ -351,6 +369,7 @@ def ask_of(source: dict[str, Any]) -> tuple:
         _lang_of(source),
         fold(str(source.get("doc_query") or _request_of(source).get("doc_query") or "")),
         _provider_of(source),
+        _context_of(source),
     )
 
 

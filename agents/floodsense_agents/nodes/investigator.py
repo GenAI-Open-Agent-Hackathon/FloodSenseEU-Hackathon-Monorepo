@@ -20,9 +20,16 @@ import time
 from floodsense_agents.events import point_label
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL
 from floodsense_agents.live import (
+    GAUGE_LIVE_ROWS,
+    GAUGE_STALE_H,
     LIVE_ROWS,
+    OFFICIAL_NOTE,
     STALE_FORECAST_H,
+    gauge_latest_sql,
+    gauge_threshold,
+    has_gauges,
     hours_between,
+    focus,
     is_live,
     points_sql,
     relative,
@@ -125,6 +132,13 @@ def thread_block(turns: list[dict] | None) -> str:
     )
 
 
+def _in_area(ev: dict) -> str:
+    """In the footprint and inside the event's bbox. exposure_join has no event column,
+    so without the bbox the Ahr run counted the Valencia sites as EMSR517's."""
+    lat0, lat1, lon0, lon1 = ev["bbox"]
+    return f"{IN_FOOTPRINT_SQL} AND lat BETWEEN {lat0} AND {lat1} AND lon BETWEEN {lon0} AND {lon1}"
+
+
 def _fmt(v) -> str:
     return f"{v:g}" if isinstance(v, (int, float)) else str(v)
 
@@ -163,7 +177,7 @@ def _deterministic(
             ),
             (
                 f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
-                f"{s}.exposure_join WHERE {IN_FOOTPRINT_SQL}",
+                f"{s}.exposure_join WHERE {_in_area(ev)}",
                 None,
             ),
             (
@@ -341,7 +355,7 @@ def _live_deterministic(
     station reading, and the text says so.
     """
     s, ev, prov = settings.schema, state["event"], state.get("provenance", [])
-    pts = points_sql(ev)
+    pts = points_sql(ev, focus(state)["point_id"])
     rain_at = DEFINITIONS["anomaly_rain"]
     flow_at = DEFINITIONS["anomaly_discharge"]
     now = now_utc()
@@ -381,7 +395,7 @@ def _live_deterministic(
             ),
             (
                 f"SELECT COUNT(*) AS sites_in_footprint, COUNT(DISTINCT segment) AS segments FROM "
-                f"{s}.exposure_join WHERE {IN_FOOTPRINT_SQL}",
+                f"{s}.exposure_join WHERE {_in_area(ev)}",
                 None,
             ),
         ],
@@ -585,6 +599,193 @@ def _live_deterministic(
     return hyps, claims, summary, [span, rain, fpeak, ppeak, cross, foot], findings
 
 
+def _trend(row: dict) -> str:
+    rate = row.get("trend_cm_h")
+    if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+        if abs(rate) < 0.5:
+            return f"steady ({_fmt(rate)} cm/h, trend_cm_h)"
+        word = "rising" if rate > 0 else "falling"
+        return f"{word} {_fmt(abs(rate))} cm/h (trend_cm_h)"
+    prev, prev_ts, level = row.get("prev_cm"), row.get("prev_utc"), row.get("level_cm")
+    if prev is None or not prev_ts or prev_ts == row.get("ts_utc"):
+        return "no earlier reading to show a trend"
+    # Only cited cells: the earlier and the latest level, no derived difference.
+    delta = float(level) - float(prev)
+    word = "steady" if abs(delta) < 2 else ("rising" if delta > 0 else "falling")
+    return f"{word}, from {_fmt(prev)} cm at {prev_ts} to {_fmt(level)} cm"
+
+
+def _rhine_live(
+    state: FloodState, deps: Deps
+) -> tuple[list[Hypothesis], list[Claim], str, list[Evidence], dict]:
+    """The Rhine right now: PEGELONLINE levels from {schema}.gauge_levels.
+
+    hazard_now is read for the event's German points first. When it holds none,
+    the run says so plainly and does not borrow Valencia rows. Every number a
+    gauge claim states is a cell of the gauge query it cites.
+    """
+    s, ev, prov = settings.schema, state["event"], state.get("provenance", [])
+    now = now_utc()
+    count, gauges, readings = run_sql_parallel(
+        deps.zetaris,
+        [
+            (
+                f"SELECT COUNT(*) AS point_hours FROM {s}.hazard_now WHERE point_id IN "
+                f"({points_sql(ev)}) AND {LIVE_ROWS}",
+                None,
+            ),
+            (gauge_latest_sql(s), None),
+            # One row even when the view is empty, so a "no reading" claim cites rows.
+            (
+                f"SELECT COUNT(*) AS live_readings, COUNT(DISTINCT station) AS stations FROM "
+                f"{s}.gauge_levels WHERE {GAUGE_LIVE_ROWS}",
+                None,
+            ),
+        ],
+    )
+    hazard_hours = int((count.rows_sample or [{}])[0].get("point_hours") or 0)
+    if hazard_hours:
+        hyps, claims, _summary, extra, findings = _live_deterministic(state, deps)
+    else:
+        hyps, claims, extra, findings = [], [], [], {"now_utc": now}
+    n = len(claims)
+
+    def claim(text, kind, evs, numbers):
+        nonlocal n
+        n += 1
+        cid = f"C{n}"
+        claims.append(
+            Claim(
+                claim_id=cid,
+                text=text,
+                kind=kind,
+                numbers=numbers,
+                hypothesis_id=hid,
+                citations=[c for i, e in enumerate(evs, 1) for c in cite(cid, e, prov, i)],
+            )
+        )
+        return cid
+
+    hid = "H5" if hyps else "H2"
+    ids: list[str] = []
+    names = ", ".join(point_label(p) for p in [*ev.get("river_points", ()), *ev.get("rain_points", ())])
+    if not hazard_hours:
+        ids.append(
+            claim(
+                f"{s}.hazard_now holds 0 live rows (past or forecast) for the German points "
+                f"({names}): this run has no modelled rain or discharge for Germany, only "
+                f"PEGELONLINE gauge levels.",
+                "fact",
+                [count],
+                [0],
+            )
+        )
+    stations = [r for r in gauges.rows_sample if r.get("level_cm") is not None]
+    # The selected station (context) first. One the view does not hold is said plainly.
+    picked = focus(state)["station"]
+    if picked:
+        picked = picked.replace("''", "'")
+        stations.sort(key=lambda r: str(r.get("station")).upper() != picked)
+        if stations and not any(str(r.get("station")).upper() == picked for r in stations):
+            ids.append(
+                claim(
+                    f"The selected station {picked} has no live reading in {s}.gauge_levels; "
+                    f"{readings.rows_sample[0].get('stations', 0) if readings.rows_sample else 0} "
+                    f"other stations do.",
+                    "fact",
+                    [readings],
+                    [readings.rows_sample[0].get("stations", 0)] if readings.rows_sample else [],
+                )
+            )
+    over: list[str] = []
+    stale_any = False
+    for r in stations[:8]:
+        ago = hours_between(now, r["ts_utc"])
+        stale_any = stale_any or (ago is not None and ago >= GAUGE_STALE_H)
+        rel = relative(r["ts_utc"], now) or "time unreadable"
+        numbers = [r["level_cm"]]
+        if r.get("prev_cm") is not None and r.get("prev_utc") != r.get("ts_utc"):
+            numbers.append(r["prev_cm"])
+        rate = r.get("trend_cm_h")
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+            numbers.append(rate)
+        flagged_stale = str(r.get("is_stale")).strip().lower() in ("true", "1", "yes")
+        if flagged_stale:
+            stale_any = True
+        when_txt = (
+            f"stale reading from {r['ts_utc']} ({rel}), not a current level"
+            if flagged_stale
+            else f"at {r['ts_utc']} ({rel})"
+        )
+        text = (
+            f"{r['station']} ({r.get('water') or '?'}): {_fmt(r['level_cm'])} cm {when_txt}; "
+            f"{_trend(r)}"
+        )
+        band = str(r.get("band") or "").lower()
+        if band in ("below", "near", "above"):
+            text += f"; band '{band}' (PEGELONLINE level band)"
+        thr = gauge_threshold(r)
+        if thr:
+            col, value = thr
+            numbers.append(value)
+            at_or_over = (
+                band == "above" if band in ("below", "near", "above") else float(r["level_cm"]) >= value
+            )
+            if flagged_stale:
+                at_or_over = False
+            if at_or_over:
+                over.append(r["station"])
+            text += (
+                f"; {'at or above' if at_or_over else 'below'} the station threshold "
+                f"{_fmt(value)} cm ({col})"
+            )
+        else:
+            text += "; gauge_levels carries no threshold for this station"
+        ids.append(claim(text + f". PEGELONLINE (WSV). {OFFICIAL_NOTE}", "number", [gauges], numbers))
+    if not stations:
+        ids.append(
+            claim(
+                f"Status: {s}.gauge_levels holds no live PEGELONLINE reading (seed rows carry no "
+                f"level), so there is no current Rhine water level to report. {OFFICIAL_NOTE}",
+                "fact",
+                [readings],
+                [],
+            )
+        )
+        statement = f"No current Rhine gauge level in {s}.gauge_levels"
+    else:
+        listed = ", ".join(
+            f"{r['station']} {_fmt(r['level_cm'])} cm"
+            + (" (stale)" if str(r.get("is_stale")).strip().lower() in ("true", "1", "yes") else "")
+            for r in stations[:8]
+        )
+        statement = f"Rhine gauges now (PEGELONLINE): {listed}" + (
+            f"; at or above threshold: {', '.join(over)}" if over else ""
+        )
+    hyps.append(Hypothesis(id=hid, link="catchment->river", citations=ids, statement=statement))
+    summary = (
+        f"Live data ({s}.gauge_levels"
+        + (f" and {s}.hazard_now" if hazard_hours else "")
+        + f", as of {now}). "
+        + " ".join(
+            f"{h.statement} [{', '.join(h.citations)}]." if h.citations else f"{h.statement}."
+            for h in hyps
+        )
+        + (" STALE: a gauge reading is more than 6 h old." if stale_any else "")
+        + f" {OFFICIAL_NOTE}"
+    )
+    findings = {
+        **findings,
+        "now_utc": now,
+        "stale": bool(findings.get("stale")) or stale_any,
+        "gauge_hypothesis": hid,
+        "gauge_stations": [r["station"] for r in stations],
+        "gauge_over_threshold": over,
+        "hazard_now_german_rows": hazard_hours,
+    }
+    return hyps, claims, summary, [count, gauges, readings, *extra], findings
+
+
 LIVE_PROMPT = (
     "MODE: live. The evidence is {schema}.hazard_now, a rolling window: horizon 'past' rows are "
     "Open-Meteo / GloFAS model output for the last days (not station readings), horizon "
@@ -764,7 +965,9 @@ def make(deps: Deps):
             }
 
         findings = None
-        if is_live(state):
+        if is_live(state) and has_gauges(state["event"]):
+            hyps, claims, summary, extra, findings = _rhine_live(state, deps)
+        elif is_live(state):
             hyps, claims, summary, extra, findings = _live_deterministic(state, deps)
         else:
             hyps, claims, summary, extra = _deterministic(state, deps)
