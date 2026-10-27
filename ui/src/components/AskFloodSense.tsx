@@ -27,6 +27,7 @@ interface Turn {
   error: string | null;
   /** A plain assistant reply (the API's fast intent path: `{kind: "reply", answer}`, no run). */
   reply?: string | null;
+  suggestions?: string[];
   /** The streamed pipeline as it ended, for a failed live run. */
   live?: LiveRunState | null;
 }
@@ -168,7 +169,7 @@ export function AskFloodSense() {
       setPending(null);
       setTurns((prev) => capTurns([...prev, { id: Date.now(), question, run: null, error: null, ...turn }]));
     };
-    if (result.kind === "reply") return finish({ reply: result.answer });
+    if (result.kind === "reply") return finish({ reply: result.answer, suggestions: result.suggestions });
     if (result.kind === "run") return finish({ run: result.run });
     if (result.kind === "error") return finish({ error: result.message });
     if (result.kind === "rate_limited") {
@@ -401,7 +402,20 @@ export function AskFloodSense() {
                     }
                   />
                 ) : turn.reply ? (
-                  <p className="ask-question ask-reply">{turn.reply}</p>
+                  <>
+                    <p className="ask-question ask-reply">{turn.reply}</p>
+                    {turn.suggestions && turn.suggestions.length > 0 && (
+                      <ul className="ask-suggestions" aria-label="Suggested follow-ups">
+                        {turn.suggestions.map((q) => (
+                          <li key={q}>
+                            <button type="button" className="ask-suggestion" disabled={pending !== null} onClick={() => void send(q)}>
+                              {q}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 ) : (
                   <>
                     <p className="ask-error">{turn.error}</p>

@@ -74,7 +74,11 @@ describe("classifyStart", () => {
     expect(turnBadge((r as { run: RecordedRun }).run)).toBe("Recorded/cached · not live");
   });
   it("intent reply without run_id is a plain message", () => {
-    expect(classifyStart(200, { kind: "reply", answer: "Hello" }, null)).toEqual({ kind: "reply", answer: "Hello" });
+    expect(classifyStart(200, { kind: "reply", answer: "Hello", suggestions: ["Q1", 3] }, null)).toEqual({
+      kind: "reply",
+      answer: "Hello",
+      suggestions: ["Q1"],
+    });
     expect(classifyStart(200, { kind: "reply", answer: "x", run_id: "r" }, null).kind).not.toBe("reply");
   });
   it("429 carries Retry-After", () => {

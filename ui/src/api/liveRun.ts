@@ -12,12 +12,16 @@ import { errorDetail } from "../lib/hitl";
 export type StartResult =
   | { kind: "started"; runId: string; threadId: string | null }
   | { kind: "run"; run: RecordedRun }
-  | { kind: "reply"; answer: string }
+  | { kind: "reply"; answer: string; suggestions: string[] }
   | { kind: "rate_limited"; retryAfterS: number | null; message: string }
   | { kind: "error"; message: string }
   | { kind: "aborted" };
 
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+
+function suggestionsOf(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s.trim().length > 0).slice(0, 4) : [];
+}
 
 /** Pure: classify a POST /runs?wait=false answer. 202 starts a live run; 200 is a cache hit, a replay, or an intent reply. */
 export function classifyStart(status: number, body: unknown, retryAfter: string | null): StartResult {
@@ -27,7 +31,7 @@ export function classifyStart(status: number, body: unknown, retryAfter: string 
     return { kind: "rate_limited", retryAfterS: secs, message: "Too many questions right now." };
   }
   if (status >= 200 && status < 300 && r && r.kind === "reply" && typeof r.answer === "string" && !r.run_id) {
-    return { kind: "reply", answer: r.answer };
+    return { kind: "reply", answer: r.answer, suggestions: suggestionsOf(r.suggestions) };
   }
   if (status === 202) {
     const runId = r && typeof r.run_id === "string" ? r.run_id : null;
@@ -35,6 +39,12 @@ export function classifyStart(status: number, body: unknown, retryAfter: string 
     return { kind: "started", runId, threadId: typeof r?.thread_id === "string" ? r.thread_id : null };
   }
   const mapped = mapRunResponse(status, body, retryAfter);
+  // feat/chat-front-door maps a reply to {ok:false, kind:"reply", reply:{answer, suggestions}}. Not an error.
+  const loose = mapped as unknown as { kind?: unknown; message?: unknown; reply?: { answer?: unknown; suggestions?: unknown } };
+  if (loose.kind === "reply") {
+    const answer = typeof loose.reply?.answer === "string" ? loose.reply.answer : typeof loose.message === "string" ? loose.message : "";
+    if (answer) return { kind: "reply", answer, suggestions: suggestionsOf(loose.reply?.suggestions) };
+  }
   return mapped.ok ? { kind: "run", run: mapped.run } : { kind: "error", message: mapped.message };
 }
 
