@@ -105,13 +105,33 @@ _WORD_DATE = re.compile(
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T][\d:.]*Z?)?")
 # A clock time: "00:00 UTC", "19:11".
 _CLOCK = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")
-# A number the text names as a line: "the 100 m3/s line", "threshold of 100", "above the 30 mm/h mark".
-_UNIT = r"(?:\s*(?:mm/h|mm|m3/s|m³/s|cm|%))?"
+# A number the text names as a line it is compared with: a comparison word, the
+# number, its unit, and "line" ("stayed under the 30 mm/h line", "above the 100
+# m3/s line", "threshold of 100 m3/s"). "Peaked at the 100 m3/s line" has no
+# comparison word, so its 100 is a stated value and stays for the Judge.
+_COMPARE = (
+    r"(?:under|below|above|over|exceeds?|exceeded|exceeding|reach(?:es|ed)?|"
+    r"cross(?:es|ed)?|crossing)"
+)
+_LINE_UNIT = r"(mm/h|mm|m3/s|m³/s)"
 _LINE_NAMED = re.compile(
-    rf"\b(?:the|a|an)\s+(\d+(?:\.\d+)?){_UNIT}\s+(?:anomaly\s+)?(?:line|threshold|mark|limit)\b"
-    rf"|\b(?:threshold|line|limit)\s+(?:of|at)\s+(\d+(?:\.\d+)?)",
+    rf"\b{_COMPARE}\s+(?:the|a|an)\s+(\d+(?:\.\d+)?)\s*{_LINE_UNIT}\s+(?:anomaly\s+)?"
+    rf"(?:line|threshold|mark|limit)\b"
+    rf"|\bthreshold\s+of\s+(\d+(?:\.\d+)?)\s*{_LINE_UNIT}",
     re.IGNORECASE,
 )
+
+
+def _unit_key(unit: str) -> str:
+    """Definition or text unit -> mm/h, mm, m3/s ('mm per event window' is mm)."""
+    u = unit.strip().lower().replace("³", "3")
+    if u.startswith("mm/h"):
+        return "mm/h"
+    if u.startswith("m3/s"):
+        return "m3/s"
+    if u.startswith("mm"):
+        return "mm"
+    return u
 # A coordinate filter: "lat 50.2-50.7, lon 6.6-7.4", "bbox 50.2, 50.7, ...".
 _FILTER_NAMED = re.compile(
     r"\b(?:lat(?:itude)?|lon(?:gitude)?|bbox|bounding box)\b[\s:=]*\(?"
@@ -145,10 +165,11 @@ def cited_numbers(
     vals = cell_values(evs)
     tol = settings.numeric_tolerance
     sql_literals = [x for e in evs for x in numbers_in(e.sql or "")]
-    lines = [float(d.value) for d in DEFINITIONS.values()]
+    lines = [(float(d.value), _unit_key(d.unit)) for d in DEFINITIONS.values()]
     dates = _spans(_WORD_DATE, text) + _spans(_ISO_DATE, text) + _spans(_CLOCK, text)
     named_lines = [
-        (m.span(), float(m.group(1) or m.group(2))) for m in _LINE_NAMED.finditer(text)
+        (m.span(), float(m.group(1) or m.group(3)), _unit_key(m.group(2) or m.group(4)))
+        for m in _LINE_NAMED.finditer(text)
     ]
     filters = _spans(_FILTER_NAMED, text)
 
@@ -170,8 +191,12 @@ def cited_numbers(
         why = None
         if inside(span, dates):
             why = "date"
-        elif any(inside(span, [s]) and math.isclose(n, v) for s, v in named_lines) and any(
-            math.isclose(n, x) for x in lines
+        elif any(
+            # The named number is a declared line in the same unit.
+            inside(span, [s])
+            and math.isclose(n, v)
+            and any(math.isclose(n, lv) and lu == u for lv, lu in lines)
+            for s, v, u in named_lines
         ):
             why = "named line"
         elif inside(span, filters) and any(math.isclose(n, x) for x in sql_literals):

@@ -144,6 +144,10 @@ def score_claim(c: Claim, evidence: dict[str, Evidence], deps: Deps | None) -> J
         # Numbers of a document claim are checked against its quotes.
         vals = [v for x in docs for v in _quote_numbers(x.quote or "")]
     numbers_match = all(_match(n, vals) for n in c.numbers) if (a or doc_only) else not c.numbers
+    if not c.numbers and c.numbers_dropped:
+        # Every stated number was set aside as a date part, a line or a filter:
+        # nothing was checked against the rows, so this is unverified, not a pass.
+        numbers_match = False
     grounding, rationale, model_id = None, "", "deterministic"
     if deps is not None and a:
         try:

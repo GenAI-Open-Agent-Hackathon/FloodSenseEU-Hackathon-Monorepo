@@ -261,6 +261,29 @@ class NumbersAndMemory(unittest.TestCase):
         self.assertEqual(dropped, [{"value": 100.0, "reason": "named line"}])
         kept, dropped = cited_numbers([100.0], [e], "Discharge peaked at 100 m3/s.")
         self.assertEqual((kept, dropped), ([100.0], []))
+        # Review round 2: no comparison word, or the wrong unit, keeps the number.
+        for text in ("Discharge peaked at the 100 m3/s line.", "Rain reached the 30 m3/s line."):
+            n = 100.0 if "100" in text else 30.0
+            kept, dropped = cited_numbers([n], [e], text)
+            self.assertEqual((kept, dropped), ([n], []), text)
+        kept, dropped = cited_numbers([30.0], [e], "No hour went over the 30 mm/h line.")
+        self.assertEqual(dropped, [{"value": 30.0, "reason": "named line"}])
+
+    def test_dropped_only_numbers_are_unverified_in_the_judge(self) -> None:
+        from floodsense_agents.models import Citation, Claim
+        from floodsense_agents.nodes.judge import score_claim
+
+        e = self._ev([{"discharge_m3s": 250.0}])
+        for text in ("Discharge peaked at the 100 m3/s line.", "Rain reached the 30 m3/s line."):
+            n = 100.0 if "100" in text else 30.0
+            kept, dropped = cited_numbers([n], [e], text)
+            c = Claim(claim_id="C1", text=text, kind="number", numbers=kept, numbers_dropped=dropped,
+                      citations=[Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q")])
+            self.assertFalse(score_claim(c, {"q": e}, None).numbers_match, text)
+        c = Claim(claim_id="C2", text="Discharge stayed under the 100 m3/s line.", kind="number",
+                  numbers=[], numbers_dropped=[{"value": 100.0, "reason": "named line"}],
+                  citations=[Citation(citation_id="C2-a1", claim_id="C2", layer="a", query_id="q")])
+        self.assertFalse(score_claim(c, {"q": e}, None).numbers_match, "unverified, never a pass")
 
     def test_a_wrong_value_equal_to_a_threshold_is_flagged_by_the_judge(self) -> None:
         from floodsense_agents.models import Citation, Claim
