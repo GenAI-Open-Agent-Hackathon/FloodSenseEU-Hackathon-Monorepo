@@ -17,6 +17,14 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass
 
+from floodsense_agents.watch import (
+    EU_POINT_IDS,
+    has_watch_cue,
+    is_watch_only,
+    place_words,
+    watch_target,
+)
+
 # Order is ingestion/prep/valencia_points.csv and migration 003.
 VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
 # ingestion/feeds/feeds.py. Seed hazard views do not store these rows.
@@ -201,7 +209,53 @@ HAZARD_VIEWS: tuple[str, ...] = ("hazard_timeline", "discharge_daily")
 ALIASES = {"valencia_2024": "EMSR773", "ahr_2021": "EMSR517"}
 
 
+# The Europe live watch is not a replay event: it has no window and no footprint,
+# and it is kept out of EVENTS so the desk, evals and the other-event decline
+# never list it. spec() still resolves it, so a run can carry it as its event.
+WATCH_EVENT = "LIVE-EU"
+WATCH_SPEC = EventSpec(
+    event_id=WATCH_EVENT,
+    name="Europe live watch",
+    window_from_utc="",
+    window_to_utc="",
+    region="Europe live watch (PEGELONLINE gauges and GloFAS river points)",
+    river="European rivers",
+    catchment="European river basins",
+    river_points=(),
+    rain_points=(),
+    bbox=(36.5, 55.0, -7.0, 21.5),
+    footprint_published_utc="",
+    moments=(),
+    gauges=(),
+    place_names=place_words(),
+    point_ids=EU_POINT_IDS,
+)
+
+
+def _event_hit(question: str) -> bool:
+    """True when the question names any replay-event place (either event)."""
+    text = question or ""
+    if names_germany(text) or _VALENCIA_RE.search(text):
+        return True
+    return any(rx.search(text) for rx in _PLACE_RES.values())
+
+
+def watch_question(question: str, context: dict | None = None) -> dict | None:
+    """The live-watch target of a question, or None.
+
+    Only a watch place (an EU point, or a gauge off the Rhine/Mosel), only when
+    no replay-event place is named (event places always win), and only with a
+    present-time cue or a level word and no past cue (watch.has_watch_cue).
+    """
+    target = watch_target(question, context)
+    if not is_watch_only(target) or _event_hit(question) or not has_watch_cue(question):
+        return None
+    return target
+
+
 def spec(event_id: str) -> EventSpec:
+    if event_id == WATCH_EVENT:
+        return WATCH_SPEC
     key = ALIASES.get(event_id, event_id)
     if key not in EVENTS:
         raise KeyError(
@@ -305,6 +359,12 @@ def route_event(
     if named:
         ev, word = named
         return ev, f"question names '{word}', so the run uses {ev}"
+    watch = watch_question(question)
+    if watch:
+        return WATCH_EVENT, (
+            f"question asks about the live-watch place '{watch['word']}' now, so the run uses "
+            f"{WATCH_EVENT} ({WATCH_SPEC.name})"
+        )
     picked = _context_event(context)
     if picked:
         return picked

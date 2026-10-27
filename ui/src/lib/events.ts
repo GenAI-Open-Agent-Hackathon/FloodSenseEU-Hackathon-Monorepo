@@ -19,7 +19,7 @@ export const EVENT_META: Record<EventId, { short: string; region: string }> = {
  * (`shownEventId`, the same rule as the replay strip), so header and strip never disagree.
  */
 export function headerSubtitle(route: DeskRoute, eventId: EventId): string {
-  if (route.page === "now") return "Live · Valencia model + Rhine gauges";
+  if (route.page === "now") return "Live · Valencia model + Europe live watch";
   return shownEventId(route, eventId) === "EMSR517" ? "Ahr 2021 replay · EMSR517" : "Valencia replay · EMSR773";
 }
 

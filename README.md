@@ -20,6 +20,8 @@ py tasks.py up
 
 Then open `http://127.0.0.1:15173/`.
 
+Live sources across Europe (Now page, "Europe · live watch"): 26 PEGELONLINE gauges on ten German federal waterways (`py tasks.py pegel-poll`) and 11 Open-Meteo GloFAS river points from Paris to Budapest (`floodsense.eu_watch`, fetched by Zetaris at query time). Gauge colours use official MHW values; GloFAS colours are a model band, not an official warning. Ask "Is the Danube at Budapest at risk right now?" or "What is the Elbe at Dresden doing right now?".
+
 For judges:
 
 - [docs/SUBMISSION.md](docs/SUBMISSION.md): how we use Zetaris, Meterless, Cursor and NVIDIA, limits, and a 30-second tour.

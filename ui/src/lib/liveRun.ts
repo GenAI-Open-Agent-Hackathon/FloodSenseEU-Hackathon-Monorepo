@@ -1,0 +1,226 @@
+import { NODE_LABELS, PIPELINE_ORDER, type PipelineNodeId } from "./pipeline";
+
+/**
+ * Pure state for a live run streamed from GET /runs/{id}/events.
+ * `started` lights a node, `trace` finishes it (duration, model, summary), `status` ends the stream.
+ */
+
+export type LiveNodeState = "idle" | "running" | "done";
+
+export interface LiveNode {
+  id: PipelineNodeId;
+  label: string;
+  state: LiveNodeState;
+  /** Sum of the finished steps' durations. */
+  durationMs: number | null;
+  modelId: string | null;
+  lane: string | null;
+  summary: string;
+  /** Finished steps (a revise or repair loop runs a node again). */
+  runs: number;
+}
+
+export type LiveStatus = "running" | "awaiting_approval" | "approved" | "rejected" | "failed" | "not_found" | "error" | string;
+
+export interface LiveRunState {
+  runId: string;
+  nodes: LiveNode[];
+  reviseRounds: number;
+  repairRounds: number;
+  /** "Skeptic sent back 1 claim", "Judge repair round 1". */
+  loops: string[];
+  /** Final status, or "running". */
+  status: LiveStatus;
+  servedFrom: string | null;
+  cachedAt: string | null;
+  /** One line for the aria-live region. */
+  announce: string;
+  seen: number[];
+  error: string | null;
+}
+
+export type LiveEvent =
+  | { type: "started"; data: unknown }
+  | { type: "trace"; data: unknown }
+  | { type: "status"; data: unknown }
+  | { type: "error"; message: string };
+
+/** Graph node names in the trace, mapped to the pipeline the UI draws. world_model is not a node here. */
+const NODE_ALIASES: Record<string, PipelineNodeId> = {
+  scope: "scope",
+  watchers: "watchers",
+  memory: "memory",
+  recall: "memory",
+  investigator: "investigator",
+  skeptic: "skeptic",
+  exposure: "exposure",
+  playbook: "playbook",
+  judge: "judge",
+  hitl: "approval",
+  approval: "approval",
+  learn: "approval",
+};
+
+export function liveNodeId(node: unknown): PipelineNodeId | null {
+  return typeof node === "string" ? NODE_ALIASES[node.toLowerCase()] ?? null : null;
+}
+
+export function initialLiveState(runId: string): LiveRunState {
+  return {
+    runId,
+    nodes: PIPELINE_ORDER.map((id) => ({
+      id,
+      label: id === "approval" ? "Human review" : NODE_LABELS[id],
+      state: "idle",
+      durationMs: null,
+      modelId: null,
+      lane: null,
+      summary: "",
+      runs: 0,
+    })),
+    reviseRounds: 0,
+    repairRounds: 0,
+    loops: [],
+    status: "running",
+    servedFrom: null,
+    cachedAt: null,
+    announce: "Run started.",
+    seen: [],
+    error: null,
+  };
+}
+
+const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** "nvidia/nemotron-3.5-lightning-30b-a3b" -> "nemotron-3.5-lightning". */
+export function shortModel(modelId: string): string {
+  const base = modelId.includes("/") && !modelId.startsWith("meterless/") ? modelId.slice(modelId.lastIndexOf("/") + 1) : modelId;
+  return base.replace(/-\d+(\.\d+)?b(-a\d+(\.\d+)?b)?$/i, "");
+}
+
+/** Provider from the model id itself. Nightshift only for NVIDIA Nemotron ids; never guessed for anything else. */
+export function providerOf(modelId: string): string | null {
+  const id = modelId.toLowerCase();
+  if (id.startsWith("nvidia/") && id.includes("nemotron")) return "Nightshift";
+  if (id.startsWith("anthropic/")) return "Anthropic (test switch)";
+  return null;
+}
+
+/** The model line under a finished node: "nemotron-3.5-lightning · Nightshift", "deterministic", "SQL · Zetaris". */
+export function modelLine(modelId: string | null, lane: string | null): string {
+  const ids = (modelId ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => m && m !== "deterministic");
+  if (ids.length) return [...new Set(ids.map((id) => {
+    const provider = providerOf(id);
+    return provider ? `${shortModel(id)} · ${provider}` : shortModel(id);
+  }))].join(", ");
+  if ((lane ?? "").toLowerCase() === "sql") return "SQL · Zetaris";
+  return "deterministic";
+}
+
+function patch(state: LiveRunState, id: PipelineNodeId, fn: (n: LiveNode) => LiveNode): LiveNode[] {
+  return state.nodes.map((n) => (n.id === id ? fn(n) : n));
+}
+
+/** Pure reducer. Unknown nodes and duplicate trace seqs are ignored. */
+export function liveReducer(state: LiveRunState, event: LiveEvent): LiveRunState {
+  if (event.type === "error") return { ...state, status: "error", error: event.message, announce: event.message };
+  const d = rec(event.data);
+  if (event.type === "status") {
+    const status = str(d.status) ?? "error";
+    const nodes =
+      status === "awaiting_approval"
+        ? patch(state, "approval", (n) => ({ ...n, state: "running", summary: "Waiting for a human decision. Nothing is sent before it." }))
+        : state.nodes;
+    return { ...state, nodes, status, servedFrom: str(d.served_from), cachedAt: str(d.cached_at), announce: statusAnnounce(status) };
+  }
+  const id = liveNodeId(d.node);
+  if (!id) return state;
+  const label = state.nodes.find((n) => n.id === id)?.label ?? id;
+  if (event.type === "started") {
+    const current = state.nodes.find((n) => n.id === id);
+    if (current?.state === "running") return state;
+    return { ...state, nodes: patch(state, id, (n) => ({ ...n, state: "running" })), announce: `${label} started.` };
+  }
+  // trace: a finished step.
+  const seq = num(d.seq);
+  if (seq !== null && state.seen.includes(seq)) return state;
+  const summary = str(d.summary) ?? "";
+  const seen = seq !== null ? [...state.seen, seq] : state.seen;
+  let { reviseRounds, repairRounds } = state;
+  const loops = [...state.loops];
+  if (id === "skeptic" && /^revise edge/i.test(summary)) {
+    reviseRounds += 1;
+    const prior = state.nodes.find((n) => n.id === "skeptic")?.summary ?? "";
+    const m = /(\d+)\s+not[_ ]supported/i.exec(prior);
+    const n = m ? Number(m[1]) : null;
+    loops.push(n !== null ? `Skeptic sent back ${n} unsupported hypothes${n === 1 ? "is" : "es"} · revise round ${reviseRounds}` : `Skeptic sent the chain back to the Investigator (round ${reviseRounds})`);
+    return { ...state, seen, reviseRounds, loops, announce: loops[loops.length - 1] };
+  }
+  const repair = /^repair round\s*(\d+)?/i.exec(summary);
+  if (repair) {
+    repairRounds += 1;
+    loops.push(`Judge repair round ${repair[1] ?? repairRounds}`);
+  }
+  const duration = num(d.duration_ms) ?? num(d.latency_ms);
+  const nodes = patch(state, id, (n) => ({
+    ...n,
+    state: id === "approval" ? n.state : "done",
+    durationMs: duration === null ? n.durationMs : (n.durationMs ?? 0) + duration,
+    modelId: str(d.model_id) ?? n.modelId,
+    lane: str(d.lane) ?? n.lane,
+    summary: summary || n.summary,
+    runs: n.runs + 1,
+  }));
+  return { ...state, nodes, seen, reviseRounds, repairRounds, loops, announce: repair ? loops[loops.length - 1] : `${label} finished.` };
+}
+
+export function statusAnnounce(status: string): string {
+  switch (status) {
+    case "awaiting_approval":
+      return "Run reached human review.";
+    case "failed":
+      return "The run failed.";
+    case "not_found":
+      return "The run was not found. It may have stopped before its first step.";
+    case "approved":
+    case "rejected":
+      return `Run ${status}.`;
+    default:
+      return `Run status: ${status}.`;
+  }
+}
+
+/** Seconds from a Retry-After header (delta-seconds or an HTTP date), or null. */
+export function retryAfterSeconds(header: string | null, now = Date.now()): number | null {
+  if (!header) return null;
+  const t = header.trim();
+  if (/^\d+$/.test(t)) return Number(t);
+  const at = Date.parse(t);
+  return Number.isFinite(at) ? Math.max(0, Math.ceil((at - now) / 1000)) : null;
+}
+
+/** "0:42", "5:07". */
+export function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export const WAIT_TIPS = [
+  "Every number in the answer comes from a cited Zetaris query.",
+  "The Skeptic re-runs counter-check queries before anything reaches you.",
+  "H-MEM recalls only findings a person approved earlier.",
+  "The Judge scores each claim against its evidence; a flagged claim gets one repair round.",
+  "Nothing outbound is sent until a person approves it.",
+  "A deep reasoning lane can take a minute or two per step. That is normal.",
+  "Exposure joins the hazard to insured sites through SQL, not a model guess.",
+];
+
+/** Pure: the tip for this elapsed second, rotating every 12 s. */
+export function tipFor(seconds: number, tips: readonly string[] = WAIT_TIPS): string {
+  return tips[Math.floor(Math.max(0, seconds) / 12) % tips.length];
+}
