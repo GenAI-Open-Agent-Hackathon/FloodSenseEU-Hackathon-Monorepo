@@ -467,7 +467,7 @@ VIEW_COLUMNS: dict[str, dict[str, str]] = {
     "discharge_daily": {"discharge_m3s": _NUM},
     "hazard_timeline": {"rain_mm": _NUM, "discharge_m3s": _NUM},
     "hazard_now": {"rain_mm": _NUM, "discharge_m3s": _NUM},
-    "gauge_levels": {"level_cm": _NUM},
+    "gauge_levels": {k: _NUM for k in ("level_cm", "river_km", "lat", "lon", "trend_cm_h", "mnw_cm", "mw_cm", "mhw_cm", "hhw_cm", "hsw_cm")},
     "exposure_join": {"lat": _NUM, "lon": _NUM, "sum_insured_eur": _NUM, "in_footprint": _BOOL},
     "provenance": {},
 }

@@ -182,6 +182,11 @@ def cmd_config(root: Path, runner: Runner) -> int:
     return runner(config_argv(root), root)
 
 
+def cmd_pegel_poll(root: Path, runner: Runner, extra: list[str]) -> int:
+    script = root / "ingestion" / "feeds" / "pegel_poll.py"
+    return runner([sys.executable, str(script), *extra], root)
+
+
 def cmd_zetaris_sync(root: Path, runner: Runner) -> int:
     script = root / "scripts" / "zetaris_sync.py"
     return runner([sys.executable, str(script)], root)
@@ -516,6 +521,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
     sub.add_parser("zetaris-sync", help="Apply pending Zetaris migrations, then verify declared views.")
+    pegel = sub.add_parser(
+        "pegel-poll",
+        help="Fetch current PEGELONLINE levels, write the CSV, copy it into the Zetaris driver.",
+    )
+    pegel.add_argument("--interval", type=int, default=0, help="repeat every N seconds (600-900)")
+    pegel.add_argument("--no-stage", action="store_true", help="write the CSV only")
     sub.add_parser(
         "fetch-rag-corpus",
         help=(
@@ -547,7 +558,8 @@ def main(
 ) -> int:
     root = ROOT if root is None else root
     run = execute if runner is None else runner
-    command = build_parser().parse_args(argv).command
+    args = build_parser().parse_args(argv)
+    command = args.command
     if command == "init-env":
         return init_env(root)
     if command == "check-env":
@@ -560,6 +572,9 @@ def main(
         return cmd_down(root, run)
     if command == "config":
         return cmd_config(root, run)
+    if command == "pegel-poll":
+        extra = ["--interval", str(args.interval)] if args.interval else []
+        return cmd_pegel_poll(root, run, extra + (["--no-stage"] if args.no_stage else []))
     if command == "zetaris-sync":
         return cmd_zetaris_sync(root, run)
     if command == "fetch-rag-corpus":
