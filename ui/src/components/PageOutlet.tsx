@@ -1,4 +1,3 @@
-import { Colophon } from "./Banners";
 import { CitizenActions, CitizenArea, CitizenEvidence, CitizenOverview } from "./CitizenView";
 import { InsurerView } from "./InsurerView";
 import { NowPage } from "./NowPage";
@@ -17,12 +16,8 @@ export function PageOutlet() {
       <h1 className="sr-only">
         {desk} {label}
       </h1>
-      <p className="section-label page-kicker">
-        {desk} · {label}
-      </p>
       <div className="workspace" data-page={`${deskRoute.role}-${deskRoute.page}`}>
         {deskRoute.role === "citizen" ? <CitizenBody page={deskRoute.page} /> : <InsurerView page={deskRoute.page} />}
-        <Colophon />
       </div>
     </>
   );

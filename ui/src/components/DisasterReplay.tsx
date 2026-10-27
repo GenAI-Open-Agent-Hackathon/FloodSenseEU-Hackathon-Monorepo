@@ -1,30 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
-import ahr from "../fixtures/ahr_2021.json";
+import { ahrFixture, loadAhrRows, type EventRows } from "../lib/replaySource";
 import {
   buildFrames,
   clampStep,
   crossings,
   dayStarts,
   isoOf,
-  momentQuestion,
+  crossingText,
+  dayText,
+  isDailyDischarge,
+  isTurnFrame,
+  momentQuestionAt,
   momentText,
   nextStep,
   readingsAt,
   REPLAY_EVENTS,
   replayLabel,
   type DisasterEvent,
-  type ReplayPoint,
   type ReplayReading,
 } from "../lib/disasterReplay";
 
 const PLAY_MS = 220;
+/** Under prefers-reduced-motion, Play steps once a second instead of ~4.5 times. */
+const PLAY_MS_REDUCED = 1000;
 
-interface EventData {
-  rows: ReplayReading[];
-  points: ReplayPoint[];
-  source: string;
-}
+const reducedMotion = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+type EventData = EventRows;
 
 /** Disaster replay: scrub through Ahr 2021 or Valencia 2024 hour by hour. Never live. */
 export function DisasterReplay() {
@@ -32,16 +38,29 @@ export function DisasterReplay() {
   const [eventId, setEventId] = useState<DisasterEvent["eventId"]>("EMSR517");
   const event = REPLAY_EVENTS.find((e) => e.eventId === eventId) ?? REPLAY_EVENTS[0];
 
+  // Ahr: Zetaris rows when the API serves AHR points, else the labelled bundled fixture.
+  const [ahrRows, setAhrRows] = useState<EventRows>(() => ahrFixture());
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadAhrRows(REPLAY_EVENTS[0], controller.signal).then((rows) => {
+      if (!controller.signal.aborted) setAhrRows(rows);
+    });
+    return () => controller.abort();
+  }, []);
   const data = useMemo<EventData>(() => {
-    if (event.eventId === "EMSR517") {
-      return { rows: ahr.hazard_timeline as ReplayReading[], points: ahr.points, source: ahr._source };
-    }
+    if (event.eventId === "EMSR517") return ahrRows;
     return {
       rows: desk.hazard.rows,
       points: desk.points.map((p) => ({ point_id: p.point_id, name: `${p.name}` })),
       source: `hazard_timeline view (${desk.hazard.origin}): ERA5 hourly rain, GloFAS daily discharge. ${desk.hazard.detail}`,
+      badge:
+        desk.hazard.origin === "fixture"
+          ? "Bundled view extract, not from Zetaris"
+          : `Zetaris · hazard_timeline (${desk.hazard.origin})`,
+      fromZetaris: desk.hazard.origin !== "fixture",
     };
-  }, [event.eventId, desk.hazard, desk.points]);
+  }, [event.eventId, ahrRows, desk.hazard, desk.points]);
+  const daily = useMemo(() => isDailyDischarge(data.rows), [data.rows]);
 
   const frames = useMemo(() => buildFrames(data.rows, event), [data.rows, event]);
   const days = useMemo(() => dayStarts(frames), [frames]);
@@ -50,18 +69,17 @@ export function DisasterReplay() {
   const [playing, setPlaying] = useState(false);
   const [pointId, setPointId] = useState<string>(data.points[0]?.point_id ?? "");
 
-  // A new event starts at its first crossing, or its first hour.
+  // New rows (another event, or the Ahr rows arriving from Zetaris) restart at the first crossing.
   useEffect(() => {
     setPlaying(false);
-    const first = [...turned.values()].sort((a, b) => a.index - b.index)[0];
-    setStep(first ? Math.max(0, first.index - 6) : 0);
-    setPointId(first ? [...turned.entries()].find(([, c]) => c === first)?.[0] ?? "" : data.points[0]?.point_id ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.eventId, frames.length]);
+    const first = [...turned.entries()].sort((a, b) => a[1].index - b[1].index)[0];
+    setStep(first ? Math.max(0, first[1].index - 6) : 0);
+    setPointId(first?.[0] ?? data.points[0]?.point_id ?? "");
+  }, [turned, data.points]);
 
   useEffect(() => {
     if (!playing || frames.length === 0) return;
-    const t = window.setInterval(() => setStep((s) => nextStep(s, frames.length)), PLAY_MS);
+    const t = window.setInterval(() => setStep((s) => nextStep(s, frames.length)), reducedMotion() ? PLAY_MS_REDUCED : PLAY_MS);
     return () => window.clearInterval(t);
   }, [playing, frames.length]);
 
@@ -77,10 +95,10 @@ export function DisasterReplay() {
 
   const ask = () => {
     if (!iso || !point) return;
-    desk.openAsk(momentQuestion(point.name, iso), {
+    desk.openAsk(momentQuestionAt(point.name, iso, daily), {
       page: "replay",
       event_id: event.eventId,
-      replay_date: iso,
+      replay_date: daily ? iso.slice(0, 10) : iso,
       point_id: point.point_id,
       place: point.name,
     });
@@ -93,9 +111,10 @@ export function DisasterReplay() {
           <p className="section-label">Disaster replay</p>
           <h2 className="dr-title">{event.name}</h2>
         </div>
-        <p className="dr-badge" role="status">
-          {replayLabel(event)}
-        </p>
+        <div className="dr-badges">
+          <p className="dr-badge">{replayLabel(event)}</p>
+          <p className={`dr-badge dr-badge-src${data.fromZetaris ? " is-zetaris" : ""}`}>{data.badge}</p>
+        </div>
       </div>
       <div className="dr-events" role="group" aria-label="Event">
         {REPLAY_EVENTS.map((e) => (
@@ -155,11 +174,23 @@ export function DisasterReplay() {
               ))}
             </div>
           </div>
-          <p className="dr-now" aria-live="polite">
+          <p className="dr-now" aria-live={playing ? "off" : "polite"}>
             <strong>{iso ? `${momentText(iso)} UTC` : ""}</strong> · hour {at + 1} of {frames.length}
           </p>
 
-          <ReplayChart series={series} cursor={at} threshold={event.thresholdM3s} turnedAt={turned.get(point?.point_id ?? "")?.index ?? null} />
+          <ReplayChart
+            series={series}
+            cursor={at}
+            threshold={event.thresholdM3s}
+            turnedAt={turned.get(point?.point_id ?? "")?.index ?? null}
+            description={chartDescription(
+              point?.name ?? "",
+              series,
+              event.thresholdM3s,
+              turned.get(point?.point_id ?? "")?.iso ?? null,
+              daily,
+            )}
+          />
 
           <table className="dr-table">
             <thead>
@@ -175,12 +206,11 @@ export function DisasterReplay() {
                 const r = now.get(p.point_id);
                 const c = turned.get(p.point_id);
                 const above = r?.discharge_m3s != null && r.discharge_m3s >= event.thresholdM3s;
-                const here = c && c.index === at;
+                const here = !!c && !!iso && isTurnFrame(iso, c.iso, daily);
                 return (
                   <tr
                     key={p.point_id}
                     className={`${p.point_id === point?.point_id ? "is-sel " : ""}${above ? "is-above" : ""}${here ? " is-turn" : ""}`}
-                    onClick={() => setPointId(p.point_id)}
                   >
                     <th scope="row">
                       <button type="button" className="dr-link" onClick={() => setPointId(p.point_id)}>
@@ -191,11 +221,11 @@ export function DisasterReplay() {
                     <td>{r?.discharge_m3s != null ? r.discharge_m3s.toFixed(1) : "—"}</td>
                     <td>
                       {here ? (
-                        <strong className="dr-turn">The moment it turned</strong>
+                        <strong className="dr-turn">The moment it turned · {crossingText(c.iso, daily)}</strong>
                       ) : above ? (
                         "Above the line"
                       ) : c && c.index > at ? (
-                        `Turns ${momentText(c.iso)}`
+                        `Crosses on ${daily ? dayText(c.iso) : `${momentText(c.iso)} UTC`}`
                       ) : (
                         "Below the line"
                       )}
@@ -211,8 +241,11 @@ export function DisasterReplay() {
             </button>
           </div>
           <p className="note">
-            Line: {event.thresholdM3s} m³/s, the Watchers anomaly line. Discharge is the modelled GloFAS daily value for that
-            day; rain is hourly. {data.source}
+            Line: {event.thresholdM3s} m³/s, the Watchers anomaly line.{" "}
+            {daily
+              ? "Discharge is the modelled GloFAS daily value, so a crossing is dated by day, not hour; rain is hourly."
+              : "Discharge and rain are hourly."}{" "}
+            {data.source}
           </p>
         </>
       )}
@@ -226,11 +259,13 @@ function ReplayChart({
   cursor,
   threshold,
   turnedAt,
+  description,
 }: {
   series: (ReplayReading | null)[];
   cursor: number;
   threshold: number;
   turnedAt: number | null;
+  description: string;
 }) {
   const W = 640;
   const H = 150;
@@ -244,7 +279,8 @@ function ReplayChart({
     .filter(Boolean)
     .join(" ");
   return (
-    <svg className="dr-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Rain and discharge over the event">
+    <svg className="dr-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={description}>
+      <desc>{description}</desc>
       {series.map((r, i) =>
         r && r.rain_mm > 0 ? (
           <rect key={i} className="dr-rain" x={x(i) - W / n / 2} width={Math.max(1, W / n - 0.5)} y={0} height={(r.rain_mm / maxR) * (H * 0.45)} />
@@ -256,4 +292,24 @@ function ReplayChart({
       <line className="dr-cursor" x1={x(cursor)} x2={x(cursor)} y1={0} y2={H} />
     </svg>
   );
+}
+
+/** Pure text alternative for the chart: place, peak, line and crossing day. */
+export function chartDescription(
+  place: string,
+  series: (ReplayReading | null)[],
+  threshold: number,
+  crossingIso: string | null,
+  daily: boolean,
+): string {
+  let peak: ReplayReading | null = null;
+  for (const r of series) if (r?.discharge_m3s != null && (!peak || r.discharge_m3s > (peak.discharge_m3s ?? 0))) peak = r;
+  const rain = series.reduce((n, r) => n + (r?.rain_mm ?? 0), 0);
+  const parts = [`${place}: hourly rain bars and discharge line against the ${threshold} m³/s line.`];
+  if (peak?.discharge_m3s != null) {
+    parts.push(`Peak discharge ${peak.discharge_m3s.toFixed(1)} m³/s on ${dayText(isoOf(peak.ts_utc) ?? peak.ts_utc)}.`);
+  }
+  parts.push(`Rain over the window ${rain.toFixed(1)} mm.`);
+  parts.push(crossingIso ? `${crossingText(crossingIso, daily)}.` : "Discharge does not cross the line in this window.");
+  return parts.join(" ");
 }

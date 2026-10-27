@@ -53,6 +53,8 @@ const INSURER_ALIASES = new Map<string, InsurerPage>([
 
 /** Collapse the left nav at the same width the layout already stacks. */
 export const NAV_COLLAPSE_QUERY = "(max-width: 980px)";
+/** Under this width the open nav is an overlay drawer, not a column. Matches the CSS breakpoint. */
+export const NAV_DRAWER_QUERY = "(max-width: 760px)";
 
 /** The insurer desk opens on Approvals while a decision is pending, else Portfolio. */
 export function insurerHome(approvalPending: boolean): InsurerPage {

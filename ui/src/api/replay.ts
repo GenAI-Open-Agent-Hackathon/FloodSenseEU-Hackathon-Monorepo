@@ -28,6 +28,8 @@ export interface ReplayStep {
   modelId?: string | null;
   latencyMs?: number | null;
   evidenceIds?: string[];
+  /** Provider that served this step, when the trace says (e.g. "nightshift"). */
+  provider?: string | null;
 }
 
 /** Judge verdict for one claim (body.judge[]). */
@@ -64,6 +66,8 @@ export interface RecordedRun {
   judgeClaims?: ReplayJudgeClaim[];
   docQuery?: string | null;
   memoryCount?: number;
+  /** Run-level LLM provider from the body or its request, when stated. */
+  provider?: string | null;
 }
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
@@ -126,6 +130,7 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
                 node,
                 summary: str(step.summary) ?? "",
                 lane: str(step.lane),
+                provider: str(step.provider) ?? str(step.llm_provider),
                 modelId: str(step.model_id),
                 latencyMs: num(step.latency_ms),
                 evidenceIds: Array.isArray(step.evidence_ids)
@@ -170,6 +175,7 @@ export function adoptRunBody(run: Record<string, unknown>, runId: string): Recor
       : [],
     docQuery: str(rec(run.request)?.doc_query),
     memoryCount: Array.isArray(run.memories) ? run.memories.length : 0,
+    provider: str(run.llm_provider) ?? str(run.provider) ?? str(rec(run.request)?.llm_provider),
   };
 }
 

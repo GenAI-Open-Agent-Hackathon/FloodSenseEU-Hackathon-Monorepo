@@ -3,6 +3,9 @@ import { adoptRunBody } from "../api/replay";
 import { buildRunRequest } from "../api/ask";
 import sample from "../fixtures/run_f16733274f1c.json";
 import ahr from "../fixtures/ahr_2021.json";
+import { ahrFixture, usableEventRows } from "./replaySource";
+import { chartDescription } from "../components/DisasterReplay";
+import { causalChainNote } from "../components/CausalChainHeader";
 import { buildPipeline, formatLatency, parseBoard, PIPELINE_ORDER } from "./pipeline";
 import { buildRetrieval, cleanQuote } from "./retrieval";
 import { mergeContext, withAskContext } from "./askContext";
@@ -12,6 +15,10 @@ import {
   crossings,
   dayStarts,
   momentQuestion,
+  momentQuestionAt,
+  crossingText,
+  isDailyDischarge,
+  isTurnFrame,
   nextStep,
   readingsAt,
   REPLAY_EVENTS,
@@ -43,8 +50,10 @@ describe("buildPipeline", () => {
     const model = buildPipeline(run);
     const badges = (id: string) => model.nodes.find((n) => n.id === id)!.badges.map((b) => b.text);
     expect(badges("watchers")).toEqual(["Zetaris · 3 queryIds"]);
-    expect(badges("memory")).toEqual(["H-MEM recall"]);
-    expect(badges("skeptic")).toContain("Nightshift · answered by Nemotron 3.5 Lightning 30B A3B");
+    expect(badges("memory")).toEqual(["H-MEM recall · 3"]);
+    // The recording states no provider, so an nvidia id is not claimed as Nightshift.
+    expect(badges("skeptic")).toContain("NVIDIA Nemotron · answered by Nemotron 3.5 Lightning 30B A3B");
+    expect(badges("skeptic").some((t) => t.startsWith("Nightshift"))).toBe(false);
     expect(badges("skeptic").some((t) => t.startsWith("World Model · H1 not_supported"))).toBe(true);
     expect(badges("investigator")).toContain("pgvector + Zetaris JDBC");
     expect(badges("scope")).toEqual([]);
@@ -53,6 +62,35 @@ describe("buildPipeline", () => {
       { id: "H2", state: "supported" },
       { id: "H3", state: "supported" },
     ]);
+  });
+
+  it("says Nightshift only when the trace or request names it", () => {
+    const body = (extra: Record<string, unknown>, step: Record<string, unknown> = {}) =>
+      adoptRunBody(
+        {
+          served_from: "live",
+          summary: "s",
+          claims: [],
+          trace: [{ seq: 1, node: "skeptic", lane: "sql", model_id: "nvidia/nemotron-3.5-lightning-30b-a3b", latency_ms: 5, ...step }],
+          ...extra,
+        },
+        "x",
+      )!;
+    const text = (r: ReturnType<typeof body>) => buildPipeline(r).nodes.find((n) => n.id === "skeptic")!.badges[0].text;
+    expect(text(body({}))).toMatch(/^NVIDIA Nemotron/);
+    expect(text(body({ request: { llm_provider: "openrouter" } }))).toMatch(/^NVIDIA Nemotron/);
+    expect(text(body({ request: { llm_provider: "nightshift" } }))).toMatch(/^Nightshift · /);
+    expect(text(body({}, { provider: "nightshift" }))).toMatch(/^Nightshift · /);
+  });
+
+  it("shows H-MEM only when memory recalled something", () => {
+    const mem = (summary: string) =>
+      buildPipeline(
+        adoptRunBody({ served_from: "live", summary: "s", claims: [], trace: [{ seq: 1, node: "memory", summary }] }, "x")!,
+      ).nodes.find((n) => n.id === "memory")!.badges;
+    expect(mem("recalled 0 past approved finding(s) for the Investigator")).toEqual([]);
+    expect(mem("memory store unavailable")).toEqual([]);
+    expect(mem("recalled 2 past approved finding(s)")).toEqual([{ kind: "hmem", text: "H-MEM recall · 2" }]);
   });
 
   it("shows a non-Nightshift model as its id and survives a bare body", () => {
@@ -141,6 +179,12 @@ describe("disaster replay timeline", () => {
     const frames = buildFrames(rows, ahrEvent);
     const c = crossings(rows, frames, ahrEvent.thresholdM3s).get("AHR01");
     expect(c?.iso).toBe("2021-07-14T00:00:00Z");
+    // Discharge is daily: the crossing is dated by day, never by an hour.
+    expect(isDailyDischarge(rows)).toBe(true);
+    expect(crossingText(c!.iso, true)).toBe("Crossed the line on 14 Jul 2021 (daily value)");
+    expect(isTurnFrame("2021-07-14T18:00:00Z", c!.iso, true)).toBe(true);
+    expect(isTurnFrame("2021-07-14T18:00:00Z", c!.iso, false)).toBe(false);
+    expect(momentQuestionAt("Altenahr", "2021-07-14T18:00:00Z", true)).toBe("Why was Altenahr at risk on 14 Jul 2021?");
     expect(c && c.discharge).toBeGreaterThanOrEqual(100);
   });
 
@@ -155,5 +199,27 @@ describe("disaster replay timeline", () => {
     expect(crossings(view, frames, 100).get("V")?.index).toBe(1);
     expect(replayLabel(REPLAY_EVENTS[1])).toBe("Replay of Valencia DANA, 28–31 Oct 2024 · not live");
     expect(momentQuestion("Altenahr", "2021-07-14T18:00:00Z")).toBe("Why was Altenahr at risk on 14 Jul 2021 at 18:00 UTC?");
+  });
+});
+
+describe("replay sources and labels", () => {
+  it("uses API rows only when they hold AHR points in the window", () => {
+    const ev = REPLAY_EVENTS[0];
+    expect(usableEventRows([{ point_id: "VAL01", ts_utc: "2024-10-29T00:00:00Z", rain_mm: 0, discharge_m3s: 1 }], ev, "AHR")).toBeNull();
+    expect(usableEventRows({ detail: "x" }, ev, "AHR")).toBeNull();
+    expect(
+      usableEventRows([{ point_id: "AHR04", ts_utc: "2021-07-14 12:00:00.0", rain_mm: 3, discharge_m3s: 200 }], ev, "AHR"),
+    ).toHaveLength(1);
+    expect(ahrFixture().badge).toBe("Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris");
+  });
+
+  it("describes the chart and the causal chain source", () => {
+    const rows = ahr.hazard_timeline.filter((r) => r.point_id === "AHR01") as ReplayReading[];
+    const d = chartDescription("Altenahr", rows, 100, "2021-07-14T00:00:00Z", true);
+    expect(d).toContain("Peak discharge 249.6 m³/s on 14 Jul 2021");
+    expect(d).toContain("Crossed the line on 14 Jul 2021 (daily value)");
+    expect(causalChainNote({ kind: "bundled" })).toMatch(/Bundled recording/);
+    expect(causalChainNote({ kind: "failed", id: "abc" })).toMatch(/Could not load recorded run abc/);
+    expect(causalChainNote({ kind: "configured", id: "abc" })).toBeNull();
   });
 });

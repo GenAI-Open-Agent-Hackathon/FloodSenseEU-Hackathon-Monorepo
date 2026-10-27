@@ -74,10 +74,21 @@ function llmIds(modelId: string | null | undefined): string[] {
     .filter((m) => m && m !== "deterministic");
 }
 
-/** Sponsor badge for an LLM id. Nemotron ids are Nightshift; anything else is shown as its id. */
-export function modelBadge(modelId: string): PipelineBadge {
-  if (modelId.startsWith("nvidia/")) return { kind: "nightshift", text: `Nightshift · ${laneLabel(modelId)}` };
+/**
+ * Badge for an LLM id. "Nightshift" only when the trace step or the run states provider nightshift;
+ * an nvidia id without that signal is "NVIDIA Nemotron" (it can also come through OpenRouter or NIM).
+ */
+export function modelBadge(modelId: string, provider?: string | null): PipelineBadge {
+  const label = laneLabel(modelId);
+  if ((provider ?? "").toLowerCase() === "nightshift") return { kind: "nightshift", text: `Nightshift · ${label}` };
+  if (modelId.startsWith("nvidia/")) return { kind: "model", text: `NVIDIA Nemotron · ${label}` };
   return { kind: "model", text: modelId };
+}
+
+/** Pure: N from a memory summary "recalled N past approved finding(s)", else null. */
+export function recalledCount(summary: string): number | null {
+  const m = /recalled\s+(\d+)/i.exec(summary);
+  return m ? Number(m[1]) : null;
 }
 
 /** Pure: parse "board after skeptic: H1 not_supported, H2 supported". */
@@ -117,12 +128,16 @@ export function buildPipeline(run: RecordedRun): PipelineModel {
     const latencies = work.map((s) => s.latencyMs as number);
     const main = steps.find((s) => s.lane || s.modelId) ?? steps[0];
     const last = steps[steps.length - 1];
-    const allModels = [...new Set(steps.flatMap((s) => llmIds(s.modelId)))];
+    const modelProvider = new Map<string, string | null>();
+    for (const s of steps) for (const m of llmIds(s.modelId)) if (!modelProvider.get(m)) modelProvider.set(m, s.provider ?? run.provider ?? null);
     const queryCount = steps.filter((s) => s.lane === "sql").reduce((n, s) => n + (s.evidenceIds?.length ?? 0), 0);
     const badges: PipelineBadge[] = [];
     if (queryCount > 0) badges.push({ kind: "zetaris", text: `Zetaris · ${queryCount} queryId${queryCount === 1 ? "" : "s"}` });
-    for (const m of allModels) badges.push(modelBadge(m));
-    if (id === "memory" && steps.length) badges.push({ kind: "hmem", text: "H-MEM recall" });
+    for (const [m, p] of modelProvider) badges.push(modelBadge(m, p));
+    if (id === "memory" && steps.length) {
+      const n = steps.reduce((acc, s) => acc + (recalledCount(s.summary) ?? 0), 0);
+      if (n > 0) badges.push({ kind: "hmem", text: `H-MEM recall · ${n}` });
+    }
     const b = boardsAfter.get(id);
     if (b && (id === "investigator" || id === "skeptic")) {
       badges.push({ kind: "world", text: `World Model · ${b.states.map((s) => `${s.id} ${s.state}`).join(", ")}` });

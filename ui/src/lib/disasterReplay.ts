@@ -117,7 +117,42 @@ export function momentText(iso: string): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} at ${hh}:${mm}`;
 }
 
-/** The question the "Ask the agents" button pre-fills. */
+const dayOf = (iso: string) => iso.slice(0, 10);
+
+/** Pure: true when every point's discharge is one value per UTC day (GloFAS daily repeated on each hour). */
+export function isDailyDischarge(rows: readonly ReplayReading[]): boolean {
+  const seen = new Map<string, number | null>();
+  for (const r of rows) {
+    const iso = isoOf(r.ts_utc);
+    if (!iso) continue;
+    const key = `${r.point_id}|${dayOf(iso)}`;
+    if (seen.has(key) && seen.get(key) !== r.discharge_m3s) return false;
+    seen.set(key, r.discharge_m3s);
+  }
+  return true;
+}
+
+/** "14 Jul 2021". */
+export function dayText(iso: string): string {
+  return momentText(iso).replace(/ at .*/, "");
+}
+
+/** Pure: the crossing as a reader should see it. Daily discharge names the day only, never an hour. */
+export function crossingText(iso: string, daily: boolean): string {
+  return daily ? `Crossed the line on ${dayText(iso)} (daily value)` : `Crossed the line at ${momentText(iso)} UTC`;
+}
+
+/** Pure: whether the scrubbed frame is "the moment it turned" (same day for daily data, same hour otherwise). */
+export function isTurnFrame(frameIso: string, crossingIso: string, daily: boolean): boolean {
+  return daily ? dayOf(frameIso) === dayOf(crossingIso) : frameIso === crossingIso;
+}
+
+/** The question the "Ask" button pre-fills, at the data's resolution: a day for daily discharge. */
+export function momentQuestionAt(placeName: string, iso: string, daily: boolean): string {
+  return daily ? `Why was ${placeName} at risk on ${dayText(iso)}?` : momentQuestion(placeName, iso);
+}
+
+/** The question the "Ask the agents" button pre-fills, with the hour. */
 export function momentQuestion(placeName: string, iso: string): string {
   return `Why was ${placeName} at risk on ${momentText(iso)} UTC?`;
 }

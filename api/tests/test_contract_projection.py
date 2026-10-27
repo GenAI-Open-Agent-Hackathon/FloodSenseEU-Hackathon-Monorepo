@@ -271,6 +271,17 @@ class ProjectionHonestyTest(unittest.TestCase):
         body.pop("replay_ts", None)
         self.assertIsNone(project_run(body))
 
+    def test_a_zetaris_timestamp_is_a_timestamp(self) -> None:
+        """Zetaris returns 2026-10-23 00:00:00.0. Rejecting the fraction dropped
+        the citation it timed, and with no citation left the whole projection
+        was None, so a live run carried no contract at all."""
+        body = _minimal_run()
+        body["claims"][0]["citations"][0]["accessed_at"] = "2026-10-23 00:00:00.0"
+        projected = project_run(body)
+        self.assertIsNotNone(projected)
+        cited = projected["answer"]["citations"][0]
+        self.assertEqual(cited["accessed_at"], "2026-10-23T00:00:00Z")
+
     def test_auto_approval_is_not_rewritten_to_approved(self) -> None:
         projected = project_run(_minimal_run(approval={"status": "auto"}))
         self.assertEqual(projected["approvals"], [])

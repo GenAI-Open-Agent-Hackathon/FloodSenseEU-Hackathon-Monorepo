@@ -2,35 +2,35 @@
    Reads the global tokens with fallbacks, so a restyled global.css keeps working. */
 
 .agp {
-  --agp-ink: var(--ink, #1a2330);
-  --agp-muted: var(--muted, #5c6775);
-  --agp-line: var(--line, #ddd4c4);
-  --agp-raised: var(--bg-raised, #fffdf8);
-  --agp-sunken: var(--bg-sunken, #e8e1d2);
-  --agp-accent: var(--accent, #0c6b66);
-  --agp-accent-soft: var(--accent-soft, #d7ebe7);
-  --agp-warn: var(--warn, #8a4b08);
-  --agp-warn-soft: var(--warn-soft, #f8e7c8);
-  --agp-ok: var(--ok, #1c6b45);
-  --agp-ok-soft: var(--ok-soft, #d7efe3);
-  --agp-danger: var(--danger, #8f2d2d);
-  --agp-danger-soft: var(--danger-soft, #f8d9d4);
+  --agp-ink: var(--text, #13233a);
+  --agp-muted: var(--muted, #5b6b80);
+  --agp-line: var(--border, #e1e7ef);
+  --agp-raised: var(--surface, #ffffff);
+  --agp-sunken: var(--bg-sunken, #e9eef5);
+  --agp-accent: var(--brand, #0b5cad);
+  --agp-accent-soft: var(--brand-soft, #e6f0fb);
+  --agp-warn: var(--warn-ink, #7a4b00);
+  --agp-warn-soft: var(--risk-moderate-soft, #fdf3d6);
+  --agp-ok: var(--ok-ink, #1f6b41);
+  --agp-ok-soft: var(--risk-low-soft, #e5f4eb);
+  --agp-danger: var(--danger-ink, #b0202f);
+  --agp-danger-soft: var(--risk-severe-soft, #fbe3e6);
   margin: 0.75rem 0;
   color: var(--agp-ink);
 }
 .rag,
 .dr {
-  --agp-ink: var(--ink, #1a2330);
-  --agp-muted: var(--muted, #5c6775);
-  --agp-line: var(--line, #ddd4c4);
-  --agp-raised: var(--bg-raised, #fffdf8);
-  --agp-sunken: var(--bg-sunken, #e8e1d2);
-  --agp-accent: var(--accent, #0c6b66);
-  --agp-accent-soft: var(--accent-soft, #d7ebe7);
-  --agp-warn: var(--warn, #8a4b08);
-  --agp-warn-soft: var(--warn-soft, #f8e7c8);
-  --agp-danger: var(--danger, #8f2d2d);
-  --agp-danger-soft: var(--danger-soft, #f8d9d4);
+  --agp-ink: var(--text, #13233a);
+  --agp-muted: var(--muted, #5b6b80);
+  --agp-line: var(--border, #e1e7ef);
+  --agp-raised: var(--surface, #ffffff);
+  --agp-sunken: var(--bg-sunken, #e9eef5);
+  --agp-accent: var(--brand, #0b5cad);
+  --agp-accent-soft: var(--brand-soft, #e6f0fb);
+  --agp-warn: var(--warn-ink, #7a4b00);
+  --agp-warn-soft: var(--risk-moderate-soft, #fdf3d6);
+  --agp-danger: var(--danger-ink, #b0202f);
+  --agp-danger-soft: var(--risk-severe-soft, #fbe3e6);
 }
 
 .agp-head,
@@ -366,7 +366,7 @@
 .dr-ask {
   background: var(--agp-accent);
   border-color: var(--agp-accent);
-  color: var(--bg-raised, #fff);
+  color: var(--on-brand, #fff);
   font-weight: 700;
 }
 .dr-ask {
@@ -484,4 +484,28 @@
   .rag-passage {
     animation: none;
   }
+}
+
+.agp-badge-zetaris {
+  border-color: var(--zetaris-border, #d8ccf5);
+  background: var(--zetaris-bg, #efe9fb);
+  color: var(--zetaris-ink, #5a3aa8);
+}
+.agp-source-note.is-failed {
+  color: var(--danger-ink, #b0202f);
+}
+.dr-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.dr-badge-src {
+  color: var(--cached-ink, #46566b);
+  background: var(--sample-bg, #fff4cc);
+  border-color: var(--sample-border, #f0cf6b);
+}
+.dr-badge-src.is-zetaris {
+  color: var(--zetaris-ink, #5a3aa8);
+  background: var(--zetaris-bg, #efe9fb);
+  border-color: var(--zetaris-border, #d8ccf5);
 }
