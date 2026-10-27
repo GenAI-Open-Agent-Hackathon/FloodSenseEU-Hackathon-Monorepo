@@ -1,5 +1,6 @@
 import { CitizenActions, CitizenArea, CitizenEvidence, CitizenOverview } from "./CitizenView";
 import { InsurerView } from "./InsurerView";
+import { OperatorView } from "./OperatorView";
 import { NowPage } from "./NowPage";
 import { DisasterReplay } from "./DisasterReplay";
 import { HowItWorks } from "./HowItWorks";
@@ -9,7 +10,7 @@ import { useConsole } from "../context/ConsoleContext";
 /** One page body per hash. The Evidence drawer and the replay strip stay on the shell. */
 export function PageOutlet() {
   const { deskRoute } = useConsole();
-  const desk = deskRoute.role === "citizen" ? "Citizen" : "Insurer";
+  const desk = deskRoute.role === "citizen" ? "Citizen" : deskRoute.role === "operator" ? "Civil protection" : "Insurer";
   const label = pageLabel(deskRoute);
 
   return (
@@ -18,7 +19,13 @@ export function PageOutlet() {
         {desk} {label}
       </h1>
       <div className="workspace" data-page={`${deskRoute.role}-${deskRoute.page}`}>
-        {deskRoute.role === "citizen" ? <CitizenBody page={deskRoute.page} /> : <InsurerView page={deskRoute.page} />}
+        {deskRoute.role === "citizen" ? (
+          <CitizenBody page={deskRoute.page} />
+        ) : deskRoute.role === "operator" ? (
+          <OperatorView page={deskRoute.page} />
+        ) : (
+          <InsurerView page={deskRoute.page} />
+        )}
       </div>
     </>
   );

@@ -109,6 +109,8 @@ export function screenContextFor(
   valencia: { date: string; pointId: string; points: readonly { point_id: string; name: string }[] },
   ahrSel: { date: string; pointId: string },
 ): AskContext {
+  // Civil protection pages name no event or Valencia point: the place is the one picked on the board.
+  if (route.role === "operator") return { role: route.role, page: route.page };
   if (pageShowsEvent(route, eventId)) {
     return { role: route.role, page: route.page, ...activeEventSelection(eventId, valencia, ahrSel) };
   }
