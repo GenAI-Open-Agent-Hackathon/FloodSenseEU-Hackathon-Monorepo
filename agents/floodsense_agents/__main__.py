@@ -52,7 +52,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from floodsense_agents import __version__
-from floodsense_agents import desk, front_door, labelling
+from floodsense_agents import desk, front_door, labelling, router
 from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import available_providers
@@ -344,6 +344,8 @@ def config():
                 "FF_HITL": settings.ff_hitl,
                 "FF_HMEM": settings.ff_hmem,
                 "FF_RAG_DOCS": settings.ff_rag_docs,
+                # Router quick lane: part of the API cache fingerprint (app/cache.py).
+                "FF_QUICK_LANE": router.enabled(),
             },
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "engines_url": settings.engines_url,

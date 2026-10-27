@@ -21,6 +21,7 @@ Layer = Literal["a", "b", "c"]
 Storage = Literal["full_text", "pointer"]
 Grounding = Literal["supported", "partial", "unsupported"]
 ServedFrom = Literal["live", "cache", "replay"]
+Lane = Literal["quick", "full"]  # run lanes; a front-door reply is lane "reply"
 ApprovalStatus = Literal["pending", "approved", "edited", "rejected"]
 ActionType = Literal[
     "notify-policyholders", "dispatch-loss-adjuster", "flag-underwriting-review", "inform-public"
@@ -167,6 +168,8 @@ class Answer(ContractModel):
     cached_at: str | None = Field(default=None, pattern=DATE_TIME)
     playbook_actions: list[PlaybookAction] = Field(default_factory=list)
     judge: Judge | None = None
+    lane: Lane | None = None
+    router_reason: str | None = None
     memory_used: list[MemoryUsed] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -191,6 +194,7 @@ class ReplyResponse(ContractModel):
     suggestions: list[str] = Field(max_length=3)
     model_id: str = Field(min_length=1)
     latency_ms: int = Field(ge=0)
+    lane: Literal["reply"] | None = None
 
 
 # What POST /runs returns.

@@ -13,19 +13,20 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 from typing import Any
 
 from langgraph.types import Command
 
-from floodsense_agents import labelling
+from floodsense_agents import labelling, router
 from floodsense_agents.checkpoints import build_checkpointer
 from floodsense_agents.events import route_event, spec
 from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import current_provider
-from floodsense_agents.state import memory_used, normalise_trace, run_model_ids
+from floodsense_agents.state import memory_used, normalise_trace, run_model_ids, trace
 from floodsense_agents.zetaris import now_utc
 
 log = logging.getLogger("floodsense.runtime")
@@ -62,6 +63,8 @@ STATE_KEYS = (
     "live_findings",
     "model_ids",
     "error",
+    "lane",
+    "router_reason",
 )
 
 
@@ -155,6 +158,8 @@ class Runtime:
             ("provenance", []),
         ):
             out[k] = out[k] if out[k] is not None else empty
+        # Runs recorded before the router took the full lane.
+        out["lane"] = out["lane"] or router.FULL
         out["trace"] = normalise_trace(out["trace"])
         out["model_ids"] = run_model_ids(out["trace"], out["model_ids"])
         # H-MEM provenance, run level: which approved past findings the
@@ -226,6 +231,7 @@ class Runtime:
             approval=(snap.get("approval") or {}).get("status"),
             served_from=snap["served_from"],
             cached_at=snap["cached_at"],
+            lane=snap.get("lane"),
         )
         self.index[run_id] = row
         return row
@@ -338,6 +344,17 @@ class Runtime:
         served_from, cached_at = labelling.computation_label(
             req.replay_ts, live=self._answers_are_live()
         )
+        t_route = time.time()
+        llm = getattr(self.deps, "llm", None) if self.deps is not None else None
+        lane = router.route(req, llm)
+        router_trace = trace(
+            {"run_id": run_id, "trace": []},
+            "router",
+            lane["reason"],
+            lane="fast" if lane["model_id"] != "rules" else "none",
+            model_id=None if lane["model_id"] == "rules" else lane["model_id"],
+            started=t_route,
+        )
         inputs = {
             "run_id": run_id,
             "thread_id": thread_id,
@@ -350,7 +367,9 @@ class Runtime:
             "event": ev.as_dict(),
             "served_from": served_from,
             "cached_at": cached_at,
-            "trace": [],
+            "lane": lane["lane"],
+            "router_reason": lane["reason"],
+            "trace": router_trace,
             "revise_rounds": 0,
             "repair_rounds": 0,
             "model_ids": [],

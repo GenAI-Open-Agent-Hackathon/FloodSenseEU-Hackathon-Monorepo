@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { RecordedRun } from "../api/replay";
-import { buildPipeline, formatLatency, type PipelineBadge, type WorldBoard } from "../lib/pipeline";
+import { buildPipeline, escalationOf, formatLatency, type PipelineBadge, type WorldBoard } from "../lib/pipeline";
 import type { LiveRunState } from "../lib/liveRun";
 import { modelChip, runModelLine } from "../lib/modelChip";
 
@@ -93,6 +93,17 @@ function LoopChips({ revise, repair }: { revise: number; repair: number }) {
   );
 }
 
+/** "Escalated to the full investigation: …" when the quick lane handed the run on (#79 router). */
+export function escalationLine(summary: string | null | undefined): string | null {
+  if (!summary) return null;
+  return `Escalated to the full investigation: ${summary.replace(/^escalated:\s*/i, "")}`;
+}
+
+function EscalationLine({ summary }: { summary: string | null | undefined }) {
+  const line = escalationLine(summary);
+  return line ? <p className="stp-escalation">↗ {line}</p> : null;
+}
+
 function BoardChips({ board }: { board: WorldBoard | null }) {
   if (!board) return null;
   return (
@@ -166,6 +177,7 @@ export function AgentPipeline({
   const body = (
     <>
       <StepList rows={rows} />
+      <EscalationLine summary={escalationOf(run)} />
       <LoopChips revise={model.reviseRounds} repair={model.repairRounds} />
       <BoardChips board={model.board} />
     </>
@@ -211,6 +223,7 @@ export function LiveAgentPipeline({ state, collapsed = false }: { state: LiveRun
   const body = (
     <>
       <StepList rows={rows} />
+      <EscalationLine summary={state.escalated} />
       <LoopChips revise={state.reviseRounds} repair={state.repairRounds} />
     </>
   );

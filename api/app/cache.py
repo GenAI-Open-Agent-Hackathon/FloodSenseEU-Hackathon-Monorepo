@@ -423,9 +423,16 @@ def approved_by_a_person(run: dict[str, Any]) -> bool:
     return run.get("status") == "approved" and approval in REMEMBERED
 
 
+def quick_answered(run: dict[str, Any]) -> bool:
+    """A quick-lane answer: no playbook, no HITL, ends ``answered`` (router.py)."""
+    return run.get("lane") == "quick" and run.get("status") == "answered"
+
+
 def finished_well(run: dict[str, Any]) -> bool:
-    """Approved or edited by a person, and passed by the Judge. Nothing else is cached."""
-    return approved_by_a_person(run) and (run.get("judge_summary") or {}).get("passes") is True
+    """Passed by the Judge, and approved or edited by a person, or a quick-lane
+    answer (nothing to approve). Nothing else is cached."""
+    passed = (run.get("judge_summary") or {}).get("passes") is True
+    return passed and (approved_by_a_person(run) or quick_answered(run))
 
 
 def is_follow_up(run: dict[str, Any]) -> bool:
@@ -597,7 +604,9 @@ class AnswerCache:
             return False
         request = run.get("request") or {}
         key = key_of(request, flags)
-        entry = Entry(run["run_id"], time.time(), self.ttl_for(request, flags))
+        # A quick-lane answer is a live reading: it ages like live data.
+        ttl = self.settings.ttl_live_s if quick_answered(run) else self.ttl_for(request, flags)
+        entry = Entry(run["run_id"], time.time(), ttl)
         with self._lock:
             self._entries[key] = entry
             self._entries.move_to_end(key)
