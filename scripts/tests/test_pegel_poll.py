@@ -137,6 +137,28 @@ class PegelPollTest(unittest.TestCase):
             self.assertEqual(n, 0)
             self.assertEqual(Path(d, "live.csv").read_text(encoding="utf-8"), "old")
 
+    def test_station_list_covers_ten_federal_waterways(self) -> None:
+        names = pegel_poll.STATIONS
+        self.assertEqual(len(names), len(set(names)))
+        self.assertGreaterEqual(len(names), 25)
+        # The first nine are the Rhine/Mosel list this poller started with.
+        for old in ("MAINZ", "KAUB", "KOBLENZ", "ANDERNACH", "BONN", "KÖLN", "DÜSSELDORF", "Trier UP", "Cochem"):
+            self.assertIn(old, names)
+        for name in ("DRESDEN", "PASSAU DONAU", "FRANKFURT1 (ODER)", "HANN.MUENDEN", "RHEINE UNTERSCHLEUSE"):
+            self.assertIn(name, names)
+
+    def test_names_with_brackets_and_dots_are_quoted_in_the_path(self) -> None:
+        seen: list[str] = []
+
+        def get(url, params=None):
+            seen.append(url)
+            raise OSError("offline")
+
+        with tempfile.TemporaryDirectory() as d:
+            pegel_poll.poll(("FRANKFURT1 (ODER)", "HANN.MUENDEN"), get, d)
+        self.assertIn(f"{pegel_poll.BASE}/stations/FRANKFURT1%20%28ODER%29.json", seen)
+        self.assertIn(f"{pegel_poll.BASE}/stations/HANN.MUENDEN.json", seen)
+
     def test_columns_match_the_live_gauge_view_header(self) -> None:
         sql = (ROOT / "zetaris" / "migrations" / "048_view_gauge_levels_is_stale.sql").read_text(encoding="utf-8")
         header = next(line for line in sql.splitlines() if line.startswith("-- columns:"))

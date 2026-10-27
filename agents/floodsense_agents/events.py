@@ -17,6 +17,8 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass
 
+from floodsense_agents.watch import is_watch_only, watch_target
+
 # Order is ingestion/prep/valencia_points.csv and migration 003.
 VALENCIA_POINT_IDS: tuple[str, ...] = tuple(f"VAL0{n}" for n in range(1, 9))
 # ingestion/feeds/feeds.py. Seed hazard views do not store these rows.
@@ -305,6 +307,17 @@ def route_event(
     if named:
         ev, word = named
         return ev, f"question names '{word}', so the run uses {ev}"
+    # A PEGELONLINE gauge off the Rhine (Dresden, the Elbe, Passau) is German too.
+    target = watch_target(question)
+    if (
+        is_watch_only(target)
+        and not target["points"]
+        and not _VALENCIA_RE.search(question or "")
+    ):
+        return GERMAN_EVENT, (
+            f"question names the PEGELONLINE gauge place '{target['word']}', so the run uses "
+            f"{GERMAN_EVENT}"
+        )
     picked = _context_event(context)
     if picked:
         return picked

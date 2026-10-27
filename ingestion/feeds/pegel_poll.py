@@ -34,10 +34,24 @@ DEST = "/home/zetaris/customer-data/shared/floodsense_live/pegel_now"
 UA = "FloodSenseEU-hackathon/0.1 (non-commercial)"
 SOURCE = "ds_pegelonline"
 
-# PEGELONLINE shortnames. Rhine, upstream to downstream, then the Mosel.
+# PEGELONLINE shortnames, chosen on 2026-10-27 from the REST API: every one has a W
+# timeseries with MW and MHW characteristic values. Grouped by federal waterway,
+# upstream to downstream within each. 26 stations across ten rivers.
 STATIONS = (
-    "MAINZ", "KAUB", "KOBLENZ", "ANDERNACH", "BONN", "KÖLN", "DÜSSELDORF",
-    "Trier UP", "Cochem",
+    # Rhine
+    "MAXAU", "MAINZ", "KAUB", "KOBLENZ", "ANDERNACH", "BONN", "KÖLN", "DÜSSELDORF", "EMMERICH",
+    # Mosel, Saar
+    "Trier UP", "Cochem", "Fremersdorf",
+    # Main, Neckar
+    "FRANKFURT OSTHAFEN", "WÜRZBURG", "Heidelberg UP", "Lauffen",
+    # Elbe
+    "DRESDEN", "MAGDEBURG-STROMBRÜCKE", "WITTENBERGE",
+    # Danube (Donau)
+    "REGENSBURG EISERNE BRÜCKE", "PASSAU DONAU",
+    # Oder
+    "FRANKFURT1 (ODER)", "HOHENSAATEN-FINOW",
+    # Weser, Ems
+    "HANN.MUENDEN", "PORTA", "RHEINE UNTERSCHLEUSE",
 )
 
 COLUMNS = [

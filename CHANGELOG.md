@@ -9,8 +9,15 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- Europe live watch. PEGELONLINE poller: 26 stations on ten federal waterways (Rhine, Mosel, Saar, Main, Neckar, Elbe, Danube, Oder, Weser, Ems), each with MW/MHW, same CSV format and `Quelle: WSV, PEGELONLINE`. Zetaris: REST table `eu_watch_live` and views `floodsense.eu_watch` / `floodsense_seed.eu_watch` (migrations 060-062) for 12 Open-Meteo GloFAS river points outside Germany (Paris, Lyon, Orléans, Piacenza, Zaragoza, Warsaw, Vienna, Budapest, Szeged, Liège, Prague, Seville): discharge today, 7-day forecast max, past-30-day median, and a relative band labelled "model, not an official warning". Contract entry in `contracts/views.yaml`, `GET /views/eu_watch` on the agents service.
+- Agents live mode answers "Is the Danube at Budapest at risk right now?" and "What about the Elbe in Dresden?" from `eu_watch` / `gauge_levels` with Zetaris query-id citations (`watch.py`). A watch place with no past marker is live (it has no replay window); a German gauge off the Rhine routes to EMSR517; the scope gate accepts watch places in live mode; Exposure is skipped for those runs. Rhine/Mosel questions keep the EMSR517 gauge path, which now reads Rhine and Mosel rows only and lists the stations a question names first.
+- UI Now page: "Europe · live watch" section with one Leaflet map of all sources (circles: PEGELONLINE gauges against official MHW; diamonds: GloFAS model band), a two-part legend, and a compact sortable list. Clicking a source pre-fills Ask FloodSense with a question about it.
+
 ### Fixed
 
+- Rhine live gauge claims read MHW from Zetaris REST rows, which arrive as strings, so the station threshold is stated again instead of "carries no threshold".
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."
 - UI Ask: a declined answer that names the other event shows "Ask about Ahr 2021 instead" (or Valencia 2024), which re-sends the question with that event.
 - UI Ask opens with a greeting and three suggested questions fitted to role and page. The recorded run moved behind "See an example answer", labelled "Recorded run · not live".

@@ -530,6 +530,9 @@ VIEW_COLUMNS: dict[str, dict[str, str]] = {
     }
     | {"is_stale": _BOOL},
     "exposure_join": {"lat": _NUM, "lon": _NUM, "sum_insured_eur": _NUM, "in_footprint": _BOOL},
+    "eu_watch": {
+        k: _NUM for k in ("lat", "lon", "discharge_m3s", "forecast_max_m3s", "past30_median_m3s")
+    },
     "provenance": {},
 }
 # No contract view has an event_id column today; the filter applies only if one does.
@@ -578,6 +581,7 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
         "sum_insured_eur",
         "segment",
     ),
+    "eu_watch": ("point_id", "name", "river", "lat", "lon", "band"),
     "provenance": ("dataset", "source_url", "publisher", "licence", "attribution", "fetched_at"),
 }
 

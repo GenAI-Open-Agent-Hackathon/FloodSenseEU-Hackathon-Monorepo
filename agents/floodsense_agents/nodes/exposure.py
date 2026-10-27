@@ -97,6 +97,20 @@ def make(deps: Deps):
             f"AND lon BETWEEN {lon0} AND {lon1}"
         )
         live = is_live(state)
+        # A Europe live-watch question (Budapest, the Elbe at Dresden) is not about
+        # this event's footprint; the synthetic portfolio would answer another place.
+        if live and (state.get("live_findings") or {}).get("watch_hypothesis"):
+            return {
+                "exposure": {},
+                "trace": trace(
+                    state,
+                    "exposure",
+                    "skipped: a Europe live-watch question; the synthetic portfolio covers the "
+                    f"{ev['event_id']} footprint only",
+                    lane="none",
+                    started=t,
+                ),
+            }
         # Live mode has no forecast extent. The EMSR773 layer is the 2024
         # observed extent, so it is used as a historical proxy and says so.
         where_txt = (
