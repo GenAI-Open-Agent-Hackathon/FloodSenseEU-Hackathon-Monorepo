@@ -211,6 +211,8 @@ Every Ask request carries `context` from `screenContext()` in ConsoleContext (ro
 
 ### River-gauge map
 
+The API caches the views (`x-views-cache` miss, hit or stale; `x-views-age-s`). When a view is served stale the live sources failed and this is the last good copy: `LiveHealthNote` says "Last good reading from HH:MM UTC (live source temporarily unavailable)", the context strip says "Live data · view eu_watch is N min old" and never plain "Live". The headers are read in `src/api/euWatch.ts`, `gauges.ts`, `now.ts`; the logic is in `src/lib/staleness.ts`.
+
 `GET {VITE_API_URL}/views/gauge_levels` (Zetaris `floodsense.gauge_levels`, PEGELONLINE Rhine/Mosel gauges). The browser never calls PEGELONLINE. Numbers sent as strings are coerced. Markers sit at the view's `lat`/`lon` (fallback: `STATION_POSITIONS` in `src/lib/gauges.ts`), coloured by `band` (below, near, above, unknown = No threshold). Cards show level, `trend_cm_h` as rising/steady/falling, MW and MHW, and the measured time. Each row's origin comes from `source`: a seed, fixture or replay stamp is labelled Seed or Fixture (dashed marker), never Live. A row with `is_stale` true (or missing) is labelled Stale. Live appears only for a live-source, fresh row, and the map chip says Live only when every gauge is. The view is re-read every 5 minutes; a failed or empty read is retried, not cached. An empty or unreachable view says "No live gauge readings yet". No sample gauges are drawn. Tiles: OpenStreetMap via Leaflet.
 
 ## Fixture and live
