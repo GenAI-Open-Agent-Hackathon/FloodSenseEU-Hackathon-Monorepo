@@ -194,7 +194,9 @@ def main(argv=None) -> int:
     ap.add_argument("--event", choices=list(EVENTS), action="append")
     ap.add_argument("--out", help="markdown report path (a .json twin is written beside it)")
     ap.add_argument("--strict", action="store_true", help="exit 1 when a target is missed")
-    ap.add_argument("--provider", help="llm_provider for every run (default: the deployment default)")
+    ap.add_argument(
+        "--provider", help="llm_provider for every run (default: the deployment default)"
+    )
     ap.add_argument("--items", help="comma-separated item ids to run (default: all)")
     args = ap.parse_args(argv)
     deps = build_deps()
@@ -206,12 +208,27 @@ def main(argv=None) -> int:
         "events": {},
     }
     wanted = {i.strip() for i in args.items.split(",")} if args.items else None
+    if args.provider:
+        # Fail once, before any run, rather than with a traceback at the first item.
+        RunRequest(question="provider check", llm_provider=args.provider)
+    if wanted:
+        known = {
+            item["id"]
+            for ev in args.event or list(EVENTS)
+            for item in yaml.safe_load((HERE / EVENTS[ev]).read_text(encoding="utf-8"))["items"]
+        }
+        unknown = sorted(wanted - known)
+        if unknown:
+            print(f"error: unknown eval item id(s): {', '.join(unknown)}", file=sys.stderr)
+            return 2
     for ev in args.event or list(EVENTS):
         spec = yaml.safe_load((HERE / EVENTS[ev]).read_text(encoding="utf-8"))
         items = [i for i in spec["items"] if wanted is None or i["id"] in wanted]
         if not items:
             continue
         rows = [run_item(rt, spec, item, args.provider) for item in items]
+        for row in rows:
+            row["provider"] = args.provider or "default"
         results["events"][ev] = {"rows": rows, "aggregate": aggregate(rows)}
         a = results["events"][ev]["aggregate"]
         print(
