@@ -146,9 +146,23 @@ export function actionChip(type: ActionType | null): string {
   return type ? ACTION_LABELS[type] : "Proposed action";
 }
 
-export function sitesLine(count: number | null): string {
-  if (count === null) return "sites not counted";
-  return `${count} site${count === 1 ? "" : "s"} affected`;
+/**
+ * The site count, said honestly. null: the Exposure step gave no count, so nothing is claimed. 0 outside Valencia:
+ * the demo book (synthetic, Valencia only) has no site there, which is not the same as "no exposure".
+ */
+export function sitesLine(count: number | null, eventId?: string | null): string {
+  if (count === null) return "Site count not reported by the Exposure step";
+  if (count === 0) {
+    return eventId && eventId !== "EMSR773"
+      ? "0 insured sites · the demo book covers Valencia only"
+      : "0 insured sites in the affected area";
+  }
+  return `${count} insured site${count === 1 ? "" : "s"} in the affected area`;
+}
+
+/** The label above an action's message: an outbound draft waits for approval; an internal action sends nothing. */
+export function draftLabel(outbound: boolean): string {
+  return outbound ? "Draft message (sent only after approval)" : "Internal note — nothing is sent";
 }
 
 export type CardStatus = "pending" | "approved" | "edited" | "rejected";

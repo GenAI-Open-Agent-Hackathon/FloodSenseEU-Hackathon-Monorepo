@@ -1,4 +1,3 @@
-import { ServingLine } from "./Banners";
 import { useConsole } from "../context/ConsoleContext";
 import { replayBarView } from "../lib/events";
 import { replayEventOfPlace } from "../lib/places";
@@ -6,13 +5,15 @@ import { replayEventOfPlace } from "../lib/places";
 /**
  * Context strip under the header. "Live data" on Now, a plain "Viewing: ... (replay of a past event)"
  * on pages that show a replayed event, nothing elsewhere. While the simulation plays, Stop stays
- * reachable on every page. On Approvals and Review the answer serving line rides in the same strip.
+ * reachable on every page. A cached answer is labelled on the answer itself, never in this strip.
  */
 export function ReplayBar() {
-  const { date, playing, stopSimulation, route, page, deskRoute, eventId, ahrDate, placeId } = useConsole();
-  const showServing = route === "insurer" && (page === "approvals" || page === "review");
-  const view = replayBarView(deskRoute, eventId, { date }, { date: ahrDate }, replayEventOfPlace(placeId));
-  if (view.kind === "none" && !playing && !showServing) return null;
+  const { date, playing, stopSimulation, deskRoute, eventId, ahrDate, placeId, sitesView } = useConsole();
+  const liveSites = deskRoute.role === "insurer" && deskRoute.page === "sites" && sitesView === "live";
+  const view = liveSites
+    ? ({ kind: "none", text: "" } as const)
+    : replayBarView(deskRoute, eventId, { date }, { date: ahrDate }, replayEventOfPlace(placeId));
+  if (view.kind === "none" && !playing) return null;
 
   return (
     <div className="replay-bar" data-kind={view.kind}>
@@ -27,7 +28,6 @@ export function ReplayBar() {
           </button>
         </>
       )}
-      {showServing && <ServingLine inline />}
     </div>
   );
 }
