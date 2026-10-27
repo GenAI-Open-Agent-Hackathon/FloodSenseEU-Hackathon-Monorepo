@@ -7,6 +7,7 @@ import { MapPanel } from "./MapPanel";
 import { NowPage } from "./NowPage";
 import { Portfolio } from "./Portfolio";
 import { ReviewColumn } from "./ReviewColumn";
+import { SystemPanel } from "./SystemPanel";
 import { useConsole } from "../context/ConsoleContext";
 import type { InsurerPage } from "../lib/route";
 
@@ -35,6 +36,8 @@ export function InsurerView({ page }: { page: InsurerPage }) {
       );
     case "alerts":
       return <Alerts />;
+    case "system":
+      return <SystemPanel />;
     case "review":
       return (
         <div className="page-stack">

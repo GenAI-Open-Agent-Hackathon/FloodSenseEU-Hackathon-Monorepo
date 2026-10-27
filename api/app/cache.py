@@ -57,6 +57,9 @@ log = logging.getLogger("floodsense.api.cache")
 
 CACHE_PREFIX = "floodsense:cache:v1:"
 REPLAY_PREFIX = "floodsense:replay:v1:"
+# Written only by `python tasks.py demo-seed` (app/demo_seed.py), so /system can say what was seeded.
+DEMO_PREFIX = "floodsense:demo:v1:"
+DEMO_SEED_KEY = DEMO_PREFIX + "seeded"
 REDIS_RETRY_S = 30.0
 REDIS_SOCKET_TIMEOUT_S = 0.5
 
@@ -676,6 +679,33 @@ class AnswerCache:
         if self._redis is None or not self._redis.up:
             return "memory"
         return "redis" if self._redis.call(lambda c: c.ping(), False) else "memory"
+
+    def key_counts(self, limit: int = 10_000) -> dict[str, int | None]:
+        """Keys per prefix. Redis is SCANned (capped at ``limit``); None when it does not answer."""
+        prefixes = {"cache": CACHE_PREFIX, "replay": REPLAY_PREFIX, "demo": DEMO_PREFIX}
+        if self._redis is None or not self._redis.up:
+            with self._lock:
+                return {"cache": len(self._entries), "replay": len(self._recordings), "demo": 0}
+
+        def count(prefix: str):
+            def go(client):
+                n = 0
+                for _ in client.scan_iter(match=prefix + "*", count=500):
+                    n += 1
+                    if n >= limit:
+                        break
+                return n
+
+            return go
+
+        return {name: self._redis.call(count(p), None) for name, p in prefixes.items()}
+
+    def demo_seeded(self) -> dict[str, Any] | None:
+        """The marker demo-seed leaves in Redis: which runs it warmed. None when absent."""
+        if self._redis is None:
+            return None
+        _, value = self._redis.get_json(DEMO_SEED_KEY)
+        return value
 
     def stats(self) -> dict[str, Any]:
         """Flags, backend and this process's counts. No Redis scan."""

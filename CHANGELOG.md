@@ -9,6 +9,14 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- API `GET /system` (`app/system.py`): read-only status for the demo. Cache backend, key counts per prefix, hit and miss counters; rate-limit config, in-flight runs and recent 429s; engines health; the H-MEM count and the newest 5 memories with a `seeded` flag; the World Model board of the newest run; LLM lanes and providers. In-process counters in `app/metrics.py`. No secrets.
+- Engines `GET /hmem/memories?limit=`: the newest memories, read-only (no H-MEM query, no ledger entry).
+- `python tasks.py demo-seed`, `demo-reset` and `demo-ratelimit` (`api/app/demo_seed.py`). Seed stores labelled findings (reviewer `demo-seed`, "seeded for demo") for Valencia (Paiporta, Barranc del Poyo) and the Ahr (Altenahr) through the engines' approval store, with the recorded run's citations, and warms Redis with the two newest approved, Judge-passed runs so a repeat is served "Cached answer · not live".
+- UI insurer **System** page (`SystemPanel.tsx`, `#/insurer/system`): Memory, Cache, Rate limits and Models & engines cards, polling `/system` every 5 s, with a "seeded" chip on demo-seed items.
+- Compose passes `ENGINES_URL=http://engines:8300` to the api service.
+
 ### Fixed
 
 - Agents event routing: when `event_id` is unset, a question that names places of exactly one event now wins over the screen context. On citizen Overview with Paiporta selected, "What is the current water level near Ahr Valley?" runs on EMSR517 instead of being declined. A question naming no place (or both events) still follows the context. An explicit `event_id` still stands, and the scope gate's decline is now warm and still honest: "That's about the Ahr valley flood (July 2021), case EMSR517. I'm looking at Valencia (EMSR773) here ... Switch to the Ahr case and I'll answer it."

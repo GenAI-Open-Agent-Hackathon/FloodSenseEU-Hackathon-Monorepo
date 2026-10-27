@@ -21,6 +21,7 @@ Retry-After. GET routes are not limited.
 
 GET  /health                      this service
 GET  /config                      flags and lanes, from the agents
+GET  /system                      read-only status: memory, cache, rate limits, models (app/system.py)
 POST /runs                        start a run; returns when the graph pauses for human approval
                                   (thread_id continues a conversation: short-term thread memory)
                                   200 + served_from cache: a repeat of a finished question (FF_SEMANTIC_CACHE)
@@ -62,7 +63,9 @@ from app.cache import (
     same_ask,
 )
 from app.project import project_run
+from app.metrics import counters
 from app.ratelimit import RateLimiter
+from app.system import build_system
 
 AGENTS_URL = os.environ.get("AGENTS_URL", "http://127.0.0.1:8100").rstrip("/")
 UI_ORIGINS = [
@@ -214,11 +217,14 @@ async def _from_cache(body: dict) -> dict | None:
         return None
     entry = await asyncio.to_thread(cache.lookup, body, flags)
     if entry is None:
+        counters.cache_miss()
         return None
     code, run = await _agents_json("GET", f"/runs/{entry.run_id}", timeout=_lookup_timeout())
     if code != 200 or not isinstance(run, dict):
         await asyncio.to_thread(cache.drop, entry.run_id, body, flags)  # the agents lost it
+        counters.cache_miss()
         return None
+    counters.cache_hit()
     age = int(time.time() - entry.stored_at)
     run["cache"] = {
         "original_run_id": entry.run_id,
@@ -294,6 +300,7 @@ async def _replay_for(
         replay = await asyncio.to_thread(cache.recording_for, body)
     if replay is None:
         return None
+    counters.replay_served()
     return annotate_replay(replay, reason, failed_run_id=failed_run_id)
 
 
@@ -308,7 +315,21 @@ async def config() -> Response:
     return JSONResponse(data)
 
 
+@app.get("/system")
+async def system() -> JSONResponse:
+    """Read-only status of memory, cache, rate limits and models (app/system.py). No secrets."""
+    body = await build_system(
+        cache=cache,
+        limiter=limiter,
+        counters=counters,
+        agents_json=_agents_json,
+        lookup_timeout=_lookup_timeout(),
+    )
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
 def _too_many(detail: str, retry_after: int) -> JSONResponse:
+    counters.rejected()
     return JSONResponse(
         {"detail": detail, "served_from": None, "cached_at": None},
         status_code=429,
