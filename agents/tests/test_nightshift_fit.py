@@ -8,6 +8,12 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch as _patch
+
+
+def mock_patch(obj, name, value):
+    return _patch.object(obj, name, value)
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -66,16 +72,12 @@ class InvestigatorSplitTest(unittest.TestCase):
         self.assertEqual([h["statement"] for h in out["hypotheses"]], [f"MODEL {x}" for x in links])
         ids = [c["claim_id"] for c in out["claims"]]
         self.assertEqual(ids, [f"C{i}" for i in range(1, len(ids) + 1)])
-        self.assertEqual(
-            [c["text"] for c in out["claims"]],
-            [f"MODEL {x} {s}" for x in links for s in ("a", "b")],
-        )
+        # "b" cites only an unknown id: dropped, with a trace note.
+        self.assertEqual([c["text"] for c in out["claims"]], [f"MODEL {x} a" for x in links])
+        self.assertIn("(unknown query ids)", out["trace"][-1]["summary"])
         by_id = {c["claim_id"]: c for c in out["claims"]}
         for h in out["hypotheses"]:
             self.assertTrue(all(by_id[i]["hypothesis_id"] == h["id"] for i in h["citations"]))
-        # A query id outside the link's evidence is dropped, never cited.
-        b = next(c for c in out["claims"] if c["text"].endswith(" b"))
-        self.assertEqual([x for x in b["citations"] if x["layer"] == "a"], [])
         self.assertEqual(out["trace"][-1]["model_id"], "fake-fast")
         self.assertIn("3/3 links", out["trace"][-1]["summary"])
 
@@ -96,6 +98,34 @@ class InvestigatorSplitTest(unittest.TestCase):
             self.assertTrue(got[i]["citations"])
         self.assertEqual(out["trace"][-1]["lane"], "fast")
         self.assertIn("2/3 links", out["trace"][-1]["summary"])
+
+    def test_unknown_aliases_only_keep_the_draft(self) -> None:
+        det = make_investigator(_deps(FakeNightshift()))(_state())
+
+        def unknown(system, user):
+            return json.dumps({"statement": "X", "claims": [{"text": "Y", "query_ids": ["Q99"]}]})
+
+        out = make_investigator(_deps(FakeNightshift({"investigator": unknown})))(_state())
+        self.assertEqual([c["text"] for c in out["claims"]], [c["text"] for c in det["claims"]])
+        self.assertIn("dropped model claim H1.1 (unknown query ids)", out["trace"][-1]["summary"])
+
+    def test_an_unrelated_query_is_removed_from_a_link_claim(self) -> None:
+        def mixed(system, user):
+            link = _link(user)
+            own = _first_qid(user)
+            blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
+            other = next(q for q, v, n in blocks if v == "exposure_join")
+            ids = [own, other] if link == "rain->catchment" else [own]
+            return json.dumps({"statement": "S", "claims": [{"text": "T", "query_ids": ids}]})
+
+        out = make_investigator(_deps(FakeNightshift({"investigator": mixed})))(_state())
+        c1 = out["claims"][0]
+        views = {x["title"] for x in c1["citations"] if x["layer"] == "a"}
+        self.assertNotIn("exposure_join", " ".join(views))
+        self.assertTrue(views)
+        self.assertIn(
+            "removed unrelated citation(s) from model claim H1.1", out["trace"][-1]["summary"]
+        )
 
     def test_every_link_failing_is_the_deterministic_chain(self) -> None:
         det = make_investigator(_deps(FakeNightshift()))(_state())
@@ -218,6 +248,30 @@ class StreamPostTest(unittest.TestCase):
                 ]
             )
         self.assertIn("provider_error", str(cm.exception))
+
+    def test_an_error_after_content_is_not_a_success(self) -> None:
+        with self.assertRaises(ValueError) as cm:
+            self._post(
+                [
+                    'data: {"choices": [{"delta": {"content": "{\\"a\\""}}]}',
+                    'data: {"error": {"code": "provider_error", "message": "deadline"}}',
+                ]
+            )
+        self.assertIn("provider_error", str(cm.exception))
+
+    def test_the_whole_stream_has_one_deadline(self) -> None:
+        import httpx
+
+        from floodsense_agents import nightshift
+
+        clock = iter([0.0, 0.5, 2.0, 99.0, 99.0])
+        lines = ['data: {"choices": [{"delta": {"role": "assistant"}}]}', ": ping", ": ping"]
+        with (
+            mock_patch(nightshift.httpx, "stream", lambda *a, **k: _FakeStream(lines)),
+            mock_patch(nightshift.time, "monotonic", lambda: next(clock)),
+        ):
+            with self.assertRaises(httpx.TimeoutException):
+                nightshift.stream_post("http://x", json={}, headers={}, timeout=10)
 
 
 class ModelIdsTest(unittest.TestCase):

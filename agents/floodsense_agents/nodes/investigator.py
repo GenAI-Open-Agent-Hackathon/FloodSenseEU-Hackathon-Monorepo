@@ -1083,10 +1083,40 @@ def _model(
         if reply:
             statement, raw, mid = reply
             model_id = model_id or mid
-            known = evidence
+            # A link's claim may cite its own draft queries and other queries of
+            # the same views (e.g. the hourly and daily series); an exposure or
+            # gauge query on the rain link is unrelated and is removed.
+            views = {e.view for e in evs}
+            relevant = {q for q, e in evidence.items() if e.view in views}
             for k, c in enumerate(raw, 1):
                 ids_in = [back.get(str(q), str(q)) for q in c.get("query_ids") or []]
-                cited = [known[q] for q in dict.fromkeys(ids_in) if q in known]
+                known_ids = [q for q in dict.fromkeys(ids_in) if q in evidence]
+                cited = [evidence[q] for q in known_ids if q in relevant]
+                off = [q for q in known_ids if q not in relevant]
+                if ids_in and not cited:
+                    # Every id unknown (e.g. Q99) or unrelated: nothing backs it.
+                    drop = {
+                        "claim_id": f"{h.id}.{k}",
+                        "reason": "unrelated query ids" if off else "unknown query ids",
+                        "query_ids": off,
+                        "errors": [],
+                    }
+                    drops.append(drop)
+                    log.warning(
+                        "investigator: dropped claim %s (%s)", drop["claim_id"], drop["reason"]
+                    )
+                    continue
+                if off:
+                    drops.append(
+                        {
+                            "kind": "citation",
+                            "claim_id": f"{h.id}.{k}",
+                            "reason": "unrelated citation removed",
+                            "query_ids": off,
+                            "errors": [],
+                            "views": sorted({evidence[q].view for q in off}),
+                        }
+                    )
                 if cited and all(e.row_count == 0 or e.error for e in cited):
                     # A claim whose every cited query came back empty has no rows
                     # behind it, and the Skeptic would reject its whole link.
@@ -1324,7 +1354,10 @@ def make(deps: Deps):
                 lane = "fast"
                 link_note = f"; {n_model}/{len(hyps)} links worded by the model"
                 drop_note = "".join(
-                    f"; dropped model claim {d['claim_id']} ({d['reason']}"
+                    f"; removed unrelated citation(s) from model claim {d['claim_id']} "
+                    f"({', '.join(d['views'])})"
+                    if d.get("kind") == "citation"
+                    else f"; dropped model claim {d['claim_id']} ({d['reason']}"
                     + (f": {'; '.join(d['errors'])[:300]}" if d["errors"] else "")
                     + ")"
                     for d in drops

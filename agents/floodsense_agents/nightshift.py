@@ -89,7 +89,13 @@ def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx
         parts: list[str] = []
         finish = model = usage = None
         stray: list[str] = []  # error events or non-SSE lines, for the error message
+        # httpx's timeout is per read: pings or trickled tokens would keep a
+        # worker here far past llm_timeout_s. One deadline for the whole call;
+        # a timeout is final in _send (not retried).
+        deadline = time.monotonic() + timeout
         for line in r.iter_lines():
+            if time.monotonic() > deadline:
+                raise httpx.ReadTimeout(f"stream exceeded {timeout:.0f}s", request=req)
             if not line.startswith("data:"):
                 if line.strip() and not line.startswith((":", "event:", "id:", "retry:")):
                     stray.append(line.strip()[:160])
@@ -99,7 +105,9 @@ def stream_post(url: str, *, json: dict, headers: dict, timeout: float) -> httpx
                 break
             chunk = _loads(data)
             if chunk.get("error"):
-                stray.append(str(chunk["error"])[:400])
+                # An error event, even after some content, is a failed reply:
+                # never hand truncated text on as a success.
+                raise ValueError(f"stream provider_error: {str(chunk['error'])[:400]}")
             model = chunk.get("model") or model
             usage = chunk.get("usage") or usage
             for ch in chunk.get("choices") or []:
