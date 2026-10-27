@@ -4,9 +4,9 @@ import { useInsurerWatch } from "../hooks/useInsurerWatch";
 import { assessContext, assessQuestion, monitorView, type AlertRow } from "../lib/alertMonitor";
 import { onTrackedRuns, runForKey, startAssessment, trackedLine, trackedRuns, type AssessOutcome, type TrackedRun } from "../lib/assessRuns";
 import { rehearsalAt, rehearsalQuestion } from "../lib/rehearsal";
-import { REPLAY_EVENTS, buildFrames, dayStarts, crossingText, isDailyDischarge, type DisasterEvent } from "../lib/disasterReplay";
+import { REPLAY_EVENTS, buildFrames, dayStarts, crossingText, isDailyDischarge } from "../lib/disasterReplay";
 import { ahrFixture, loadAhrRows, type EventRows } from "../lib/replaySource";
-import { EVENT_META } from "../lib/events";
+import { SwitchToLive } from "./ModeSwitch";
 import { routeHref } from "../lib/route";
 import "../styles/insurer.css";
 
@@ -168,7 +168,7 @@ function LiveAlertMonitor() {
 /** Step a past flood day by day; when a point crosses the line, offer a real agent run for that replay moment. */
 function Rehearsal() {
   const desk = useConsole();
-  const [eventId, setEventId] = useState<DisasterEvent["eventId"]>("EMSR517");
+  const eventId = desk.eventId;
   const event = REPLAY_EVENTS.find((e) => e.eventId === eventId) ?? REPLAY_EVENTS[0];
   const [ahrRows, setAhrRows] = useState<EventRows>(() => ahrFixture());
   useEffect(() => {
@@ -208,19 +208,6 @@ function Rehearsal() {
           <h2 id="rehearsal-title">{event.name}</h2>
         </div>
         <span className="chip chip--sample">Replay · not live</span>
-      </div>
-      <div className="dr-events" role="group" aria-label="Past flood">
-        {REPLAY_EVENTS.map((e) => (
-          <button
-            key={e.eventId}
-            type="button"
-            className={`dr-chip${e.eventId === eventId ? " is-on" : ""}`}
-            aria-pressed={e.eventId === eventId}
-            onClick={() => setEventId(e.eventId)}
-          >
-            {EVENT_META[e.eventId].short} · {e.eventId}
-          </button>
-        ))}
       </div>
       {days.length === 0 ? (
         <p className="note">The loaded rows hold no readings inside this event window.</p>
@@ -283,10 +270,30 @@ function Rehearsal() {
 
 /** Insurer Alerts: the live monitor first, the rehearsal second. */
 export function Alerts() {
+  const { mode, setMode } = useConsole();
+  if (mode === "past")
+    return (
+      <div className="page-stack alerts-page">
+        <SwitchToLive title="The live alert monitor shows live sources">
+          Alerts raised from the live watch (gauges against mean high water, GloFAS model points) only exist for live data. Below you can rehearse the
+          chosen past flood day by day instead.
+        </SwitchToLive>
+        <Rehearsal />
+      </div>
+    );
   return (
     <div className="page-stack alerts-page">
       <LiveAlertMonitor />
-      <Rehearsal />
+      <section className="card" aria-label="Rehearse with a past flood">
+        <p className="section-label">Rehearse</p>
+        <h2>Practise on a past flood</h2>
+        <p className="note">Step through the Ahr 2021 or Valencia 2024 flood day by day and ask the agents when a point crosses the line. This switches to Past flood.</p>
+        <div className="button-row">
+          <button type="button" className="button" onClick={() => setMode("past")}>
+            Rehearse a past flood
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { buildPipeline } from "../lib/pipeline";
 import { servingLabel, servingQualifier } from "../lib/format";
 import { greetingFor, switchEventLabel, switchTarget } from "../lib/chatGreeting";
 import { shownEventId } from "../lib/events";
+import { contextForMode, modeName } from "../lib/mode";
 import { PROVIDER_LABELS } from "../lib/llmProvider";
 import { routeHref } from "../lib/route";
 import { resolveFinalRun, startLiveRun, subscribeRunEvents } from "../api/liveRun";
@@ -48,7 +49,7 @@ export function AskFloodSense() {
   const desk = useConsole();
   const { answer, askOpen, askPrefill, clearAskPrefill, closeAsk, evidenceOpen, llmProvider, llmProviders, page, deskRoute } =
     desk;
-  const greeting = greetingFor(deskRoute, shownEventId(deskRoute, desk.eventId));
+  const greeting = greetingFor(deskRoute, desk.mode, shownEventId(desk.mode, desk.eventId));
   const exampleId = useId();
   const [showExample, setShowExample] = useState(false);
   // agents-visual: screen context (and a replay moment, when the popup was opened from Replay).
@@ -160,6 +161,8 @@ export function AskFloodSense() {
     const previous = [...turns].reverse().find((t) => t.run)?.run ?? null;
     if (typed === undefined) setDraft("");
     setPending({ question, started: Date.now(), provider: allowed ? PROVIDER_LABELS[llmProvider] : "default provider", live: null });
+    // The global mode decides the event: Live sends none, Past sends the chosen event and its replay date.
+    const mergedContext = contextForMode(mergeContext(screenContext(), askContext), desk.mode);
     const result = await startLiveRun(
       {
         question,
@@ -167,8 +170,8 @@ export function AskFloodSense() {
         allowedProviders: llmProviders,
         threadId: followUpThreadId(previous),
         mode: modeForPage(page),
-        context: mergeContext(screenContext(), askContext),
-        ...(eventOverride ? { eventId: eventOverride } : askContext?.event_id ? { eventId: askContext.event_id } : {}),
+        context: mergedContext,
+        ...(eventOverride ? { eventId: eventOverride } : mergedContext?.event_id ? { eventId: mergedContext.event_id } : {}),
       },
       controller.signal,
     );
@@ -323,6 +326,7 @@ export function AskFloodSense() {
           >
             <div className="ask-turn ask-greeting">
               <p className="ask-question">{greeting.text}</p>
+              <p className="note ask-mode">Asking about: {modeName(desk.modeState)}{desk.demo ? " · DEMO DATA on screen" : ""}</p>
               <ul className="ask-suggestions" aria-label="Suggested questions">
                 {greeting.suggestions.map((q) => (
                   <li key={q}>

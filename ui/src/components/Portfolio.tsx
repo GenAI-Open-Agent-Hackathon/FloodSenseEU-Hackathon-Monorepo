@@ -9,13 +9,37 @@ import { EVENT_META } from "../lib/events";
 import { DEMO_BOOK_LINE, groupByNearest, NEAR_KM, nearestSource, siteWatchLine } from "../lib/nearest";
 import { hhmm } from "../lib/alertMonitor";
 import { statusLabel } from "../lib/origin";
+import { next48hQuestion } from "../api/ask";
 import { OriginList } from "./Banners";
+import { LoadingNote } from "./Loading";
+import { SwitchToLive } from "./ModeSwitch";
 import "../styles/insurer.css";
 
 const SITE_PAGE = 25;
 
-/** Live first: each insured site against its nearest watched source. Then the replay exposure, labelled as a replay. */
+/**
+ * Follows the global mode. Live: each insured site against its nearest watched source. Past flood: the replay exposure
+ * of the chosen event (Valencia has the synthetic book; Ahr says it has none), clearly a replay.
+ */
 export function Portfolio() {
+  const { mode } = useConsole();
+  if (mode === "past")
+    return (
+      <div className="page-stack">
+        <ReplayExposure />
+        <SwitchToLive title="Live site status is live-only">
+          The nearest watched source per site, and its live status, only exist for live data.
+        </SwitchToLive>
+        <details className="card disclosure">
+          <summary>Data origin</summary>
+          <OriginList />
+        </details>
+      </div>
+    );
+  return <LivePortfolio />;
+}
+
+function LivePortfolio() {
   const desk = useConsole();
   const watch = useInsurerWatch();
   const sites = desk.exposure.rows;
@@ -34,9 +58,9 @@ export function Portfolio() {
         </div>
         <p className="demo-book">{DEMO_BOOK_LINE}</p>
         {watch.state === "loading" ? (
-          <p className="note">Reading the live watch…</p>
+          <LoadingNote what="the live watch" partial />
         ) : watch.sources.length === 0 ? (
-          <p className="note">The live watch returned no sources ({watch.detail || "no detail"}), so no site can be matched. The replay exposure is below.</p>
+          <p className="note">The live watch returned no sources ({watch.detail || "no detail"}), so no site can be matched. Try again in a few minutes, switch on Demo data in the header, or switch to Past flood: Valencia 2024 for the replay exposure.</p>
         ) : (
           <>
             <div className="table-wrap">
@@ -48,6 +72,7 @@ export function Portfolio() {
                     <th scope="col">Live status</th>
                     <th scope="col">Distance</th>
                     <th scope="col">Sites</th>
+                    <th scope="col">Next step</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -68,6 +93,11 @@ export function Portfolio() {
                         {Math.round(g.minKm) === Math.round(g.maxKm) ? `${Math.round(g.minKm)} km` : `${Math.round(g.minKm)}–${Math.round(g.maxKm)} km`}
                       </td>
                       <td data-label="Sites">{g.sites}</td>
+                      <td data-label="Next step">
+                        <button type="button" className="link-button" onClick={() => desk.openAsk(next48hQuestion(g.source.name), { place: g.source.name })}>
+                          Is the next 48 h safe here?
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -76,7 +106,7 @@ export function Portfolio() {
             <p className="note">
               A source within {NEAR_KM} km is taken to describe a site; farther, it is only the nearest one.
               {nearest.groups.length > 0 && !nearest.groups.some((g) => g.near)
-                ? ` No watched source is within ${NEAR_KM} km of any site in this book, so no live reading describes these sites yet; the replay exposure below is the book's only flood view.`
+                ? ` No watched source is within ${NEAR_KM} km of any site in this book, so no live reading describes these sites yet. Switch to Past flood: Valencia 2024 for the book's replay exposure.`
                 : ""}
               {nearest.unplaced > 0 ? ` ${nearest.unplaced} site${nearest.unplaced === 1 ? " has" : "s have"} no usable lat/lon.` : ""}
               {watch.checkedAt !== null ? ` Checked ${hhmm(watch.checkedAt)}.` : ""}
@@ -101,7 +131,6 @@ export function Portfolio() {
           </>
         )}
       </section>
-      <ReplayExposure />
       <details className="card disclosure">
         <summary>Data origin</summary>
         <OriginList />

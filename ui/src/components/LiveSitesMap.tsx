@@ -1,6 +1,6 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { useInsurerWatch } from "../hooks/useInsurerWatch";
 import { EU_WATCH_BOUNDS, type WatchSource } from "../lib/euWatch";
@@ -17,7 +17,7 @@ const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
 
 /** The Europe live view of Sites / map: every live watch source and the insured sites layer. */
-export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
+export function LiveSitesPanel() {
   const desk = useConsole();
   const watch = useInsurerWatch();
   const [showSites, setShowSites] = useState(true);
@@ -38,7 +38,6 @@ export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
           Insured sites
         </label>
       </div>
-      {chips}
       <p className="demo-book" id={note}>
         {DEMO_BOOK_LINE}
       </p>
@@ -66,7 +65,7 @@ export function LiveSitesPanel({ chips }: { chips: ReactNode }) {
       <p className="note">
         Circles: {gauges} PEGELONLINE gauges, level against the long-term MHW. Diamonds: {watch.sources.filter((s) => s.kind === "model").length} GloFAS model points, a model
         band and not an official warning. Squares: {watch.valencia.length} Valencia demo points against FloodSense demo lines (not official). That is {countsText(gauges + watch.sources.filter((s) => s.kind === "model").length, watch.valencia.length)}. Dashed: not live (stale or seed).
-        {watch.checkedAt !== null ? ` Checked ${hhmm(watch.checkedAt)}.` : ""} Pick a past flood above to replay it.
+        {watch.checkedAt !== null ? ` Checked ${hhmm(watch.checkedAt)}.` : ""} Switch to Past flood in the header to replay one.
       </p>
     </section>
   );

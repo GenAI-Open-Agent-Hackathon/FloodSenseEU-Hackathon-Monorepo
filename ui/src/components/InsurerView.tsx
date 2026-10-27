@@ -29,7 +29,7 @@ export function InsurerView({ page }: { page: InsurerPage }) {
     case "portfolio":
       return <Portfolio />;
     case "sites":
-      return desk.sitesView === "live" ? (
+      return desk.mode === "live" ? (
         <div className="page-stack">
           <MapPanel exposureDefault />
         </div>

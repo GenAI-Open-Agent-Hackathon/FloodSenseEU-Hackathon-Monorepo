@@ -1,18 +1,28 @@
 import { useEffect, useState } from "react";
-import { NEXT_48H_QUESTION } from "../api/ask";
+import { next48hQuestion } from "../api/ask";
 import { useConsole } from "../context/ConsoleContext";
-import { useLiveWatch } from "../hooks/useLiveWatch";
 import type { WatchSource } from "../lib/euWatch";
 import { relativeTime } from "../lib/now";
 import { basisLabel, calmSentence, headlineCounts, headlineText, plainOf, worstFirst } from "../lib/places";
 import { EuWatchLegend, EuWatchMap } from "./EuWatch";
+import { LoadingNote, SlowSourceNote } from "./Loading";
+import { DemoChip, SwitchToLive } from "./ModeSwitch";
+import { PlacePicker, useCitizenPlace } from "./CitizenView";
+import { demoSnapshotText } from "../lib/demo";
 import { InsurerNowPage } from "./InsurerNowPage";
 import { LiveSourceBadge } from "./LiveSources";
 import { evidenceFor, PlacesToWatch, sourceTitle, StatusChip, timeText } from "./PlacesToWatch";
 
 /** Now: insurers keep the dense page; citizens get the calm, live-first one. */
 export function NowPage() {
-  const { route } = useConsole();
+  const { route, mode } = useConsole();
+  if (mode === "past")
+    return (
+      <SwitchToLive title="Now shows live readings">
+        You are viewing a past flood, so there is no "now" here. Live readings from the gauges and model points are one click away. To see the past
+        flood itself, open Replay.
+      </SwitchToLive>
+    );
   return route === "insurer" ? <InsurerNowPage /> : <CitizenNowPage />;
 }
 
@@ -22,8 +32,9 @@ export function NowPage() {
  * worst first. Numbers only behind Details.
  */
 function CitizenNowPage() {
-  const { openAsk, placeId } = useConsole();
-  const live = useLiveWatch();
+  const { openAsk, placeId, demo } = useConsole();
+  const ctx = useCitizenPlace();
+  const live = ctx.live;
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     const tick = window.setInterval(() => setClock(Date.now()), 30_000);
@@ -41,13 +52,13 @@ function CitizenNowPage() {
         <div>
           <h2 className="now-title">Right now, across our watch</h2>
           <p className="now-meta" aria-live="polite">
-            <span className="now-live-tag">Live data · Zetaris</span>
+            <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />}
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
           </p>
         </div>
         <div className="button-row">
-          <button type="button" className="now-refresh" onClick={() => openAsk(NEXT_48H_QUESTION)}>
-            Ask about the next 48 hours
+          <button type="button" className="now-refresh" onClick={() => openAsk(next48hQuestion(lead?.name), lead ? { place: lead.name } : undefined)}>
+            Is the next 48 h safe {lead ? "at " + lead.name : "anywhere"}?
           </button>
           <button type="button" className="now-refresh" onClick={live.refresh}>
             Refresh
@@ -72,10 +83,20 @@ function CitizenNowPage() {
           <p className="note">Across the watch: {headlineText(headlineCounts(live.sources))}.</p>
         </section>
       ) : (
-        <p className="now-status" role="status">
-          {loading ? "Loading live data…" : "No live readings right now: the live views did not answer. Try Refresh in a few minutes."}
-        </p>
+        loading ? (
+          <LoadingNote what="live readings" />
+        ) : (
+          <p className="now-status" role="status">
+            No live readings right now: the live views did not answer. Try Refresh in a few minutes, or switch on Demo data in the header.
+          </p>
+        )
       )}
+
+      <SlowSourceNote pending={loading && live.sources.length > 0} what="A live source" />
+      <section className="now-region" aria-label="Find a place">
+        <h3 className="now-subtitle">Find your place</h3>
+        <PlacePicker {...ctx} />
+      </section>
 
       <section className="now-region" aria-labelledby="now-eu">
         <div className="now-region-head">

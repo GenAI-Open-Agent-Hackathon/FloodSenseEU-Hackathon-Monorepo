@@ -2,6 +2,7 @@
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
 import { headerSubtitle } from "../lib/events";
+import { ModeSwitch } from "./ModeSwitch";
 import { applyTheme, readTheme, type ThemeName } from "../lib/theme";
 import { PROVIDER_LABELS, showProviderSelect, type LlmProvider } from "../lib/llmProvider";
 
@@ -148,6 +149,7 @@ export function Header() {
           </div>
         </div>
       </div>
+      <ModeSwitch />
     </header>
   );
 }

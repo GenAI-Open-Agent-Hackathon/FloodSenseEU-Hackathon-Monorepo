@@ -6,6 +6,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { buildSources, fromValencia, type WatchSource } from "../lib/euWatch";
 import { summariseGauges, type GaugeSummary } from "../lib/gauges";
 import { summariseAll, type PointNow } from "../lib/now";
+import { isDemo } from "../lib/demo";
 import { oldestFetch } from "../lib/places";
 import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
 
@@ -14,23 +15,25 @@ const REFRESH_MS = 5 * 60_000;
 export type HazardLoad =
   | { state: "loading" }
   | { state: "error"; detail: string }
-  | { state: "ready"; data: HazardNowResult; fetchedAt: number };
+  | { state: "ready"; data: HazardNowResult; fetchedAt: number; demo?: boolean };
 
 export interface EuLoad extends EuWatchLoad {
   fetchedAt: number | null;
+  demo?: boolean;
 }
 
 interface Shared<T> {
   at: number;
+  demo: boolean;
   request: Promise<T>;
 }
 let euShared: Shared<EuWatchLoad> | null = null;
 let hazardShared: Shared<HazardNowResult> | null = null;
 
 function loadEu(now: number, force: boolean): Promise<EuWatchLoad> {
-  if (force || !euShared || now - euShared.at >= REFRESH_MS) {
+  if (force || !euShared || euShared.demo !== isDemo() || now - euShared.at >= REFRESH_MS) {
     const request = fetchEuWatch();
-    euShared = { at: now, request };
+    euShared = { at: now, demo: isDemo(), request };
     void request.then((r) => {
       if (r.state !== "rows" && euShared?.request === request) euShared = null;
     });
@@ -39,9 +42,9 @@ function loadEu(now: number, force: boolean): Promise<EuWatchLoad> {
 }
 
 function loadHazard(now: number, force: boolean): Promise<HazardNowResult> {
-  if (force || !hazardShared || now - hazardShared.at >= REFRESH_MS) {
+  if (force || !hazardShared || hazardShared.demo !== isDemo() || now - hazardShared.at >= REFRESH_MS) {
     const request = fetchHazardNow(new AbortController().signal);
-    hazardShared = { at: now, request };
+    hazardShared = { at: now, demo: isDemo(), request };
     request.catch(() => {
       if (hazardShared?.request === request) hazardShared = null;
     });
@@ -67,9 +70,9 @@ export const VALENCIA_CUTS = { watch: BAND_ELEVATED_M3S, warning: SIMULATED_ALER
 
 /** The live views behind the citizen pages and Now, read once and shared for five minutes. */
 export function useLiveWatch(): LiveWatch {
-  const { points } = useConsole();
+  const { points, demo, reportChecked, reportLiveFailed } = useConsole();
   const [tick, setTick] = useState(0);
-  const gauges = useGaugeLevels(tick);
+  const gauges = useGaugeLevels(tick, demo);
   const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
   const [euWatch, setEuWatch] = useState<EuLoad>({ state: "loading", rows: [], detail: "", queryId: null, fetchedAt: null });
   const [hazard, setHazard] = useState<HazardLoad>({ state: "loading" });
@@ -80,12 +83,12 @@ export function useLiveWatch(): LiveWatch {
       if (!alive()) return;
       // A failed refresh keeps the last good rows on screen.
       setEuWatch((prev) =>
-        r.state === "rows" ? { ...r, fetchedAt: Date.now() } : prev.state !== "rows" ? { ...r, fetchedAt: null } : prev,
+        r.state === "rows" ? { ...r, fetchedAt: Date.now(), demo: isDemo() } : prev.state !== "rows" ? { ...r, fetchedAt: null } : prev,
       );
     });
     loadHazard(now, force)
       .then((data) => {
-        if (alive()) setHazard({ state: "ready", data, fetchedAt: Date.now() });
+        if (alive()) setHazard({ state: "ready", data, fetchedAt: Date.now(), demo: isDemo() });
       })
       .catch((error: unknown) => {
         if (!alive()) return;
@@ -97,13 +100,16 @@ export function useLiveWatch(): LiveWatch {
 
   useEffect(() => {
     let alive = true;
+    // Live and demo rows are never mixed: a switch starts both views from "loading".
+    setEuWatch((prev) => (prev.state === "rows" && Boolean(prev.demo) !== demo ? { state: "loading", rows: [], detail: "", queryId: null, fetchedAt: null } : prev));
+    setHazard((prev) => (prev.state === "ready" && Boolean(prev.demo) !== demo ? { state: "loading" } : prev));
     run(tick > 0, () => alive);
     const timer = window.setInterval(() => run(false, () => alive), REFRESH_MS);
     return () => {
       alive = false;
       window.clearInterval(timer);
     };
-  }, [run, tick]);
+  }, [run, tick, demo]);
 
   const valencia = useMemo(() => (hazard.state === "ready" ? summariseAll(hazard.data.rows) : []), [hazard]);
   const sources = useMemo(() => {
@@ -121,5 +127,12 @@ export function useLiveWatch(): LiveWatch {
     euWatch.state === "rows" ? euWatch.fetchedAt : null,
     hazard.state === "ready" ? hazard.fetchedAt : null,
   ]);
+  useEffect(() => {
+    if (updatedAt !== null) reportChecked(updatedAt);
+  }, [updatedAt, reportChecked]);
+  const allFailed = gauges.state === "unavailable" && euWatch.state === "unavailable" && hazard.state === "error";
+  useEffect(() => {
+    reportLiveFailed(allFailed);
+  }, [allFailed, reportLiveFailed]);
   return { gauges, gaugeSummaries, euWatch, hazard, valencia, sources, refresh, updatedAt };
 }

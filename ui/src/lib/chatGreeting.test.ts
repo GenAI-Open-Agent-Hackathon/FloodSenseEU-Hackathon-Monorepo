@@ -4,18 +4,23 @@ import { adoptRunBody } from "../api/replay";
 import { greetingFor, switchEventLabel, switchTarget } from "./chatGreeting";
 
 describe("greetingFor", () => {
-  it("greets a citizen on Overview with Paiporta, Köln and Ahr 2021 suggestions", () => {
+  it("greets a citizen on Overview with live 48 h and Köln suggestions", () => {
     const g = greetingFor({ role: "citizen", page: "overview" });
     expect(g.text).toMatch(/^Hi! I'm FloodSense\./);
     expect(g.text).toMatch(/cites its sources/);
     expect(g.suggestions).toHaveLength(3);
-    expect(g.suggestions[0]).toMatch(/Paiporta/);
+    expect(g.suggestions[0]).toMatch(/next 48 hours/);
     expect(g.suggestions[1]).toMatch(/Köln/);
-    expect(g.suggestions[2]).toMatch(/Ahr.*2021/);
+    expect(g.suggestions.join(" ")).not.toMatch(/Valencia|Paiporta/);
+  });
+
+  it("gives Past flood suggestions about the chosen flood only", () => {
+    expect(greetingFor({ role: "citizen", page: "overview" }, "past", "EMSR517").suggestions.join(" ")).not.toMatch(/Valencia/);
+    expect(greetingFor({ role: "citizen", page: "overview" }, "past", "EMSR773").suggestions.join(" ")).not.toMatch(/Ahr/);
   });
 
   it("gives an insurer exposure questions", () => {
-    const g = greetingFor({ role: "insurer", page: "portfolio" });
+    const g = greetingFor({ role: "insurer", page: "portfolio" }, "past", "EMSR773");
     expect(g.suggestions).toHaveLength(3);
     expect(g.suggestions.join(" ")).toMatch(/expos|insured/i);
     expect(g.text).toMatch(/exposure/);
@@ -31,11 +36,11 @@ describe("greetingFor", () => {
 describe("greeting follows the event the page shows", () => {
   it("never suggests a Valencia question on an Ahr insurer page", () => {
     for (const page of ["replay", "sites"] as const) {
-      const g = greetingFor({ role: "insurer", page }, "EMSR517");
+      const g = greetingFor({ role: "insurer", page }, "past", "EMSR517");
       expect(g.suggestions.join(" ")).not.toMatch(/Valencia/);
       expect(g.suggestions.join(" ")).toMatch(/Ahr/);
     }
-    expect(greetingFor({ role: "insurer", page: "portfolio" }, "EMSR773").suggestions.join(" ")).toMatch(/Valencia/);
+    expect(greetingFor({ role: "insurer", page: "portfolio" }, "past", "EMSR773").suggestions.join(" ")).toMatch(/Valencia/);
   });
 });
 
