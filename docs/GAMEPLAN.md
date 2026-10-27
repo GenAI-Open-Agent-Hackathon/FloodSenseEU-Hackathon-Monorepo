@@ -141,6 +141,41 @@ The plan was thirteen product increments, a release candidate, and the release. 
 | v1.0.0-rc.1 | Demo freeze | All (tag: Mihir) | Mon 20:00. Only `fix/*` after this. Candidates are `rc.N`, not `v0` patch tags |
 | v1.0.0 | Release | Mihir | Security review, public repo, GitHub Release, submission |
 
+### Unplanned product increments (25-27 Oct 2026)
+
+The planned increments above all landed (see the table for the tags). Everything below was added on top of the plan in the last three days, because the demo baseline was a recorded replay and the product only reacted when asked. The order is by merge time on `main`; PR numbers are the ones in `git log --merges`. The plan text above is unchanged.
+
+1. **Live Zetaris views and a test-only provider switch (26 Oct).** `GET /views/{name}` for live Zetaris views, and `LLM_PROVIDER_SWITCH` for timing runs on a faster provider. Why: the plan had replay first, and a flood tool should show today's water. The switch is for benchmarking only and stays off for the submission.
+2. **Redis answer cache and the first UI stack (#56, #57, #60).** A Redis-backed answer cache next to the planned `v0.12.0` cache, the mock-style UI look and the agent pipeline view.
+3. **Germany-first story and Ahr 2021 on real Zetaris data (#55, #59, #61, #65).** Why: the founder's insight is a German state agency, so the Ahr replay moved from a fixture to ERA5 and GloFAS rows in `floodsense_seed`, with German RAG documents.
+4. **Live PEGELONLINE gauges (#58).** The poller, `gauge_levels` and official MHW values for the Rhine and Mosel.
+5. **Speed and fit on Nightshift (#62, #63, #66).** Streaming, one Investigator call per link, and prompts that fit Nightshift's roughly 45 s provider deadline. A full run took about 6 minutes and the Investigator was falling back.
+6. **Live-run API, human-in-the-loop cards and the live pipeline (#73, #75).** `POST /runs?wait=false` plus `GET /runs/{id}/events`, so a minutes-long run can be watched.
+7. **Chat front door (#74, #84).** Greetings and off-topic messages answer in under a second instead of starting a run.
+8. **Insurer and authority documents (#76) and the labelled demo seed with the System page (#77).** Four more RAG documents, and `demo-seed` so a fresh install is not empty. Seeds are always labelled.
+9. **Europe live watch (#78).** From Valencia and the Rhine to 37 sources, later 45. Why: "Europe" is in the name.
+10. **Router lanes (#79).** `reply`, `quick`, `full`, with `forecast` added next. Why: the full lane takes minutes and most questions do not need it.
+11. **UI clarity pass (#80).** Judge-ready wording, the compact agent stepper and real status dots.
+12. **Nightshift 429 backoff (#81).** Retries with jitter, a concurrency cap and a pacer after NVIDIA rate-limited runs. A flaky timeout test was fixed in #82.
+13. **Live-first citizen and insurer desks (#83, #85).** Both desks open on what is happening now.
+14. **Forecast lane with DWD ICON (#86).** "Do the next 48 hours look safe at Köln?" for all 45 places, with no model call. Why: the question people ask is about the next hours.
+15. **River history RAG (#87).** 13 pinned Wikipedia snapshots on past floods and 59 cited demo memories, so a forecast sits next to what happened last time.
+16. **Poller container (#89).** The gauge poller moved from one person's host process into a compose service.
+17. **Calm answers (#91).** A deterministic `plain` object: calm only when every status is Normal and the data is complete. Why: an answer must not read like an alarm or like a false all-clear.
+18. **Civil protection operator desk (#94).** A third desk with a Situation board and a call script. Why: the founder's story (hotline staff are not flood experts). The plan named the citizen and the insurer.
+19. **Control tower (#95, #97).** The autonomous watch loop, activity feed and capped opt-in auto-assess. Why: the agents looked reactive.
+20. **Live / Past and Demo switches (#90).** One global mode for the whole console, because pages mixed live and replay data.
+21. **Tech-trace panel (#92).** "How this answer was made", one tile per sponsor technology, so the Zetaris, Nightshift, H-MEM and World Model use is visible and not only claimed.
+22. **Views cache with stale-if-error (#96).** After Open-Meteo rate-limited the host's IPv4 address and live pages went blank, `GET /views/{name}` got a TTL cache that serves the last good copy for up to 24 h and labels it stale.
+23. **Final polish and status wording (#98, #99).** Mode-aware Approvals and Review, and the status words Normal / Watch / Elevated (the contract enum `Warning` was renamed `Elevated`, because a FloodSense screening is not an official warning).
+24. **Memory recall fixes (#100, #101).** Approved live runs are stored with their event and place and recalled by place name (accent-folded), and recall also reads the newest memories. Why: a forecast answer for Orléans did not list the memory of an approved Orléans run.
+
+What moved or was dropped:
+
+- **Moved:** the demo is live-first, with replays as a labelled mode. The plan had replay as the base.
+- **Not done as planned:** no `v1.0.0-rc.1` tag exists in the repository; the team tags `v1.0.0` after the release documentation is merged. `FF_EFAS` and `FF_EXTRA_SEGMENTS` stayed off (stretch; EFAS real-time data is partner-only). The `knowledge/` and `demo/` folders were not created.
+- **Defaults:** `agents/.env.example` still ships `FF_LIVE_DATA`, `FF_HMEM` and `FF_RAG_DOCS` as false. The live demo needs them set to true in `agents/.env` (see the README quick start). Without `FF_LIVE_DATA` the router sends everything to the full lane.
+
 ### Feature flags
 
 Flags live in env and, later, `config/flags.yaml`. Skeleton defaults are in `agents/.env.example` and are off wherever the behaviour does not exist yet.

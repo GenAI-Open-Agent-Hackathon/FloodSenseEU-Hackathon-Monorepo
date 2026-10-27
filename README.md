@@ -1,39 +1,128 @@
 # FloodSense EU
 
-FloodSense EU explains why a place in Europe is at flood risk, with a citation for every claim.
+FloodSense EU explains why a place in Europe is at flood risk, with a citation for every sentence: a Zetaris query, a stored document passage, or a memory a person approved. It watches 45 places live, answers plain questions in seconds, runs a full multi-agent investigation when a question needs one, and nothing leaves the system until a person approves it.
 
-Who it is for, one desk each in the UI (header: Citizen | Insurer | Civil protection):
-
-- Citizens (Citizen desk): is my street at risk, and what do I do?
-- Civil protection (Civil protection desk, the paying customer on the public side): which rivers and places need attention first, what is the next 48 hours, and what do hotline staff, who are not flood experts, tell callers? A Situation board gives a one-screen brief per river with a fixed call script (DE/EN, ES for Spanish places) and official links, and "Escalate to agents" starts a full run whose proposed actions land in the desk's own approval queue.
-- Insurers (Insurer desk): which insured sites are exposed, and what do we tell the customer?
+Open Agent Hackathon 2026, Track 02. Release 1.0.0: [release notes](docs/RELEASE-NOTES-v1.0.0.md), [changelog](CHANGELOG.md).
 
 ![FloodSense EU screenshot](docs/assets/screenshot.jpg)
 
+## Three desks
 
-Quick start (needs Python 3.10+, Docker Desktop, and your own local Zetaris and Nightshift):
+One console, switched in the header (Citizen | Insurer | Civil protection):
+
+- **Citizen**: is my street at risk, and what do I do? Pages: Now, Replay, Overview, My area, What to do, Evidence, How it works.
+- **Insurer** (the payer): which insured sites are exposed, and what do we tell the customer? Pages: Control tower, Now, Replay, Approvals, Portfolio, Sites / map, Alerts, Review, System, How it works.
+- **Civil protection** (the paying customer on the public side): which rivers and places need attention first, what is the next 48 hours, and what do hotline staff, who are not flood experts, tell callers? Pages: Situation board, Approvals, How it works. The Situation board gives a one-screen brief per river with a fixed call script (German and English; Spanish for Spanish places) and official links. "Escalate to agents" starts a full run, and its proposed actions land in this desk's own approval queue.
+
+The header also has **Live | Past flood** (Ahr 2021, Valencia 2024) and a **Demo data** switch. The **Control tower** shows a rule-based watch loop (no model calls) scanning the 45 sources on its own; an opt-in, capped auto-assess may start a full run but never approves anything.
+
+Each message goes through a router with four lanes: `reply` (greetings and help), `quick` (a live reading, about 1 s), `forecast` (the next 48 hours or this week, 1 to 4 s) and `full` (the multi-agent run with the Skeptic, the Judge and human approval, 5 to 6 minutes on Nemotron). The first three build their answers from data and fixed templates, without a model; only an ambiguous message may use one short classification call on the fast lane.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Desks["Web UI (React, Vite) :15173"]
+    CIT[Citizen]
+    INS[Insurer]
+    OPS[Civil protection]
+  end
+  API["API (FastAPI) :18000<br/>runs, SSE, approval, /watch, /views<br/>Redis cache, rate limits, views cache"]
+  subgraph AG["Agent runtime (LangGraph)"]
+    ROUTER{Router}
+    LANES["reply / quick / forecast<br/>answers built without a model"]
+    FULL["full lane: Scope, Watchers, Memory,<br/>Investigator, Skeptic, Exposure,<br/>Playbook, Judge, human approval"]
+    TOWER["Control tower<br/>watch loop, no model calls"]
+  end
+  ENG["Engines sidecar :8300<br/>Meterless H-MEM + World Model"]
+  NS["Meterless Nightshift :8088<br/>meterless/fast, meterless/deep"]
+  NEM["NVIDIA Nemotron 3.5"]
+  PGV[("pgvector :15432<br/>1,859 passages")]
+  NIM["NVIDIA NIM<br/>nemotron-embed"]
+  ZET["Zetaris<br/>the only SQL path to data"]
+  SRC["PEGELONLINE, Open-Meteo (GloFAS, DWD ICON),<br/>Copernicus EMS, ERA5, seed CSVs"]
+  POLL["pegel-poller"]
+  Desks --> API --> ROUTER
+  ROUTER --> LANES
+  ROUTER --> FULL
+  TOWER --> ZET
+  LANES --> ZET
+  FULL --> ZET
+  FULL --> NS --> NEM
+  FULL <--> ENG
+  LANES -. "H-MEM recall" .-> ENG
+  FULL --> PGV
+  PGV -. "text and licence through JDBC" .-> ZET
+  FULL -. "query embedding" .-> NIM
+  ZET --> SRC
+  POLL --> ZET
+```
+
+The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and the chat model path is Nightshift (a test-only provider switch exists, off by default and needs a key that is not in the repo).
+
+## How the sponsors are used
+
+- **Zetaris: the only SQL path to the data.** Hazard, exposure, gauge, provenance and document metadata are read only through Zetaris views (FILESTORE CSV tables, REST tables that call Open-Meteo, and the pgvector database over JDBC). The numbered migrations in `zetaris/migrations/` (up to `073`) define them; `py tasks.py zetaris-sync` applies and verifies them. Every data citation carries the Zetaris `query_id`. Code: `agents/floodsense_agents/zetaris.py`.
+- **Meterless Nightshift: the gateway for all Nemotron calls, plus H-MEM and the World Model.** All chat completions go through Nightshift on two lanes, `meterless/fast` and `meterless/deep`, with backoff on NVIDIA 429. The Meterless H-MEM (memory of approved findings) and World Model (hypothesis board) engines run in the `engines/` sidecar; memory is written only after a human approves. Code: `agents/floodsense_agents/nightshift.py`, `engines.py`, `nodes/memory.py`.
+- **NVIDIA: Nemotron 3.5 models and NIM embeddings.** Nightshift routes the lanes to NVIDIA Nemotron (`nvidia/nemotron-3.5-lightning-30b-a3b` in every measured call on 27 Oct 2026). Document embeddings come from NVIDIA NIM `nvidia/nemotron-3.5-embed-1b`, the one model call that does not go through Nightshift (ADR 0009). Code: `agents/floodsense_agents/nim_embed.py`, `scripts/rag_ingest.py`.
+- **Cursor: see [How we built it](#how-we-built-it).**
+
+Each answer in the UI has a "How this answer was made" panel with one tile per technology. The sponsor details with file references are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
+
+## Quick start
+
+You need Python 3.10+, Docker Desktop, and your own local Zetaris (UI `:3000`, REST `:8888`, JDBC `:10000`) and Nightshift (`:8088`); this repository starts neither. Fill `agents/.env` and `ingestion/.env` with your own keys after the first command. For the live demo set `FF_LIVE_DATA=true`, `FF_HMEM=true` and `FF_RAG_DOCS=true` in `agents/.env` (the examples ship them off, and with `FF_LIVE_DATA` off every question goes to the full lane). `demo-seed` warms the answer cache only when `FF_SEMANTIC_CACHE=true` is set in `api/.env`.
 
 ```powershell
 py tasks.py init-env
-py tasks.py up
+py tasks.py up-all
+py tasks.py zetaris-sync
+py tasks.py demo-seed
+Invoke-RestMethod http://127.0.0.1:18000/health
 ```
 
-Then open `http://127.0.0.1:15173/`.
+Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 
-Live sources across Europe (Now page, "Europe · live watch"): 26 PEGELONLINE gauges on ten German federal waterways (`py tasks.py pegel-poll`) and 11 Open-Meteo GloFAS river points from Paris to Budapest (`floodsense.eu_watch`, fetched by Zetaris at query time). Gauge colours use official MHW values; GloFAS colours are a model band, not an official warning. Ask "Is the Danube at Budapest at risk right now?" or "What is the Elbe at Dresden doing right now?".
+## Honest limitations
 
-For judges:
+- The insurer portfolio is synthetic and labelled so. Only Valencia has a demo book.
+- River discharge from GloFAS is modelled, not observed, and is shown as "model, not an official warning". The statuses (Normal, Watch, Elevated) are FloodSense's own screening, never red.
+- The Ahr gauges are not on PEGELONLINE, so the Ahr is replay only. Replay values are reanalysis (ERA5, GloFAS) and are far below published peaks.
+- Open-Meteo's free API is non-commercial. A forecast question makes about 45 calls.
+- The full lane takes 5 to 6 minutes on Nightshift and depends on NVIDIA rate limits. Answers are English only.
+- First load of the live pages takes 5 to 10 seconds. Known issues are in the [release notes](docs/RELEASE-NOTES-v1.0.0.md).
+- Death-toll figures from the document corpus disagree between sources in places: see [docs/DECK-FACTS.md](docs/DECK-FACTS.md).
 
-- [docs/SUBMISSION.md](docs/SUBMISSION.md): how we use Zetaris, Meterless, Cursor and NVIDIA, limits, and a 30-second tour.
-- [docs/architecture/technical-highlights.md](docs/architecture/technical-highlights.md): technical details with links to the code, and test counts.
+## How we built it
 
----
+<!-- TEAM: confirm Cursor wording -->
+<!-- TEAM-EDITABLE-BLOCK START (Cursor wording) -->
+Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests (`.cursor/skills/floodsense-pr-review/SKILL.md`).
 
-Europe-centric flood-risk agent for the Open Agent Hackathon 2026 (22–27 Oct, Track 02). It explains why an area is at risk, with cited, grounded claims. A Skeptic challenges the chain, an LLM-as-a-Judge scores it, and a human approves any outbound action.
+The repository's coding, review and documentation work also used Claude Code (Anthropic) with independent review agents. Every change went through a branch, an independent review and a pull request (see the pull requests in this repository).
+<!-- TEAM-EDITABLE-BLOCK END -->
 
-The playbook is [docs/GAMEPLAN.md](docs/GAMEPLAN.md). Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Diagrams are in [docs/architecture/c4.md](docs/architecture/c4.md). Proposed decisions are in [docs/adr/](docs/adr/).
+## Licence
 
-Release notes are [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases: [v0.0.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.0.0) (skeleton, `eacf34c`), [v0.1.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.1.0) (data slice, `7045fc5`), [v0.2.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.2.0) (live demo stack: agents graph, insurer desk, engines, fast lane, and parallel Zetaris), [v0.3.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.3.0) (live gauges and `hazard_now`), [v0.9.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.9.0) (H-MEM recall and write-on-approval, World Model bridge, short-term thread memory, sqlite hang fix), [v0.12.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.12.0) (semantic cache and labelled replay, [#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17); `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off; rate limits are still a follow-up), [v0.13.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.13.0) (demo baseline: UI shell, audit fixes, Valencia seed path), and [v0.14.0](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/releases/tag/v0.14.0) (RAG layer (c): corpus, `rag.chunks` and Zetaris JDBC, NIM ingest, `retrieve_docs`; `FF_RAG_DOCS` default off). Laptop Zetaris e2e for v0.3.0 is deferred to the morning of 26 Oct 2026. There is no `v0.4.0`–`v0.8.0` tag and no `v0.10.0` tag. `v0.11.0` is the retired name for layer (c) and is not a tag. The cache shipped as `v0.12.0`. There is no patch ladder between `v0.9.0` and `v0.14.0`. There is no wiki. Release notes live in [CHANGELOG.md](CHANGELOG.md) and GitHub Releases.
+<!-- TEAM: licence decision -->
+Licence: see the team decision; the code is currently unlicensed until a LICENSE file is added.
+<!-- END TEAM -->
+
+Third-party content stored in the repository (the document corpus, with its licences, and the vendored Meterless engines under Apache-2.0) is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Every data source and its licence is in [docs/legal/sources.md](docs/legal/sources.md).
+
+## For judges
+
+- [docs/RELEASE-NOTES-v1.0.0.md](docs/RELEASE-NOTES-v1.0.0.md): what is in 1.0.0, evaluations, limits and known issues.
+- [docs/SUBMISSION.md](docs/SUBMISSION.md): how we use Zetaris, Meterless, NVIDIA and Cursor, limits, evaluation, and a 30-second tour.
+- [docs/architecture/technical-highlights.md](docs/architecture/technical-highlights.md): technical details with links to the code.
+- [docs/GAMEPLAN.md](docs/GAMEPLAN.md): the plan, and the unplanned increments of 25 to 27 Oct.
+- [docs/HANDOVER.md](docs/HANDOVER.md): state of the repository and what remains for humans.
+
+## Live sources across Europe
+
+Now page, "Europe · live watch": 26 PEGELONLINE gauges on ten German federal waterways (`pegel-poller` container; `py tasks.py pegel-poll` for a one-off run), 11 Open-Meteo GloFAS river points from Paris to Budapest (`floodsense.eu_watch`, fetched by Zetaris at query time) and 8 Valencia demo points. Gauge colours use official MHW values; GloFAS colours are a model band, not an official warning. Ask "Is the Danube at Budapest at risk right now?", "What is the Elbe at Dresden doing right now?" or "Do the next 48 hours look safe at Köln?".
+
+Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Proposed decisions are in [docs/adr/](docs/adr/). Release notes for every version are in [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases. Tags `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0` and `v0.14.0` exist; the tag policy is at the top of the changelog. `v1.0.0` is tagged by the team after the release documentation is merged. There is no wiki.
 
 ## Team
 
@@ -47,7 +136,7 @@ Five peers. The Architect is one role among them, not a team lead.
 | Ayush | Nightshift, H-MEM, World Model, and the engines sidecar. |
 | Zain | LangGraph, human-in-the-loop, the Judge with Mihir, then the UI. |
 
-## Quick start
+## Setup details
 
 You need Python 3.10+ and Docker Desktop. You do not need Make, WSL, or Git Bash. Tasks live in `tasks.py` (stdlib only):
 
@@ -140,9 +229,12 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 | --- | --- | --- |
 | `ingestion/` | Fetch and stage datasets, seed content | Mihir. Saleeta is secondary on prep and the demo |
 | `zetaris/migrations/` | Numbered SQL, applied by `zetaris-sync` | Mihir |
-| `agents/` | LangGraph graph, HITL interrupt, Judge, engines client, short-term thread memory | Ayush, Zain |
-| `api/` | FastAPI. Proxies runs, SSE, and approval. `v0.12.0` adds the semantic cache and labelled replay, flags default off. `GET /health` as well | Zain, Ayush |
-| `ui/` | Citizen page, insurer console and Civil protection desk (Vite, React, TypeScript). `v0.13.0` adds the shell nav and hash pages | Zain. Mihir landed the console |
+| `agents/` | LangGraph graph, router lanes (`reply`, `quick`, `forecast`, `full`), HITL interrupt, Judge, Control tower watch loop, engines client, short-term thread memory | Ayush, Zain |
+| `api/` | FastAPI. Proxies runs, SSE, approval, `/watch/*` and `/views/{name}`; `GET /system`, `/health`, `/config`. Semantic cache and labelled replay (flags default off), views cache, rate limits | Zain, Ayush |
+| `ui/` | Citizen, Insurer and Civil protection desks (Vite, React, TypeScript), global Live / Past / Demo mode | Zain. Mihir landed the console |
+| `corpus/` | The 25 stored documents for RAG layer (c) and `manifest.yaml` | Urvashi, Saleeta, Mihir |
+| `pgvector/` | Migrations for `rag.chunks` (optional `rag` profile) | Urvashi |
+| `scripts/` | `zetaris_sync.py`, `rag_ingest.py`, `rag_corpus.py`, Nightshift check and bench | Mihir, Ayush |
 | `engines/` | H-MEM and World Model sidecar | Ayush |
 | `evals/` | Valencia 2024 and Ahr 2021 items. In v0.2.0, not its own increment tag | Saleeta, Zain, Mihir |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |
@@ -153,7 +245,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 
 ## Branching
 
-`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0` (memory), `v0.12.0` (semantic cache and labelled replay; flags default off), `v0.13.0` (demo baseline: UI shell, audit fixes, Valencia seed path), and `v0.14.0` (RAG layer (c); `FF_RAG_DOCS` default off). `v0.4.0` through `v0.8.0` are not tags. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. There is no patch ladder between `v0.9.0` and `v0.14.0`. The Monday freeze tag remains `v1.0.0-rc.1`. There is no `v0.x.y` fix tag. Candidates are `v1.0.0-rc.N`. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
+`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0` (memory), `v0.12.0` (semantic cache and labelled replay; flags default off), `v0.13.0` (demo baseline: UI shell, audit fixes, Valencia seed path), and `v0.14.0` (RAG layer (c); `FF_RAG_DOCS` default off). `v0.4.0` through `v0.8.0` are not tags. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. There is no patch ladder between `v0.9.0` and `v0.14.0`. No `v1.0.0-rc.N` tag was created. The release is `v1.0.0`, tagged by the team after the release documentation (this branch) is merged. There is no `v0.x.y` fix tag. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
 
 ## Secrets
 

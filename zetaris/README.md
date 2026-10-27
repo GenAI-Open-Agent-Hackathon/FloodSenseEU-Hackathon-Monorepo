@@ -56,8 +56,8 @@ This folder does not start Zetaris. Zetaris is a separate Docker Compose project
 048 adds `is_stale` (fetched_at missing or older than 30 minutes); 049/050 are the seed twin (050 fixes KÖLN encoding). `floodsense.gauge_levels` reads `floodsense_live_src.pegel_now_src`, a FILESTORE table over
 `floodsense_live/pegel_now/live.csv`. `python tasks.py pegel-poll` fetches the current PEGELONLINE
 water level, trend (cm/h over about an hour), characteristic values (MNW, MW, MHW, HHW, HSW) and a
-`band` (below / near / above against MHW) for Mainz, Kaub, Koblenz, Andernach, Bonn, Koeln,
-Duesseldorf, Trier UP and Cochem, writes the CSV and copies it into `zetaris-driver-1`.
+`band` (below / near / above against MHW) for 26 stations on ten federal waterways (the first nine were Mainz, Kaub, Koblenz, Andernach, Bonn, Koeln,
+Duesseldorf, Trier UP and Cochem), writes the CSV and copies it into `zetaris-driver-1`.
 `python tasks.py pegel-poll --interval 600` repeats every 10 minutes on the host; the compose service `pegel-poller` (started by `tasks.py up`) does the same without a host process. Run it once before applying
 045 (inferSchema reads the header at CREATE). The Ahr is not on PEGELONLINE (state gauges), so it
 stays replay only. Data: PEGELONLINE, DL-DE->Zero-2.0, "Quelle: WSV, PEGELONLINE".

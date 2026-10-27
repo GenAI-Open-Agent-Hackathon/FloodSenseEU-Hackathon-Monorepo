@@ -31,7 +31,7 @@ py tasks.py up-all
 python3 tasks.py up-all
 ```
 
-`rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model) starts with `python tasks.py up`. Inside the network the agents service uses `ENGINES_URL=http://engines:8300`. On the host the same service is `http://127.0.0.1:8300`. Compose sets `ENGINES_HOST=0.0.0.0` in the engines container so the agents service can connect, and publishes that port on loopback only.
+`rag` adds pgvector. `cache` adds Redis. The engines sidecar (H-MEM and World Model) starts with `python tasks.py up`. So does `pegel-poller` (no published port): it polls PEGELONLINE every `POLL_INTERVAL_S` (600) and `docker cp`s the CSV into `ZETARIS_CONTAINER` through the mounted Docker socket, so it is for development machines only. Inside the network the agents service uses `ENGINES_URL=http://engines:8300`. On the host the same service is `http://127.0.0.1:8300`. Compose sets `ENGINES_HOST=0.0.0.0` in the engines container so the agents service can connect, and publishes that port on loopback only.
 
 ## CI
 
