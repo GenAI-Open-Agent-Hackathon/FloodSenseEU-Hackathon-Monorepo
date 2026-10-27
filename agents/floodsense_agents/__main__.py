@@ -46,14 +46,16 @@ GET  /runs/{id}/events             SSE: `started` per node as it begins (backgro
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import math
+import os
 import re
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -593,6 +595,8 @@ async def events(run_id: str):
 
 STREAM_MAX_S = 900.0  # one SSE connection lives this long; the client reconnects with Last-Event-ID
 STREAM_POLL_S = 1.0
+STREAM_MAX_CONNECTIONS = 20  # open /watch/stream connections; more get 429
+_streams = 0
 
 
 class AutoAssess(BaseModel):
@@ -607,7 +611,9 @@ def _watch_envelope(body: dict) -> dict:
 def watch_events(since: str | None = None, limit: int = 100):
     """The activity feed, oldest first. ``since`` is an event id; without it, the newest ``limit``."""
     t = control_tower()
-    return _watch_envelope({"events": t.store.since(since, limit), "latest_id": t.store.latest_id()})
+    return _watch_envelope(
+        {"events": t.store.since(since, limit), "latest_id": t.store.latest_id()}
+    )
 
 
 @app.get("/watch/status")
@@ -617,7 +623,8 @@ def watch_status():
 
 @app.post("/watch/cycle")
 def watch_cycle():
-    """One scan now. 429 when one was requested a moment ago; 409-free: a running scan is reported."""
+    """One scan now. Answers 202 at once with the status; the scan runs on a thread and its events
+    arrive in the feed. 429 when one was requested a moment ago; a scan already running is reported."""
     t = control_tower()
     out = t.force()
     if not out.get("ran") and out.get("retry_after_s"):
@@ -626,13 +633,30 @@ def watch_cycle():
             status_code=429,
             headers={"Retry-After": str(out["retry_after_s"])},
         )
-    return _watch_envelope({"cycle": out, "status": t.status()})
+    return JSONResponse(
+        _watch_envelope({"cycle": out, "status": t.status()}),
+        status_code=202 if out.get("started") else 200,
+    )
+
+
+def _admin_ok(token: str | None) -> bool:
+    """WATCH_ADMIN_TOKEN, when set, is required (header x-watch-admin-token) to change the switch."""
+    want = os.environ.get("WATCH_ADMIN_TOKEN") or ""
+    return not want or hmac.compare_digest(want.encode(), (token or "").encode())
 
 
 @app.post("/watch/auto-assess")
-def watch_auto_assess(body: AutoAssess):
-    """The auto-assess switch (model calls, capped). Resets to FF_AUTO_ASSESS when the service restarts."""
+def watch_auto_assess(body: AutoAssess, x_watch_admin_token: str | None = Header(default=None)):
+    """The auto-assess switch (model calls, capped). Resets to FF_AUTO_ASSESS when the service restarts.
+
+    401 without the admin token when WATCH_ADMIN_TOKEN is set; 409 when switching on would be unsafe
+    (nothing is saved between restarts, so the caps could not hold).
+    """
+    if not _admin_ok(x_watch_admin_token):
+        raise HTTPException(401, "this switch needs the admin token (x-watch-admin-token)")
     t = control_tower()
+    if body.enabled and t.persisted_reason is not None:
+        raise HTTPException(409, f"auto-assess stays off: {t.persisted_reason}")
     t.set_auto_assess(body.enabled)
     return _watch_envelope(t.status())
 
@@ -643,10 +667,24 @@ async def watch_stream(request: Request, since: str | None = None):
 
     Resumes after ``?since=`` or the Last-Event-ID header; a fresh client starts at "now".
     """
+    global _streams
     t = control_tower()
+    if _streams >= STREAM_MAX_CONNECTIONS:
+        return JSONResponse(
+            {"detail": "too many open feed streams"}, status_code=429, headers={"Retry-After": "30"}
+        )
     cursor = since or request.headers.get("last-event-id") or t.store.latest_id()
+    _streams += 1
 
     async def gen():
+        global _streams
+        try:
+            async for chunk in _stream_body():
+                yield chunk
+        finally:
+            _streams -= 1
+
+    async def _stream_body():
         nonlocal cursor
         t0, last_beat = time.time(), time.time()
         yield "retry: 3000\n\n"
@@ -663,7 +701,9 @@ async def watch_stream(request: Request, since: str | None = None):
                 last_beat = time.time()
             await asyncio.sleep(STREAM_POLL_S)
 
-    return StreamingResponse(gen(), media_type="text/event-stream", headers={"cache-control": "no-store"})
+    return StreamingResponse(
+        gen(), media_type="text/event-stream", headers={"cache-control": "no-store"}
+    )
 
 
 # GET /views/{name}. Column types from contracts/views.yaml. Only these names

@@ -110,8 +110,10 @@ export function asWatchStatus(value: unknown): WatchStatus | null {
       used_day: n(auto.used_day),
       next_allowed_at: str(auto.next_allowed_at),
       uses_model_calls: true,
+      blocked: str(auto.blocked),
     },
     persisted: r.persisted === true,
+    persisted_reason: str(r.persisted_reason),
     served_from: r.served_from === "live" || r.served_from === "cache" ? r.served_from : "replay",
     cached_at: str(r.cached_at),
   };
@@ -206,9 +208,10 @@ export function kpiLine(t: Tiles): string {
   return `${t.watched} ${t.watched === 1 ? "source" : "sources"} watched · ${t.elevated} elevated · ${last} · ${runs} · auto-assess ${t.autoAssess}`;
 }
 
-/** The caps under the switch, from the service's own numbers. */
+/** The caps under the switch, from the service's own numbers. A blocked switch says why instead. */
 export function capsText(a: WatchStatus["auto_assess"] | null): string {
   if (!a) return "At most 1 per hour and 3 per day.";
+  if (a.blocked) return `Off, and it cannot be switched on here: ${a.blocked}`;
   const when = a.next_allowed_at ? ` Next allowed after ${hhmm(a.next_allowed_at)} UTC.` : "";
   return `At most ${a.per_hour} per hour and ${a.per_day} per day · used ${a.used_hour} this hour, ${a.used_day} in 24 h.${when} It never approves anything: a person decides in Approvals.`;
 }

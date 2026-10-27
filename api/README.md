@@ -46,7 +46,7 @@ Router lanes: a reply carries `lane: "reply"`; a run snapshot carries `lane` (`q
 
 ## Control tower (`/watch/*`)
 
-Passed through to the agents' watch loop (`agents/README.md` "Control tower"): `GET /watch/events?since=&limit=`, `GET /watch/status`, `GET /watch/stream` (SSE proxied as-is; `Last-Event-ID` is forwarded), `POST /watch/cycle` ("Scan now") and `POST /watch/auto-assess {enabled}`. The two POSTs share a small bucket of their own, `WATCH_CYCLES_PER_MIN` (6) per client, so a scan or a switch never spends a run token; empty is `429` with `Retry-After`. The GETs are not limited. An unreachable agents service is `503`.
+Passed through to the agents' watch loop (`agents/README.md` "Control tower"): `GET /watch/events?since=&limit=`, `GET /watch/status`, `GET /watch/stream` (SSE proxied as-is; `Last-Event-ID` is forwarded), `POST /watch/cycle` ("Scan now") and `POST /watch/auto-assess {enabled}`. `POST /watch/cycle` is `202` (the scan runs on the agents). `POST /watch/auto-assess` needs the header `x-watch-admin-token` when `WATCH_ADMIN_TOKEN` is set on the API (it is passed on to the agents); set it on any machine that is not a dev box. The two POSTs share a small bucket of their own, `WATCH_CYCLES_PER_MIN` (6) per client, so a scan or a switch never spends a run token; empty is `429` with `Retry-After`. The GETs are not limited. An unreachable agents service is `503`.
 
 ## System status (`GET /system`)
 

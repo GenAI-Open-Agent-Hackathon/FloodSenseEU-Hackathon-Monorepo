@@ -264,5 +264,6 @@ class WatchStatus(ContractModel):
     awaiting_run_ids: list[str]
     auto_assess: dict[str, Any]
     persisted: bool
+    persisted_reason: str | None = None
     served_from: ServedFrom
     cached_at: str | None = None

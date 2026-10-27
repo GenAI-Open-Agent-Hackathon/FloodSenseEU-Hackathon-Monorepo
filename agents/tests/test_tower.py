@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -32,6 +33,11 @@ from floodsense_agents.nightshift import FakeNightshift  # noqa: E402
 from floodsense_agents.runtime import Runtime  # noqa: E402
 from floodsense_agents.state import Deps, NoMemory  # noqa: E402
 from floodsense_agents.zetaris import FakeZetaris, now_utc  # noqa: E402
+
+
+CASES = json.loads(
+    (HERE.parent / "contracts" / "examples" / "status_cases.json").read_text(encoding="utf-8")
+)
 
 
 def iso(delta_h: float = 0) -> str:
@@ -154,17 +160,42 @@ class StatusTest(unittest.TestCase):
                 self.assertNotIn("warning", v["word"].lower())
                 self.assertNotIn("red", v["tone"])
 
-    def test_gauge_status_band_stale_and_computed(self):
-        self.assertEqual(tower.gauge_status(gauge(band="above")), "over")
-        self.assertEqual(tower.gauge_status(gauge(band="near")), "near")
-        self.assertEqual(tower.gauge_status(gauge(band="below")), "ok")
-        self.assertEqual(tower.gauge_status(gauge(stale=True)), "unknown")
-        # no band column: level vs MHW, "near" = within 25 % of the MW..MHW span below MHW
-        base = {"mhw_cm": 800, "mw_cm": 400}
-        self.assertEqual(tower.gauge_status({**base, "level_cm": 800}), "over")
-        self.assertEqual(tower.gauge_status({**base, "level_cm": 710}), "near")
-        self.assertEqual(tower.gauge_status({**base, "level_cm": 690}), "ok")
-        self.assertEqual(tower.gauge_status({"level_cm": 100}), "unknown")
+    def test_gauge_status_follows_the_ui(self):
+        for case in CASES["gauge_rows"]:
+            with self.subTest(case["name"]):
+                self.assertEqual(tower.gauge_status(case["row"]), case["event_status"])
+
+    def test_shared_cases_words_model_bands_and_valencia(self):
+        for c in CASES["words"]:
+            v = tower.status_view(c["kind"], c["status"])
+            self.assertEqual((v["word"], v["tone"], v["rank"]), (c["word"], c["tone"], c["rank"]))
+        for c in CASES["model_bands"]:
+            ev = Stub(eus=[eu(band=c["band"])]).run_sql("eu_watch", None, 100)
+            self.assertEqual(tower.model_sources(ev)[0]["status"], c["status"], c)
+        for c in CASES["valencia"]:
+            rows = []
+            if c["now"] is not None:
+                rows.append(
+                    {
+                        "point_id": "VAL01",
+                        "ts_utc": iso(0),
+                        "discharge_m3s": c["now"],
+                        "horizon": "past",
+                    }
+                )
+            if c["forecast_max"] is not None:
+                rows.append(
+                    {
+                        "point_id": "VAL01",
+                        "ts_utc": iso(5),
+                        "discharge_m3s": c["forecast_max"],
+                        "horizon": "forecast",
+                    }
+                )
+            ev = Stub(hazards=rows).run_sql("hazard_now", None, 100)
+            got = tower.valencia_sources(ev)
+            # no rows at all: the tower has no source for the point (never an event), the UI says "no reading"
+            self.assertEqual(got[0]["status"] if got else "unknown", c["status"], c)
 
     def test_valencia_takes_the_higher_of_now_and_the_48h_forecast(self):
         ev = Stub(
@@ -452,20 +483,33 @@ class AutoAssessTest(unittest.TestCase):
         self.assertEqual(rt.started, [])
         self.assertFalse(t.status()["auto_assess"]["enabled"])
 
+    def test_the_first_ever_scan_never_auto_assesses(self):
+        rt = FakeRuntime()
+        t = make(full_stub(), self.tmp.name, runtime=lambda: rt, auto_assess=True)
+        out = t.cycle()
+        self.assertEqual(out["new"], 4)  # everything raised is announced ...
+        self.assertIsNone(out["auto_assess_run_id"])  # ... and marked seen, but nothing is started
+        self.assertEqual(rt.started, [])
+        self.assertEqual(t.auto_status()["used_day"], 0)
+
     def test_switch_and_the_one_per_hour_cap(self):
         clock = Clock()
         rt = FakeRuntime()
         stub = full_stub()
         t = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock)
+        t.cycle()  # baseline: learns what is raised
+        stub.rows["eu_watch"].append(
+            eu("EU07", "Vienna", "Danube", "AT", band="above", fmax=2000, med=900)
+        )
+        clock.t += 100
         out = t.cycle()
         self.assertEqual(out["auto_assess_run_id"], "run1")
         self.assertEqual(len(rt.started), 1)
         req = rt.started[0]
-        # the most severe new source: the gauge above MHW and the Loire are both "over"; ratio breaks the tie
-        self.assertIn("Orleans", req.question)
+        self.assertIn("Vienna", req.question)
         self.assertEqual(
             req.context.model_dump(exclude_none=True),
-            {"role": "insurer", "page": "control-tower", "place": "Orleans", "auto": True},
+            {"role": "insurer", "page": "control-tower", "place": "Vienna", "auto": True},
         )
         self.assertEqual(
             router.route(req, None)["lane"], "full"
@@ -484,7 +528,7 @@ class AutoAssessTest(unittest.TestCase):
         self.assertIsNotNone(t.auto_status()["next_allowed_at"])
         # after the hour the next new source may start one
         stub.rows["eu_watch"].append(
-            eu("EU07", "Vienna", "Danube", "AT", band="above", fmax=2000, med=900)
+            eu("EU09", "Szeged", "Tisza", "HU", band="above", fmax=900, med=300)
         )
         clock.t += 3600
         self.assertEqual(t.cycle()["auto_assess_run_id"], "run2")
@@ -494,9 +538,9 @@ class AutoAssessTest(unittest.TestCase):
         rt = FakeRuntime()
         stub = Stub(eus=[])
         t = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock)
-        ids = ["EU01", "EU02", "EU03", "EU04", "EU05"]
+        t.cycle()  # baseline
         started = []
-        for pid in ids:
+        for pid in ["EU01", "EU02", "EU03", "EU04", "EU05"]:
             stub.rows["eu_watch"].append(eu(pid, pid, "R", "FR", band="above"))
             clock.t += 3700  # outside the hourly window each time
             started.append(t.cycle()["auto_assess_run_id"])
@@ -506,18 +550,100 @@ class AutoAssessTest(unittest.TestCase):
         stub.rows["eu_watch"].append(eu("EU06", "EU06", "R", "PL", band="above"))
         self.assertEqual(t.cycle()["auto_assess_run_id"], "run4")
 
-    def test_caps_survive_a_restart(self):
+    def test_the_cap_is_saved_before_the_run_starts_and_survives_a_restart(self):
         clock = Clock()
-        rt = FakeRuntime()
-        make(full_stub(), self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock).cycle()
-        self.assertEqual(len(rt.started), 1)
-        stub = full_stub(
-            eus=[eu("EU11", "Prague", "Vltava", "CZ", band="above", fmax=900, med=300)]
-        )
-        t2 = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock)
+        stub = Stub(eus=[])
+
+        class Crash(FakeRuntime):
+            def start_async(self, req):
+                saved = tower.JsonState(self_dir).load()
+                seen.append(len(saved.get("auto_times") or []))
+                raise SystemExit  # a crash right after the cap was counted
+
+        self_dir, seen = self.tmp.name, []
+        rt = Crash()
+        t = make(stub, self.tmp.name, runtime=lambda: rt, auto_assess=True, clock=clock)
+        t.cycle()
+        stub.rows["eu_watch"].append(eu("EU07", "Vienna", "Danube", "AT", band="above"))
+        with self.assertRaises(SystemExit):
+            t.cycle()
+        self.assertEqual(seen, [1])  # already on disk when start_async was called
+        t2 = make(stub, self.tmp.name, runtime=lambda: FakeRuntime(), auto_assess=True, clock=clock)
         self.assertEqual(t2.auto_status()["used_hour"], 1)
-        t2.cycle()
-        self.assertEqual(len(rt.started), 1)
+
+    def test_a_failed_start_gives_the_cap_back(self):
+        class Fails(FakeRuntime):
+            def start_async(self, req):
+                raise RuntimeError("no")
+
+        stub = Stub(eus=[])
+        t = make(stub, self.tmp.name, runtime=lambda: Fails(), auto_assess=True)
+        t.cycle()
+        stub.rows["eu_watch"].append(eu("EU07", "Vienna", "Danube", "AT", band="above"))
+        self.assertIsNone(t.cycle()["auto_assess_run_id"])
+        self.assertEqual(t.auto_status()["used_day"], 0)
+        self.assertEqual(tower.JsonState(self.tmp.name).load()["auto_times"], [])
+
+    def test_unpersisted_state_fails_closed(self):
+        rt = FakeRuntime()
+        stub = Stub(eus=[])
+        t = tower.ControlTower(
+            lambda: stub, lambda: rt, data_dir=None, loop_enabled=False, auto_assess=True
+        )
+        # data_dir=None means the default dir, which is none under CHECKPOINTER=memory
+        self.assertIsNone(t.state.path)
+        self.assertFalse(t.auto_assess)
+        st = t.status()
+        self.assertFalse(st["persisted"])
+        self.assertIn("CHECKPOINTER=memory", st["persisted_reason"])
+        self.assertIn("CHECKPOINTER=memory", st["auto_assess"]["blocked"])
+        t.set_auto_assess(True)
+        self.assertFalse(t.auto_status()["enabled"])
+        t.cycle()
+        stub.rows["eu_watch"].append(eu("EU07", "Vienna", "Danube", "AT", band="above"))
+        t.cycle()
+        self.assertEqual(rt.started, [])
+
+    def test_a_scan_that_raises_still_records_what_it_read(self):
+        stub = full_stub()
+        t = make(stub, self.tmp.name)
+
+        def boom(*a, **k):
+            raise ValueError("boom")
+
+        t.emit_orig = t.emit
+        calls = {"n": 0}
+
+        def flaky(kind, text, **kw):
+            if kind == "detected":
+                calls["n"] += 1
+                if calls["n"] == 2:
+                    raise ValueError("boom")
+            return t.emit_orig(kind, text, **kw)
+
+        t.emit = flaky
+        with self.assertRaises(ValueError):
+            t.cycle()
+        self.assertGreater(len(t.prev), 0)  # the next scan diffs against what was read
+        self.assertEqual(tower.JsonState(self.tmp.name).load()["statuses"], t.prev)
+        t.emit = t.emit_orig
+        self.assertEqual(t.cycle()["new"], 0)
+
+    def test_no_weather_query_when_nothing_new_was_raised(self):
+        stub = full_stub()
+        t = make(stub, self.tmp.name)
+        t.cycle()
+        first = sum(1 for v, _ in stub.queries if v == "weather_forecast")
+        self.assertEqual(first, 1)
+        t.cycle()
+        t.cycle()
+        self.assertEqual(sum(1 for v, _ in stub.queries if v == "weather_forecast"), 1)
+        self.assertEqual(sum(1 for v, _ in stub.queries if v == "exposure_join"), 1)
+
+    def test_default_interval_is_900_seconds(self):
+        os.environ.pop("WATCH_INTERVAL_S", None)
+        t = tower.ControlTower(lambda: full_stub(), None, data_dir=self.tmp.name)
+        self.assertEqual(t.interval_s, 900)
 
     def test_runtime_switch_never_approves_anything(self):
         rt = FakeRuntime()
@@ -534,12 +660,12 @@ class AutoAssessTest(unittest.TestCase):
     def test_manual_scan_is_rate_limited_and_never_overlaps(self):
         clock = Clock()
         t = make(full_stub(), self.tmp.name, clock=clock)
-        self.assertTrue(t.force()["ran"])
-        again = t.force()
+        self.assertTrue(t.force(block=True)["ran"])
+        again = t.force(block=True)
         self.assertFalse(again["ran"])
         self.assertGreaterEqual(again["retry_after_s"], 1)
         clock.t += 10
-        self.assertTrue(t.force()["ran"])
+        self.assertTrue(t.force(block=True)["ran"])
         t._cycle_lock.acquire()
         try:
             self.assertEqual(t.cycle()["reason"], "a scan is already running")
@@ -578,8 +704,14 @@ class ServiceTest(unittest.TestCase):
 
     def test_endpoints_status_events_cycle(self):
         r = self.c.post("/watch/cycle")
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue(r.json()["cycle"]["ran"])
+        self.assertEqual(r.status_code, 202)  # answered at once; the scan runs on a thread
+        self.assertTrue(r.json()["cycle"]["started"])
+        self.assertTrue(r.json()["status"]["scanning"])
+        for _ in range(100):
+            if not self.t.scanning and self.t.last_cycle:
+                break
+            time.sleep(0.05)
+        self.assertTrue(self.t.last_cycle["ran"])
         self.assertEqual(self.c.post("/watch/cycle").status_code, 429)
         self.assertIn("Retry-After", self.c.post("/watch/cycle").headers)
         st = self.c.get("/watch/status").json()
@@ -610,6 +742,47 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(
             self.c.post("/watch/auto-assess", json={"enabled": "maybe"}).status_code, 422
         )
+
+    def test_the_switch_needs_the_admin_token_when_one_is_set(self):
+        os.environ["WATCH_ADMIN_TOKEN"] = "s3cret"
+        try:
+            self.assertEqual(
+                self.c.post("/watch/auto-assess", json={"enabled": True}).status_code, 401
+            )
+            bad = self.c.post(
+                "/watch/auto-assess", json={"enabled": True}, headers={"x-watch-admin-token": "no"}
+            )
+            self.assertEqual(bad.status_code, 401)
+            self.assertFalse(self.t.auto_assess)
+            ok = self.c.post(
+                "/watch/auto-assess",
+                json={"enabled": True},
+                headers={"x-watch-admin-token": "s3cret"},
+            )
+            self.assertEqual(ok.status_code, 200)
+            self.assertTrue(ok.json()["auto_assess"]["enabled"])
+            self.assertEqual(self.c.get("/watch/status").status_code, 200)  # reading needs no token
+        finally:
+            os.environ.pop("WATCH_ADMIN_TOKEN", None)
+
+    def test_switching_on_without_saved_state_is_refused(self):
+        t = tower.ControlTower(
+            lambda: self.rt.deps.zetaris, lambda: self.rt, data_dir=None, loop_enabled=False
+        )
+        service.set_tower(t)
+        r = self.c.post("/watch/auto-assess", json={"enabled": True})
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("auto-assess stays off", r.json()["detail"])
+        self.assertFalse(self.c.get("/watch/status").json()["persisted"])
+
+    def test_open_streams_are_bounded(self):
+        service._streams = service.STREAM_MAX_CONNECTIONS
+        try:
+            r = self.c.get("/watch/stream")
+            self.assertEqual(r.status_code, 429)
+            self.assertIn("Retry-After", r.headers)
+        finally:
+            service._streams = 0
 
     def test_stream_sends_events_after_since_with_ids(self):
         self.t.emit("info", "first")

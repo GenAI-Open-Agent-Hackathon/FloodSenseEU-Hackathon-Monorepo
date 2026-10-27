@@ -250,8 +250,12 @@ export interface WatchStatus {
     used_day: number;
     next_allowed_at: string | null;
     uses_model_calls: true;
+    /** Set when auto-assess cannot be switched on (the caps would not survive a restart). */
+    blocked?: string | null;
   };
   persisted: boolean;
+  /** Why nothing is saved between restarts (auto-assess then stays off), or null. */
+  persisted_reason?: string | null;
   served_from: ServedFrom;
   cached_at: string | null;
 }

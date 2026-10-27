@@ -148,6 +148,8 @@ describe("tiles and the KPI line", () => {
     expect(capsText(status().auto_assess)).toContain("never approves anything");
     expect(capsText({ ...status().auto_assess, used_hour: 1, used_day: 2, next_allowed_at: "2026-10-27T15:30:00Z" })).toContain("Next allowed after 15:30 UTC");
     expect(capsText(null)).toContain("At most 1 per hour");
+    expect(capsText({ ...status().auto_assess, blocked: "Nothing is saved between restarts here." })).toContain("cannot be switched on here: Nothing is saved");
+    expect(asWatchStatus({ ...status(), persisted: false, persisted_reason: "why" })?.persisted_reason).toBe("why");
   });
 });
 

@@ -46,7 +46,7 @@ export async function fetchWatchEvents(since: string | null, limit = 200, signal
   return r.ok ? { ok: true, value: parseEvents(r.value) } : r;
 }
 
-/** "Scan now": one scan on the agents. A 429 carries Retry-After. */
+/** "Scan now": the agents answer 202 at once and scan on a thread; watch the status for `scanning`. A 429 carries Retry-After. */
 export async function postScan(): Promise<Fetched<WatchStatus>> {
   const r = await call("/watch/cycle", { method: "POST" });
   if (!r.ok) return r;
@@ -56,9 +56,10 @@ export async function postScan(): Promise<Fetched<WatchStatus>> {
 
 /** The auto-assess switch. Model calls, capped by the service. */
 export async function postAutoAssess(enabled: boolean): Promise<Fetched<WatchStatus>> {
+  const token = import.meta.env.VITE_WATCH_ADMIN_TOKEN?.trim();
   const r = await call("/watch/auto-assess", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(token ? { "x-watch-admin-token": token } : {}) },
     body: JSON.stringify({ enabled }),
   });
   if (!r.ok) return r;

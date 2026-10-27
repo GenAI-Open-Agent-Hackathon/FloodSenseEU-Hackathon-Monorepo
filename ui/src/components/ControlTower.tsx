@@ -18,7 +18,6 @@ import {
   filterEvents,
   hasSource,
   hhmm,
-  kpiLine,
   loopState,
   placeOptions,
   tiles,
@@ -112,9 +111,14 @@ export function ControlTower() {
         </p>
       )}
 
+      {ct.status && !ct.status.persisted && (
+        <p className="note" role="status">
+          Not saved between restarts on this server.{ct.status.persisted_reason ? ` ${ct.status.persisted_reason}` : ""}
+        </p>
+      )}
+
       <section aria-label="Watch summary" className="ct-tiles-wrap">
-        <p className="sr-only">{kpiLine(t)}</p>
-        <dl className="kpis ct-tiles" aria-hidden="true">
+        <dl className="kpis ct-tiles">
           <div>
             <dt>Sources watched</dt>
             <dd>{t.watched}</dd>
@@ -136,7 +140,6 @@ export function ControlTower() {
             <dd>{t.autoAssess}</dd>
           </div>
         </dl>
-        <p className="note ct-line">{kpiLine(t)}</p>
       </section>
 
       {state === "down" && (
@@ -233,7 +236,7 @@ export function ControlTower() {
                   type="checkbox"
                   role="switch"
                   checked={!!auto?.enabled}
-                  disabled={ct.switching || !auto || state === "down"}
+                  disabled={ct.switching || !auto || !!auto.blocked || state === "down"}
                   onChange={(e) => ct.setAutoAssess(e.target.checked)}
                 />
                 <span>{AUTO_ASSESS_LABEL}</span>

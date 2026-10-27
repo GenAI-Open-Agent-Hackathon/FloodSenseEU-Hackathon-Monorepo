@@ -175,23 +175,16 @@ def _truthy(v: Any) -> bool:
 
 
 def gauge_status(row: dict) -> str:
-    """The view's band (below / near / above); computed from MW and MHW when a row has none.
+    """The view's band (below / near / above) as the UI reads it (ui/src/lib/gauges.ts asGaugeRow).
 
-    A stale reading is "unknown": it is never an event.
+    A missing is_stale means stale; a stale reading is "unknown" here, so it is never an event. A band
+    outside below / near / above stays unknown: it is not computed from the level. The shared cases are
+    contracts/examples/status_cases.json (this file's tests and the UI's both read them).
     """
-    if row.get("is_stale") is not None and _truthy(row.get("is_stale")):
+    if row.get("is_stale") is None or _truthy(row.get("is_stale")):
         return "unknown"
     band = str(row.get("band") or "").strip().lower()
-    if band in ("below", "near", "above"):
-        return {"below": "ok", "near": "near", "above": "over"}[band]
-    level, mhw, mw = _num(row.get("level_cm")), _num(row.get("mhw_cm")), _num(row.get("mw_cm"))
-    if level is None or mhw is None:
-        return "unknown"
-    if level >= mhw:
-        return "over"
-    if mw is not None and level >= mhw - 0.25 * (mhw - mw):
-        return "near"  # pegel_poll.py: within 25 % of the MW..MHW span below MHW
-    return "ok"
+    return {"below": "ok", "near": "near", "above": "over"}.get(band, "unknown")
 
 
 def gauge_sources(ev) -> list[Source]:
@@ -771,7 +764,7 @@ class ControlTower:
         self.store = EventStore(data_dir if data_dir is not None else default_dir())
         self.state = JsonState(data_dir if data_dir is not None else default_dir())
         self.interval_s = float(
-            interval_s if interval_s is not None else (os.environ.get("WATCH_INTERVAL_S") or 300)
+            interval_s if interval_s is not None else (os.environ.get("WATCH_INTERVAL_S") or 900)
         )
         self.loop_enabled = (
             _env_flag("FF_WATCH_LOOP", True) if loop_enabled is None else loop_enabled
@@ -783,6 +776,19 @@ class ControlTower:
         self.per_day = per_day if per_day is not None else _env_int("WATCH_AUTO_PER_DAY", 3)
         saved = self.state.load()
         self.prev: dict[str, str] = dict(saved.get("statuses") or {})
+        # No state file yet: the first scan only learns what is raised. It never auto-assesses.
+        self._baseline = not saved
+        # The caps live in the state file. Without it a restart would forget them, so auto-assess
+        # fails closed (it stays off, and /watch/status says why).
+        self.persisted_reason: str | None = None
+        if self.state.path is None:
+            self.persisted_reason = (
+                "Nothing is saved between restarts here (CHECKPOINTER=memory or an unwritable "
+                "WATCH_DATA_DIR), so the auto-assess caps could not survive one."
+            )
+            if self.auto_assess:
+                log.warning("auto-assess stays off: %s", self.persisted_reason)
+                self.auto_assess = False
         self.auto_times: list[float] = [float(t) for t in saved.get("auto_times") or []]
         self.last_cycle: dict | None = None
         self.sources_now: list[dict] = []
@@ -858,8 +864,12 @@ class ControlTower:
             self.scanning = False
             self._cycle_lock.release()
 
-    def force(self) -> dict:
-        """POST /watch/cycle: a scan now, at most once per MANUAL_MIN_GAP_S."""
+    def force(self, block: bool = False) -> dict:
+        """POST /watch/cycle: a scan now, at most once per MANUAL_MIN_GAP_S.
+
+        By default it returns at once ({"started": True}) and the scan runs on a thread; the feed and
+        /watch/status show it. block=True waits for the scan (tests).
+        """
         now = self.clock()
         if now - self._last_manual < MANUAL_MIN_GAP_S:
             return {
@@ -867,8 +877,20 @@ class ControlTower:
                 "reason": "a scan was just requested",
                 "retry_after_s": int(MANUAL_MIN_GAP_S - (now - self._last_manual)) + 1,
             }
+        if self.scanning:
+            return {"ran": False, "reason": "a scan is already running"}
         self._last_manual = now
-        return self.cycle("manual")
+        if block:
+            return self.cycle("manual")
+        self.scanning = True  # visible at once; the thread's cycle() owns it from here
+        threading.Thread(target=self._forced, name="control-tower-scan", daemon=True).start()
+        return {"ran": None, "started": True}
+
+    def _forced(self) -> None:
+        try:
+            self.cycle("manual")
+        except Exception:  # noqa: BLE001
+            log.exception("forced watch cycle failed")
 
     def _cycle(self, trigger: str) -> dict:
         t0 = self.clock()
@@ -893,6 +915,14 @@ class ControlTower:
         down_kinds = {view_kind[v] for v in errors}
         new_prev = {sid: st for sid, st in self.prev.items() if sid.split(":")[0] in down_kinds}
 
+        try:
+            return self._scan(trigger, t0, started, schema, z, sources, errors, new_prev)
+        finally:
+            # Even when the rest of the scan raised, what was read is what the next scan diffs against.
+            self.prev = new_prev
+            self._save()
+
+    def _scan(self, trigger, t0, started, schema, z, sources, errors, new_prev) -> dict:
         flagged: list[tuple[Source, str | None]] = []
         for s in sources:
             was = self.prev.get(s["id"])
@@ -985,8 +1015,9 @@ class ControlTower:
                     },
                 )
 
-        assessed = self._maybe_auto_assess([s for s, _ in flagged]) if flagged else None
-        self.prev = new_prev
+        assessed = None
+        if flagged and not self._baseline:
+            assessed = self._maybe_auto_assess([s for s, _ in flagged])
         summary = {
             "ran": True,
             "trigger": trigger,
@@ -1009,8 +1040,8 @@ class ControlTower:
                 data={"sources": len(sources), "elevated": elevated, "new": len(flagged)},
             )
         self._first_cycle_done = True
+        self._baseline = False
         self.last_cycle = summary
-        self._save()
         return summary
 
     def _save(self) -> None:
@@ -1041,6 +1072,7 @@ class ControlTower:
             if nxt and nxt > now
             else None,
             "uses_model_calls": True,
+            "blocked": self.persisted_reason,
         }
 
     def auto_allowed(self) -> bool:
@@ -1063,10 +1095,15 @@ class ControlTower:
             ctx["point_id"] = pick["ref"]
         elif pick["kind"] == "gauge" and re.fullmatch(r"[A-Za-zÄÖÜäöüß .-]{2,40}", pick["ref"]):
             ctx["station"] = pick["ref"]
+        # Count it and save BEFORE the run starts: a crash right after must not forget the cap.
+        self.auto_times.append(self.clock())
+        self._save()
         try:
             req = RunRequest(question=assess_question(pick), context=RunContext(**ctx))
             accepted = self._runtime().start_async(req)
         except Exception as e:  # noqa: BLE001
+            self.auto_times.pop()
+            self._save()
             log.warning("auto-assess could not start: %s", e)
             self.emit(
                 "info",
@@ -1074,7 +1111,6 @@ class ControlTower:
                 source=pick,
             )
             return None
-        self.auto_times.append(self.clock())
         run_id = accepted["run_id"]
         self.auto_runs[run_id] = pick
         self.emit(
@@ -1194,10 +1230,14 @@ class ControlTower:
             "latest_event_id": self.store.latest_id(),
             "awaiting_run_ids": self.awaiting_run_ids(),
             "auto_assess": self.auto_status(),
-            "persisted": self.store.path is not None,
+            "persisted": self.persisted_reason is None and self.store.path is not None,
+            "persisted_reason": self.persisted_reason
+            or (None if self.store.path is not None else "The event history is not saved to disk."),
         }
 
     def set_auto_assess(self, enabled: bool) -> dict:
+        if enabled and self.persisted_reason is not None:
+            return self.auto_status()  # fails closed: the caps would not survive a restart
         self.auto_assess = bool(enabled)
         self.emit(
             "info",

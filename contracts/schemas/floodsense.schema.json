@@ -468,6 +468,7 @@
           }
         },
         "persisted": { "type": "boolean" },
+        "persisted_reason": { "type": ["string", "null"], "description": "Why nothing is saved between restarts (auto-assess then stays off), or null." },
         "served_from": { "enum": ["live", "cache", "replay"] },
         "cached_at": { "type": ["string", "null"] }
       }

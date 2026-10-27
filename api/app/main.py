@@ -53,6 +53,7 @@ GET  /runs/{id}/citations         citation records + evidence + provenance
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import os
 import re
@@ -128,10 +129,13 @@ async def _agents_request(
     body: dict | None = None,
     params: dict | None = None,
     timeout: httpx.Timeout | None = None,
+    headers: dict | None = None,
 ) -> httpx.Response:
     """One async client for every proxied call. SSE uses its own stream below."""
     async with httpx.AsyncClient(timeout=timeout or TIMEOUT) as client:
-        return await client.request(method, f"{AGENTS_URL}{path}", json=body, params=params)
+        return await client.request(
+            method, f"{AGENTS_URL}{path}", json=body, params=params, headers=headers
+        )
 
 
 def _attach_contract(path: str, response: Response) -> Response:
@@ -169,10 +173,16 @@ def _json_run(payload: dict, status_code: int) -> JSONResponse:
 
 
 async def _forward(
-    method: str, path: str, body: dict | None = None, params: dict | None = None
+    method: str,
+    path: str,
+    body: dict | None = None,
+    params: dict | None = None,
+    headers: dict | None = None,
 ) -> Response:
     try:
-        r = await _agents_request(method, path, body=body, params=params)
+        # headers only when there are some, so a stand-in for _agents_request keeps its old signature
+        extra = {"headers": headers} if headers else {}
+        r = await _agents_request(method, path, body=body, params=params, **extra)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"agents service unreachable at {AGENTS_URL}: {type(e).__name__}")
     response = Response(
@@ -568,7 +578,17 @@ async def watch_auto_assess(request: Request) -> Response:
         body = await request.json()
     except ValueError:
         raise HTTPException(400, "request body must be UTF-8 JSON")
-    return await _forward("POST", "/watch/auto-assess", body=body if isinstance(body, dict) else {})
+    # WATCH_ADMIN_TOKEN, when set on the API, is required here and passed on to the agents.
+    want = os.environ.get("WATCH_ADMIN_TOKEN") or ""
+    got = request.headers.get("x-watch-admin-token") or ""
+    if want and not hmac.compare_digest(want.encode(), got.encode()):
+        raise HTTPException(401, "this switch needs the admin token (x-watch-admin-token)")
+    return await _forward(
+        "POST",
+        "/watch/auto-assess",
+        body=body if isinstance(body, dict) else {},
+        headers={"x-watch-admin-token": got} if got else None,
+    )
 
 
 @app.get("/watch/stream")

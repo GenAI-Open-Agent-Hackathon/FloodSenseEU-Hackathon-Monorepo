@@ -100,6 +100,13 @@ export function useControlTower(): ControlTowerState {
     if (reachable === false) wasDown.current = true;
     else if (reachable === true && wasDown.current) {
       wasDown.current = false;
+      // Back from an outage (or from recorded demo data): start from nothing, then load the live feed.
+      known.current = new Set();
+      latest.current = null;
+      loaded.current = false;
+      setEvents([]);
+      setFresh(new Set());
+      setDemoFeed(null);
       setTick((t) => t + 1);
     }
   }, [reachable]);
@@ -148,10 +155,17 @@ export function useControlTower(): ControlTowerState {
     setScanNote(null);
     void postScan().then(async (r) => {
       if (r.ok) {
+        // 202: the scan runs on the agents. Follow its status until it ends (at most a minute).
         setStatus(r.value);
         setScanNote(null);
-        const ev = await fetchWatchEvents(latest.current, 100);
-        if (ev.ok) take(ev.value);
+        for (let i = 0; i < 60; i += 1) {
+          await new Promise((done) => setTimeout(done, 1000));
+          const s = await fetchWatchStatus();
+          if (s.ok) setStatus(s.value);
+          const ev = await fetchWatchEvents(latest.current, 100);
+          if (ev.ok) take(ev.value);
+          if (s.ok && !s.value.scanning) break;
+        }
       } else if (r.status === 429) {
         setScanNote(`Please wait ${r.retryAfterS ?? 5} s before scanning again.`);
       } else {
@@ -182,6 +196,8 @@ export function useControlTower(): ControlTowerState {
     const recorded = demo as { recorded_at: string; note: string; events: unknown; status: unknown };
     const evs = parseEvents({ events: recorded.events });
     known.current = new Set(evs.map((e) => e.id));
+    latest.current = null;
+    setFresh(new Set());
     setEvents(evs);
     setStatus(asWatchStatus(recorded.status));
     setDemoFeed({ recordedAt: recorded.recorded_at, note: recorded.note });

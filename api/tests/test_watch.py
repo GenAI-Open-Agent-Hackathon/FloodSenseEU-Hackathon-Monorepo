@@ -53,8 +53,8 @@ class WatchProxyTest(unittest.TestCase):
         self.addCleanup(lambda: agents_service.set_tower(None))
         inner = TestClient(agents_service.app)
 
-        async def fake_request(method, path, body=None, params=None, timeout=None):
-            return inner.request(method, path, json=body, params=params)
+        async def fake_request(method, path, body=None, params=None, timeout=None, headers=None):
+            return inner.request(method, path, json=body, params=params, headers=headers)
 
         for p in (
             mock.patch.object(api, "_agents_request", side_effect=fake_request),
@@ -66,7 +66,7 @@ class WatchProxyTest(unittest.TestCase):
 
     def test_status_events_and_scan_are_proxied(self) -> None:
         self.assertEqual(self.c.get("/watch/events").json()["events"], [])
-        agents_service.control_tower().force()  # the agents' own 5 s gap is not what this tests
+        agents_service.control_tower().force(block=True)  # the agents' own 5 s gap is not what this tests
         status = self.c.get("/watch/status").json()
         self.assertFalse(status["auto_assess"]["enabled"])
         self.assertEqual(status["auto_assess"]["per_hour"], 1)
@@ -79,7 +79,7 @@ class WatchProxyTest(unittest.TestCase):
     def test_scan_now_has_its_own_bucket_and_429_carries_retry_after(self) -> None:
         codes = [self.c.post("/watch/cycle").status_code for _ in range(4)]
         # the first scan runs; a second within the agents' gap is their 429; the bucket (3) ends it at the API
-        self.assertEqual(codes[0], 200)
+        self.assertEqual(codes[0], 202)  # answered at once; the scan runs on the agents' thread
         self.assertEqual(codes[-1], 429)
         r = self.c.post("/watch/cycle")
         self.assertEqual(r.status_code, 429)
@@ -91,6 +91,15 @@ class WatchProxyTest(unittest.TestCase):
         self.assertTrue(on.json()["auto_assess"]["enabled"])
         self.assertEqual(self.c.post("/watch/auto-assess", json={"enabled": "x"}).status_code, 422)
         self.assertEqual(self.c.post("/watch/auto-assess", content=b"\xff").status_code, 400)
+
+    def test_the_admin_token_is_enforced_and_passed_on(self) -> None:
+        import os
+
+        with mock.patch.dict(os.environ, {"WATCH_ADMIN_TOKEN": "s3cret"}):
+            self.assertEqual(self.c.post("/watch/auto-assess", json={"enabled": True}).status_code, 401)
+            ok = self.c.post("/watch/auto-assess", json={"enabled": True}, headers={"x-watch-admin-token": "s3cret"})
+            self.assertEqual(ok.status_code, 200)
+            self.assertTrue(ok.json()["auto_assess"]["enabled"])
 
     def test_a_scan_does_not_spend_a_run_token(self) -> None:
         limiter = RateLimiter(RateLimitSettings(runs_per_min=1, max_concurrent_runs=2))
