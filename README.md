@@ -2,11 +2,11 @@
 
 FloodSense EU explains why a place in Europe is at flood risk, with a citation for every claim.
 
-Who it is for:
+Who it is for, one desk each in the UI (header: Citizen | Insurer | Civil protection):
 
-- Citizens: is my street at risk, and what do I do?
-- Civil protection: which areas need attention first, and why?
-- Insurers: which insured sites are exposed, and what do we tell the customer?
+- Citizens (Citizen desk): is my street at risk, and what do I do?
+- Civil protection (Civil protection desk, the paying customer on the public side): which rivers and places need attention first, what is the next 48 hours, and what do hotline staff, who are not flood experts, tell callers? A Situation board gives a one-screen brief per river with a fixed call script (DE/EN, ES for Spanish places) and official links, and "Escalate to agents" starts a full run whose proposed actions land in the desk's own approval queue.
+- Insurers (Insurer desk): which insured sites are exposed, and what do we tell the customer?
 
 ![FloodSense EU screenshot](docs/assets/screenshot.jpg)
 
@@ -142,7 +142,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 | `zetaris/migrations/` | Numbered SQL, applied by `zetaris-sync` | Mihir |
 | `agents/` | LangGraph graph, HITL interrupt, Judge, engines client, short-term thread memory | Ayush, Zain |
 | `api/` | FastAPI. Proxies runs, SSE, and approval. `v0.12.0` adds the semantic cache and labelled replay, flags default off. `GET /health` as well | Zain, Ayush |
-| `ui/` | Citizen page and insurer console (Vite, React, TypeScript). `v0.13.0` adds the shell nav and hash pages | Zain. Mihir landed the console |
+| `ui/` | Citizen page, insurer console and Civil protection desk (Vite, React, TypeScript). `v0.13.0` adds the shell nav and hash pages | Zain. Mihir landed the console |
 | `engines/` | H-MEM and World Model sidecar | Ayush |
 | `evals/` | Valencia 2024 and Ahr 2021 items. In v0.2.0, not its own increment tag | Saleeta, Zain, Mihir |
 | `infra/` | How local compose stays off the Zetaris stack | Mihir |

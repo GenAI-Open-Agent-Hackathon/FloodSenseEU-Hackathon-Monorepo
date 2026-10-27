@@ -82,3 +82,18 @@ describe("switching a declined question to its event", () => {
     expect(run?.status).toBe("out_of_scope");
   });
 });
+
+describe("operator greeting", () => {
+  it("gives the Civil protection desk its own three questions", () => {
+    for (const page of ["situation", "approvals", "how"] as const) {
+      const g = greetingFor({ role: "operator", page });
+      expect(g.suggestions).toEqual([
+        "Which gauges on the Elbe are above normal?",
+        "Brief me on the Rhine at Köln",
+        "What does the 48 h outlook show along the Danube?",
+      ]);
+      expect(g.text).toMatch(/script for callers/);
+      expect(g.text).toMatch(/cites its sources/);
+    }
+  });
+});

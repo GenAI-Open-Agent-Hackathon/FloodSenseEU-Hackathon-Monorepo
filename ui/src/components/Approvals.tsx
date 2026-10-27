@@ -27,6 +27,7 @@ import {
   type PlaybookItem,
   type ReviewEvidence,
 } from "../lib/hitl";
+import { isOperatorRunKey, operatorActionChip } from "../lib/operatorDesk";
 import { RefMarks } from "./RefMarks";
 import "../styles/hitl.css";
 import "../styles/insurer.css";
@@ -81,10 +82,13 @@ type Loaded = { kind: "ok"; source: QueueSource; refs: ReferenceSet | null } | {
  * handoff). Right: the selected run's proposed actions, drafts, one run-level decision, and its claims with
  * Judge evidence and numbered sources. Nothing is sent from here.
  */
-export function Approvals() {
+export function Approvals({ operator = false }: { operator?: boolean } = {}) {
   const desk = useConsole();
-  const [handoff, setHandoff] = useState<string | null>(() => getAwaitingRunId());
-  const [tracked, setTracked] = useState<TrackedRun[]>(() => trackedRuns());
+  const [rawHandoff, setHandoff] = useState<string | null>(() => getAwaitingRunId());
+  const [allTracked, setTracked] = useState<TrackedRun[]>(() => trackedRuns());
+  // Civil protection desk: only runs started from the operator desk (tracked key "operator:...") are this queue.
+  const tracked = useMemo(() => (operator ? allTracked.filter((r) => isOperatorRunKey(r.key)) : allTracked), [operator, allTracked]);
+  const handoff = operator && !tracked.some((r) => r.runId === rawHandoff) ? null : rawHandoff;
   const [past, setPast] = useState<PastRunsLoad | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<Record<string, Loaded>>({});
@@ -106,7 +110,11 @@ export function Approvals() {
     };
   }, [handoff, tracked, refreshKey]);
 
-  const queue = useMemo(() => buildQueue(past && past.ok ? past.rows : [], handoff, tracked), [past, handoff, tracked]);
+  const queue = useMemo(() => {
+    const rows = past && past.ok ? past.rows : [];
+    const own = operator ? rows.filter((row) => tracked.some((r) => r.runId === row.runId)) : rows;
+    return buildQueue(own, handoff, tracked);
+  }, [past, handoff, tracked, operator]);
   const auto = pickSelection(queue, picked === EXAMPLE ? null : picked, handoff);
   // A run decided here stays on screen with its outcome, even after it leaves the awaiting list.
   const pickedDecided = !!picked && picked !== EXAMPLE && (() => {
@@ -182,6 +190,8 @@ export function Approvals() {
   const source = live ? live.source : fixture;
   const refs = live ? live.refs : fixtureRefs;
   const showingLive = !!selectedId && !!live;
+  // The operator queue has no packed insurer example: with no live run selected it shows an empty state.
+  const operatorEmpty = operator && !showingLive && current?.kind !== "loading";
 
   const decide = useCallback(
     async (body: ApprovalBody): Promise<string | null> => {
@@ -237,7 +247,7 @@ export function Approvals() {
 
   return (
     <div className="apv hitl">
-      <nav className="apv-queue card" aria-label="Runs awaiting approval">
+      <nav className="apv-queue card" aria-label={operator ? "Runs from the Civil protection desk awaiting approval" : "Runs awaiting approval"}>
         <div className="apv-queue__head">
           <p className="section-label">Awaiting approval</p>
           <span className="apv-count" aria-label={`${awaitingCount} runs awaiting approval`}>
@@ -247,7 +257,9 @@ export function Approvals() {
         {past && !past.ok && <p className="note">Run list unavailable ({past.detail}). Only runs started in this tab are listed.</p>}
         {queue.length === 0 ? (
           <p className="apv-empty note">
-            No live run is waiting for a decision. Runs started from Alerts or Ask FloodSense land here once the agents finish.
+            {operator
+              ? "No run from the Civil protection desk is waiting for a decision. Use Escalate to agents on the Situation board; the run lands here once the agents finish."
+              : "No live run is waiting for a decision. Runs started from Alerts or Ask FloodSense land here once the agents finish."}
           </p>
         ) : (
           <ul className="apv-queue__list">
@@ -256,21 +268,40 @@ export function Approvals() {
             ))}
           </ul>
         )}
-        <ul className="apv-queue__list apv-queue__list--example">
-          <li>
-            <button
-              type="button"
-              className={`apv-item apv-item--example${!showingLive ? " is-selected" : ""}`}
-              aria-current={!showingLive ? "true" : undefined}
-              onClick={() => setPicked(EXAMPLE)}
-            >
-              <span className="apv-item__title">Packed example run</span>
-              <span className="apv-item__line">Recording shipped with the UI · not live</span>
-            </button>
-          </li>
-        </ul>
+        {!operator && (
+          <ul className="apv-queue__list apv-queue__list--example">
+            <li>
+              <button
+                type="button"
+                className={`apv-item apv-item--example${!showingLive ? " is-selected" : ""}`}
+                aria-current={!showingLive ? "true" : undefined}
+                onClick={() => setPicked(EXAMPLE)}
+              >
+                <span className="apv-item__title">Packed example run</span>
+                <span className="apv-item__line">Recording shipped with the UI · not live</span>
+              </button>
+            </li>
+          </ul>
+        )}
       </nav>
 
+      {operatorEmpty ? (
+        <div className="apv-detail">
+          <section className="card" aria-labelledby="apv-title">
+            <p className="section-label">Civil protection</p>
+            <h2 id="apv-title">Nothing selected</h2>
+            <p className="note">
+              Proposed actions for your authority appear here after you press Escalate to agents on the Situation board and the agents
+              finish. Nothing is sent from this page: each action is a draft that a person approves, edits or rejects.
+            </p>
+            <p>
+              <a className="button ghost" href={routeHref("operator", "situation")}>
+                Back to the Situation board
+              </a>
+            </p>
+          </section>
+        </div>
+      ) : (
       <div className="apv-detail">
         <section className="card apv-header" aria-labelledby="apv-title">
           <p className="section-label">{header.kind === "live" ? "Selected run" : "Example"}</p>
@@ -287,6 +318,12 @@ export function Approvals() {
           </dl>
           {header.note && <p className="note">{header.note}</p>}
           {source.summary && <p className="apv-question">{plainLanguage(source.summary)}</p>}
+          {operator && (
+            <p className="note">
+              Action wording is for authorities: Inform public, Request support. The agents' action types are reused, so a draft may still use
+              the wording it was written with.
+            </p>
+          )}
         </section>
 
         <section className="card" aria-labelledby="apv-actions">
@@ -306,6 +343,7 @@ export function Approvals() {
                   key={item.actionId}
                   item={item}
                   source={source}
+                  operator={operator}
                   editing={editing && item.outbound}
                   draft={drafts[item.actionId] ?? item.draftMessage ?? ""}
                   onDraft={(text) => setDrafts((d) => ({ ...d, [item.actionId]: text }))}
@@ -370,6 +408,7 @@ export function Approvals() {
           </div>
         </section>
       </div>
+      )}
     </div>
   );
 }
@@ -414,12 +453,14 @@ function JudgeBadge({ score, passes }: { score: number | null; passes: boolean |
 function ActionCard({
   item,
   source,
+  operator = false,
   editing,
   draft,
   onDraft,
 }: {
   item: PlaybookItem;
   source: QueueSource;
+  operator?: boolean;
   editing: boolean;
   draft: string;
   onDraft: (text: string) => void;
@@ -428,10 +469,11 @@ function ActionCard({
   return (
     <li className={`approval approval--${source.status}`}>
       <div className="approval__summary">
-        <span className={`chip chip--${item.actionType ?? "action"}`}>{actionChip(item.actionType)}</span>
+        <span className={`chip chip--${item.actionType ?? "action"}`}>{operator ? operatorActionChip(item.actionType) : actionChip(item.actionType)}</span>
         <strong>{item.title}</strong>
         <span className="muted small">
-          {item.targetRegion ?? "Region not stated"} · {sitesLine(item.affectedSiteCount, source.eventId)}
+          {item.targetRegion ?? "Region not stated"}
+          {operator ? "" : ` · ${sitesLine(item.affectedSiteCount, source.eventId)}`}
           {item.horizonH !== null ? ` · ${item.horizonH} h` : ""}
         </span>
         <JudgeBadge score={source.judgeScore} passes={source.judgePasses} />
