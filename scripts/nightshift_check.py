@@ -26,7 +26,8 @@ to "any" to accept whichever model answers. Checks, in order:
                              client's body: temperature 0.1, thinking off,
                              JSON mode, and the same 400 fallback. Only the
                              check caps the reply (CHECK_MAX_TOKENS); the
-                             client sets no cap. A reply
+                             client sends only a runaway cap
+                             (LLM_MAX_TOKENS_FAST/DEEP). A reply
                              from a model other than the tier's wanted one
                              is a warning. When the tiers want different
                              models, so is both answered by one model.
