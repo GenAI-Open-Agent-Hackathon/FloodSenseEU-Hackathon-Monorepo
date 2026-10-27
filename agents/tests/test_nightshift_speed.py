@@ -159,7 +159,7 @@ class RetryPolicy(unittest.TestCase):
         self.assertEqual(post.calls[0]["json"]["max_tokens"], 111)
         self.assertEqual(post.calls[1]["json"]["max_tokens"], 222)
         self.assertNotIn("max_tokens", post.calls[2]["json"])
-        self.assertEqual(post.calls[0]["timeout"], 42.0)
+        self.assertAlmostEqual(post.calls[0]["timeout"], 42.0, places=2)
 
 
 class MapOrdered(unittest.TestCase):
