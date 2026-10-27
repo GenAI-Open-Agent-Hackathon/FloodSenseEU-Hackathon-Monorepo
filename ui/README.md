@@ -95,7 +95,7 @@ The Ask popup opens with a greeting fitted to role and page (`greetingFor` in `s
 
 The header subtitle uses the same rule as the replay strip (`shownEventId`): the selected event only on pages that show it (insurer Replay, Sites, and Portfolio on EMSR773), else "Valencia replay · EMSR773"; "Live" on Now. `src/lib/headerBar.test.ts` checks every role, page and event.
 
-Citizen "What should I do?" shows general guidance at once: "Follow your official warning service" and the agents' own `CITIZEN_ADVICE` text, verbatim (`src/lib/safety.ts`; `safety.test.ts` fails if it drifts from `agents/floodsense_agents/live.py`). The agent-written, tailored step stays behind human review ("A tailored step from our agents appears here after a person checks it."). An Ask FloodSense button opens the chat.
+Citizen "What should I do?" shows general guidance at once: "Follow your official warning service" and the agents' own `CITIZEN_ADVICE` text, verbatim (`src/lib/safety.ts`; `safety.test.ts` fails if it drifts from `agents/floodsense_agents/live.py`). The agent-written, tailored step stays behind human review ("A tailored step from our agents appears here after a person checks it."). An Ask FloodSense button opens the chat. Below the advice: "In an emergency call 112." and official warning-service links for the country of the selected place (`warningCountriesFor`: Valencia points get Spain, German gauges and places get Germany, anything unclear gets both, grouped). The URLs live only in `WARNING_LINKS` in `src/lib/safety.ts` and are pinned by an allowlist test; they render through `SafeLink` (new tab, `rel="noopener noreferrer"`).
 
 ### Ask screen context
 

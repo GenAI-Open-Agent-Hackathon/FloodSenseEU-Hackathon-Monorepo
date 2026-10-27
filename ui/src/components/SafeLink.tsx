@@ -5,7 +5,7 @@ import { isSafeHttpUrl } from "../lib/urls";
 export function SafeLink({ href, children }: { href: string; children: ReactNode }) {
   if (!isSafeHttpUrl(href)) return <span>{children}</span>;
   return (
-    <a href={href} target="_blank" rel="noreferrer">
+    <a href={href} target="_blank" rel="noopener noreferrer">
       {children}
     </a>
   );

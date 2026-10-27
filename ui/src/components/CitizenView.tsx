@@ -10,7 +10,16 @@ import { actionsVisibleToCitizen } from "../lib/decision";
 import { formatDay, formatHour, formatM3s, formatMm, servingLabel } from "../lib/format";
 import { statusLabel } from "../lib/origin";
 import { routeHref } from "../lib/route";
-import { CITIZEN_ADVICE, CITIZEN_ADVICE_SOURCE, GATE_LINE, SAFETY_HEADLINE } from "../lib/safety";
+import {
+  CITIZEN_ADVICE,
+  CITIZEN_ADVICE_SOURCE,
+  EMERGENCY_LINE,
+  GATE_LINE,
+  SAFETY_HEADLINE,
+  WARNING_LINKS,
+  warningCountriesFor,
+} from "../lib/safety";
+import { SafeLink } from "./SafeLink";
 import {
   dischargeBand,
   glofasDischargeNote,
@@ -112,6 +121,21 @@ function ActionCards() {
           <strong>{SAFETY_HEADLINE}.</strong> {CITIZEN_ADVICE}
         </p>
         <p className="note">{CITIZEN_ADVICE_SOURCE}. FloodSense is not an official warning.</p>
+        <p>
+          <strong>{EMERGENCY_LINE}</strong>
+        </p>
+        {warningCountriesFor(desk.pointId, pointById(desk.points, desk.pointId)?.name).map((c) => (
+          <div key={c}>
+            <p className="menu-title">Official warnings · {WARNING_LINKS[c].title}</p>
+            <ul className="safety-links">
+              {WARNING_LINKS[c].links.map((link) => (
+                <li key={link.url}>
+                  <SafeLink href={link.url}>{link.label}</SafeLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
       <ReviewedSteps />
       <div className="button-row">
