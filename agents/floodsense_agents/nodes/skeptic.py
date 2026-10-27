@@ -349,12 +349,15 @@ def make(deps: Deps):
                 verdict, rationale = "proposed", "unchecked: no counter-check applies to this link"
             elif ok and passed_n == 0 and skipped_n:
                 # Skipped checks are not support.
-                verdict, rationale = "proposed", "unchecked: every counter-check was skipped; " + rationale
+                verdict, rationale = (
+                    "proposed",
+                    "unchecked: every counter-check was skipped; " + rationale,
+                )
             elif not ok and rounds == 0 and is_live(state):
                 verdict, rationale = "proposed", f"unchecked: {why}"
             prompt = (
                 f"HYPOTHESIS {h.id} ({h.link}): {h.statement}\nCOUNTER-CHECKS:\n"
-                f"{rows_block(new_ev[-len(qids):] if qids else [])}\nDETERMINISTIC RESULT: "
+                f"{rows_block(new_ev[-len(qids) :] if qids else [])}\nDETERMINISTIC RESULT: "
                 f"{verdict} ({rationale})"
             )
             h.status, h.rounds, h.evidence, h.rationale = verdict, rounds, qids, rationale

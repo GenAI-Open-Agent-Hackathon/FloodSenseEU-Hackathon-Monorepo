@@ -34,7 +34,9 @@ from floodsense_agents.state import Deps, NoMemory  # noqa: E402
 from floodsense_agents.zetaris import FakeZetaris  # noqa: E402
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "zetaris" / "migrations"
-_HOURLY = re.compile(r"\('(AHR0\d)', '(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})', ([\d.]+)D, ([\d.]+)D\)")
+_HOURLY = re.compile(
+    r"\('(AHR0\d)', '(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})', ([\d.]+)D, ([\d.]+)D\)"
+)
 _DAILY = re.compile(r"\('(AHR0\d)', '(\d{4}-\d{2}-\d{2})', ([\d.]+)D, '([^']+)'\)")
 
 
@@ -90,7 +92,9 @@ class AhrReplayOnRealData(unittest.TestCase):
         ]
 
     def test_hazard_schema_is_seed_for_the_ahr_and_configured_for_valencia(self) -> None:
-        self.assertEqual(hazard_schema(EVENTS["EMSR517"].as_dict(), "floodsense"), "floodsense_seed")
+        self.assertEqual(
+            hazard_schema(EVENTS["EMSR517"].as_dict(), "floodsense"), "floodsense_seed"
+        )
         self.assertEqual(hazard_schema({"event_id": "EMSR517"}, "floodsense"), "floodsense_seed")
         self.assertEqual(hazard_schema(EVENTS["EMSR773"].as_dict(), "floodsense"), "floodsense")
 
@@ -134,34 +138,48 @@ class EmptyCitationClaims(unittest.TestCase):
         import json
 
         def investigator(system, user):
+            if "LINK: H2 catchment->river" not in user:
+                return "{}"
             blocks = re.findall(r"query_id=(\S+) view=(\S+) .*?rows=(\d+)", user)
             empty = next(q for q, v, n in blocks if int(n) == 0)
             full = next(q for q, v, n in blocks if v.endswith("discharge_daily") and int(n) > 0)
             return json.dumps(
                 {
-                    "hypotheses": [
-                        {"id": "H2", "link": "catchment->river", "statement": "River rose",
-                         "claim_ids": ["C1", "C2"]}
-                    ],
+                    "statement": "River rose",
                     "claims": [
-                        {"claim_id": "C1", "text": "Daily discharge at Altenahr reached 249.61 m3/s.",
-                         "kind": "number", "numbers": [249.61], "query_ids": [full], "hypothesis_id": "H2"},
-                        {"claim_id": "C2", "text": "No warning level was recorded.", "kind": "fact",
-                         "numbers": [], "query_ids": [empty], "hypothesis_id": "H2"},
+                        {
+                            "text": "Daily discharge at Altenahr reached 249.61 m3/s.",
+                            "kind": "number",
+                            "numbers": [249.61],
+                            "query_ids": [full],
+                        },
+                        {
+                            "text": "No warning level was recorded.",
+                            "kind": "fact",
+                            "numbers": [],
+                            "query_ids": [empty],
+                        },
                     ],
-                    "summary": "River rose [C1].",
                 }
             )
 
-        deps = Deps(zetaris=real_ahr(), llm=FakeNightshift({"investigator": investigator}), memory=NoMemory())
+        deps = Deps(
+            zetaris=real_ahr(),
+            llm=FakeNightshift({"investigator": investigator}),
+            memory=NoMemory(),
+        )
         rt = Runtime(graph=build_graph(deps), deps=deps)
         with mock.patch.object(settings, "live_data", True):
-            out = rt.start(RunRequest(question="Why was Altenahr at risk on 14 Jul 2021?", event_id="EMSR517"))
-        ids = {c["claim_id"] for c in out["claims"]}
-        self.assertIn("C1", ids)
-        self.assertNotIn("C2", ids)
+            out = rt.start(
+                RunRequest(question="Why was Altenahr at risk on 14 Jul 2021?", event_id="EMSR517")
+            )
+        texts = [c["text"] for c in out["claims"]]
+        self.assertIn("Daily discharge at Altenahr reached 249.61 m3/s.", texts)
+        self.assertNotIn("No warning level was recorded.", texts)
         inv = [e for e in out["trace"] if e["node"] == "investigator"]
-        self.assertTrue(any("dropped model claim C2 (empty evidence)" in e["summary"] for e in inv))
+        self.assertTrue(
+            any("dropped model claim H2.2 (empty evidence)" in e["summary"] for e in inv)
+        )
         # The warning check cannot apply to reanalysis rows: recorded as skipped.
         h2 = next(h for h in out["hypotheses"] if h["link"] == "catchment->river")
         self.assertIn("skipped: a warning was issued for the river point", h2["rationale"])
@@ -175,9 +193,13 @@ class DocumentClaims(unittest.TestCase):
 
         quote = quote or self.TEXT
         return {
-            "query_id": "dq", "chunk_id": "ch1", "title": "NHESS 23-525",
-            "text": self.TEXT, "text_sha256": hashlib.sha256(self.TEXT.encode()).hexdigest(),
-            "quote": quote, "content_sha256": hashlib.sha256(quote.encode()).hexdigest(),
+            "query_id": "dq",
+            "chunk_id": "ch1",
+            "title": "NHESS 23-525",
+            "text": self.TEXT,
+            "text_sha256": hashlib.sha256(self.TEXT.encode()).hexdigest(),
+            "quote": quote,
+            "content_sha256": hashlib.sha256(quote.encode()).hexdigest(),
             "locator": {"page": 8, "paragraph": 1, "lines": "1-4"},
         }
 
@@ -186,7 +208,9 @@ class DocumentClaims(unittest.TestCase):
         from floodsense_agents.nodes.investigator import _attach_documents
         from floodsense_agents.nodes.judge import score_claim
 
-        claims, evid = _attach_documents([], [self._raw()], {}, "July 2021 Ahr flood rainfall warning")
+        claims, evid = _attach_documents(
+            [], [self._raw()], {}, "July 2021 Ahr flood rainfall warning"
+        )
         c = claims[0]
         self.assertNotIn("rainfall warning", c.text)
         self.assertIn("Heavy rain fell over the Eifel", c.text)
@@ -213,8 +237,12 @@ class DocumentClaims(unittest.TestCase):
 
         claims, evid = _attach_documents([], [self._raw()], {}, "q")
         c = claims[0]
-        c.citations.append(Citation(citation_id="C-doc-a1", claim_id="C-doc", layer="a", query_id="gone"))
-        self.assertEqual(score_claim(c, {e.query_id: e for e in evid}, None).grounding, "unsupported")
+        c.citations.append(
+            Citation(citation_id="C-doc-a1", claim_id="C-doc", layer="a", query_id="gone")
+        )
+        self.assertEqual(
+            score_claim(c, {e.query_id: e for e in evid}, None).grounding, "unsupported"
+        )
 
 
 class NumbersAndMemory(unittest.TestCase):
@@ -225,8 +253,12 @@ class NumbersAndMemory(unittest.TestCase):
 
     def _ev(self, rows, sql="SELECT 1") -> Evidence:
         return Evidence(
-            query_id="q", view="floodsense.x", sql=sql, rows_sample=rows,
-            row_count=len(rows), executed_at_utc="2026-10-27T00:00:00Z",
+            query_id="q",
+            view="floodsense.x",
+            sql=sql,
+            rows_sample=rows,
+            row_count=len(rows),
+            executed_at_utc="2026-10-27T00:00:00Z",
         )
 
     def test_bbox_written_as_a_filter_is_dropped_and_recorded(self) -> None:
@@ -242,12 +274,16 @@ class NumbersAndMemory(unittest.TestCase):
 
     def test_dates_drop_only_inside_a_date_expression(self) -> None:
         e = self._ev([{"discharge_m3s": "13.0", "date": "2021-07-13"}])
-        kept, dropped = cited_numbers([13.0, 2021.0], [e], "Rain began on 13 Jul 2021 at 00:00 UTC.")
+        kept, dropped = cited_numbers(
+            [13.0, 2021.0], [e], "Rain began on 13 Jul 2021 at 00:00 UTC."
+        )
         # 13 is a cell (string from the REST API), so it stays; 2021 is a date part.
         self.assertEqual(kept, [13.0])
         self.assertEqual(dropped, [{"value": 2021.0, "reason": "date"}])
         # Live run: the fallback list read "00:00 UTC" as [0, 0].
-        kept, dropped = cited_numbers([0.0, 0.0], [self._ev([{"x": 5.0}])], "Rain began at 00:00 UTC.")
+        kept, dropped = cited_numbers(
+            [0.0, 0.0], [self._ev([{"x": 5.0}])], "Rain began at 00:00 UTC."
+        )
         self.assertEqual(kept, [])
         self.assertEqual(len(dropped), 2)
         e2 = self._ev([{"discharge_m3s": 250.0}])
@@ -256,7 +292,9 @@ class NumbersAndMemory(unittest.TestCase):
 
     def test_a_threshold_drops_only_when_named_as_the_line(self) -> None:
         e = self._ev([{"discharge_m3s": 250.0}])
-        kept, dropped = cited_numbers([250.0, 100.0], [e], "Discharge reached 250 m3/s, above the 100 m3/s line.")
+        kept, dropped = cited_numbers(
+            [250.0, 100.0], [e], "Discharge reached 250 m3/s, above the 100 m3/s line."
+        )
         self.assertEqual(kept, [250.0])
         self.assertEqual(dropped, [{"value": 100.0, "reason": "named line"}])
         kept, dropped = cited_numbers([100.0], [e], "Discharge peaked at 100 m3/s.")
@@ -277,12 +315,23 @@ class NumbersAndMemory(unittest.TestCase):
         for text in ("Discharge peaked at the 100 m3/s line.", "Rain reached the 30 m3/s line."):
             n = 100.0 if "100" in text else 30.0
             kept, dropped = cited_numbers([n], [e], text)
-            c = Claim(claim_id="C1", text=text, kind="number", numbers=kept, numbers_dropped=dropped,
-                      citations=[Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q")])
+            c = Claim(
+                claim_id="C1",
+                text=text,
+                kind="number",
+                numbers=kept,
+                numbers_dropped=dropped,
+                citations=[Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q")],
+            )
             self.assertFalse(score_claim(c, {"q": e}, None).numbers_match, text)
-        c = Claim(claim_id="C2", text="Discharge stayed under the 100 m3/s line.", kind="number",
-                  numbers=[], numbers_dropped=[{"value": 100.0, "reason": "named line"}],
-                  citations=[Citation(citation_id="C2-a1", claim_id="C2", layer="a", query_id="q")])
+        c = Claim(
+            claim_id="C2",
+            text="Discharge stayed under the 100 m3/s line.",
+            kind="number",
+            numbers=[],
+            numbers_dropped=[{"value": 100.0, "reason": "named line"}],
+            citations=[Citation(citation_id="C2-a1", claim_id="C2", layer="a", query_id="q")],
+        )
         self.assertFalse(score_claim(c, {"q": e}, None).numbers_match, "unverified, never a pass")
 
     def test_a_wrong_value_equal_to_a_threshold_is_flagged_by_the_judge(self) -> None:
@@ -292,7 +341,10 @@ class NumbersAndMemory(unittest.TestCase):
         e = self._ev([{"point_id": "AHR01", "discharge_m3s": 250.0}])
         kept, _ = cited_numbers([100.0], [e], "Altenahr peaked at 100 m3/s.")
         c = Claim(
-            claim_id="C1", text="Altenahr peaked at 100 m3/s.", kind="number", numbers=kept,
+            claim_id="C1",
+            text="Altenahr peaked at 100 m3/s.",
+            kind="number",
+            numbers=kept,
             citations=[Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q")],
         )
         s = score_claim(c, {"q": e}, None)

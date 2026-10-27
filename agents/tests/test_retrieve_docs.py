@@ -171,13 +171,16 @@ class RetrieveDocsTest(unittest.TestCase):
                     "postgresql://127.0.0.1/rag", statement, [0.1, 0.2], event_id, 4
                 )
                 self.assertEqual(rows, [("chunk-a", 0.2)])
-                self.assertEqual(_bound_values(conn.cur.sql, conn.cur.params), [
-                    rendered,
-                    expect_event,
-                    expect_event,
-                    rendered,
-                    4,
-                ])
+                self.assertEqual(
+                    _bound_values(conn.cur.sql, conn.cur.params),
+                    [
+                        rendered,
+                        expect_event,
+                        expect_event,
+                        rendered,
+                        4,
+                    ],
+                )
                 self.assertNotIn("$1", conn.cur.sql)
         finally:
             retrieve_mod._connect = original
@@ -205,9 +208,7 @@ class RetrieveDocsTest(unittest.TestCase):
                 claim_id="C1",
                 text="Altenahr rose.",
                 citations=[
-                    Citation(
-                        citation_id="C1-a1", claim_id="C1", layer="a", query_id="q-sql"
-                    )
+                    Citation(citation_id="C1-a1", claim_id="C1", layer="a", query_id="q-sql")
                 ],
             )
         ]

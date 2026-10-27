@@ -14,7 +14,14 @@ from datetime import datetime, timedelta
 
 from floodsense_agents.events import hazard_schema
 from floodsense_agents.governance import DEFINITIONS
-from floodsense_agents.live import GAUGE_LIVE_ROWS, LIVE_ROWS, focus, horizon_word, is_live, points_sql
+from floodsense_agents.live import (
+    GAUGE_LIVE_ROWS,
+    LIVE_ROWS,
+    focus,
+    horizon_word,
+    is_live,
+    points_sql,
+)
 from floodsense_agents.models import Anomaly, normalize_utc
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
@@ -101,34 +108,38 @@ def make(deps: Deps):
         else:
             t0, t1 = window(state)
         clock = (t0, t1)
-        q = live_q if live else {
-            "rain": (
-                f"SELECT point_id, ts_utc, rain_mm FROM {hs}.hazard_timeline WHERE ts_utc "
-                f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value}{at_point} ORDER BY rain_mm DESC",
-                clock,
-            ),
-            # A long storm under the hourly line (Ahr 2021): the window total per point.
-            "rain_total": (
-                f"SELECT point_id, SUM(rain_mm) AS total_mm, MIN(ts_utc) AS first_utc FROM "
-                f"{hs}.hazard_timeline WHERE ts_utc BETWEEN ? AND ? AND rain_mm > 0{at_point} "
-                f"GROUP BY point_id HAVING SUM(rain_mm) >= {total_at.value} ORDER BY total_mm DESC",
-                clock,
-            ),
-            "discharge": (
-                f"SELECT point_id, ts_utc, discharge_m3s FROM {hs}.hazard_timeline WHERE "
-                f"ts_utc BETWEEN ? AND ? AND discharge_m3s >= {flow_at.value}{at_point} "
-                f"ORDER BY discharge_m3s DESC",
-                clock,
-            ),
-            "warning": (
-                f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level FROM "
-                f"{hs}.hazard_timeline "
-                f"WHERE ts_utc BETWEEN ? AND ? "
-                f"AND warning_level IS NOT NULL{at_point} GROUP BY point_id, warning_level "
-                f"ORDER BY first_utc",
-                clock,
-            ),
-        }
+        q = (
+            live_q
+            if live
+            else {
+                "rain": (
+                    f"SELECT point_id, ts_utc, rain_mm FROM {hs}.hazard_timeline WHERE ts_utc "
+                    f"BETWEEN ? AND ? AND rain_mm >= {rain_at.value}{at_point} ORDER BY rain_mm DESC",
+                    clock,
+                ),
+                # A long storm under the hourly line (Ahr 2021): the window total per point.
+                "rain_total": (
+                    f"SELECT point_id, SUM(rain_mm) AS total_mm, MIN(ts_utc) AS first_utc FROM "
+                    f"{hs}.hazard_timeline WHERE ts_utc BETWEEN ? AND ? AND rain_mm > 0{at_point} "
+                    f"GROUP BY point_id HAVING SUM(rain_mm) >= {total_at.value} ORDER BY total_mm DESC",
+                    clock,
+                ),
+                "discharge": (
+                    f"SELECT point_id, ts_utc, discharge_m3s FROM {hs}.hazard_timeline WHERE "
+                    f"ts_utc BETWEEN ? AND ? AND discharge_m3s >= {flow_at.value}{at_point} "
+                    f"ORDER BY discharge_m3s DESC",
+                    clock,
+                ),
+                "warning": (
+                    f"SELECT point_id, MIN(ts_utc) AS first_utc, warning_level FROM "
+                    f"{hs}.hazard_timeline "
+                    f"WHERE ts_utc BETWEEN ? AND ? "
+                    f"AND warning_level IS NOT NULL{at_point} GROUP BY point_id, warning_level "
+                    f"ORDER BY first_utc",
+                    clock,
+                ),
+            }
+        )
         # Valencia lists none. The Ahr lists the Rhine gauges between Koblenz and Bonn.
         if state["event"].get("gauges") and live:
             # The Rhine right now: live PEGELONLINE rows only, newest first.

@@ -161,7 +161,9 @@ class B3ReplayClockTest(unittest.TestCase):
         self.assertIsNone(ev.error)
         self.assertNotIn("?", ev.sql)
         self.assertIn("2024-10-29T12:00:00Z", ev.sql)
-        bad = z.run_sql("SELECT 1 FROM floodsense_seed.hazard_timeline WHERE ts_utc <= ?", ("' OR 1=1 --",))
+        bad = z.run_sql(
+            "SELECT 1 FROM floodsense_seed.hazard_timeline WHERE ts_utc <= ?", ("' OR 1=1 --",)
+        )
         self.assertIsNotNone(bad.error)
 
     def test_a_with_that_then_mutates_is_refused(self) -> None:

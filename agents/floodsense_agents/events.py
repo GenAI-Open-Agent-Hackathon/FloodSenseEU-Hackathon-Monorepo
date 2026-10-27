@@ -47,6 +47,7 @@ def point_label(point_id: str) -> str:
         return point_id
     return f"{name} ({point_id})"
 
+
 # PEGELONLINE shortname and water. The Ahr joins the Rhine between Koblenz and Bonn.
 # feeds.py and the seed rows use this tuple. Do not keep a second copy of the names.
 RHINE_GAUGES: tuple[tuple[str, str], ...] = (
@@ -78,16 +79,15 @@ GERMAN_PLACES: tuple[str, ...] = (
 )
 # "Ahr" in any case (AHR too) and the AHR point ids route to EMSR517.
 _GERMAN_RE = re.compile(
-    r"\b(?:" + "|".join(re.escape(w) for w in (*GERMAN_PLACES, "Ahr", "Altenahr", "Ahrweiler"))
+    r"\b(?:"
+    + "|".join(re.escape(w) for w in (*GERMAN_PLACES, "Ahr", "Altenahr", "Ahrweiler"))
     + r"|AHR\d{2})\b",
     re.IGNORECASE | re.UNICODE,
 )
 # Every Valencia town in POINT_NAMES (Catarroja, Sedaví, ...) keeps a question in Valencia.
 _VALENCIA_RE = re.compile(
     r"\b(?:"
-    + "|".join(
-        re.escape(name) for pid, name in POINT_NAMES.items() if pid.startswith("VAL")
-    )
+    + "|".join(re.escape(name) for pid, name in POINT_NAMES.items() if pid.startswith("VAL"))
     + r"|valencia|val[eè]ncia|spain|españa|espana|poyo|dana|VAL\d{2})\b",
     re.IGNORECASE | re.UNICODE,
 )

@@ -19,6 +19,7 @@ from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.models import ApprovalDecision, RunRequest
 from floodsense_agents.nightshift import current_provider
+from floodsense_agents.state import run_model_ids
 from floodsense_agents.zetaris import now_utc
 
 log = logging.getLogger("floodsense.runtime")
@@ -123,6 +124,7 @@ class Runtime:
             ("provenance", []),
         ):
             out[k] = out[k] if out[k] is not None else empty
+        out["model_ids"] = run_model_ids(out["trace"], out["model_ids"])
         out["approval"] = out["approval"] or {
             "status": "awaiting" if paused else "not_reached",
             "decision": None,
@@ -130,9 +132,7 @@ class Runtime:
             "reviewer_note": None,
         }
         out["status"] = "awaiting_approval" if paused else v.get("status", "running")
-        kind, at = labelling.computation_label(
-            v.get("replay_ts"), live=self._answers_are_live()
-        )
+        kind, at = labelling.computation_label(v.get("replay_ts"), live=self._answers_are_live())
         # A clocked replay stays replay. A stored "cache" mark must not hide
         # the clock on the way out of the checkpointer.
         stored = v.get("served_from")

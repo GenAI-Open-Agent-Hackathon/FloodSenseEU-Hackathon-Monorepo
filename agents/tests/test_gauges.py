@@ -45,7 +45,9 @@ class GaugeContractTest(unittest.TestCase):
         self.assertIn("gauge_levels", CONTRACT_VIEWS)
         self.assertIn("gauge_levels", OWNERS)
         self.assertEqual(OWNERS["gauge_levels"].view, "gauge_levels")
-        settings = (ROOT / "agents" / "floodsense_agents" / "settings.py").read_text(encoding="utf-8")
+        settings = (ROOT / "agents" / "floodsense_agents" / "settings.py").read_text(
+            encoding="utf-8"
+        )
         example = (ROOT / "agents" / ".env.example").read_text(encoding="utf-8")
         self.assertIn('_flag("FF_LIVE_DATA", False)', settings)
         self.assertIn("FF_LIVE_DATA=false", example)

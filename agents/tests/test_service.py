@@ -54,7 +54,15 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(self.c.get("/console").status_code, 200)
 
     def test_the_static_desk_is_not_shipped(self) -> None:
-        for path in ("/app", "/app/", "/app/app.js", "/mock", "/mock/", "/mock/analyst", "/mock/data.js"):
+        for path in (
+            "/app",
+            "/app/",
+            "/app/app.js",
+            "/mock",
+            "/mock/",
+            "/mock/analyst",
+            "/mock/data.js",
+        ):
             self.assertEqual(self.c.get(path).status_code, 404, path)
 
     def test_ready_and_version(self) -> None:

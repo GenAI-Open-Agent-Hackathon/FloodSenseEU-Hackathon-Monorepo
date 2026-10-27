@@ -70,49 +70,40 @@ def start(
 
 
 def planted_investigator(system, user):
-    """A model answer with one real claim and one planted false hypothesis.
-
-    The planted hypothesis cites a claim backed by no rows.
-    """
-    blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
-    rain = next(q for q, v, n in blocks if v.endswith("hazard_timeline") and int(n) > 0)
-    return json.dumps(
-        {
-            "hypotheses": [
-                {
-                    "id": "H1",
-                    "link": "rain->catchment",
-                    "statement": "Extreme rain over the catchment",
-                    "claim_ids": ["C1"],
-                },
-                {
-                    "id": "H9",
-                    "link": "river->site",
-                    "statement": "The river flooded the Valencia city office",
-                    "claim_ids": ["C2"],
-                },
-            ],
-            "claims": [
-                {
-                    "claim_id": "C1",
-                    "text": "Point chiva recorded a peak hour of 96 mm.",
-                    "kind": "number",
-                    "numbers": [96],
-                    "query_ids": [rain],
-                    "hypothesis_id": "H1",
-                },
-                {
-                    "claim_id": "C2",
-                    "text": "Flood water reached the Valencia city office.",
-                    "kind": "fact",
-                    "numbers": [],
-                    "query_ids": [],
-                    "hypothesis_id": "H9",
-                },
-            ],
-            "summary": "Rain [C1]. City office flooded [C2].",
-        }
-    )
+    """Per-link model answers: one real claim for rain->catchment, and a planted
+    false river->site link whose only claim is backed by no rows."""
+    link = re.search(r"LINK: (\S+) (\S+)", user).group(2)
+    if link == "rain->catchment":
+        blocks = re.findall(r"query_id=(\S+) view=(\S+) rows=(\d+)", user)
+        rain = next(q for q, v, n in blocks if v.endswith("hazard_timeline") and int(n) > 0)
+        return json.dumps(
+            {
+                "statement": "Extreme rain over the catchment",
+                "claims": [
+                    {
+                        "text": "Point chiva recorded a peak hour of 96 mm.",
+                        "kind": "number",
+                        "numbers": [96],
+                        "query_ids": [rain],
+                    }
+                ],
+            }
+        )
+    if link == "river->site":
+        return json.dumps(
+            {
+                "statement": "The river flooded the Valencia city office",
+                "claims": [
+                    {
+                        "text": "Flood water reached the Valencia city office.",
+                        "kind": "fact",
+                        "numbers": [],
+                        "query_ids": [],
+                    }
+                ],
+            }
+        )
+    return "{}"
 
 
 class GraphTest(unittest.TestCase):
@@ -208,22 +199,22 @@ class GraphTest(unittest.TestCase):
         out, _ = start(g, rid="t4")
         p = out["__interrupt__"][0].value
         self.assertNotIn(
-            "H9",
+            "H3",
             {h["id"] for h in p["hypotheses"]},
             "the planted hypothesis must be removed on the revise edge",
         )
         self.assertFalse(
-            any(c.get("hypothesis_id") == "H9" or "city office" in c["text"] for c in p["claims"])
+            any(c.get("hypothesis_id") == "H3" or "city office" in c["text"] for c in p["claims"])
         )
         skeptic_calls = [c for c in llm.calls if c[1] == "skeptic"]
         self.assertTrue(
-            any("H9" in c[2] and "not_supported" in c[2] for c in skeptic_calls),
-            "first pass judged H9 not_supported",
+            any("H3" in c[2] and "not_supported" in c[2] for c in skeptic_calls),
+            "first pass judged H3 not_supported",
         )
         self.assertEqual(
             len([c for c in llm.calls if c[1] == "investigator"]),
-            1,
-            "the revise edge does not call the model again",
+            3,
+            "one call per link; the revise edge does not call the model again",
         )
 
     def test_a_chain_the_skeptic_emptied_still_carries_a_summary(self) -> None:

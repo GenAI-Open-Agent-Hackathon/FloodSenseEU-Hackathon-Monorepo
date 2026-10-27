@@ -157,9 +157,7 @@ class LabelOverTheApiTest(unittest.TestCase):
         self.assertFalse(got["label"]["live"])
 
     def test_an_explicit_live_label_is_kept_for_liveness(self) -> None:
-        got = labelling.labelled(
-            {"status": "ok", "served_from": "live"}, zetaris=FakeZetaris()
-        )
+        got = labelling.labelled({"status": "ok", "served_from": "live"}, zetaris=FakeZetaris())
         self.assertEqual(got["served_from"], "live")
         self.assertTrue(got["label"]["live"])
         self.assertIsNone(got["cached_at"])

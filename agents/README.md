@@ -76,6 +76,10 @@ Measured on Nightshift: both lanes answer with Nemotron 3.5 Lightning 30B A3B at
 
 - Retry policy (`nightshift.py`): a reply with `finish_reason: length` is an error and is not retried, so a truncated reply never reaches a parser or the Judge. A 429 waits `Retry-After` seconds (at most 10). A timeout (`LLM_TIMEOUT_S`, 180) or an error that arrives after `LLM_SLOW_FAIL_S` (20 s) is final, and the node falls back to its deterministic path. Other errors (fast 5xx, connection, a 200 with no `choices`) get `LLM_MAX_ATTEMPTS` (2) tries in total.
 - `LLM_MAX_TOKENS_FAST` / `LLM_MAX_TOKENS_DEEP` (6000 / 8000) are runaway caps, not length budgets; `0` sends no `max_tokens`.
+- The ~45 s cut is Meterless' own (`provider_deadline` / `empty_response`), not prompt size. Hidden reasoning varies between 1,300 and 5,500 tokens even on a 900-character prompt. `LLM_STREAM=true` (the default) streams every call (SSE) and assembles the usual reply. A non-streamed request is cut at 45 s, but a streamed one often runs to the end (measured up to 131 s). A stream that ends in a provider error is retried once, even after `LLM_SLOW_FAIL_S`.
+- Investigator: the deterministic chain is reworded with one call per link (rain->catchment, catchment->river, river->site), run concurrently through `map_ordered`. Each call carries only that link's draft claims and the rows they cite: at most 8 rows per table, rows holding the claimed numbers first, numbers written plainly, and query ids shown as aliases (Q1..). It answers `{"statement", "claims": [...]}` with at most 4 claims. Links merge in chain order and claims are renumbered C1... A failed link keeps its deterministic claims, and the trace says `k/3 links worded by the model`. Model claims are checked the same way as before: unknown ids are dropped, all-empty evidence drops the claim, and numbers go through `cited_numbers`.
+- Playbook: exposure totals and the 5 largest sites, not the full asset list; at most 4 actions of at most 30 words.
+- `model_ids` on the run is read from the trace. It lists every model that answered a node, once each in node order, and leaves out "deterministic".
 - Skeptic rationale calls and Judge per-claim grounding calls run on up to `LLM_MAX_PARALLEL` (6) threads. Results are applied in input order, so scores, hypotheses and the trace are the same as a serial run. `1` runs them serially.
 - The repair round runs only when the Judge flags claims **and** the run does not pass. `JUDGE_REPAIR_WHEN_PASSING=true` repairs flagged claims on a passing run too.
 
@@ -84,7 +88,7 @@ Benchmark one full run against real Nightshift and Zetaris inside the agents con
 ```
 docker cp agents/floodsense_agents floodsense-app-agents-1:/tmp/bench/floodsense_agents
 docker cp scripts/bench_nightshift.py floodsense-app-agents-1:/tmp/bench_nightshift.py
-docker exec -w /tmp -e PYTHONPATH=/tmp/bench floodsense-app-agents-1 python /tmp/bench_nightshift.py
+docker exec -w /tmp -e PYTHONPATH=/tmp/bench floodsense-app-agents-1 python /tmp/bench_nightshift.py --doc-query "Valencia DANA flood warnings"
 ```
 
 `PYTHONPATH=/app` measures the image's code instead. It prints per-node trace latency and per-call lane, seconds, prompt size and answering model (`--json` for one object). It reads the container env and prints no secret.

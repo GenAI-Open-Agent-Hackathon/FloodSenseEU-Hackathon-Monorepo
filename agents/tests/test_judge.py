@@ -254,7 +254,9 @@ class LayerCFaithfulTest(unittest.TestCase):
         self.assertTrue(score.citation_faithful)
         bad = claim.model_copy(deep=True)
         bad.citations[1].quote = "This sentence is not in the passage."
-        bad.citations[1].content_sha256 = hashlib.sha256(bad.citations[1].quote.encode()).hexdigest()
+        bad.citations[1].content_sha256 = hashlib.sha256(
+            bad.citations[1].quote.encode()
+        ).hexdigest()
         self.assertFalse(score_claim(bad, evidence, None).citation_faithful)
         alone = Claim(
             claim_id="C2",

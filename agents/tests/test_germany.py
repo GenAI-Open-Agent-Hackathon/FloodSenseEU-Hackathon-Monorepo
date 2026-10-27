@@ -31,7 +31,11 @@ def gauged(threshold: bool = False) -> FakeZetaris:
     if threshold:
         z._conn.execute("ALTER TABLE floodsense.gauge_levels ADD COLUMN threshold_cm REAL")
     base = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    for station, level, step in (("KÖLN", 420.0, 3.0), ("BONN", 455.0, 0.0), ("KOBLENZ", 380.0, -4.0)):
+    for station, level, step in (
+        ("KÖLN", 420.0, 3.0),
+        ("BONN", 455.0, 0.0),
+        ("KOBLENZ", 380.0, -4.0),
+    ):
         for h in range(6, -1, -1):
             ts = (base - timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ")
             row = [station, "RHEIN", ts, level - step * h, "pegelonline"]
@@ -126,7 +130,8 @@ class RhineNow(unittest.TestCase):
         self.assertIn(OFFICIAL_NOTE, out["summary"])
         qids = gauge_qids(out)
         gauge_claims = [
-            c for c in out["claims"]
+            c
+            for c in out["claims"]
             if any(x.get("query_id") in qids for x in c["citations"] if x["layer"] == "a")
         ]
         by_station = {c["text"].split(" ")[0]: c["text"] for c in gauge_claims}
@@ -177,7 +182,8 @@ class RhineNow(unittest.TestCase):
         qids = gauge_qids(out)
         self.assertTrue(
             any(
-                c["text"].startswith("Status:") and not c["numbers"]
+                c["text"].startswith("Status:")
+                and not c["numbers"]
                 and "no live PEGELONLINE reading" in c["text"]
                 and any(x.get("query_id") in qids for x in c["citations"])
                 for c in out["claims"]

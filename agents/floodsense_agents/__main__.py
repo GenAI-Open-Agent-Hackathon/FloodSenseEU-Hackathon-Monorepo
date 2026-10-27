@@ -467,7 +467,22 @@ VIEW_COLUMNS: dict[str, dict[str, str]] = {
     "discharge_daily": {"discharge_m3s": _NUM},
     "hazard_timeline": {"rain_mm": _NUM, "discharge_m3s": _NUM},
     "hazard_now": {"rain_mm": _NUM, "discharge_m3s": _NUM},
-    "gauge_levels": {k: _NUM for k in ("level_cm", "river_km", "lat", "lon", "trend_cm_h", "mnw_cm", "mw_cm", "mhw_cm", "hhw_cm", "hsw_cm")} | {"is_stale": _BOOL},
+    "gauge_levels": {
+        k: _NUM
+        for k in (
+            "level_cm",
+            "river_km",
+            "lat",
+            "lon",
+            "trend_cm_h",
+            "mnw_cm",
+            "mw_cm",
+            "mhw_cm",
+            "hhw_cm",
+            "hsw_cm",
+        )
+    }
+    | {"is_stale": _BOOL},
     "exposure_join": {"lat": _NUM, "lon": _NUM, "sum_insured_eur": _NUM, "in_footprint": _BOOL},
     "provenance": {},
 }
@@ -508,7 +523,15 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
     "hazard_timeline": ("point_id", "ts_utc", "rain_mm"),
     "hazard_now": ("point_id", "ts_utc", "rain_mm"),
     "gauge_levels": ("station", "ts_utc"),
-    "exposure_join": ("policy_id", "site_id", "lat", "lon", "in_footprint", "sum_insured_eur", "segment"),
+    "exposure_join": (
+        "policy_id",
+        "site_id",
+        "lat",
+        "lon",
+        "in_footprint",
+        "sum_insured_eur",
+        "segment",
+    ),
     "provenance": ("dataset", "source_url", "publisher", "licence", "attribution", "fetched_at"),
 }
 

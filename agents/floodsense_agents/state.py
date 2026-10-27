@@ -111,6 +111,24 @@ def trace(
     return [*prev, ev.model_dump()]
 
 
+def run_model_ids(trace_events: list[dict] | None, recorded: list[str] | None = None) -> list[str]:
+    """Every model that answered an LLM node of the run, in node order, once each.
+
+    Read from the trace, so the Skeptic, the Judge and the repair round count
+    too (nodes used to append only the Investigator's and the Playbook's id,
+    and a fallback appended "deterministic"). The Judge records "a,b" when
+    several models scored. With no model answer at all, the recorded list is
+    returned deduplicated.
+    """
+    out: list[str] = []
+    for ev in trace_events or []:
+        for m in str(ev.get("model_id") or "").split(","):
+            m = m.strip()
+            if m and m != "deterministic" and m not in out:
+                out.append(m)
+    return out or list(dict.fromkeys(recorded or []))
+
+
 def answered(*items: Evidence) -> bool:
     """True when every query came back. An errored query answered nothing.
 
