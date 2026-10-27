@@ -44,7 +44,7 @@ How a judge can see it.
 
 What it does.
 
-- The Nightshift lanes are answered by NVIDIA Nemotron. Nightshift picks the model per lane. In the 27 Oct eval runs, every run's `model_ids` was `nvidia/nemotron-3.5-lightning-30b-a3b`.
+- The Nightshift lanes are answered by NVIDIA Nemotron. Nightshift picks the model per lane. In the 27 Oct Nightshift eval subset, every row's `model_ids` is `nvidia/nemotron-3.5-lightning-30b-a3b` (see the per-row `model_ids` in [evals/2026-10-27-nightshift-subset.json](evals/2026-10-27-nightshift-subset.json)).
 - Document embeddings for citation layer (c) come from NVIDIA NIM `POST /v1/embeddings` with `nvidia/nemotron-3.5-embed-1b` (2048 dimensions). Nightshift does not serve embeddings, so this is the one model call that does not go through Nightshift ([ADR 0009](adr/0009-vector-search-next-to-zetaris.md)).
 
 Where in the code: `agents/floodsense_agents/nim_embed.py` (query embeddings, `input_type: query`), `scripts/rag_ingest.py` (passage embeddings, `input_type: passage`), `pgvector/migrations/001_rag_chunks.sql` and `002_rag_embed_model_nemotron35.sql`.
@@ -59,7 +59,7 @@ What it does. The team used Cursor to write and review code. The repository hold
 
 Where in the code: `.cursor/skills/floodsense-pr-review/SKILL.md` (see [CHANGELOG.md](../CHANGELOG.md), PR #35).
 
-How a judge can see it. Read the skill file. TODO: add which Cursor features each person used (Bugbot, cloud agents, Composer) and links to example PRs.
+How a judge can see it. Read the skill file. **TODO(team): Cursor feature details** (which features each person used, with links to example PRs).
 
 ## Problem and users
 
@@ -87,7 +87,7 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 - EFAS real-time data is for partner organisations only. We do not use it.
 - The Ahr gauges are not on PEGELONLINE. They belong to the Rhineland-Palatinate state service, so the Ahr is replay only. Live gauges are WSV stations on PEGELONLINE (`ingestion/feeds/pegel_poll.py`).
 - Ahr 2021 replay data is reanalysis: ERA5 rain (Open-Meteo Historical Weather API) and GloFAS discharge (Open-Meteo Flood API). Both are far below the published figures for this storm (for example about 1000 m3/s reconstructed at Altenahr). We do not quote literature figures as values of these views (`zetaris/migrations/051_seed_discharge_daily_ahr.sql`, `052_seed_hazard_timeline_ahr.sql`).
-- A full live run on Nightshift takes about 5 minutes. Calls stream, and the Investigator calls the model once per link (PRs #63 and #66; see CHANGELOG.md). Some Investigator links still fall back to the deterministic chain when Meterless' provider deadline (about 45 s) cuts the call. A test-only provider switch (`LLM_PROVIDER_SWITCH`, `agents/floodsense_agents/nightshift.py`) runs a full run in about 35 seconds on a faster provider. The demo and the submission default to Nightshift.
+- A full live run on Nightshift takes about 6 minutes (mean 385 s and 346 s per run in the 27 Oct subset). Calls stream, and the Investigator calls the model once per link (PRs #63 and #66; see CHANGELOG.md). Investigator links sometimes fall back to the deterministic chain when Meterless' provider deadline (about 45 s) cuts the call. These fallbacks were not counted in the eval runs. A test-only provider switch (`LLM_PROVIDER_SWITCH`, `agents/floodsense_agents/nightshift.py`) runs a full run in about 35 seconds on a faster provider. The demo and the submission default to Nightshift.
 - The replay page reads the Ahr 2021 rows from Zetaris (`floodsense_seed` views), not from a UI fixture.
 - The demo uses recorded runs, shown as labelled replays. A replay or cache answer is never shown as live.
 
@@ -95,7 +95,7 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 
 All runs on 27 Oct 2026, live Zetaris. `evals/run_evals.py` with `evals/valencia_2024.yaml` and `evals/ahr_2021.yaml`.
 
-### A) Full set, 20 items, test provider Anthropic Sonnet
+### A) Full set, 21 items, test provider Anthropic Sonnet
 
 This uses the test-only provider switch (`--provider anthropic`), not Nightshift. Report: [evals/2026-10-27-anthropic.md](evals/2026-10-27-anthropic.md).
 
@@ -110,12 +110,12 @@ This uses the test-only provider switch (`--provider anthropic`), not Nightshift
 | Mean time per question | 37 s | 29 s |
 
 - Valencia includes one out-of-scope question. It was declined, as expected.
-- Almost all of the Ahr loss is one item, ahr-09 (the 15:00 pre-peak replay). On the real ERA5 data it produced no claims, and the scorer counts that as 100 % unsupported. Without it, Ahr hallucination is 0 %.
+- Almost all of the Ahr loss is one item, ahr-09 (the 15:00 pre-peak replay). On the real ERA5 data it produced 0 claims, and the scorer counts that as 100 % unsupported and 0 % cited. That one item is why Ahr coverage is 91 % (10 of 11) and hallucination 9.1 %. Without it, Ahr hallucination is 0 % and coverage 100 %.
 - Known eval-file gap: expected-token hit rates are low (67 % Valencia, 43 % Ahr) because the expected tokens were written against fixture data, not the real data.
 
 ### B) Subset on the judged path, Nightshift with NVIDIA Nemotron
 
-Default provider. 4 items: val-02, val-05, ahr-03, ahr-05. Every run's `model_ids` is `nvidia/nemotron-3.5-lightning-30b-a3b`. Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
+Default provider. 4 items: val-02, val-05, ahr-03, ahr-05. Every row's `model_ids` is `nvidia/nemotron-3.5-lightning-30b-a3b`, per the per-row `model_ids` in [evals/2026-10-27-nightshift-subset.json](evals/2026-10-27-nightshift-subset.json). Report: [evals/2026-10-27-nightshift-subset.md](evals/2026-10-27-nightshift-subset.md).
 
 | Metric | Result |
 | --- | --- |
@@ -124,9 +124,9 @@ Default provider. 4 items: val-02, val-05, ahr-03, ahr-05. Every run's `model_id
 | Numeric match | 100 % |
 | Judge pass | 100 % |
 | Mean Judge score | 0.99 (Valencia), 1.00 (Ahr) |
-| Time per run | 5 to 7 min |
+| Mean time per run | 385 s and 346 s (about 5.8 to 6.4 min) |
 
-Known limit: Investigator links sometimes fall back to the deterministic chain when Meterless' provider deadline (about 45 s) cuts the call. Skeptic, Playbook and Judge answer with Nemotron.
+Known limit: Investigator links sometimes fall back to the deterministic chain when Meterless' provider deadline (about 45 s) cuts the call. These fallbacks were not counted in the eval runs. Skeptic, Playbook and Judge answer with Nemotron.
 
 ## How to run
 
@@ -169,4 +169,4 @@ Document corpus for layer (c):
 4. Open `http://127.0.0.1:18000/runs/<run_id>` to see the trace with `node`, `lane` and `model_id` per step.
 5. In the agent pipeline panel, the World Model badges show which steps wrote hypotheses. The full board is at `http://127.0.0.1:8300/wm/board?run_id=<run_id>`.
 
-TODO: add the hosted demo URL and a recorded run id, if we publish one.
+The demo runs locally via docker compose (see README).

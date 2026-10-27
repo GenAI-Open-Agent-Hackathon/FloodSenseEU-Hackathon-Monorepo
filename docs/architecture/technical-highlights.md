@@ -65,7 +65,7 @@ flowchart LR
 
 - `hazard_now` view with past and forecast rows and a horizon label: `zetaris/migrations/034_create_view_hazard_now.sql`, `039_label_hazard_now_horizon.sql`.
 - Mode classifier: a "now" question goes live, a past-event question goes to event mode: `classify()` in `agents/floodsense_agents/live.py`.
-- Staleness: an old sync is flagged "stale" in the answer: `agents/floodsense_agents/nodes/investigator.py` (`STALE_FORECAST_H`).
+- Staleness: an old sync is flagged "stale" in the answer: `agents/floodsense_agents/live.py:40` (`STALE_FORECAST_H`).
 - The answer cache is keyed on the effective mode and provider, so a live answer and an event answer never share a cache entry: `api/app/cache.py`.
 
 ## Semantic cache and labelled replay
