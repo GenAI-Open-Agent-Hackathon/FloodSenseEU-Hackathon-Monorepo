@@ -36,6 +36,11 @@ POST /runs (live reading)         the router's quick lane: status answered, lane
 POST /runs?wait=false             202 {run_id, thread_id, status: running} at once; follow /runs/{id}/events.
                                   Same bucket and in-flight cap; the slot is held until the run
                                   leaves `running`. A cache hit or a replay fallback still answers 200.
+GET  /watch/events                control tower feed (?since=<id>&limit=N), from the agents
+GET  /watch/status                last scan, counts, auto-assess switch and caps
+GET  /watch/stream                SSE of new feed events (proxied as-is)
+POST /watch/cycle                 one scan now ("Scan now"); WATCH_CYCLES_PER_MIN (6) per client, 429 + Retry-After
+POST /watch/auto-assess           {enabled}: the auto-assess switch (model calls, capped by the agents)
 GET  /runs/past                   earlier runs (?thread_id= for one conversation)
 GET  /runs/{id}                   run snapshot
 GET  /runs/{id}/replay            a recorded run, labelled replay
@@ -71,7 +76,7 @@ from app.cache import (
 )
 from app.project import project_run
 from app.metrics import counters
-from app.ratelimit import RateLimiter
+from app.ratelimit import RateLimiter, TokenBuckets
 from app.system import build_system
 
 AGENTS_URL = os.environ.get("AGENTS_URL", "http://127.0.0.1:8100").rstrip("/")
@@ -94,6 +99,8 @@ TIMEOUT = httpx.Timeout(
 app = FastAPI(title="FloodSense EU", version="0.12.0")
 cache = AnswerCache()
 limiter = RateLimiter()
+# "Scan now" and the auto-assess switch: a small bucket of their own, so they never spend a run token.
+watch_buckets = TokenBuckets(float(os.environ.get("WATCH_CYCLES_PER_MIN") or 6))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=UI_ORIGINS,
@@ -522,6 +529,73 @@ async def start_run(request: Request) -> Response:
         except ValueError:
             pass
     return resp
+
+
+@app.get("/watch/events")
+async def watch_events(since: str | None = None, limit: int = 100) -> Response:
+    params: dict = {"limit": limit}
+    if since:
+        params["since"] = since
+    return await _forward("GET", "/watch/events", params=params)
+
+
+@app.get("/watch/status")
+async def watch_status() -> Response:
+    return await _forward("GET", "/watch/status")
+
+
+def _watch_refusal(request: Request) -> JSONResponse | None:
+    wait = watch_buckets.take(_client_key(request))
+    if wait is None:
+        return None
+    return _too_many("rate limit: too many scans from this client", wait)
+
+
+@app.post("/watch/cycle")
+async def watch_cycle(request: Request) -> Response:
+    refused = _watch_refusal(request)
+    if refused is not None:
+        return refused
+    return await _forward("POST", "/watch/cycle")
+
+
+@app.post("/watch/auto-assess")
+async def watch_auto_assess(request: Request) -> Response:
+    refused = _watch_refusal(request)
+    if refused is not None:
+        return refused
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "request body must be UTF-8 JSON")
+    return await _forward("POST", "/watch/auto-assess", body=body if isinstance(body, dict) else {})
+
+
+@app.get("/watch/stream")
+async def watch_stream(request: Request, since: str | None = None) -> StreamingResponse:
+    """The feed as SSE, proxied as-is; Last-Event-ID is forwarded so a reconnect resumes."""
+    headers = {}
+    if request.headers.get("last-event-id"):
+        headers["last-event-id"] = request.headers["last-event-id"]
+
+    async def gen():
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=5.0)) as client:
+                async with client.stream(
+                    "GET",
+                    f"{AGENTS_URL}/watch/stream",
+                    params={"since": since} if since else None,
+                    headers=headers,
+                ) as r:
+                    if r.status_code != 200:
+                        yield f'event: error\ndata: {{"status": {r.status_code}}}\n\n'
+                        return
+                    async for chunk in r.aiter_text():
+                        yield chunk
+        except httpx.HTTPError as e:
+            yield f'event: error\ndata: {{"error": "agents service unreachable: {type(e).__name__}"}}\n\n'
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"cache-control": "no-store"})
 
 
 @app.get("/runs/past")

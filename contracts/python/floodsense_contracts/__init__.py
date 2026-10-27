@@ -17,6 +17,9 @@ from .models import (
     PlaybookAction,
     ReplyResponse,
     RunResponse,
+    WatchEvent,
+    WatchSource,
+    WatchStatus,
 )
 
 __all__ = [
@@ -32,4 +35,7 @@ __all__ = [
     "PlaybookAction",
     "ReplyResponse",
     "RunResponse",
+    "WatchEvent",
+    "WatchSource",
+    "WatchStatus",
 ]
