@@ -84,6 +84,7 @@ Founder insight. Our architect worked at an NRW government agency. In Germany, r
 
 - The insurer portfolio is synthetic. It is labelled as synthetic in the data (`zetaris/migrations/018_label_exposure_synthetic.sql`) and in the UI.
 - Discharge comes from Open-Meteo (GloFAS-based model output). It is modelled data, not an official warning.
+- The forecast lane's weather forecast is Open-Meteo with the DWD ICON model (CC BY 4.0; DWD is the data originator). The Open-Meteo free API is non-commercial only (under 10,000 calls/day; one forecast question is about 45 calls), so a commercial product needs a paid plan. The status Normal / Watch / Warning is FloodSense's own screening, not an official warning.
 - EFAS real-time data is for partner organisations only. We do not use it.
 - The Ahr gauges are not on PEGELONLINE. They belong to the Rhineland-Palatinate state service, so the Ahr is replay only. Live gauges are WSV stations on PEGELONLINE (`ingestion/feeds/pegel_poll.py`).
 - Ahr 2021 replay data is reanalysis: ERA5 rain (Open-Meteo Historical Weather API) and GloFAS discharge (Open-Meteo Flood API). Both are far below the published figures for this storm (for example about 1000 m3/s reconstructed at Altenahr). We do not quote literature figures as values of these views (`zetaris/migrations/051_seed_discharge_daily_ahr.sql`, `052_seed_hazard_timeline_ahr.sql`).

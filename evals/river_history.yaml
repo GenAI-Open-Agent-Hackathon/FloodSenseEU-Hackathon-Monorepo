@@ -1,0 +1,45 @@
+# River history: past floods on the watched rivers and their weather triggers. A separate block with its
+# own aggregate, so it does not move the Valencia or Ahr numbers. Runs as the Europe live watch (LIVE-EU),
+# where retrieve_docs reads only the event-agnostic documents in rag_scope.json. Each item passes doc_query
+# so the Investigator calls retrieve_docs; expect_source is the corpus URL a cited claim should carry.
+# The answers are quoted from the CC BY-SA 4.0 Wikipedia snapshots under corpus/pdf/wiki-*.html
+# (section and paragraph as rag_ingest numbers them). They need FF_RAG_DOCS on and the wiki-* documents
+# ingested. Run with --set river_history.
+event_id: LIVE-EU
+customer_id: demo-insurer
+items:
+  - id: hist-01
+    question: How high did the Elbe rise in Dresden during the 2002 floods?
+    doc_query: Elbe Dresden all-time high water level 2002 flood evacuated
+    expect: ["9.4"]
+    expect_source: "https://en.wikipedia.org/w/index.php?title=2002_European_floods&oldid=1374296101"
+    # wiki-2002-european-floods, section 3, paragraph 8
+    reference: "The Elbe reached an all-time high of 9.4 m in Dresden; more than 30,000 people were evacuated"
+  - id: hist-02
+    question: What weather caused the July 1997 Oder flood?
+    doc_query: causes of the 1997 Oder flood Genoa low rainfall July
+    expect: ["Genoa low"]
+    expect_source: "https://en.wikipedia.org/w/index.php?title=1997_Central_European_flood&oldid=1368946079"
+    # wiki-1997-central-european-flood, section 2, paragraphs 1-2
+    reference: "A Genoa low stalled over southern Poland; rain 3-10 July and 17-22 July, 300-600 mm"
+  - id: hist-03
+    question: What level did the Danube reach in Passau in June 2013?
+    doc_query: Passau Danube Inn Ilz water level June 2013 highest recorded
+    expect: ["12.85"]
+    expect_source: "https://en.wikipedia.org/w/index.php?title=2013_European_floods&oldid=1372735297"
+    # wiki-2013-european-floods, section 5, paragraph 1
+    reference: "12.85 m on 1 June 2013, above the highest recorded historic flood level"
+  - id: hist-04
+    question: What storm caused the September 2024 floods in Central Europe, and how many people died?
+    doc_query: 2024 Central European floods Storm Boris Genoa low fatalities damage
+    expect: ["Boris", "28"]
+    expect_source: "https://en.wikipedia.org/w/index.php?title=2024_Central_European_floods&oldid=1377676053"
+    # wiki-2024-central-european-floods, section 1, paragraph 2
+    reference: "Storm Boris, an extremely humid Genoa low; 28 fatalities; about 4.2 billion euros of damage"
+  - id: hist-05
+    question: How high did the Moselle reach at the Trier gauge in December 1993?
+    doc_query: Moselle Trier gauge high water December 1993
+    expect: ["11.28"]
+    expect_source: "https://en.wikipedia.org/w/index.php?title=Moselle&oldid=1374522670"
+    # wiki-moselle, section 5, paragraph 3
+    reference: "11.28 m at the Trier gauge on 21 December 1993"

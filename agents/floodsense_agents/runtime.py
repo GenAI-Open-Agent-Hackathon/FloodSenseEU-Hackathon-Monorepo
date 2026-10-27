@@ -65,6 +65,7 @@ STATE_KEYS = (
     "error",
     "lane",
     "router_reason",
+    "forecast",
 )
 
 
