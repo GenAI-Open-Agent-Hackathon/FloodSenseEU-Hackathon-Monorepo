@@ -4,6 +4,7 @@ Owners: Saleeta, Zain, Mihir (docs/OWNERSHIP.md). Two real floods, at least 10 i
 
 - `valencia_2024.yaml` — Copernicus EMSR773, 29 Oct 2024
 - `ahr_2021.yaml` — Copernicus EMSR517, 14–15 Jul 2021
+- `river_history.yaml` — past floods per river and their weather triggers (`hist-01` to `hist-05`, event `LIVE-EU`, run with `--set river_history`), own aggregate; needs the `wiki-*` documents ingested
 - `insurer_docs.yaml` — layer (c) insurer and authority documents, own aggregate
 - `run_evals.py` — runs every item through the graph (auto-approving at the interrupt), reports the Judge metrics per item and per event
 
@@ -24,6 +25,8 @@ ingested sources and add the reference answers and human labels per claim for th
 
 `insurer_docs.yaml` (`ins-01` to `ins-03`, run with `--set insurer_docs`, or by default with everything) is a separate block
 with its own aggregate. Its items add `doc_query` (passed to the run so the Investigator calls `retrieve_docs`) and `expect_source` (the corpus URL a cited claim should carry, reported as `source_cited`). They need `FF_RAG_DOCS` on and the corpus ingested.
+
+`river_history.yaml` is the same kind of block for the Europe live watch (`LIVE-EU`): `retrieve_docs` reads only the event-agnostic documents there, including the citizen-audience `wiki-*` river history, which event runs never get. Answers come from the CC BY-SA Wikipedia snapshots; run it with `--set river_history`.
 
 The report header names the provider. Numbers from a test provider are not the judged Nightshift path; say which one you report.
 

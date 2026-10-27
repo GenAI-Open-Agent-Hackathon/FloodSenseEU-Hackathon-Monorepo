@@ -303,8 +303,28 @@ class CommittedCorpusTest(unittest.TestCase):
                 "eea-briefing-economic-losses-2022",
                 "eiopa-19-485",
                 "eu-floods-directive-2007-60-ec",
+                "wiki-1997-central-european-flood",
+                "wiki-2002-european-floods",
+                "wiki-2010-central-european-floods",
+                "wiki-2013-european-floods",
+                "wiki-2016-european-floods",
+                "wiki-2021-european-floods",
+                "wiki-2024-central-european-floods",
+                "wiki-2024-spanish-floods",
+                "wiki-seine",
+                "wiki-moselle",
+                "wiki-neckar",
+                "wiki-flood-control-netherlands",
+                "wiki-list-of-floods",
             ],
         )
+        for row in manifest:
+            if str(row["doc_id"]).startswith("wiki-"):
+                # river history: CC BY-SA 4.0 snapshots, event-agnostic, scoped by country
+                self.assertEqual(row["licence"], "CC-BY-SA-4.0")
+                self.assertIsNone(row["event_id"])
+                self.assertIn("oldid=", row["url"])
+                self.assertIn("country", row)
         self.assertTrue(all(row["placement"] == "git" for row in manifest))
         legal = (ROOT / "docs" / "legal" / "sources.md").read_text(encoding="utf-8")
         for needle in (

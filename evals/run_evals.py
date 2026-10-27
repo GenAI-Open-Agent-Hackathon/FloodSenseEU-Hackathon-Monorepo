@@ -43,7 +43,7 @@ from floodsense_agents.state import NoMemory  # noqa: E402
 HERE = Path(__file__).resolve().parent
 EVENTS = {"EMSR773": "valencia_2024.yaml", "EMSR517": "ahr_2021.yaml"}
 # Extra blocks with their own aggregate, so they do not move the event numbers.
-SETS = {"insurer_docs": "insurer_docs.yaml"}
+SETS = {"insurer_docs": "insurer_docs.yaml", "river_history": "river_history.yaml"}
 BLOCKS = {**EVENTS, **SETS}
 TARGETS = {
     "hallucination_rate": ("<=", 0.05),
