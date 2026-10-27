@@ -65,18 +65,46 @@ class PegelPollTest(unittest.TestCase):
         self.assertEqual(pegel_poll.band(400, 290, 680), "below")
         self.assertEqual(pegel_poll.band(None, 290, 680), "unknown")
         self.assertEqual(pegel_poll.band(400, None, None), "unknown")
+        # No usable MW: MHW only, never "near".
+        self.assertEqual(pegel_poll.band(670, None, 680), "below")
+        self.assertEqual(pegel_poll.band(670, 700, 680), "below")
+        self.assertEqual(pegel_poll.band(690, None, 680), "above")
 
     def test_trend_needs_two_readings(self) -> None:
         self.assertIsNone(pegel_poll.trend_cm_h(MEAS[:1]))
+
+    def test_trend_none_when_gap_under_half_an_hour(self) -> None:
+        self.assertIsNone(pegel_poll.trend_cm_h(MEAS[2:3] + [{"timestamp": "2026-10-27T00:30:00+01:00", "value": 157.0}]))
 
     def test_poll_writes_csv_and_skips_failed_station(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             path, n, failed = pegel_poll.poll(("BONN", "KAPUTT"), fake_get([]), d)
             self.assertEqual((n, len(failed)), (1, 1))
             with open(path, newline="", encoding="utf-8") as f:
+                kaputt = list(csv.DictReader(f))[1]
+            self.assertEqual((kaputt["station"], kaputt["level_cm"], kaputt["band"], kaputt["fetched_at"]),
+                             ("KAPUTT", "", "unknown", ""))
+            with open(path, newline="", encoding="utf-8") as f:
                 rows = list(csv.DictReader(f))
             self.assertEqual(list(rows[0]), pegel_poll.COLUMNS)
             self.assertEqual(rows[0]["hsw_cm"], "")
+
+    def test_failed_station_keeps_its_previous_row_and_old_fetched_at(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            pegel_poll.poll(("BONN",), fake_get([]), d)
+            path = Path(d, "live.csv")
+            old = path.read_text(encoding="utf-8").replace(",BONN,", ",X,")
+            rows = list(csv.reader(old.splitlines()))
+            rows[1][0] = "KAPUTT"
+            rows[1][-1] = "2026-10-26 20:00:00"
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                csv.writer(f).writerows(rows)
+            _, n, _ = pegel_poll.poll(("BONN", "KAPUTT"), fake_get([]), d)
+            with open(path, newline="", encoding="utf-8") as f:
+                kept = list(csv.DictReader(f))[1]
+            self.assertEqual(n, 1)
+            self.assertEqual((kept["station"], kept["level_cm"], kept["fetched_at"]),
+                             ("KAPUTT", "158.0", "2026-10-26 20:00:00"))
 
     def test_poll_keeps_last_file_when_all_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -86,10 +114,11 @@ class PegelPollTest(unittest.TestCase):
             self.assertEqual(Path(d, "live.csv").read_text(encoding="utf-8"), "old")
 
     def test_columns_match_the_046_view_header(self) -> None:
-        sql = (ROOT / "zetaris" / "migrations" / "046_view_gauge_levels_pegel_now.sql").read_text(encoding="utf-8")
+        sql = (ROOT / "zetaris" / "migrations" / "048_view_gauge_levels_is_stale.sql").read_text(encoding="utf-8")
         header = next(line for line in sql.splitlines() if line.startswith("-- columns:"))
         names = [c.strip().split()[0] for c in header.split(":", 1)[1].split(",")]
-        self.assertEqual(names, pegel_poll.COLUMNS)
+        self.assertEqual(names, pegel_poll.COLUMNS + ["is_stale"])
+        self.assertIn("INTERVAL 30 MINUTES", sql)
 
 
 if __name__ == "__main__":

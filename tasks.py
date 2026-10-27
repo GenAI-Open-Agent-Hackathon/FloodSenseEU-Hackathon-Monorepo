@@ -526,6 +526,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fetch current PEGELONLINE levels, write the CSV, copy it into the Zetaris driver.",
     )
     pegel.add_argument("--interval", type=int, default=0, help="repeat every N seconds (600-900)")
+    pegel.add_argument("--container", help="Zetaris driver container (default zetaris-driver-1)")
     pegel.add_argument("--no-stage", action="store_true", help="write the CSV only")
     sub.add_parser(
         "fetch-rag-corpus",
@@ -574,6 +575,7 @@ def main(
         return cmd_config(root, run)
     if command == "pegel-poll":
         extra = ["--interval", str(args.interval)] if args.interval else []
+        extra += ["--container", args.container] if args.container else []
         return cmd_pegel_poll(root, run, extra + (["--no-stage"] if args.no_stage else []))
     if command == "zetaris-sync":
         return cmd_zetaris_sync(root, run)

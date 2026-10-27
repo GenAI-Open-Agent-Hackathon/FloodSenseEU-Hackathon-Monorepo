@@ -76,7 +76,7 @@ def trend_cm_h(measurements: list[dict]) -> float | None:
     target = t1 - timedelta(hours=1)
     t0, v0 = min(pts[:-1], key=lambda p: abs((p[0] - target).total_seconds()))
     hours = (t1 - t0).total_seconds() / 3600
-    return round((v1 - v0) / hours, 1) if hours > 0 else None
+    return round((v1 - v0) / hours, 1) if hours >= 0.5 else None
 
 
 def band(level: float | None, mw: float | None, mhw: float | None) -> str:
@@ -85,8 +85,9 @@ def band(level: float | None, mw: float | None, mhw: float | None) -> str:
         return "unknown"
     if level >= mhw:
         return "above"
-    floor = mhw - NEAR_SHARE * (mhw - mw) if mw is not None and mw < mhw else mhw * (1 - NEAR_SHARE)
-    return "near" if level >= floor else "below"
+    if mw is None or mw >= mhw:
+        return "below"  # no usable MW: MHW only, no invented near floor
+    return "near" if level >= mhw - NEAR_SHARE * (mhw - mw) else "below"
 
 
 def station_row(name: str, fetched: str, get=fetch_json) -> list:
@@ -115,17 +116,44 @@ def station_row(name: str, fetched: str, get=fetch_json) -> list:
     ]
 
 
+def previous_rows(path: str) -> dict[str, list]:
+    """Rows of the last good file by the station name the poller asked for (or shortname)."""
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            rd = csv.reader(f)
+            if next(rd, None) != COLUMNS:
+                return {}
+            out = {}
+            for r in rd:
+                out[r[0]] = r
+                out[r[0].upper()] = r
+            return out
+    except OSError:
+        return {}
+
+
+def empty_row(name: str, fetched: str) -> list:
+    """Never fetched: no level, band unknown. fetched_at empty so it reads as stale, not current."""
+    row = dict.fromkeys(COLUMNS)
+    row.update(station=name, source=SOURCE, band="unknown")
+    return [row[c] for c in COLUMNS]
+
+
 def poll(stations=STATIONS, get=fetch_json, out_dir: str = OUT) -> tuple[str, int, list[str]]:
     """Write live.csv. Keeps the last good file when every station fails."""
     fetched = stamp(datetime.now(timezone.utc))
-    rows, failed = [], []
+    path = os.path.join(out_dir, "live.csv")
+    previous = previous_rows(path)
+    rows, failed, fresh = [], [], 0
     for name in stations:
         try:
             rows.append(station_row(name, fetched, get))
+            fresh += 1
         except Exception as e:
             failed.append(f"{name}: {e}")
-    path = os.path.join(out_dir, "live.csv")
-    if not rows:
+            # Keep the station: its last row with its old fetched_at, else an empty row.
+            rows.append(previous.get(name) or empty_row(name, fetched))
+    if not fresh:
         return path, 0, failed
     os.makedirs(out_dir, exist_ok=True)
     with open(path + ".tmp", "w", newline="", encoding="utf-8") as f:
@@ -133,15 +161,18 @@ def poll(stations=STATIONS, get=fetch_json, out_dir: str = OUT) -> tuple[str, in
         w.writerow(COLUMNS)
         w.writerows([["" if v is None else v for v in r] for r in rows])
     os.replace(path + ".tmp", path)
-    return path, len(rows), failed
+    return path, fresh, failed
 
 
 def stage(path: str, container: str) -> None:
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     run = lambda *a: subprocess.run(["docker", *a], check=True, env=env)  # noqa: E731
     run("exec", "-u", "0", container, "mkdir", "-p", DEST)
-    run("cp", path, f"{container}:{DEST}/live.csv")
-    run("exec", "-u", "0", container, "bash", "-c", f"chmod -R a+rX {DEST}; chgrp -R 1001 {DEST}; chmod -R g+rwX {DEST}")
+    # Dot-prefixed temp name: Spark skips hidden files, and mv in one directory is atomic.
+    run("cp", path, f"{container}:{DEST}/.live.csv.tmp")
+    run("exec", "-u", "0", container, "bash", "-c",
+        f"chmod a+r {DEST}/.live.csv.tmp; chgrp 1001 {DEST}/.live.csv.tmp; chmod g+rw {DEST}/.live.csv.tmp; "
+        f"chmod a+rx {DEST}; mv -f {DEST}/.live.csv.tmp {DEST}/live.csv")
 
 
 def main(argv: list[str] | None = None) -> int:
