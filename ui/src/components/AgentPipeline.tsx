@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties } from "react";
 import type { RecordedRun } from "../api/replay";
 import { buildPipeline, formatLatency, type PipelineNode } from "../lib/pipeline";
+import { modelLine, type LiveNodeState, type LiveRunState } from "../lib/liveRun";
 
 const STATUS_TEXT: Record<PipelineNode["status"], string> = {
   done: "done",
@@ -75,6 +76,67 @@ export function AgentPipeline({ run, compact = false, title }: { run: RecordedRu
             </span>
           ))}
         </p>
+      )}
+    </section>
+  );
+}
+
+const LIVE_STATE_TEXT: Record<LiveNodeState, string> = { idle: "queued", running: "running", done: "✓" };
+
+/** The same graph while a run streams: each node lights up on `started` and shows ✓, duration and model on `trace`. */
+export function LiveAgentPipeline({ state }: { state: LiveRunState }) {
+  return (
+    <section className="agp agp-compact agp-live" aria-label="Live agent pipeline">
+      <header className="agp-head">
+        <p className="agp-title">Agent pipeline · live</p>
+        <p className="agp-meta">
+          run {state.runId}
+          {state.reviseRounds > 0 && ` · ${state.reviseRounds} revise round${state.reviseRounds === 1 ? "" : "s"}`}
+          {state.repairRounds > 0 && ` · ${state.repairRounds} repair round${state.repairRounds === 1 ? "" : "s"}`}
+        </p>
+      </header>
+      <ol className="agp-flow">
+        {state.nodes.map((node, i) => (
+          <Fragment key={node.id}>
+            {i > 0 && (
+              <li className="agp-edge" aria-hidden="true">
+                {node.id === "skeptic" ? (
+                  <span className={`agp-arrow${state.reviseRounds > 0 ? " agp-loop agp-loop-revise" : ""}`}>
+                    ⇄{state.reviseRounds > 0 ? ` revise ×${state.reviseRounds}` : ""}
+                  </span>
+                ) : (
+                  <span className="agp-arrow">→</span>
+                )}
+              </li>
+            )}
+            <li className={`agp-node agp-live-${node.state}`} data-node={node.id} aria-current={node.state === "running" ? "step" : undefined}>
+              <div className="agp-node-top">
+                <span className="agp-name">{node.label}</span>
+                <span className={`agp-status agp-live-status-${node.state}`}>
+                  {node.state === "running" && <span className="agp-pulse" aria-hidden="true" />}
+                  {LIVE_STATE_TEXT[node.state]}
+                </span>
+              </div>
+              {node.runs > 0 && (
+                <p className="agp-line">
+                  {formatLatency(node.durationMs)} · {modelLine(node.modelId, node.lane)}
+                  {node.runs > 1 ? ` · ran ${node.runs}×` : ""}
+                </p>
+              )}
+              {node.summary && <p className="agp-summary">{node.summary}</p>}
+              {node.id === "judge" && state.repairRounds > 0 && (
+                <p className="agp-loop agp-loop-repair">↺ repair ×{state.repairRounds} via Playbook</p>
+              )}
+            </li>
+          </Fragment>
+        ))}
+      </ol>
+      {state.loops.length > 0 && (
+        <ul className="agp-loops" aria-label="Loops">
+          {state.loops.map((l, i) => (
+            <li key={`${i}-${l}`}>{l}</li>
+          ))}
+        </ul>
       )}
     </section>
   );
