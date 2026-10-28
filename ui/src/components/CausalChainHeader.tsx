@@ -47,7 +47,6 @@ export function causalChainNote(source: Source): string | null {
 export function useReviewRun(): { run: RecordedRun | null; source: Source } {
   const { mode, eventId } = useConsole();
   const [run, setRun] = useState<RecordedRun | null>(() => sampleRecordedRun());
-  const [walking, setWalking] = useState(false);
   const [source, setSource] = useState<Source>(() => {
     const id = replayRunId();
     return id ? { kind: "loading", id } : { kind: "bundled" };
@@ -156,6 +155,7 @@ function RunReviewSummary({ run }: { run: RecordedRun }) {
 }
 
 export function CausalChainHeader({ run, source }: { run: RecordedRun | null; source: Source }) {
+  const [walking, setWalking] = useState(false);
   if (!run) return null;
   const kind = run.servedFrom === "live" ? "live" : run.servedFrom === "cache" ? "cached" : "replay";
   const note = causalChainNote(source);
