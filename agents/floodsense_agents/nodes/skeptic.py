@@ -11,6 +11,7 @@ that to 1; the node does not hardcode the cap.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from floodsense_agents.governance import DEFINITIONS, IN_FOOTPRINT_SQL, OUTSIDE_FOOTPRINT_SQL
@@ -19,7 +20,7 @@ from floodsense_agents.models import Evidence, Hypothesis
 from floodsense_agents.nightshift import map_ordered, parse_json
 from floodsense_agents.events import hazard_schema
 from floodsense_agents.nodes.watchers import last_complete_day, window
-from floodsense_agents.prompts import SKEPTIC, rows_block
+from floodsense_agents.prompts import SKEPTIC, SKEPTIC_WEB, rows_block
 from floodsense_agents.settings import settings
 from floodsense_agents.state import Deps, FloodState, add_evidence, trace
 
@@ -337,6 +338,41 @@ def _rationale(deps: Deps, prompt: str) -> tuple[str, str] | None:
     return (str(js["rationale"])[:240] if js.get("rationale") else ""), model_id
 
 
+_TIMING = re.compile(r"warn|alert|status|issued|level|timing|before|after", re.I)
+
+
+def _web_check(deps: Deps, state: FloodState) -> dict | None:
+    """Does web context support or contradict ONE alert-timing/status claim? Silent when off.
+
+    Web text is fenced untrusted data. The result is context only: it never changes a
+    hypothesis verdict and the web is not an official warning.
+    """
+    items = (state.get("web") or {}).get("items") or []
+    claims = [c for c in state.get("claims", []) if not str(c.get("claim_id", "")).startswith("C-web-")]
+    if not (settings.ff_tavily and items and claims):
+        return None
+    claim = next((c for c in claims if _TIMING.search(c.get("text", ""))), claims[0])
+    web = "\n".join(f'WEB {n} url={i["url"]} title="{i["title"]}": "{i["text"]}"' for n, i in enumerate(items, 1))
+    try:
+        text, _ = deps.llm.complete(
+            "fast", SKEPTIC_WEB, f"CLAIM {claim['claim_id']}: {claim['text']}\n{web}"
+        )
+        js = parse_json(text)
+    except Exception as e:
+        log.debug("skeptic: web check skipped (%s)", str(e)[:100])
+        return None
+    url = str(js.get("url") or "")
+    if js.get("verdict") not in ("supports", "contradicts", "neutral") or url not in {i["url"] for i in items}:
+        return None
+    return {
+        "claim_id": claim["claim_id"],
+        "verdict": js["verdict"],
+        "url": url,
+        "note": str(js.get("note") or "")[:160],
+        "label": "Web context, not an official warning",
+    }
+
+
 def make(deps: Deps):
     def skeptic(state: FloodState) -> dict:
         t = time.time()
@@ -406,14 +442,17 @@ def make(deps: Deps):
             if extra:
                 h.rationale = f"{h.rationale} | model: {extra}"
         n_bad = sum(1 for h in hyps if h.status == "not_supported")
+        wc = _web_check(deps, state)
+        web_note = f"; web_check {wc['verdict']} {wc['claim_id']} {wc['url']}" if wc else ""
         return {
+            **({"web_check": wc} if wc else {}),
             "hypotheses": [h.model_dump() for h in hyps],
             "evidence": add_evidence(state, *new_ev),
             "trace": trace(
                 state,
                 "skeptic",
                 f"{len(hyps) - n_bad} supported, {n_bad} not supported after {len(new_ev)} "
-                f"counter-check queries",
+                f"counter-check queries{web_note}",
                 lane="sql",
                 model_id=model_id,
                 started=t,

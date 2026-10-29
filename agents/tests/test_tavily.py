@@ -153,6 +153,55 @@ class TavilyTest(unittest.TestCase):
             tavily.search = orig
         self.assertEqual(note, "x web context empty")
 
+    def _skeptic(self, reply, flag=True, items=None):
+        import json
+
+        from floodsense_agents.nightshift import FakeNightshift
+        from floodsense_agents.nodes.skeptic import _web_check
+        from floodsense_agents.state import Deps, NoMemory
+        from floodsense_agents.zetaris import FakeZetaris
+
+        seen = []
+
+        def h(system, user):
+            seen.append((system, user))
+            return json.dumps(reply)
+
+        deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift({"skeptic_web": h}), memory=NoMemory())
+        items = [{"title": "T", "url": "https://example.org/a", "text": "alert lifted"}] if items is None else items
+        state = {
+            "web": {"items": items},
+            "claims": [
+                {"claim_id": "C-1", "text": "The warning was issued early."},
+                {"claim_id": "C-web-1", "text": "web"},
+            ],
+        }
+        orig, settings.ff_tavily = settings.ff_tavily, flag
+        try:
+            return _web_check(deps, state), seen
+        finally:
+            settings.ff_tavily = orig
+
+    def test_skeptic_web_check_cites_url_and_fences(self):
+        wc, seen = self._skeptic({"verdict": "contradicts", "url": "https://example.org/a", "note": "n"})
+        self.assertEqual((wc["claim_id"], wc["verdict"], wc["url"]), ("C-1", "contradicts", "https://example.org/a"))
+        self.assertIn("not an official warning", wc["label"])
+        self.assertIn("untrusted", seen[0][0])
+
+    def test_skeptic_web_check_degrades_silently(self):
+        self.assertIsNone(self._skeptic({"verdict": "supports", "url": "https://example.org/a"}, flag=False)[0])
+        self.assertIsNone(self._skeptic({"verdict": "supports", "url": "https://example.org/a"}, items=[])[0])
+        self.assertIsNone(self._skeptic({"verdict": "supports", "url": "https://evil.example/z"})[0])
+        self.assertIsNone(self._skeptic({"verdict": "bogus", "url": "https://example.org/a"})[0])
+
+    def test_trace_line_has_no_key(self):
+        r = tavily.search("Koeln", transport=mock(lambda q: httpx.Response(200, json=OK)))
+        line = tavily.tavily_line(r)
+        self.assertIn("1 results", line)
+        self.assertIn("cached no", line)
+        self.assertNotIn("tvly", line)
+        self.assertIn("cached yes", tavily.tavily_line(tavily.search("Koeln")))
+
 
 if __name__ == "__main__":
     unittest.main()
