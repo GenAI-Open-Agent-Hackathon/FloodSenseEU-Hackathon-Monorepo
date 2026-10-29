@@ -41,6 +41,15 @@ SOURCE = "ds_pegelonline"
 # Touched after every successful stage. --health reads its age. Not data, never copied anywhere.
 STATE = os.path.join(OUT, ".last_staged")
 DEFAULT_INTERVAL_S = 600
+MIN_INTERVAL_S = 30  # PEGELONLINE updates every 15 min; faster polling only hammers the API
+
+
+def clamp_interval(interval: int) -> int:
+    """Floor the poll interval; 0 or a negative value would busy-loop."""
+    if interval < MIN_INTERVAL_S:
+        log(f"interval {interval}s is below the {MIN_INTERVAL_S}s floor; using {MIN_INTERVAL_S}s", err=True)
+        return MIN_INTERVAL_S
+    return interval
 BACKOFF_BASE_S = 30
 BACKOFF_CAP_S = 300
 
@@ -349,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     if a.service or a.health:
-        interval = a.interval or int(os.environ.get("POLL_INTERVAL_S") or DEFAULT_INTERVAL_S)
+        interval = clamp_interval(a.interval or int(os.environ.get("POLL_INTERVAL_S") or DEFAULT_INTERVAL_S))
         if a.health:
             ok, msg = health(interval)
             print(msg)
@@ -370,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
         if not a.interval:
             return 0 if n else 1
-        time.sleep(a.interval)
+        time.sleep(clamp_interval(a.interval))
 
 
 if __name__ == "__main__":

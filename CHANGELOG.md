@@ -16,6 +16,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 - Apache-2.0 `LICENSE` for the FloodSense code (copyright 2026 FloodSense EU contributors). `THIRD_PARTY_NOTICES.md` section 3 updated.
 
+### Fixed
+
+- Pegel poller: `POLL_INTERVAL_S` / `--interval` below 30 s (including 0, which busy-looped) is raised to 30 s with a log line.
+
 ### Changed
 
 - Post-submission docs cleanup: README, docs index and "For judges" point at 1.0.1; the tag list shows `v1.0.0` and `v1.0.1`; the Cursor section in README and `docs/SUBMISSION.md` states only what the repository records; living `LLM_PROVIDER_SWITCH` mentions removed from `docs/architecture/technical-highlights.md` and `docs/HANDOVER.md`; the handover reflects the submitted state. Docs only, no code change.

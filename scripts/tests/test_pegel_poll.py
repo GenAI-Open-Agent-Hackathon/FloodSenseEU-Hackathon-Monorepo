@@ -209,6 +209,12 @@ class PegelPollTest(unittest.TestCase):
 
 
 class ServiceLoopTest(unittest.TestCase):
+    def test_interval_floor_blocks_busy_loop(self) -> None:
+        for bad in (0, -5, 29):
+            self.assertEqual(pegel_poll.clamp_interval(bad), pegel_poll.MIN_INTERVAL_S)
+        self.assertEqual(pegel_poll.clamp_interval(600), 600)
+        self.assertEqual(pegel_poll.clamp_interval(30), 30)
+
     def test_backoff_doubles_and_caps(self) -> None:
         got = [pegel_poll.backoff_s(n) for n in (1, 2, 3, 4, 5, 6, 9)]
         self.assertEqual(got, [30, 60, 120, 240, 300, 300, 300])

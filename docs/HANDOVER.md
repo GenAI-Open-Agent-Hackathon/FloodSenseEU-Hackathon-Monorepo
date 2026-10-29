@@ -79,7 +79,7 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 - Overview shows Paiporta "Below the 100 m3/s line" on 29 Oct because the daily value crosses on 30 Oct.
 - Sites map uses an 80 m3/s band while Replay uses 100.
 - First load of live pages takes 5-10 s (Zetaris views are queried one by one).
-- Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only. `POLL_INTERVAL_S=0` busy-loops.
+- Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Open-Meteo free tier is non-commercial; one forecast question is about 45 calls.
 - No flood-history documents/memories for Saar, Ems, Rhone, Ebro, Tisza.
 - Full lane takes minutes and depends on NVIDIA rate limits. Quick/forecast/reply lanes do not.
