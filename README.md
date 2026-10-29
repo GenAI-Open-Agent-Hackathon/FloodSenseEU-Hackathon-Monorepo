@@ -85,6 +85,8 @@ Invoke-RestMethod http://127.0.0.1:18000/health
 
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 
+Model-call evidence on the Nebius backend: `py tasks.py check-llm` (one call per lane, model id and latency) and per-run token `usage` (see `agents/README.md`). Unverified against the live API.
+
 ## Honest limitations
 
 - The insurer portfolio is synthetic and labelled so. Only Valencia has a demo book.

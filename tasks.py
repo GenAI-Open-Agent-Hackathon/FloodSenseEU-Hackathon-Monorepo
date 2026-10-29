@@ -612,6 +612,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="npm test and npm run conformance in engines/. Needs Node.js 22.18 or newer.",
     )
     sub.add_parser(
+        "check-llm",
+        help="Live lane check: one tiny call per lane (fast, deep); needs LLM_BACKEND and key in env. Exit 1 on failure.",
+    )
+    sub.add_parser(
         "lint",
         help=(
             "Tracked-.env check, ruff, and TypeScript. "
@@ -662,6 +666,8 @@ def main(
         return cmd_test(root, run)
     if command == "engines-test":
         return cmd_engines_test(root, run)
+    if command == "check-llm":
+        return run([sys.executable, "-m", "floodsense_agents.llmcheck"], root / "agents")
     if command == "lint":
         return cmd_lint(root, run)
     print(f"Unknown command: {command}", file=sys.stderr)
