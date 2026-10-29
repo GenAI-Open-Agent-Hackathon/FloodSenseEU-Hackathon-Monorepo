@@ -95,6 +95,15 @@ class VerifyTest(unittest.TestCase):
         self.assertEqual(path["errors"], 0)
         self.assertGreater(path["rows"], 0)
 
+    def test_the_data_path_counts_the_local_backend(self) -> None:
+        run = self.fresh()
+        for e in run["evidence"].values():
+            e["source"] = "local"
+        path = verify.report(run)["data_path"]
+        self.assertTrue(path["reached_local"])
+        self.assertFalse(path["reached_zetaris"])
+        self.assertIn("local Postgres", path["verdict"])
+
     def test_the_data_path_would_say_so_if_zetaris_had_answered(self) -> None:
         run = self.fresh()
         for e in run["evidence"].values():

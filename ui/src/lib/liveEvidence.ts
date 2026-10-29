@@ -31,11 +31,11 @@ export interface LiveEvidence {
 export const GAUGE_PIPELINE = [
   "PEGELONLINE REST (WSV)",
   "FloodSense poller every 10 min",
-  "Zetaris file store",
+  "Live file table",
   "view floodsense.gauge_levels",
 ];
-export const GLOFAS_PIPELINE = ["Open-Meteo Flood API", "Zetaris REST table", "view floodsense.eu_watch"];
-export const HAZARD_NOW_PIPELINE = ["Open-Meteo Flood + Weather API", "Zetaris REST table", "view floodsense.hazard_now"];
+export const GLOFAS_PIPELINE = ["Open-Meteo Flood API", "Live feed table", "view floodsense.eu_watch"];
+export const HAZARD_NOW_PIPELINE = ["Open-Meteo Flood + Weather API", "Live feed table", "view floodsense.hazard_now"];
 
 export const PEGELONLINE_LINK: SourceLink = { href: "https://www.pegelonline.wsv.de/", label: "WSV PEGELONLINE" };
 export const GLOFAS_LINK: SourceLink = { href: "https://open-meteo.com/en/docs/flood-api", label: "Open-Meteo Flood API (GloFAS)" };
@@ -128,8 +128,8 @@ export function evidenceForReplay(
     kind: topic === "rain" ? "Hourly rain (ERA5 reanalysis)" : "River flow (GloFAS daily, modelled)",
     timeLabel: "Modelled",
     pipeline: source.fromZetaris
-      ? ["Open-Meteo archive (prep CSV)", "Zetaris seed tables", "view floodsense_seed.hazard_timeline"]
-      : ["Open-Meteo archive (prep CSV)", "bundled UI fixture (not from Zetaris)"],
+      ? ["Open-Meteo archive (prep CSV)", "Seed tables", "view floodsense_seed.hazard_timeline"]
+      : ["Open-Meteo archive (prep CSV)", "bundled UI fixture (not from the data layer)"],
     view: source.fromZetaris ? "floodsense_seed.hazard_timeline" : "bundled fixture",
     queryId: null,
     measuredAt: at,

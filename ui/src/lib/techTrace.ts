@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { RecordedRun } from "../api/replay";
 import type { MemoryUsed } from "./hitl";
 import { providerOf } from "./lanes";
@@ -13,7 +14,7 @@ import { formatLatency, parseBoard } from "./pipeline";
 export type TileId = "zetaris" | "nightshift" | "hmem" | "world";
 
 export const GLOSSARY: Record<TileId, string> = {
-  zetaris: "Zetaris: the only SQL path to the data.",
+  zetaris: "The data layer (Zetaris or local Postgres): the only SQL path to the data.",
   nightshift:
     "Meterless Nightshift: the gateway that routes the agents' model calls (meterless/fast and meterless/deep) to NVIDIA Nemotron models.",
   hmem: "Meterless H-MEM: remembers approved findings (and clearly labelled demo seeds).",
@@ -94,14 +95,14 @@ function zetarisTile(run: RecordedRun): Tile {
   const details: TileDetail[] = [];
   if (z.queryIds.length) details.push({ label: "Query ids", value: z.queryIds.join(", ") });
   if (z.views.length) details.push({ label: "Views", value: z.views.join(", ") });
-  if (z.ragChunks > 0) details.push({ label: "Documents", value: `${plural(z.ragChunks, "passage")} hydrated through Zetaris JDBC` });
+  if (z.ragChunks > 0) details.push({ label: "Documents", value: `${plural(z.ragChunks, "passage")} hydrated through Zetaris JDBC (document layer)` });
   if (z.upstream.length) {
     details.push({ label: "Upstream sources", value: z.upstream.map((u) => (u.publisher ? `${u.title} (${u.publisher})` : u.title)).join("; ") });
   }
   const headline = z.queryIds.length
-    ? `${plural(z.queryIds.length, "cited query", "cited queries")} across ${viewNames.length ? viewNames.join(", ") : "Zetaris views"}`
-    : "No cited Zetaris query";
-  return { id: "zetaris", name: "Zetaris", used: z.queryIds.length > 0, headline, glossary: GLOSSARY.zetaris, details };
+    ? `${plural(z.queryIds.length, "cited query", "cited queries")} across ${viewNames.length ? viewNames.join(", ") : "data views"}`
+    : `No cited ${dataBackendName()} query`;
+  return { id: "zetaris", name: dataBackendName(), used: z.queryIds.length > 0, headline, glossary: GLOSSARY.zetaris, details };
 }
 
 /* ---------- Meterless Nightshift ---------- */
@@ -191,7 +192,7 @@ function nightshiftTile(run: RecordedRun): Tile {
       glossary: GLOSSARY.nightshift,
       details: [
         ...recorded,
-        { label: "Why", value: `No model call: answered deterministically from Zetaris data — the router chose the cheapest safe path${took}.` },
+        { label: "Why", value: `No model call: answered deterministically from ${dataBackendName()} data — the router chose the cheapest safe path${took}.` },
       ],
     };
   }

@@ -13,7 +13,7 @@ export interface EventRows {
   fromZetaris: boolean;
 }
 
-export const AHR_FIXTURE_BADGE = "Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris";
+export const AHR_FIXTURE_BADGE = "Bundled modelled data (Open-Meteo, CC BY 4.0), not from the data layer";
 
 /** VITE_AHR_SOURCE=fixture forces the bundled rows; anything else tries the API first. The one switch. */
 export function ahrSourceMode(): "auto" | "fixture" {

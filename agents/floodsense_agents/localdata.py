@@ -94,6 +94,18 @@ def ddl(dialect: str) -> list[str]:
                     f"FROM {s}.pegel_now"
                 )
                 continue
+            if view == "hazard_now" and s == "floodsense":
+                # horizon is read against the clock, not frozen at the last pull (042).
+                body = ", ".join(f"{n} {t}" for n, t in cols if n != "horizon")
+                out.append(f"CREATE TABLE IF NOT EXISTS {s}.hazard_now_src ({body})")
+                out.append(f"DROP VIEW IF EXISTS {s}.hazard_now")
+                now = "datetime('now')" if dialect == "sqlite" else "(now() AT TIME ZONE 'utc')"
+                out.append(
+                    f"CREATE VIEW {s}.hazard_now AS SELECT point_id, ts_utc, rain_mm, discharge_m3s, "
+                    f"warning_level, CASE WHEN ts_utc > {now} THEN 'forecast' ELSE 'past' END AS horizon "
+                    f"FROM {s}.hazard_now_src"
+                )
+                continue
             body = ", ".join(f"{n} {t}" for n, t in cols)
             out.append(f"CREATE TABLE IF NOT EXISTS {s}.{view} ({body})")
     return out
@@ -241,7 +253,9 @@ class LocalData:
 
     backend = BACKEND
 
-    def __init__(self, connect: Callable[[], object] | None = None) -> None:
+    def __init__(self, connect: Callable[[], object] | None = None, *, shared: bool = False) -> None:
+        # shared: the connection outlives a query (in-memory SQLite in tests); do not close it.
+        self._shared = shared
         self._connect = connect or self._pg
         self._lock = threading.Lock()
 
@@ -274,7 +288,7 @@ class LocalData:
                 names = [d[0] for d in cur.description]
                 rows = [dict(zip(names, map(_norm, r))) for r in cur.fetchall()]
             finally:
-                if not _is_shared(conn):
+                if not self._shared:
                     conn.close()
             return Evidence(query_id=qid, view=_view_of(rendered), sql=rendered, rows_sample=rows[:sample],
                             row_count=len(rows), executed_at_utc=now_utc(), source=SOURCE)
@@ -284,19 +298,11 @@ class LocalData:
                             executed_at_utc=now_utc(), source=SOURCE, error=str(e)[:300])
 
 
-_SHARED: set[int] = set()
-
-
-def _is_shared(conn) -> bool:
-    return id(conn) in _SHARED
-
-
 def sqlite_backend(root: Path | None = None) -> LocalData:
     """LocalData over a seeded in-memory SQLite (tests, contract check)."""
     conn = sqlite_connect()
     init_db(conn, root)
-    _SHARED.add(id(conn))
-    return LocalData(lambda: conn)
+    return LocalData(lambda: conn, shared=True)
 
 
 # --- live pollers ---------------------------------------------------------
@@ -360,13 +366,12 @@ def fetch_hazard_now(client: httpx.Client, now: datetime) -> list[tuple]:
     """030/032/042: 3 past + 3 forecast days of hourly rain, GloFAS daily discharge, 8 Valencia points."""
     rain = _om(client, _FORECAST, _VAL, hourly="precipitation", past_days=3, forecast_days=3)
     flow = _om(client, _FLOOD, _VAL, daily="river_discharge", past_days=7, forecast_days=7)
-    cutoff = now.strftime("%Y-%m-%d %H:%M:%S")
     out = []
     for p, r, f in zip(_VAL, rain, flow):
         q = dict(zip(f["daily"]["time"], f["daily"]["river_discharge"]))
         for t, mm in zip(r["hourly"]["time"], r["hourly"]["precipitation"]):
             ts = _stamp(t)
-            out.append((p[0], ts, mm, q.get(t[:10]), None, "forecast" if ts > cutoff else "past"))
+            out.append((p[0], ts, mm, q.get(t[:10]), None))
     return out
 
 
@@ -417,12 +422,12 @@ def refresh(conn, client: httpx.Client | None = None, *, root: Path | None = Non
     report: dict[str, str] = {}
     jobs: dict[str, Callable[[], None]] = {}
 
-    def put(table: str, rows: list[tuple]) -> None:
+    def put(table: str, rows: list[tuple], name: str | None = None) -> None:
         if not rows:
             raise RuntimeError("source returned no rows")
         _replace(conn, f"floodsense.{table}", rows)
         conn.commit()
-        report[table] = f"{len(rows)} rows"
+        report[name or table] = f"{len(rows)} rows"
 
     def gauges() -> None:
         rows = fetch_gauges(root, gauge_get, now)
@@ -435,7 +440,7 @@ def refresh(conn, client: httpx.Client | None = None, *, root: Path | None = Non
     jobs["gauge_levels"] = gauges
     jobs["weather_forecast"] = lambda: put("weather_forecast", fetch_weather_forecast(client, now))
     jobs["eu_watch"] = lambda: put("eu_watch", fetch_eu_watch(client, now))
-    jobs["hazard_now"] = lambda: put("hazard_now", fetch_hazard_now(client, now))
+    jobs["hazard_now"] = lambda: put("hazard_now_src", fetch_hazard_now(client, now), "hazard_now")
 
     def window() -> None:
         cur = conn.cursor()

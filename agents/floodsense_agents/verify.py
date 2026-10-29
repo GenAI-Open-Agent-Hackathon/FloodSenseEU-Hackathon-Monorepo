@@ -25,6 +25,7 @@ from floodsense_agents.zetaris import now_utc
 
 LIVE_SOURCE = "zetaris"
 FAKE_SOURCE = "zetaris-fake"
+LOCAL_SOURCE = "local"  # DATA_BACKEND=local (Postgres), not Zetaris
 
 
 @dataclass
@@ -606,6 +607,7 @@ def data_path(run: dict) -> dict[str, Any]:
         sources[e.get("source") or "unknown"] = sources.get(e.get("source") or "unknown", 0) + 1
     live = sources.get(LIVE_SOURCE, 0)
     fake = sources.get(FAKE_SOURCE, 0)
+    local = sources.get(LOCAL_SOURCE, 0)
     return {
         "configured_mode": settings.zetaris_mode,
         "rest_url_set": bool(settings.zetaris_rest_url),
@@ -613,16 +615,19 @@ def data_path(run: dict) -> dict[str, Any]:
         "live_data_flag": settings.live_data,
         "queries": len(ev),
         "by_source": sources,
-        "reached_zetaris": live > 0 and fake == 0,
+        "reached_zetaris": live > 0 and fake == 0 and local == 0,
+        "reached_local": local > 0 and live == 0 and fake == 0,
         "errors": sum(1 for e in ev.values() if e.get("error")),
         "rows": sum(e.get("row_count", 0) for e in ev.values()),
         "verdict": (
-            "every query went to Zetaris"
-            if live and not fake
+            "every query went to the local Postgres backend"
+            if local and not live and not fake
+            else "every query went to Zetaris"
+            if live and not fake and not local
             else "no query reached Zetaris; this ran on the offline stand-in"
             if fake and not live
             else "mixed: some queries reached Zetaris and some did not"
-            if live and fake
+            if live and fake or local
             else "no query ran"
         ),
     }

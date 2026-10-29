@@ -350,7 +350,7 @@ export function evidenceForEvent(e: WatchEvent): LiveEvidence {
       return {
         ...base,
         kind: "Rain forecast (DWD ICON via Open-Meteo)",
-        pipeline: ["Open-Meteo forecast API (DWD ICON)", "Zetaris REST table", "view floodsense.weather_forecast"],
+        pipeline: ["Open-Meteo forecast API (DWD ICON)", "Live feed table", "view floodsense.weather_forecast"],
         view: "floodsense.weather_forecast",
         timeLabel: "Modelled",
         licence: "CC BY 4.0 · Weather data by Open-Meteo.com, model DWD ICON",
@@ -361,7 +361,7 @@ export function evidenceForEvent(e: WatchEvent): LiveEvidence {
       return {
         ...base,
         kind: "Insured sites of the demo book",
-        pipeline: ["Synthetic insurer portfolio + OSM sites", "Zetaris", "view floodsense.exposure_join"],
+        pipeline: ["Synthetic insurer portfolio + OSM sites", "Seed tables", "view floodsense.exposure_join"],
         view: "floodsense.exposure_join",
         timeLabel: "Modelled",
         licence: "Synthetic portfolio (demo data) · © OpenStreetMap contributors (ODbL)",
