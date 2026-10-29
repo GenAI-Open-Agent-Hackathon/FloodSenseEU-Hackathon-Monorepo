@@ -27,7 +27,7 @@ class PlatformStatusTest(unittest.TestCase):
 
         async def agents(method, path, **kw):
             if path == "/config":
-                return 200, {"llm_backend": "nebius", "lanes": {"fast": "m1", "deep": "m2"}, "nebius_api_key": "SECRET"}
+                return 200, {"llm_backend": "nebius", "tavily": True, "data_backend": "zetaris", "lanes": {"fast": "m1", "deep": "m2"}, "nebius_api_key": "SECRET"}
             return 200, {"counts": {"sources": 9}}
 
         cache = mock.Mock()
@@ -47,6 +47,8 @@ class PlatformStatusTest(unittest.TestCase):
         self.assertEqual(body["cache"]["hit_rate"], 0.5)
         self.assertEqual(body["rate_limit"]["rejected_429_recent"], 1)
         self.assertEqual(body["live_sources"], 9)
+        self.assertIs(body["tavily"], True)
+        self.assertEqual(body["data_backend"], "zetaris")
         self.assertNotIn("SECRET", json.dumps(body))
 
 

@@ -51,7 +51,7 @@ class Counters:
         with self._lock:
             lanes = {k: sorted(v) for k, v in self._latency_ms.items() if v}
         return {
-            k: {"n": len(v), "p50_ms": v[(len(v) - 1) // 2], "p95_ms": v[min(len(v) - 1, int(0.95 * len(v)))]}
+            k: {"n": len(v), "p50_ms": v[(len(v) - 1) // 2], "p95_ms": v[-(-95 * len(v) // 100) - 1]}
             for k, v in lanes.items()
         }
 

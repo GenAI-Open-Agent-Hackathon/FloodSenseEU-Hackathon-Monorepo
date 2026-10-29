@@ -7,12 +7,8 @@ Latency is of synchronous POST /runs seen here, per lane (app/metrics.py).
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
-# No Tavily or local data backend exists on main yet: tavily reads an optional
-# env flag (never the key), data_backend is always zetaris.
-FALSY = {"", "0", "false", "no", "off"}
 
 
 async def build_platform_status(*, cache, limiter, counters, agents_json, lookup_timeout) -> dict[str, Any]:
@@ -28,8 +24,8 @@ async def build_platform_status(*, cache, limiter, counters, agents_json, lookup
         "agents_ok": bool(cfg),
         "llm_backend": cfg.get("llm_backend"),
         "lanes": {k: str(v) for k, v in (cfg.get("lanes") or {}).items()},
-        "data_backend": "zetaris",
-        "tavily": (os.environ.get("FF_TAVILY") or "").strip().lower() not in FALSY,
+        "data_backend": cfg.get("data_backend") or "zetaris",
+        "tavily": cfg.get("tavily") is True,
         "latency": counters.latency_stats(),
         "cache": {
             "backend": await asyncio.to_thread(cache.backend),
