@@ -235,6 +235,8 @@ The NVIDIA chat key is not a variable in `.env`. It lives only in Nightshift's P
 
 Only needed for layer (c) (`FF_RAG_DOCS`, `scripts/rag_ingest.py`). Generate your own key. It is a separate key from the one in Nightshift's Providers tab, even when both come from the same NVIDIA account.
 
+`FF_TAVILY=true` plus `TAVILY_API_KEY` (your own key from tavily.com) turns on `tavily.py`: one Search call per place from `request.context.place` in the Investigator, snippets cited by URL and labelled "Web context, not an official warning". Off by default; with no key or on any error the run skips it. `TAVILY_TIMEOUT_S` (default 6).
+
 1. Sign in at [build.nvidia.com](https://build.nvidia.com) with a free NVIDIA account.
 2. Open the `nvidia/nemotron-3.5-embed-1b` model page. (`nvidia/llama-nemotron-embed-1b-v2` is retired and answers HTTP 410.)
 3. Choose **Get API Key**, then **Generate**. The key starts with `nvapi-`. The free tier's trial credits cover the corpus.

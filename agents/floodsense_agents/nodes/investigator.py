@@ -1534,6 +1534,39 @@ def _attach_documents(claims, raws, request, query):
     return claims, evidence
 
 
+def _attach_web(claims, place, note):
+    """Tavily snippets as labelled layer (c) claims. Text is cleaned of digits, markup and
+    newlines (tavily.clean) and shown only as a quoted excerpt; claims carry no severity."""
+    from floodsense_agents import tavily
+
+    res = tavily.search(place)
+    if res.status != "ok":
+        why = f" ({res.reason})" if res.reason else ""
+        return claims, [], f"{note.lstrip('; ')} web context {res.status}{why}".strip()
+    rows_for_q: dict[str, list[dict]] = {}
+    for n, raw in enumerate(tavily.passages(res.items, now_utc()), 1):
+        own = Claim(
+            claim_id=f"C-web-{n}",
+            text=f'{tavily.LABEL}. {raw["title"]}: "{raw["quote"]}"',
+            kind="fact",
+        )
+        _cite_passage(own, raw, 1, rows_for_q)
+        claims = [*claims, own]
+    ev = [
+        Evidence(
+            query_id=q,
+            view="web.tavily",
+            sql="Tavily Search API",
+            rows_sample=r,
+            row_count=len(r),
+            executed_at_utc=now_utc(),
+            source="tavily",
+        )
+        for q, r in rows_for_q.items()
+    ]
+    return claims, ev, note
+
+
 def make(deps: Deps):
     def investigator(state: FloodState) -> dict:
         t = time.time()
@@ -1626,6 +1659,11 @@ def make(deps: Deps):
                             claims, result.citations, request, doc_query
                         )
                         extra = [*extra, *doc_evidence]
+        if settings.ff_tavily and state.get("event_id") != WATCH_EVENT:
+            place = ((state.get("request") or {}).get("context") or {}).get("place")
+            if isinstance(place, str) and place.strip():
+                claims, web_ev, doc_note = _attach_web(claims, place, doc_note)
+                extra = [*extra, *web_ev]
         out_live = {"live_findings": findings} if findings is not None else {}
         return {
             **out_live,
