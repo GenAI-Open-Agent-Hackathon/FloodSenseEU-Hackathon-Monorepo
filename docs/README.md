@@ -8,6 +8,7 @@ Owner: Mihir (architecture, ADRs, security review). The Architect is one role am
 - [HANDOVER.md](HANDOVER.md) — state after submission and what remains for humans.
 - [SUBMISSION.md](SUBMISSION.md) — sponsor usage, evaluation, honest limits.
 - [DEPLOY-NEBIUS.md](DEPLOY-NEBIUS.md) — host the judge demo on a Nebius VM: compose, login, caps, smoke test, cost worksheet.
+- [SUBMISSION-NEBIUS.md](SUBMISSION-NEBIUS.md) — Nebius x NVIDIA hackathon pack: Devpost text, rules checklist, feedback draft, video script, measurements table.
 - [DECK-FACTS.md](DECK-FACTS.md) — event figures for the deck, quoted from the stored corpus.
 - [legal/sources.md](legal/sources.md) — every source, licence and attribution. Stored third-party content: [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 - [RELEASING.md](RELEASING.md) — changelog lines on each pull request, the 20:00 tag, and the GitHub Release.

@@ -37,6 +37,9 @@ flowchart LR
   ENG["Engines sidecar :8300<br/>Meterless H-MEM + World Model"]
   NS["Meterless Nightshift :8088<br/>meterless/fast, meterless/deep"]
   NEM["NVIDIA Nemotron 3.5"]
+  TF["Nebius Token Factory<br/>LLM_BACKEND=nebius, NVIDIA Nemotron<br/>one OpenAI-compatible API, fast and deep lanes"]
+  TAV["Tavily Search<br/>FF_TAVILY, labelled web context"]
+  HOST["Nebius AI Cloud<br/>hosting (kit in review)"]
   PGV[("pgvector :15432<br/>1,859 passages")]
   NIM["NVIDIA NIM<br/>nemotron-embed"]
   ZET["Zetaris<br/>the only SQL path to data"]
@@ -49,6 +52,9 @@ flowchart LR
   LANES --> ZET
   FULL --> ZET
   FULL --> NS --> NEM
+  FULL -. "alternative backend" .-> TF
+  FULL -. "web context" .-> TAV
+  HOST -. "runs the app (planned)" .-> API
   FULL <--> ENG
   LANES -. "H-MEM recall" .-> ENG
   FULL --> PGV
@@ -58,7 +64,7 @@ flowchart LR
   POLL --> ZET
 ```
 
-The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and every chat model call goes through Nightshift.
+The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and every chat model call goes through one backend: Nightshift (default) or Nebius Token Factory (`LLM_BACKEND=nebius`).
 
 ## How the sponsors are used
 
@@ -70,6 +76,21 @@ The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detai
 - **Cursor: see [How we built it](#how-we-built-it).**
 
 Each answer in the UI has a "How this answer was made" panel with one tile per technology. The sponsor details with file references are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
+
+## Built on Nebius and NVIDIA
+
+Entry for the Nebius x NVIDIA Global AI Hackathon, track Best Apps and Agents. FloodSense was built 22 to 27 Oct 2026; the Nebius port (Token Factory backend, Tavily web context, Nebius hosting kit) is the main new work of the submission period. Submission pack: [docs/SUBMISSION-NEBIUS.md](docs/SUBMISSION-NEBIUS.md).
+
+- **Runtime call to Token Factory with NVIDIA Nemotron.** `LLM_BACKEND=nebius` sends every chat completion to `POST https://api.tokenfactory.nebius.com/v1/chat/completions` (OpenAI-compatible, Bearer `NEBIUS_API_KEY`; override with `NEBIUS_BASE_URL`). Code: `NebiusClient` in `agents/floodsense_agents/nightshift.py`, settings in `agents/floodsense_agents/settings.py`.
+- **Which Nemotron, per lane.** Defaults on main: fast lane `NEBIUS_MODEL_FAST=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (Investigator, Skeptic rationale, Playbook first draft, front door); deep lane `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL` (Judge grounding, Playbook repair). Both are env-overridable. These ids come from Nebius web pages, not yet from a keyed `GET /v1/models`.
+- **One API for all lanes.** Both lanes use the same endpoint and key; only the `model` field differs. `MODEL_FAST` / `MODEL_DEEP` are ignored in this mode.
+- **Resilience.** Shared with the Nightshift client: a process-wide call gate (max concurrency and a requests-per-minute pacer, `NIGHTSHIFT_MAX_CONCURRENCY`, `NIGHTSHIFT_RPM`; the env names keep the old prefix), exponential backoff with jitter on 429 and empty responses, a total per-call time budget, and a JSON-mode downgrade if `response_format` is rejected.
+- **Model id on the record.** The id that answered each step is stored in the trace (`model_id`, `duration_ms`) and on each Judge score; the UI's "How this answer was made" panel shows it. The Nebius default ids are accepted by the Judge contract enum.
+- **Where Token Factory helped.** TO FILL after live runs (see "Feedback" in [docs/SUBMISSION-NEBIUS.md](docs/SUBMISSION-NEBIUS.md)). We make no speed or cost claim until measured.
+- **Tavily web evidence.** With `FF_TAVILY=true` and `TAVILY_API_KEY`, the full-lane Investigator makes one Tavily Search call per place and adds up to three snippets as claims labelled "Web context, not an official warning", each cited by URL and retrieval time. Digits, markup and newlines are stripped, so web text carries no numbers into a claim. Default off. Code: `agents/floodsense_agents/tavily.py`.
+- **Hosting on Nebius AI Cloud.** Hosting kit in review (no `docs/DEPLOY-NEBIUS.md` on main yet).
+- **Run it with your own keys.** In `agents/.env`: `LLM_BACKEND=nebius`, `NEBIUS_API_KEY=<your Token Factory key>`, and optionally `FF_TAVILY=true`, `TAVILY_API_KEY=<your key>`. Then `python tasks.py up` (needs your own Zetaris, see Quick start). Startup fails if the key is missing.
+- **Honest status.** Live Token Factory calls and live Tavily calls are not yet verified in the repo docs (offline mock-transport tests only: `agents/tests/test_nebius.py`). The 27 Oct eval figures were measured on Nightshift, not Token Factory. Nightshift stays the default backend and Zetaris the data layer.
 
 ## Quick start
 
