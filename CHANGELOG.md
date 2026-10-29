@@ -9,6 +9,14 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- Apache-2.0 `LICENSE` for the FloodSense code (copyright 2026 FloodSense EU contributors). `THIRD_PARTY_NOTICES.md` section 3 updated.
+
+### Changed
+
+- Post-submission docs cleanup: README, docs index and "For judges" point at 1.0.1; the tag list shows `v1.0.0` and `v1.0.1`; the Cursor section in README and `docs/SUBMISSION.md` states only what the repository records; living `LLM_PROVIDER_SWITCH` mentions removed from `docs/architecture/technical-highlights.md` and `docs/HANDOVER.md`; the handover reflects the submitted state. Docs only, no code change.
+
 ## [1.0.1] - 2026-10-27
 
 **Highlights.** A cleanup of 1.0.0 before submission. No new features. The test-only alternative LLM provider switch is gone, answers no longer show a hallucination percentage, and the docs describe the Nightshift lanes without naming a model per lane.
