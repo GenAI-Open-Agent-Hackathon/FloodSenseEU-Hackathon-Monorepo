@@ -1,0 +1,40 @@
+# Hosted reverse proxy. Only this container publishes ports.
+# SITE_ADDRESS=:80 -> plain HTTP. SITE_ADDRESS=demo.example.org -> automatic HTTPS (ports 80+443 must be open).
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# Unauthenticated liveness for uptime checks. Reveals nothing.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		basic_auth {
+			{$JUDGE_USER} {$JUDGE_HASH}
+		}
+
+		# Request size cap: a question is a few hundred bytes.
+		request_body {
+			max_size 32KB
+		}
+
+		# /api/* -> API with the prefix stripped (the UI is built with VITE_API_URL=/api).
+		handle_path /api/* {
+			# Operator-only switches stay unreachable from the public URL.
+			@admin path /watch/auto-assess /watch/cycle
+			handle @admin {
+				respond "disabled on the hosted demo" 403
+			}
+			reverse_proxy api:8000
+		}
+
+		# Vite dev server rejects unknown Host headers; present it as localhost.
+		reverse_proxy ui:5173 {
+			header_up Host localhost:5173
+		}
+	}
+}

@@ -85,6 +85,8 @@ Invoke-RestMethod http://127.0.0.1:18000/health
 
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 
+**Hosted judge demo.** `compose.hosted.yaml` plus [docs/DEPLOY-NEBIUS.md](docs/DEPLOY-NEBIUS.md) put the app on a Nebius VM behind a login, on Demo data with live Nebius model answers.
+
 ## Honest limitations
 
 - The insurer portfolio is synthetic and labelled so. Only Valencia has a demo book.
