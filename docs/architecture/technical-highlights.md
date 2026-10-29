@@ -67,7 +67,7 @@ flowchart LR
 - `hazard_now` view with past and forecast rows and a horizon label: `zetaris/migrations/034_create_view_hazard_now.sql`, `039_label_hazard_now_horizon.sql`.
 - Mode classifier: a "now" question goes live, a past-event question goes to event mode: `classify()` in `agents/floodsense_agents/live.py`.
 - Staleness: an old sync is flagged "stale" in the answer: `agents/floodsense_agents/live.py:40` (`STALE_FORECAST_H`).
-- The answer cache is keyed on the effective mode and provider, so a live answer and an event answer never share a cache entry: `api/app/cache.py`.
+- The answer cache is keyed on the effective mode, so a live answer and an event answer never share a cache entry: `api/app/cache.py`.
 
 ## Semantic cache and labelled replay
 
@@ -92,7 +92,7 @@ flowchart LR
 
 - No "Live" chip unless the answer is live (`ui/src/components/Banners.tsx`, `AskFloodSense.tsx`, `api/app/main.py`).
 - The insurer portfolio is labelled synthetic in the data (`zetaris/migrations/018_label_exposure_synthetic.sql`) and the UI (`ui/src/components/Portfolio.tsx`).
-- The faster provider switch is test-only and off by default (`LLM_PROVIDER_SWITCH`, `agents/floodsense_agents/nightshift.py`).
+- Every chat completion goes through Meterless Nightshift; there is no alternative provider path (`agents/floodsense_agents/nightshift.py`, [ADR 0004](../adr/0004-nightshift-only-llm-calls.md)).
 
 ## Test counts
 

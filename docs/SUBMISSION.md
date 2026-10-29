@@ -57,10 +57,7 @@ The NVIDIA chat key lives only in Nightshift's Providers tab. `NVIDIA_NIM_API_KE
 
 What it does. Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests. The repository's coding, review and documentation work also used coding agents with independent review agents: every change went through a branch, an independent review and a pull request (see the pull requests in this repository). The same wording is in the README, "How we built it".
 
-<!-- TEAM: confirm Cursor wording -->
-<!-- TEAM-EDITABLE-BLOCK START (Cursor details) -->
-Which features each person used, and example pull requests: the team fills this in. Not verified from the repository, which records only the skill below.
-<!-- TEAM-EDITABLE-BLOCK END -->
+What the repository records. One Cursor artefact is committed: the skill `.cursor/skills/floodsense-pr-review/SKILL.md`, added in [PR #35](https://github.com/GenAI-Open-Agent-Hackathon/FloodSenseEU-Hackathon-Monorepo/pull/35). It is the merge bar a Cursor cloud agent checks before it edits a pull request in this monorepo and again before it calls the pull request done. Which Cursor features each person used is not recorded in the repository, so we do not list it here.
 
 Where in the code: `.cursor/skills/floodsense-pr-review/SKILL.md` (see [CHANGELOG.md](../CHANGELOG.md), PR #35).
 
