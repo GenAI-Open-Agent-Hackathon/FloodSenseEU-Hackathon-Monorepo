@@ -4,40 +4,40 @@ Track: Best Apps and Agents. Every claim here matches `main`. `TO MEASURE:` mean
 
 ## 1. Devpost description (English)
 
-### 1. Problem
+### 1.1 Problem
 
 On 29 Oct 2024 a flood killed at least 232 people around Valencia ([DECK-FACTS](DECK-FACTS.md), Wikipedia revision in the stored corpus). The stored corpus says surging water destroyed a bridge in Picanya at 19:25 and that the ES-alert phone warning came at 20:11 (`corpus/pdf/wiki-2024-spanish-floods.html`). TO VERIFY: "river peaked 18:55" is not in the repo docs or corpus; do not say it until a source is found. Warnings exist, but nobody can see why a place is at risk, with proof, in time to act.
 
-### 2. What it does: watch, investigate, falsify, expose, judge, approve, remember
+### 1.2 What it does: watch, investigate, falsify, expose, judge, approve, remember
 
 - **Watch**: a rule-based Control tower scans 45 sources (26 gauges, 11 GloFAS points, 8 Valencia points), no model calls.
 - **Investigate**: the Investigator builds a cited causal chain (rain, catchment, river, site) with Zetaris query ids as citations.
-- **Falsify**: the Skeptic runs up to three SQL counter-checks per hypothesis and can send the Investigator back (at most 3 rounds).
+- **Falsify**: the Skeptic runs up to three SQL counter-checks per hypothesis and, when a hypothesis is not supported, sends the Investigator back for one revise pass (`graph.py`: "no revise yet").
 - **Expose**: Exposure joins the flood footprint to insured sites (synthetic portfolio, labelled).
 - **Judge**: every claim is scored; each number must be a cell of the cited rows. The Judge does not approve.
 - **Approve**: a person approves, edits or rejects; nothing leaves before that.
 - **Remember**: an approved run is stored in H-MEM and a repeat is served with a "Cached answer ... not live" label.
 
-### 3. How we built it
+### 1.3 How we built it
 
 Python/LangGraph agents, FastAPI API, React UI, Zetaris as the only data path, pgvector for 1,859 passages, Meterless engines sidecar (H-MEM, World Model). Chat goes through one backend: Nightshift (default) or Nebius Token Factory (`LLM_BACKEND=nebius`). Details: [architecture/c4.md](architecture/c4.md), [technical-highlights](architecture/technical-highlights.md).
 
-### 4. Why Nebius and NVIDIA
+### 1.4 Why Nebius and NVIDIA
 
 All agent reasoning calls NVIDIA Nemotron over the Token Factory OpenAI-compatible API: fast lane `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, deep lane `nvidia/Nemotron-3.5-Super-VL` (env defaults on main), one endpoint and one key for both lanes. The model id that answered is recorded per step in the trace and on each Judge score. Tavily adds cited, labelled web context. TO FILL: concrete benefit seen in live Token Factory runs (none measured yet).
 
-### 5. What we built during the hackathon
+### 1.5 What we built during the hackathon
 
-FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANGELOG.md)). New in the submission period: `NebiusClient` and `LLM_BACKEND=nebius`, Tavily web context (`FF_TAVILY`), `GET /platform/status`, Apache-2.0 LICENSE. TO VERIFY: Nebius AI Cloud hosting kit (in review, not on main). The earlier 22 to 27 Oct work ran on Nightshift; the Nebius port is the main new work.
+FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANGELOG.md)). New in the submission period: `NebiusClient` and `LLM_BACKEND=nebius`, Tavily web context (`FF_TAVILY`), `GET /platform/status`, and the Apache-2.0 licence file (the code was already public; licence added in this period). TO VERIFY: Nebius AI Cloud hosting kit (in review, not on main). The earlier 22 to 27 Oct work ran on Nightshift; the Nebius port is the main new work.
 
-### 6. Challenges, learnings, next
+### 1.6 Challenges, learnings, next
 
 - Reasoning models spend hidden tokens: on Nightshift, 1,300 to 5,500 completion tokens, and the gateway cut calls at about 45 s; we streamed and split the Investigator into small per-link calls (CHANGELOG 0.x). The full lane takes 5 to 6 minutes on Nightshift (27 Oct runs).
 - Rate limits: a gate plus pacer plus backoff, now shared with the Nebius client.
 - Learning: numbers in claims must be cells of cited rows; web text carries no numbers.
 - Next: TO FILL after live Token Factory runs (verify model ids with `GET /v1/models`, measure lane latency, move hosting to Nebius AI Cloud).
 
-### 7. Testing instructions
+### 1.7 Testing instructions
 
 - Demo URL: `TO FILL: <demo URL>`; judge login: `TO FILL: <login, if any>`.
 - Open the Citizen desk, switch to Past flood, Valencia 2024. Try these (they are in the product's suggestion chips):
@@ -53,7 +53,7 @@ FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANG
 | --- | --- |
 | Track Best Apps and Agents | Entering. |
 | Runtime call to Token Factory with an NVIDIA open model | Code on main (`NebiusClient`). Live call: TO VERIFY (offline tests only). Do a live run and record the model id before submitting. |
-| Public repo, detectable open-source licence | Apache-2.0 `LICENSE` on main. Check the repo is public: TO VERIFY. |
+| Public repo, detectable open-source licence | Apache-2.0 `LICENSE` on main. Repo is PUBLIC and GitHub detects Apache-2.0 (`gh repo view`, checked 29 Oct 2026). |
 | README explains Nemotron use, Token Factory help, other Nebius tools | Section written. "Where Token Factory helped" is TO FILL. |
 | Working demo URL | TO FILL. |
 | Video under 3 min on YouTube | Script in section 4. Not recorded. |

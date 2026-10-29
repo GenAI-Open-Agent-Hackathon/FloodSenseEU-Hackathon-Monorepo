@@ -54,7 +54,7 @@ flowchart LR
   FULL --> NS --> NEM
   FULL -. "alternative backend" .-> TF
   FULL -. "web context" .-> TAV
-  HOST -. "runs the app" .-> API
+  HOST -. "runs the app (planned)" .-> API
   FULL <--> ENG
   LANES -. "H-MEM recall" .-> ENG
   FULL --> PGV
