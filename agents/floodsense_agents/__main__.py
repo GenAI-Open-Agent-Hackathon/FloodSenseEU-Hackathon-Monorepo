@@ -359,6 +359,9 @@ def ready():
             "status": "ready",
             "llm": _dep_name(rt, "llm"),
             "llm_backend": settings.llm_backend,
+            # Not under flags (flags are in the API cache key). Only the switch, never the key.
+            "tavily": settings.ff_tavily,
+            "data_backend": "zetaris",  # the only data path; no local backend on main
             "zetaris": _dep_name(rt, "zetaris"),
             "memory": _dep_name(rt, "memory"),
             "world_model": _dep_name(rt, "world"),
