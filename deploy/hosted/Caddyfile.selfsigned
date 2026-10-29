@@ -1,0 +1,9 @@
+# IP-only VM. SITE_ADDRESS=<VM public IP>. Caddy's own CA signs the certificate: encrypted, but browsers warn.
+{
+	admin off
+}
+import /etc/caddy/app.caddy
+{$SITE_ADDRESS} {
+	tls internal
+	import app
+}

@@ -1,0 +1,39 @@
+# Shared site body (snippet). Imported by Caddyfile.https / .selfsigned / .http.
+(app) {
+	encode zstd gzip
+
+	# Unauthenticated liveness for uptime checks. Reveals nothing.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		basic_auth {
+			{$JUDGE_USER} {$JUDGE_HASH}
+		}
+
+		# Request size cap: a question is a few hundred bytes.
+		request_body {
+			max_size 32KB
+		}
+
+		# /api/* -> API with the prefix stripped (the UI is built with VITE_API_URL=/api).
+		handle_path /api/* {
+			# Operator-only switches are unreachable from the public URL.
+			@admin path /watch/auto-assess /watch/cycle
+			handle @admin {
+				respond "disabled on the hosted demo" 403
+			}
+			reverse_proxy api:8000 {
+				flush_interval -1
+			}
+		}
+
+		# Production UI build baked into the image, SPA fallback to index.html.
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			file_server
+		}
+	}
+}
