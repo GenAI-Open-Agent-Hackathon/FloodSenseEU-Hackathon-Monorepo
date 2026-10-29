@@ -61,6 +61,10 @@ flowchart LR
 - Agents never put `<=>` in Zetaris SQL. Zetaris reads it as null-safe equality (ADR 0009).
 - Embeddings: `agents/floodsense_agents/nim_embed.py`, ingest `scripts/rag_ingest.py`. Behind `FF_RAG_DOCS`.
 
+## Web context (Tavily)
+
+`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`, so web text cannot supply a figure.
+
 ## Live mode
 
 - `hazard_now` view with past and forecast rows and a horizon label: `zetaris/migrations/034_create_view_hazard_now.sql`, `039_label_hazard_now_horizon.sql`.

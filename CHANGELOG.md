@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- Tavily Search as a cited web-context source in the full-lane Investigator (`FF_TAVILY`, default off; `TAVILY_API_KEY`). Snippets are claims labelled "Web context, not an official warning" with a URL citation; they carry no numbers. Live calls are not yet verified against a real key.
+
 ## [1.0.1] - 2026-10-27
 
 **Highlights.** A cleanup of 1.0.0 before submission. No new features. The test-only alternative LLM provider switch is gone, answers no longer show a hallucination percentage, and the docs describe the Nightshift lanes without naming a model per lane.
