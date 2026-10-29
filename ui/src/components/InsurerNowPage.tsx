@@ -1,3 +1,5 @@
+import Button from "@mui/material/Button";
+import { PageHeader, SectionCard } from "./ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { next48hQuestion } from "../api/ask";
 import { fetchEuWatch, type EuWatchLoad } from "../api/euWatch";
@@ -113,34 +115,31 @@ export function InsurerNowPage() {
 
   return (
     <div className="now-page">
-      <header className="now-head">
-        <div>
-          <h2 className="now-title">Right now{stamp ? ` · ${localTime(stamp)}` : ""}</h2>
-          {load.state === "ready" && (
-            <p className="now-meta" aria-live="polite">
+      <PageHeader
+        title={`Right now${stamp ? ` · ${localTime(stamp)}` : ""}`}
+        subtitle={
+          load.state === "ready" ? (
+            <>
               <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />}{demo ? "" : ` Updated ${relativeTime(dataTime(load.data.cache, load.fetchedAt) ?? load.fetchedAt, clock)}`}
               {!demo && load.data.cache?.cache === "stale" ? ` · ${staleNote(staleViews([load.data.cache]))}` : ""}
               {load.data.queryId ? ` · Zetaris query ${load.data.queryId.slice(0, 8)}` : ""}
               {load.data.dropped > 0 ? ` · ${load.data.dropped} rows dropped` : ""}
               {load.data.truncated ? " · truncated" : ""}
-            </p>
-          )}
-        </div>
-        <div className="button-row">
-          <button type="button" className="now-refresh" onClick={() => openAsk(next48hQuestion())}>
-            Is the next 48 h safe anywhere?
-          </button>
-          <button type="button" className="now-refresh" onClick={refresh}>
-            Refresh
-          </button>
-        </div>
-      </header>
-      <section className="now-region" aria-labelledby="now-es">
-        <div className="now-region-head">
-          <h3 className="now-subtitle" id="now-es">
-            Spain · Valencia (Open-Meteo/GloFAS model)
-          </h3>
-        </div>
+            </>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Button variant="outlined" size="small" onClick={() => openAsk(next48hQuestion())}>
+              Is the next 48 h safe anywhere?
+            </Button>
+            <Button variant="outlined" size="small" onClick={refresh}>
+              Refresh
+            </Button>
+          </>
+        }
+      />
+      <SectionCard title="Spain · Valencia (Open-Meteo/GloFAS model)">
         <p className="now-note">{MODEL_NOTE}. Dashed line and “forecast” values are model forecasts.</p>
 
       {load.state === "loading" && <LoadingNote what="Valencia readings" />}
@@ -163,19 +162,14 @@ export function InsurerNowPage() {
         </div>
       )}
         <p className="now-source">{ATTRIBUTION}</p>
-      </section>
+      </SectionCard>
 
-      <section className="now-region" aria-labelledby="now-de">
-        <div className="now-region-head">
-          <h3 className="now-subtitle" id="now-de">
-            Germany · federal waterways (PEGELONLINE live gauges)
-          </h3>
-        </div>
+      <SectionCard title="Germany · federal waterways (PEGELONLINE live gauges)">
         <p className="now-note">Measured water levels. Colour and bar compare each level with the station's MHW; dashed or Stale means not a fresh live reading.</p>
         <GaugeMap load={gauges} gauges={gaugeSummaries} />
         <GaugeList load={gauges} gauges={gaugeSummaries} />
         <p className="now-source">Quelle: WSV, PEGELONLINE</p>
-      </section>
+      </SectionCard>
 
       <EuWatchSection sources={watchSources} model={euWatch} />
     </div>

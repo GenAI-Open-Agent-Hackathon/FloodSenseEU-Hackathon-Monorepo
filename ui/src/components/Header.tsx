@@ -50,7 +50,7 @@ export function Header() {
       <a className="skip" href="#content">
         Skip to content
       </a>
-      <Toolbar sx={{ gap: 2, flexWrap: "wrap" }}>
+      <Toolbar sx={{ gap: 2, flexWrap: "wrap", "@media (max-width:760px)": { pl: 7 } }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, color: "primary.main" }}>
           <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
             <rect width="32" height="32" rx="8" fill="currentColor" opacity="0.16" />
@@ -66,7 +66,7 @@ export function Header() {
             </Typography>
           </Box>
         </Box>
-        <Tabs value={tab} aria-label="Workspace" sx={{ flex: 1, minWidth: 260 }}>
+        <Tabs value={tab} aria-label="Workspace" variant="scrollable" scrollButtons={false} sx={{ flex: 1, minWidth: 260 }}>
           {WORKSPACES.map((w) => (
             <Tab key={w.route} value={w.route} label={w.label} component="a" href={`#/${w.route}`} />
           ))}

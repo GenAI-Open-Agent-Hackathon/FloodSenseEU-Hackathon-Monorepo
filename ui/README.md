@@ -28,6 +28,22 @@ Compose publishes the dev server on host port 15173 (container port 5173). `VITE
 
 Do not put tokens in `ui/.env`. Vite exposes every `VITE_*` value to the browser. The NVIDIA provider key lives only in Nightshift's Providers tab. This package does not call Nightshift or Zetaris.
 
+## Design system (MUI)
+
+The UI uses Material UI 9 with emotion. `ui/src/lib/muiTheme.ts` is the single theme. It follows the `data-theme` attribute (light/dark) through CSS variables, so `lib/theme.ts` stays the only place that switches theme. `CssBaseline` is on.
+
+- Status tones (`normal`, `watch`, `elevated`, `warning`, `neutral`, `unknown`) are in `theme.palette.status`. Model output uses amber (`elevated`), never red. Colour is never the only signal: every chip shows its word.
+- Shared components live in `src/components/ui/`: `PageHeader`, `SectionCard`, `StatCard`, `StatusChip`, `DataTable` (sticky header, `dense`), `EmptyState`, `LoadingState`. Import from `./ui`.
+- The shell: `Header` (AppBar, Tabs), `SideNav` (Drawer: permanent on wide screens, temporary under 760 px; collapse state from `useCollapsedNav`).
+- Not migrated yet: other pages still use the older classes in `src/styles/*.css`. Delete a CSS rule only when its last user is migrated.
+
+### Add a page
+
+1. Add the route and nav entry in `src/lib/route.ts` (`DESK_NAV`) and the case in the desk view (`CitizenView`, `InsurerView` or `OperatorView`).
+2. Build it as `PageHeader` (title, subtitle, actions) followed by `SectionCard`s; use `StatCard` for single figures and `DataTable` for tabular data. Use `LoadingState` and `EmptyState` for the other states.
+3. Keep the honesty labels (live, demo, model) in the subtitle or card body, and check 375 px for horizontal scroll.
+4. Add a small test next to any new logic; run `npx tsc --noEmit && npx vitest run && npx vite build`.
+
 ## Global mode (Live, Past flood, Demo data)
 
 One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; pure helpers in `src/lib/mode.ts`). The header switch has **Live | Past flood** (with an event picker: Ahr 2021, Valencia 2024) and a **Demo data** checkbox. The state is in the URL query, `?mode=past&event=EMSR773&demo=1` (Live with no demo writes nothing), so a refresh keeps it; the hash is still the page.

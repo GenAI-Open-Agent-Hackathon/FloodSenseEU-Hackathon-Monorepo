@@ -107,3 +107,7 @@ Python suites run on 27 Oct 2026 on branch `docs/release-v1` at `main` `c9ff924`
 | ui | `npx vitest run` in `ui/` | 128 passed (19 files) |
 
 CI runs the same suites with `python tasks.py test` on every pull request.
+
+## UI stack
+
+The `ui/` app is React 18 and Vite with TypeScript. Material UI 9 (emotion) supplies the design system: one theme in `ui/src/lib/muiTheme.ts` that follows the `data-theme` light/dark attribute, shared components in `ui/src/components/ui/`, and a MUI Drawer shell. Maps are Leaflet; the gauge map has a MapLibre 3D terrain toggle. Migration from the older hand-written CSS is incremental, see `ui/README.md`.

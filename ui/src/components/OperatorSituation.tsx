@@ -1,3 +1,5 @@
+import Button from "@mui/material/Button";
+import { PageHeader, SectionCard } from "./ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadForecast, type ForecastLoad } from "../api/operatorForecast";
 import { useConsole } from "../context/ConsoleContext";
@@ -121,19 +123,20 @@ export function OperatorSituation() {
 
   return (
     <div className="op-page now-page">
-      <header className="now-head">
-        <div>
-          <p className="eyebrow">Civil protection</p>
-          <h2 className="now-title">Situation board</h2>
-          <p className="now-meta">
+      <PageHeader
+        title="Situation board"
+        subtitle={
+          <>
             <span className="now-live-tag">Live data · Zetaris</span>
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
-          </p>
-        </div>
-        <button type="button" className="now-refresh" onClick={live.refresh}>
-          Refresh
-        </button>
-      </header>
+          </>
+        }
+        actions={
+          <Button variant="outlined" size="small" onClick={live.refresh}>
+            Refresh
+          </Button>
+        }
+      />
 
       {!group || !focus ? (
         <p className="now-status" role="status">
@@ -183,11 +186,7 @@ export function OperatorSituation() {
             </p>
           </section>
 
-          <section className="card" aria-labelledby="op-river">
-            <p className="section-label">Status on the river</p>
-            <h3 id="op-river" className="op-h">
-              {group.river} · {countryName(group.country)}
-            </h3>
+          <SectionCard title={`${group.river} · ${countryName(group.country)}`}>
             <p className="note">{orderLine(group)}</p>
             {sameRiverElsewhere(groups, group).length > 0 && (
               <p className="note">The {group.river} is also watched in {sameRiverElsewhere(groups, group).join(", ")}.</p>
@@ -205,7 +204,7 @@ export function OperatorSituation() {
                 />
               ))}
             </ol>
-          </section>
+          </SectionCard>
 
           <FocusBrief
             s={focus}

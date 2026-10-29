@@ -28,9 +28,6 @@ function Shell() {
       <div className="shell-stage">
         <Header />
         <SideNav collapsed={nav.collapsed} onToggle={nav.toggle} onNavigate={nav.closeIfDrawer} drawer={nav.drawer} />
-        {nav.drawer && !nav.collapsed && (
-          <button type="button" className="nav-backdrop" aria-label="Close pages" onClick={nav.close} />
-        )}
         <ReplayBar />
         <DemoOffer />
         <main id="content">
