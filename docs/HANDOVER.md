@@ -76,8 +76,6 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 ### Known bugs and weak spots
 - Insurer Approvals queue had 29 old test runs (curated in #90). Insurer "Now" page is dense.
 - Review's Skeptic/Judge tabs are still the bundled Valencia fixture.
-- Overview shows Paiporta "Below the 100 m3/s line" on 29 Oct because the daily value crosses on 30 Oct.
-- Sites map uses an 80 m3/s band while Replay uses 100.
 - First load of live pages takes 5-10 s (Zetaris views are queried one by one).
 - Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Open-Meteo free tier is non-commercial; one forecast question is about 45 calls.

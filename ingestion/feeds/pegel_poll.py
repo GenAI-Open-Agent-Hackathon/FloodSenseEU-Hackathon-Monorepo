@@ -50,7 +50,10 @@ def env_interval() -> float:
     if not raw:
         return DEFAULT_INTERVAL_S
     try:
-        return float(raw)
+        value = float(raw)
+        if value != value or value in (float("inf"), float("-inf")):  # nan / inf
+            raise ValueError(raw)
+        return value
     except ValueError:
         log(f"POLL_INTERVAL_S={raw!r} is not a number; using {MIN_INTERVAL_S}s", err=True)
         return MIN_INTERVAL_S

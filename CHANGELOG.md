@@ -20,6 +20,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 - Pegel poller: `POLL_INTERVAL_S` / `--interval` below 30 s (including 0, which busy-looped) is raised to 30 s with a log line.
 
+- One alert line: the insurer Sites map band moves from 80 to 100 m3/s, read from `SIMULATED_ALERT_M3S`, which Replay and the Watchers anomaly line now share (a test fails if they drift). Overview status wording now says "(daily value)", so "Below the 100 m3/s alert line" on 29 Oct is not read as an hourly claim. Still FloodSense's own line, not an official warning.
+
 ### Changed
 
 - Post-submission docs cleanup: README, docs index and "For judges" point at 1.0.1; the tag list shows `v1.0.0` and `v1.0.1`; the Cursor section in README and `docs/SUBMISSION.md` states only what the repository records; living `LLM_PROVIDER_SWITCH` mentions removed from `docs/architecture/technical-highlights.md` and `docs/HANDOVER.md`; the handover reflects the submitted state. Docs only, no code change.

@@ -212,7 +212,7 @@ class ServiceLoopTest(unittest.TestCase):
     def test_main_service_interval_from_env(self) -> None:
         from unittest import mock
 
-        cases = {"": 600, "abc": 30, "1.5": 30, "0": 30, "-5": 30, "45": 45, "600": 600}
+        cases = {"": 600, "abc": 30, "nan": 30, "inf": 30, "-inf": 30, "1.5": 30, "0": 30, "-5": 30, "45": 45, "600": 600}
         for raw, want in cases.items():
             with mock.patch.dict(os.environ, {"POLL_INTERVAL_S": raw}), mock.patch.object(
                 pegel_poll, "serve", return_value=0
