@@ -13,24 +13,28 @@ x-restart: &restart
 services:
   proxy:
     <<: *restart
-    image: caddy:2-alpine
+    build:
+      context: ./ui
+      dockerfile: ../deploy/hosted/Dockerfile.proxy
+    # PROXY_MODE picks the Caddyfile: https (default), selfsigned, http (clear-text opt-in).
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.${PROXY_MODE:-https}", "--adapter", "caddyfile"]
     ports:
       - "80:80"
       - "443:443"
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
       JUDGE_USER: ${JUDGE_USER:?set JUDGE_USER in deploy/hosted/hosted.env}
       JUDGE_HASH: ${JUDGE_HASH:?run scripts/hosted_auth.py and set JUDGE_HASH}
     volumes:
-      - ./deploy/hosted/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/hosted:/etc/caddy:ro
       - caddy-data:/data
-    depends_on: [ui, api]
-
-  ui:
-    <<: *restart
-    build: ./ui
-    environment:
-      VITE_API_URL: /api
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   api:
     <<: *restart
@@ -43,7 +47,16 @@ services:
       RATE_LIMIT_RUNS_PER_MIN: ${RATE_LIMIT_RUNS_PER_MIN:-4}
       RATE_LIMIT_MAX_CONCURRENT_RUNS: ${RATE_LIMIT_MAX_CONCURRENT_RUNS:-2}
       RATE_LIMIT_CONCURRENCY_RETRY_AFTER_S: "30"
-    depends_on: [agents, redis]
+      # Without this the API's operator-switch guard is open. Same value as the agents.
+      WATCH_ADMIN_TOKEN: ${WATCH_ADMIN_TOKEN:?set WATCH_ADMIN_TOKEN in deploy/hosted/hosted.env}
+    depends_on:
+      agents: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
 
   agents:
     <<: *restart
@@ -86,11 +99,22 @@ services:
       LLM_TIMEOUT_S: "120"
     volumes:
       - checkpoints:/data/checkpoints
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8100/health', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
 
   redis:
     <<: *restart
     image: redis:7-alpine
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   caddy-data: {}

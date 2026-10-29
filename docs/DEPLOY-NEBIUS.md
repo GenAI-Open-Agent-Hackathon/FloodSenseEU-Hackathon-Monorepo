@@ -8,8 +8,7 @@ Treat the first deploy as the test, and run the smoke script before you send the
 
 | Service | Role | Published |
 |---|---|---|
-| `proxy` (Caddy) | Basic-auth login, TLS when a domain is set, 32 KB request cap, `/api/*` to API, rest to UI | 80, 443 |
-| `ui` | Vite dev server (`ui/Dockerfile` as is) built with `VITE_API_URL=/api` | no |
+| `proxy` (Caddy) | Basic-auth login, HTTPS, 32 KB request cap, `/api/*` to API, serves the production UI build (built in the image with `VITE_API_URL=/api`, SPA fallback) | 80, 443 |
 | `api` | FastAPI, rate limits, semantic cache, replay | no |
 | `agents` | LangGraph agents, `LLM_BACKEND=nebius` (Token Factory), `ZETARIS_MODE=fake` | no |
 | `redis` | Cache and replay recordings, 128 MB LRU, no persistence | no |
@@ -25,19 +24,19 @@ no live Zetaris views). Chat answers are real model calls through Nebius Token F
 | Lane / feature | Hosted | Notes |
 |---|---|---|
 | Front door (small talk) | works | model call, cheap |
-| Quick lane, forecast lane | works on Demo data | public sources (Open-Meteo, PEGELONLINE) are called from the VM if the lane fetches them directly; Zetaris-backed views fall back to the stand-in |
-| Full lane (Watchers, Investigator, Skeptic, Judge, approval) | works on seeded data | answers are about the seed data, not live gauges |
+| Quick lane, forecast lane | **off in practice** | with `FF_LIVE_DATA=false` the router (`agents/floodsense_agents/router.py`) sends every real question to the full lane: "nothing answers now" |
+| Full lane (Watchers, Investigator, Skeptic, Judge, approval) | works on seeded event data | e.g. Valencia 2024; takes minutes and many model calls; answers are about the seed data, not live gauges |
 | Past flood replay, cached answers, labelled replay | works | `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` on; labelled "not live" |
 | Live German gauges, Zetaris `/views` with live tables | not available | needs Zetaris |
 | H-MEM, World Model, RAG docs | off | need `engines` / `pgvector` |
 | Tavily web context | optional | set `TAVILY_API_KEY` and `FF_TAVILY=true` |
 
-Not verified: exactly which UI panels show "unavailable" with the stand-in. Click through once as a judge would.
+"Right now" questions ("is the Rhine at Köln rising?") are therefore answered as full-lane runs on seed data, not live readings. Tell judges to try the event questions. Not verified: exactly which UI panels show "unavailable" with the stand-in. Click through once as a judge would.
 
 ## Steps
 
-1. **Create the VM** in the Nebius console: Ubuntu 22.04, 2 vCPU / 8 GB RAM / 40 GB disk is enough (no GPU; models run in
-   Token Factory). Add your SSH key and a public IP. Security group: allow 22 (your IP only), 80, and 443 if you use a domain.
+1. **Create the VM** in the Nebius console: Ubuntu 22.04, 2 vCPU / 8 GB RAM / 40 GB disk (the UI image builds with npm, so keep 8 GB) is enough (no GPU; models run in
+   Token Factory). Add your SSH key and a public IP. Security group: allow 22 (your IP only), 80 and 443.
    A DevPod with Docker works the same; expose port 80.
 2. **Install Docker** (on the VM):
    ```bash
@@ -53,9 +52,11 @@ Not verified: exactly which UI panels show "unavailable" with the stand-in. Clic
    ```
 4. **Judge login**: `python3 scripts/hosted_auth.py` prints `JUDGE_USER`, `JUDGE_HASH` and the plain password. Paste the two
    env lines into `deploy/hosted/hosted.env`. Keep the password for step 8. (The hash line stays in single quotes.)
-5. **Fill the env file**: `NEBIUS_API_KEY`, optionally `TAVILY_API_KEY`, `WATCH_ADMIN_TOKEN` (long random string,
-   `openssl rand -hex 24`). For HTTPS set `SITE_ADDRESS=demo.example.org` after pointing its A record at the VM IP; Caddy
-   fetches the certificate on first start. Otherwise leave `:80`.
+5. **Fill the env file**: `NEBIUS_API_KEY`, optionally `TAVILY_API_KEY`, `WATCH_ADMIN_TOKEN` (required; long random string,
+   `openssl rand -hex 24`; the API refuses watch switches without it). Pick the proxy mode, **HTTPS by default** so the judge password is never sent in clear text:
+   - `PROXY_MODE=https` (default): `SITE_ADDRESS=demo.example.org`, A record pointing at the VM IP; Caddy fetches a public certificate on first start.
+   - `PROXY_MODE=selfsigned`: IP-only VM, `SITE_ADDRESS=<VM public IP>`. Encrypted, but browsers warn about the certificate; judges must accept it (`curl -k`, smoke script `--insecure`).
+   - `PROXY_MODE=http`: plain HTTP, **password in clear text**. Opt-in for a closed network only.
 6. **Start**:
    ```bash
    docker compose -f compose.hosted.yaml --env-file deploy/hosted/hosted.env -p floodsense-hosted up -d --build
@@ -63,19 +64,19 @@ Not verified: exactly which UI panels show "unavailable" with the stand-in. Clic
    ```
 7. **Verify with curl**:
    ```bash
-   curl -i http://VM_IP/healthz                       # 200 ok (no login)
-   curl -i http://VM_IP/api/health                    # 401 without login
-   curl -u judge:PASSWORD http://VM_IP/api/health     # {"status":"ok",...}
-   curl -u judge:PASSWORD http://VM_IP/api/config     # "llm_backend":"nebius"
-   curl -u judge:PASSWORD http://VM_IP/api/platform/status
+   curl -i https://DOMAIN/healthz                       # 200 ok (no login)
+   curl -i https://DOMAIN/api/health                    # 401 without login
+   curl -u judge:PASSWORD https://DOMAIN/api/health     # {"status":"ok",...}
+   curl -u judge:PASSWORD https://DOMAIN/api/config     # "llm_backend":"nebius"
+   curl -u judge:PASSWORD https://DOMAIN/api/platform/status
    ```
 8. **Smoke test** (stdlib only, from your laptop or the VM):
    ```bash
-   python3 scripts/smoke_hosted.py http://VM_IP --user judge --password PASSWORD
+   python3 scripts/smoke_hosted.py https://DOMAIN --user judge --password PASSWORD   # add --insecure for selfsigned
    ```
-   It checks liveness, login, API health, backend `nebius`, UI, one real question (this spends a few Token Factory calls) and
+   It checks liveness, login, API health, backend `nebius`, UI, a small-talk reply, one Valencia event question that must run on the full lane (many Token Factory calls, can take minutes) and
    that the operator switch is blocked. A 429 means the cap is working; wait a minute.
-9. **Give judges the login**: send `http://VM_IP` (or the domain), user and password through a private channel, plus the
+9. **Give judges the login**: send `https://DOMAIN` (or the domain), user and password through a private channel, plus the
    end date (15 Dec). Open the URL yourself first and ask one question in each desk.
 10. **After 15 Dec**: `docker compose -f compose.hosted.yaml -p floodsense-hosted down` and delete the VM. Rotate or delete the
     Token Factory key.
@@ -89,7 +90,7 @@ Update: `git pull` then rerun the `up -d --build` line.
 |---|---|---|---|
 | Login | Caddy `basic_auth` | env | Nothing but `/healthz` is reachable without it |
 | `FF_AUTO_ASSESS=false`, `WATCH_AUTO_PER_HOUR/DAY=0` | compose (fixed, not in env file) | off | The control tower never starts a model run by itself |
-| `/api/watch/auto-assess`, `/api/watch/cycle` | Caddy 403 | blocked | Judges cannot switch auto-assess on; `WATCH_ADMIN_TOKEN` is a second lock |
+| `/api/watch/auto-assess`, `/api/watch/cycle` | Caddy 403 | blocked | Judges cannot switch auto-assess on; `WATCH_ADMIN_TOKEN` (set on api and agents) is a second lock: `api/app/main.py` answers 401 without header `x-watch-admin-token` |
 | `RATE_LIMIT_RUNS_PER_MIN` | api | 4 | Token bucket on `POST /runs`. Every judge shares the proxy IP, so this is a global limit |
 | `RATE_LIMIT_MAX_CONCURRENT_RUNS` | api | 2 | Live runs in flight; 429 with Retry-After |
 | `NIGHTSHIFT_MAX_CONCURRENCY`, `NIGHTSHIFT_RPM` | agents | 2, 20 | Process-wide model calls in flight and starts per minute (applies to the Nebius client too) |
@@ -100,7 +101,7 @@ Update: `git pull` then rerun the `up -d --build` line.
 | Redis | compose | 128 MB LRU, no disk | Bounded memory |
 | `WATCH_INTERVAL_S` | agents | 1800 | Rule-based scan, no model calls; Open-Meteo calls only |
 
-Also set a spend limit or budget alert on the Nebius project in the console. These caps bound the rate, not the total.
+Not capped: approval calls and the `/watch/stream` SSE connections (one open stream per browser tab; no per-connection limit at the proxy). Also set a spend limit or budget alert on the Nebius project in the console. These caps bound the rate, not the total.
 Worst case per day is roughly `RATE_LIMIT_RUNS_PER_MIN x 1440` runs; use the worksheet to turn that into money.
 
 ## Cost estimate worksheet

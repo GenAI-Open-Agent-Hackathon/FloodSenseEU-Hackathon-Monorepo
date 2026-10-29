@@ -1,10 +1,5 @@
-# Hosted reverse proxy. Only this container publishes ports.
-# SITE_ADDRESS=:80 -> plain HTTP. SITE_ADDRESS=demo.example.org -> automatic HTTPS (ports 80+443 must be open).
-{
-	admin off
-}
-
-{$SITE_ADDRESS::80} {
+# Shared site body (snippet). Imported by Caddyfile.https / .selfsigned / .http.
+(app) {
 	encode zstd gzip
 
 	# Unauthenticated liveness for uptime checks. Reveals nothing.
@@ -24,17 +19,21 @@
 
 		# /api/* -> API with the prefix stripped (the UI is built with VITE_API_URL=/api).
 		handle_path /api/* {
-			# Operator-only switches stay unreachable from the public URL.
+			# Operator-only switches are unreachable from the public URL.
 			@admin path /watch/auto-assess /watch/cycle
 			handle @admin {
 				respond "disabled on the hosted demo" 403
 			}
-			reverse_proxy api:8000
+			reverse_proxy api:8000 {
+				flush_interval -1
+			}
 		}
 
-		# Vite dev server rejects unknown Host headers; present it as localhost.
-		reverse_proxy ui:5173 {
-			header_up Host localhost:5173
+		# Production UI build baked into the image, SPA fallback to index.html.
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			file_server
 		}
 	}
 }

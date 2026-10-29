@@ -3,33 +3,47 @@
     python scripts/smoke_hosted.py http://VM_IP --user judge --password SECRET
 
 Checks: proxy liveness, login required, API health, backend is nebius, UI served, a
-question answers, operator switch blocked. Exit 0 = all passed.
+small-talk reply, a full-lane event run, operator switch blocked. Self-signed proxy: --insecure. Exit 0 = all passed.
 """
 from __future__ import annotations
 
 import argparse
 import base64
 import json
+import ssl
 import sys
 import urllib.error
 import urllib.request
 
-QUESTION = "What is the current river level at Köln and is it rising?"
+# Hosted mode is Demo data (FF_LIVE_DATA=false): the router sends every real question to the
+# full lane, so ask an event question the seed data can answer. The full lane can take minutes.
+QUESTION = "What happened in the Valencia flood of 29 October 2024 and which insured sites were exposed?"
 
 
-def call(url, auth=None, body=None, timeout=180):
+CTX = None
+
+
+def call(url, auth=None, body=None, timeout=900):
     req = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode())
     if body is not None:
         req.add_header("Content-Type", "application/json")
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(auth.encode()).decode())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
             return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "replace")
     except OSError as e:
         return 0, str(e)
+
+
+def _json(b):
+    try:
+        d = json.loads(b)
+    except ValueError:
+        return {}
+    return d if isinstance(d, dict) else {}
 
 
 def main() -> int:
@@ -38,7 +52,11 @@ def main() -> int:
     ap.add_argument("--user", default="judge")
     ap.add_argument("--password", required=True)
     ap.add_argument("--question", default=QUESTION)
+    ap.add_argument("--insecure", action="store_true", help="accept a self-signed certificate")
     a = ap.parse_args()
+    global CTX
+    if a.insecure:
+        CTX = ssl._create_unverified_context()
     base, auth = a.base.rstrip("/"), f"{a.user}:{a.password}"
     failed = 0
 
@@ -61,14 +79,14 @@ def main() -> int:
     check("llm_backend == nebius", s == 200 and backend == "nebius", backend)
     s, _ = call(f"{base}/", auth)
     check("UI served", s == 200, s)
+    s, b = call(f"{base}/api/runs", auth, {"question": "hello"})
+    d = _json(b)
+    check("small talk answered (front door reply)", s == 200 and d.get("kind") == "reply", f"{s} kind={d.get('kind')}")
     s, b = call(f"{base}/api/runs", auth, {"question": a.question})
-    try:
-        d = json.loads(b)
-    except ValueError:
-        d = {}
-    ok = s in (200, 201) and isinstance(d, dict) and not d.get("detail")
-    check("question answered", ok,
-          f"{s} lane={d.get('lane')} served_from={d.get('served_from')} kind={d.get('kind')}")
+    d = _json(b)
+    ok = s in (200, 201) and bool(d.get("run_id")) and d.get("lane") == "full" and bool(d.get("claims") or d.get("status"))
+    check("event question ran on the full lane", ok,
+          f"{s} lane={d.get('lane')} status={d.get('status')} served_from={d.get('served_from')} run_id={d.get('run_id')}")
     if s == 429:
         print("NOTE  429 = rate limit working; wait a minute and retry")
     s, _ = call(f"{base}/api/watch/auto-assess", auth, {"enabled": True})

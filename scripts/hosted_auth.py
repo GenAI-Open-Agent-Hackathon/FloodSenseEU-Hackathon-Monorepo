@@ -20,8 +20,8 @@ def main() -> int:
     a = ap.parse_args()
     password = a.password or secrets.token_urlsafe(12)
     out = subprocess.run(
-        ["docker", "run", "--rm", "caddy:2-alpine", "caddy", "hash-password", "--plaintext", password],
-        capture_output=True, text=True,
+        ["docker", "run", "--rm", "-i", "caddy:2-alpine", "caddy", "hash-password"],
+        input=password + "\n", capture_output=True, text=True,  # stdin: not visible in `ps`
     )
     h = out.stdout.strip()
     if out.returncode != 0 or not h.startswith("$2"):
