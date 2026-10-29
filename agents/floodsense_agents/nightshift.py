@@ -297,6 +297,8 @@ def _retry_after(e: Exception) -> float | None:
 
 
 class NightshiftClient:
+    label = "Nightshift"
+
     def __init__(
         self,
         post: Callable[..., httpx.Response] | None = None,
@@ -474,7 +476,7 @@ class NightshiftClient:
                 if attempt >= attempts:
                     break
                 self._sleep(1.5 * attempt)
-        raise RuntimeError(f"Nightshift unavailable: {last}")
+        raise RuntimeError(f"{self.label} unavailable: {last}")
 
 
 class NebiusClient(NightshiftClient):
@@ -485,13 +487,15 @@ class NebiusClient(NightshiftClient):
     ``Authorization: Bearer <NEBIUS_API_KEY>``. Default base URL
     ``https://api.tokenfactory.nebius.com/v1`` (verified in
     docs.tokenfactory.nebius.com/api-reference/introduction). Default models are
-    NVIDIA Nemotron ids from Nebius's Nemotron 3 Super post
-    (nebius.com/blog/posts/nemotron3-super-now-available) and third-party catalogue
-    mirrors; they are NOT confirmed against ``GET /v1/models`` with a key, so set
+    NVIDIA Nemotron ids from nebius.com/services/token-factory/models/nvidia-nemotron-models-inference
+    (Nemotron-3.5-Super-VL) and third-party catalogue mirrors (Nano 30B); they are NOT confirmed against ``GET /v1/models`` with a key, so set
     NEBIUS_MODEL_FAST / NEBIUS_MODEL_DEEP if the catalogue differs.
-    ``response_format: json_object`` is not documented by Nebius; a 400 naming
+    ``enable_thinking`` is not sent (undocumented on Nebius), so Nemotron reasoning may
+    count against max_tokens. ``response_format: json_object`` is not documented by Nebius; a 400 naming
     response_format makes the shared downgrade drop it (the prompt carries JSON).
     """
+
+    label = "Nebius"
 
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)

@@ -48,7 +48,7 @@ class Settings:
     nebius_api_key: str = _env("NEBIUS_API_KEY", "") or ""
     nebius_base_url: str = _env("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
     nebius_model_fast: str = _env("NEBIUS_MODEL_FAST", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
-    nebius_model_deep: str = _env("NEBIUS_MODEL_DEEP", "nvidia/nemotron-3-super-120b-a12b")
+    nebius_model_deep: str = _env("NEBIUS_MODEL_DEEP", "nvidia/Nemotron-3.5-Super-VL")
     llm_timeout_s: float = float(_env("LLM_TIMEOUT_S", "180"))
     # Attempts per call for transient errors (5xx, connection, bad JSON body).
     # A read timeout is never retried: it already cost llm_timeout_s, and the
