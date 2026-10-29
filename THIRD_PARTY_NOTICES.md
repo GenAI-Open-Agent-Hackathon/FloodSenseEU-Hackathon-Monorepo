@@ -89,4 +89,4 @@ The full licence text for each engine is in [engines/vendor/hmem/LICENSE](engine
 
 ## 3. FloodSense code
 
-There is no `LICENSE` file for the FloodSense code in this repository yet. The licence is a team decision. Until a `LICENSE` file is added, the code is unlicensed, and this notice grants no rights to it.
+The FloodSense code (everything in this repository not listed in sections 1 and 2) is licensed under the Apache License, Version 2.0: see [LICENSE](LICENSE). The content in sections 1 and 2 keeps its own licence and attribution as listed above.
