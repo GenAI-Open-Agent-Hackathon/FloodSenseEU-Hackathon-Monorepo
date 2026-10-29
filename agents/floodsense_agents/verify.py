@@ -627,7 +627,7 @@ def data_path(run: dict) -> dict[str, Any]:
             else "no query reached Zetaris; this ran on the offline stand-in"
             if fake and not live
             else "mixed: some queries reached Zetaris and some did not"
-            if live and fake or local
+            if (live and fake) or local
             else "no query ran"
         ),
     }

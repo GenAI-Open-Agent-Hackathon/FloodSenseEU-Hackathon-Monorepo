@@ -96,6 +96,9 @@ class Settings:
     ff_judge: bool = _flag("FF_JUDGE", True)
     ff_hmem: bool = _flag("FF_HMEM", False)
     ff_rag_docs: bool = _flag("FF_RAG_DOCS", False)
+    ff_tavily: bool = _flag("FF_TAVILY", False)  # cited web context via Tavily Search
+    tavily_api_key: str | None = _env("TAVILY_API_KEY")
+    tavily_timeout_s: float = float(_env("TAVILY_TIMEOUT_S", "6"))
 
     # Skeptic / Judge knobs
     skeptic_max_rounds: int = int(_env("SKEPTIC_MAX_ROUNDS", "3"))
