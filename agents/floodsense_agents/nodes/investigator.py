@@ -1535,13 +1535,14 @@ def _attach_documents(claims, raws, request, query):
 
 
 def _attach_web(claims, place, note):
-    """Tavily snippets as labelled layer (c) claims. No numbers: the text is context only."""
+    """Tavily snippets as labelled layer (c) claims. Text is cleaned of digits, markup and
+    newlines (tavily.clean) and shown only as a quoted excerpt; claims carry no severity."""
     from floodsense_agents import tavily
 
     res = tavily.search(place)
     if res.status != "ok":
         why = f" ({res.reason})" if res.reason else ""
-        return claims, [], f"{note}; web context {res.status}{why}"
+        return claims, [], f"{note.lstrip('; ')} web context {res.status}{why}".strip()
     rows_for_q: dict[str, list[dict]] = {}
     for n, raw in enumerate(tavily.passages(res.items, now_utc()), 1):
         own = Claim(

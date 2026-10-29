@@ -63,7 +63,7 @@ flowchart LR
 
 ## Web context (Tavily)
 
-`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`, so web text cannot supply a figure.
+`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`. The snippet and title pass through `tavily.clean` first (digits and units replaced by `[n]`, control characters, markup, quotes and newlines stripped, length capped) and sit only inside a quoted excerpt, so web text can neither supply a figure the Judge would skip nor act as instructions.
 
 ## Live mode
 

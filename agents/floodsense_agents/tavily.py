@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -87,11 +88,24 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
     return WebResult("ok" if items else "empty", items)
 
 
+_NUM = re.compile(r"\d[\d.,:/-]*\s*[A-Za-zµ%°]*")
+_JUNK = re.compile(r"[\x00-\x1f\x7f<>{}\[\]`\\\"]+")
+
+
+def clean(text: str, cap: int) -> str:
+    """Untrusted web text as inert data: one line, no markup or quotes, no digits or units.
+
+    Digits go because a claim's `numbers` list is empty and the Judge would not check them.
+    """
+    t = _NUM.sub("[n]", _JUNK.sub(" ", text))
+    return " ".join(t.split())[:cap].strip()
+
+
 def passages(items: list[dict], retrieved_at: str, limit: int = 220) -> list[dict]:
     """Result rows as layer (c) passage dicts (the shape investigator._cite_passage reads)."""
     out = []
     for n, it in enumerate(items, 1):
-        text = " ".join(it["content"].replace('"', "'").split())[:1500]
+        text = clean(it["content"], 1500)
         quote = text
         if len(quote) > limit:
             quote = quote[:limit]
@@ -102,7 +116,7 @@ def passages(items: list[dict], retrieved_at: str, limit: int = 220) -> list[dic
                 "query_id": f"web-{n}",
                 "chunk_id": f"web-{n}",
                 "source_url": it["url"],
-                "title": it["title"] or host,
+                "title": clean(it["title"], 80) or host,
                 "publisher": host,
                 "attribution": f"{LABEL}; retrieved {retrieved_at} via Tavily",
                 "locator": {"page": 1, "paragraph": n, "lines": "web snippet"},
