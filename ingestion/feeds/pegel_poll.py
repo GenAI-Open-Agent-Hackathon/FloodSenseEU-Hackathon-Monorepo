@@ -44,8 +44,21 @@ DEFAULT_INTERVAL_S = 600
 MIN_INTERVAL_S = 30  # PEGELONLINE updates every 15 min; faster polling only hammers the API
 
 
-def clamp_interval(interval: int) -> int:
+def env_interval() -> float:
+    """POLL_INTERVAL_S as a number; empty means the default, junk means the floor (never a crash)."""
+    raw = (os.environ.get("POLL_INTERVAL_S") or "").strip()
+    if not raw:
+        return DEFAULT_INTERVAL_S
+    try:
+        return float(raw)
+    except ValueError:
+        log(f"POLL_INTERVAL_S={raw!r} is not a number; using {MIN_INTERVAL_S}s", err=True)
+        return MIN_INTERVAL_S
+
+
+def clamp_interval(interval: float) -> int:
     """Floor the poll interval; 0 or a negative value would busy-loop."""
+    interval = int(interval)
     if interval < MIN_INTERVAL_S:
         log(f"interval {interval}s is below the {MIN_INTERVAL_S}s floor; using {MIN_INTERVAL_S}s", err=True)
         return MIN_INTERVAL_S
@@ -358,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     if a.service or a.health:
-        interval = clamp_interval(a.interval or int(os.environ.get("POLL_INTERVAL_S") or DEFAULT_INTERVAL_S))
+        interval = clamp_interval(a.interval or env_interval())
         if a.health:
             ok, msg = health(interval)
             print(msg)

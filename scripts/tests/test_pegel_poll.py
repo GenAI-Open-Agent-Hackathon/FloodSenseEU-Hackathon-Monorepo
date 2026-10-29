@@ -209,6 +209,17 @@ class PegelPollTest(unittest.TestCase):
 
 
 class ServiceLoopTest(unittest.TestCase):
+    def test_main_service_interval_from_env(self) -> None:
+        from unittest import mock
+
+        cases = {"": 600, "abc": 30, "1.5": 30, "0": 30, "-5": 30, "45": 45, "600": 600}
+        for raw, want in cases.items():
+            with mock.patch.dict(os.environ, {"POLL_INTERVAL_S": raw}), mock.patch.object(
+                pegel_poll, "serve", return_value=0
+            ) as serve:
+                self.assertEqual(pegel_poll.main(["--service"]), 0, raw)
+                self.assertEqual(serve.call_args[0][0], want, raw)
+
     def test_interval_floor_blocks_busy_loop(self) -> None:
         for bad in (0, -5, 29):
             self.assertEqual(pegel_poll.clamp_interval(bad), pegel_poll.MIN_INTERVAL_S)
