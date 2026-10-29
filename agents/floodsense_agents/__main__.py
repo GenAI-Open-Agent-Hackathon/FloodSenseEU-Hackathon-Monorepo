@@ -358,6 +358,7 @@ def ready():
         {
             "status": "ready",
             "llm": _dep_name(rt, "llm"),
+            "llm_backend": settings.llm_backend,
             "zetaris": _dep_name(rt, "zetaris"),
             "data_backend": settings.data_backend,
             "memory": _dep_name(rt, "memory"),
@@ -387,6 +388,7 @@ def config():
                 # Router forecast lane (nodes/forecast.py): also part of the fingerprint.
                 "FF_FORECAST_LANE": router.forecast_enabled(),
             },
+            "llm_backend": settings.llm_backend,
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "engines_url": settings.engines_url,
             "schema": settings.schema,
