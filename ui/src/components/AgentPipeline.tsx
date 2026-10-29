@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { RecordedRun } from "../api/replay";
 import { buildPipeline, escalationOf, formatLatency, type PipelineBadge, type WorldBoard } from "../lib/pipeline";
 import type { LiveRunState } from "../lib/liveRun";
-import { modelChip, runModelLine } from "../lib/modelChip";
+import { modelChip, runModelLine, traceProvider } from "../lib/modelChip";
 
 type StepState = "done" | "flag" | "waiting" | "skipped" | "running" | "idle";
 
@@ -124,7 +124,8 @@ export function pipelineSummary(run: RecordedRun): string {
   const ran = model.nodes.filter((n) => n.status !== "skipped" && n.id !== "approval").length;
   const parts = [`${ran} agent${ran === 1 ? "" : "s"}`];
   if (model.totalLatencyMs > 0) parts.push(formatLatency(model.totalLatencyMs));
-  const m = runModelLine(run.modelIds) ?? runModelLine(run.trace.map((s) => s.modelId ?? ""));
+  const provider = run.provider ?? traceProvider(run.trace);
+  const m = runModelLine(run.modelIds, provider) ?? runModelLine(run.trace.map((s) => s.modelId ?? ""), provider);
   if (m) parts.push(m);
   if (run.judgeOverall !== null) parts.push(`Judge ${run.judgeOverall.toFixed(2)}`);
   return parts.join(" · ");
@@ -208,7 +209,7 @@ export function LiveAgentPipeline({ state, collapsed = false }: { state: LiveRun
     label: node.label,
     state: node.state,
     durationMs: node.runs > 0 ? node.durationMs : null,
-    chip: node.runs > 0 && node.id !== "approval" ? modelChip(node.modelId, node.lane) : null,
+    chip: node.runs > 0 && node.id !== "approval" ? modelChip(node.modelId, node.lane, node.provider) : null,
     summary: node.summary,
     runs: node.runs,
     badges: [],

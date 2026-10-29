@@ -14,6 +14,8 @@ export interface LiveNode {
   /** Sum of the finished steps' durations. */
   durationMs: number | null;
   modelId: string | null;
+  /** Backend that served modelId, as the trace event states it. */
+  provider: string | null;
   lane: string | null;
   summary: string;
   /** Finished steps (a revise or repair loop runs a node again). */
@@ -86,6 +88,7 @@ function blankNode(id: PipelineNodeId): LiveNode {
     state: "idle",
     durationMs: null,
     modelId: null,
+    provider: null,
     lane: null,
     summary: "",
     runs: 0,
@@ -200,6 +203,7 @@ export function liveReducer(state: LiveRunState, event: LiveEvent): LiveRunState
       state: "done",
       durationMs: num(d.duration_ms) ?? num(d.latency_ms) ?? n.durationMs,
       modelId: str(d.model_id) ?? n.modelId,
+      provider: str(d.provider) ?? n.provider,
       lane: str(d.lane) ?? n.lane,
       summary: summary || n.summary,
       runs: (prev?.runs ?? 0) + 1,
@@ -228,6 +232,7 @@ export function liveReducer(state: LiveRunState, event: LiveEvent): LiveRunState
     state: id === "approval" ? n.state : "done",
     durationMs: duration === null ? n.durationMs : (n.durationMs ?? 0) + duration,
     modelId: str(d.model_id) ?? n.modelId,
+    provider: str(d.provider) ?? n.provider,
     lane: str(d.lane) ?? n.lane,
     summary: summary || n.summary,
     runs: n.runs + 1,

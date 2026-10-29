@@ -1,12 +1,13 @@
 import type { RecordedRun } from "../api/replay";
 import type { MemoryUsed } from "./hitl";
-import { providerOf } from "./lanes";
+import { MODEL_BACKENDS, providerOf } from "./lanes";
+import { traceProvider } from "./modelChip";
 import { formatLatency, parseBoard } from "./pipeline";
 
 /**
  * "How this answer was made": four sponsor tiles derived only from fields the run snapshot already carries
  * (trace, claims[].citations, memory_used, judge_summary, lane, router_reason, model_ids, served_from). Nothing is
- * invented: a tile with no evidence says so, Nightshift is never claimed for a run without a Nightshift model call,
+ * invented: a tile with no evidence says so, a backend is never claimed for a run it did not serve,
  * and a cached or recorded answer says it was not run just now.
  */
 
@@ -20,6 +21,10 @@ export const GLOSSARY: Record<TileId, string> = {
   world: "Meterless World Model: tracks which hypotheses the evidence still supports.",
   tavily: "Tavily: optional web search. Its snippets are cited web context, not an official warning.",
 };
+
+const TOKEN_FACTORY = "Nebius Token Factory";
+const TOKEN_FACTORY_GLOSSARY =
+  "Nebius Token Factory: the OpenAI-compatible API that serves the agents' fast and deep lanes on NVIDIA Nemotron models.";
 
 export interface TileDetail {
   label: string;
@@ -110,10 +115,10 @@ function zetarisTile(run: RecordedRun): Tile {
 export interface ModelUse {
   id: string;
   name: string;
-  /** "Nightshift" or another stated provider; null when the id does not say. */
+  /** "Nightshift", "Nebius Token Factory" or another stated provider; null when the id does not say. */
   provider: string | null;
-  /** True only for a Nemotron id served through the Nightshift gateway. */
-  nightshift: boolean;
+  /** True for a model a lane backend served (Nightshift or Token Factory), false for the test switch. */
+  served: boolean;
   /** fast / deep, when a trace step that ran this model states it. */
   lanes: string[];
   /** Trace steps that carried this model id (model-assisted steps, not counted calls). */
@@ -121,12 +126,12 @@ export interface ModelUse {
   latencyMs: number;
 }
 
-/** Display name for a Nemotron id; the three Nightshift models by size, anything else as stored. */
+/** Display name for a Nemotron id, by kind and size when the id has one; anything else as stored. */
 export function modelDisplay(id: string): string {
-  const m = /nemotron-([\d.]+)-(super-vl|lightning|ultra)-(\d+)b/i.exec(id);
+  const m = /nemotron-([\d._]+)-(super-vl|lightning|ultra|nano|super)(?:-(\d+)b)?/i.exec(id);
   if (!m) return id.includes("/") ? id.slice(id.lastIndexOf("/") + 1) : id;
   const kind = m[2].toLowerCase() === "super-vl" ? "Super VL" : m[2][0].toUpperCase() + m[2].slice(1).toLowerCase();
-  return `Nemotron ${m[1]} ${kind} ${m[3]}B`;
+  return `Nemotron ${m[1].replace(/_/g, ".")} ${kind}${m[3] ? ` ${m[3]}B` : ""}`;
 }
 
 const llmIds = (modelId: string | null | undefined): string[] =>
@@ -144,7 +149,7 @@ export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds" | "provider
   const byId = new Map<string, ModelUse>();
   const make = (id: string, explicit: string | null | undefined): ModelUse => {
     const provider = providerOf(id, explicit ?? run.provider ?? null);
-    return { id, name: modelDisplay(id), provider, nightshift: provider === "Nightshift", lanes: [], steps: 0, latencyMs: 0 };
+    return { id, name: modelDisplay(id), provider, served: MODEL_BACKENDS.has(provider ?? ""), lanes: [], steps: 0, latencyMs: 0 };
   };
   let steps = 0;
   let latencyMs = 0;
@@ -180,7 +185,10 @@ const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.served
 function nightshiftTile(run: RecordedRun): Tile {
   const use = modelUse(run);
   const recorded: TileDetail[] = isRecorded(run) ? [{ label: "Served from", value: RECORDED_NOTE }] : [];
-  const name = "Meterless Nightshift";
+  const backend = providerOf("", run.provider ?? traceProvider(run.trace));
+  const onTokenFactory = backend === TOKEN_FACTORY || use.models.some((m) => m.provider === TOKEN_FACTORY);
+  const name = onTokenFactory ? TOKEN_FACTORY : "Meterless Nightshift";
+  const glossary = onTokenFactory ? TOKEN_FACTORY_GLOSSARY : GLOSSARY.nightshift;
   if (!use.models.length) {
     const total = totalLatency(run);
     const took = total > 0 ? ` in ${formatLatency(total)}` : "";
@@ -189,20 +197,20 @@ function nightshiftTile(run: RecordedRun): Tile {
       name,
       used: false,
       headline: "No model call",
-      glossary: GLOSSARY.nightshift,
+      glossary,
       details: [
         ...recorded,
         { label: "Why", value: `No model call: answered deterministically from Zetaris data — the router chose the cheapest safe path${took}.` },
       ],
     };
   }
-  const nightshift = use.models.filter((m) => m.nightshift);
-  const other = use.models.filter((m) => !m.nightshift);
+  const served = use.models.filter((m) => m.served);
+  const other = use.models.filter((m) => !m.served);
   const stepText = (n: number) => plural(n, "model-assisted step");
   const details: TileDetail[] = [
     ...recorded,
     ...use.models.map((m) => ({
-      label: m.nightshift ? m.name : `${m.name} (test provider)`,
+      label: m.served ? m.name : `${m.name} (test provider)`,
       value:
         [m.lanes.length ? `${m.lanes.join("/")} lane` : null, m.steps > 0 ? stepText(m.steps) : null, m.latencyMs > 0 ? formatLatency(m.latencyMs) : null]
           .filter(Boolean)
@@ -212,14 +220,14 @@ function nightshiftTile(run: RecordedRun): Tile {
   if (use.steps > 0) {
     details.push({ label: "Time in model-assisted steps (includes data queries)", value: `${formatLatency(use.latencyMs)} over ${plural(use.steps, "step")}` });
   }
-  if (!nightshift.length) {
-    details.push({ label: "Provider", value: "These model calls went to the test provider, not to Nightshift." });
-    return { id: "nightshift", name, used: false, headline: `Test provider · ${other.map((m) => m.name).join(" + ")}`, glossary: GLOSSARY.nightshift, details };
+  if (!served.length) {
+    details.push({ label: "Provider", value: `These model calls went to the test provider, not to ${onTokenFactory ? "Token Factory" : "Nightshift"}.` });
+    return { id: "nightshift", name, used: false, headline: `Test provider · ${other.map((m) => m.name).join(" + ")}`, glossary, details };
   }
-  const names = nightshift.map((m) => m.name.replace(/^Nemotron [\d.]+ /, "")).join(" + ");
+  const names = served.map((m) => m.name.replace(/^Nemotron [\d.]+ /, "")).join(" + ");
   const extra = other.length ? ` + test provider ${other.map((m) => m.name).join(", ")}` : "";
   const headline = `${names}${extra}${use.steps > 0 ? ` · ${stepText(use.steps)}` : ""}`;
-  return { id: "nightshift", name, used: true, headline, glossary: GLOSSARY.nightshift, details };
+  return { id: "nightshift", name, used: true, headline, glossary, details };
 }
 
 /* ---------- H-MEM ---------- */

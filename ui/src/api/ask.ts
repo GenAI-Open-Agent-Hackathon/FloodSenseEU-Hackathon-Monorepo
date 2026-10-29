@@ -151,7 +151,7 @@ export function runBadge(run: RecordedRun): string {
     if (!model) return "Live";
     // The lane of the last step that used this model: "Live · Nemotron 3.5 Lightning 30B · Nightshift deep lane".
     const step = [...run.trace].reverse().find((s) => (s.modelId ?? "").includes(model) && s.lane);
-    return `Live · ${modelChip(model, step?.lane ?? null)}`;
+    return `Live · ${modelChip(model, step?.lane ?? null, step?.provider ?? run.provider ?? null)}`;
   }
   if (run.servedFrom === "cache") return run.label || "Cached answer · not live";
   return run.label || `Replay · recorded run ${run.runId} · not live`;

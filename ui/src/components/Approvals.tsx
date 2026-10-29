@@ -40,6 +40,7 @@ import {
   type ReviewEvidence,
 } from "../lib/hitl";
 import { isOperatorRunKey, operatorActionChip } from "../lib/operatorDesk";
+import { traceProvider } from "../lib/modelChip";
 import { RefMarks } from "./RefMarks";
 import "../styles/hitl.css";
 import "../styles/insurer.css";
@@ -56,6 +57,7 @@ export interface QueueSource {
   evidence: ReviewEvidence;
   /** From the approval body; empty for the packed example. */
   modelIds?: string[];
+  provider?: string | null;
   eventId?: string | null;
 }
 
@@ -75,6 +77,7 @@ export function queueFromApproval(runId: string, body: Record<string, unknown>):
     note: null,
     evidence: reviewEvidence(body),
     modelIds: Array.isArray(body.model_ids) ? body.model_ids.filter((m): m is string => typeof m === "string") : [],
+    provider: traceProvider(body.trace),
     eventId: typeof body.event_id === "string" ? body.event_id : null,
   };
 }
@@ -296,6 +299,7 @@ export function Approvals({ operator = false }: { operator?: boolean } = {}) {
     runId: showingLive ? source.runId : null,
     row: selectedRow,
     modelIds: source.modelIds ?? [],
+    provider: source.provider,
     judgeScore: source.judgeScore,
     judgePasses: source.judgePasses,
     eventId: source.eventId,

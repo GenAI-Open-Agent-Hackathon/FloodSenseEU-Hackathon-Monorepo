@@ -185,6 +185,8 @@ export function approvalHeader(input: {
   runId: string | null;
   row: QueueRow | null;
   modelIds: readonly string[];
+  /** Backend that served those models, from the run's trace. */
+  provider?: string | null;
   judgeScore: number | null;
   judgePasses: boolean | null;
   eventId?: string | null;
@@ -208,7 +210,7 @@ export function approvalHeader(input: {
   }
   const started = utcStamp(input.row?.createdAt);
   const lane = input.row?.lane ? (LANE_TEXT[input.row.lane] ?? input.row.lane) : null;
-  const model = runModelLine(input.modelIds);
+  const model = runModelLine(input.modelIds, input.provider);
   const eventId = input.eventId ?? input.row?.eventId ?? null;
   const facts: HeaderFact[] = [
     { label: "Live run", value: input.runId },
