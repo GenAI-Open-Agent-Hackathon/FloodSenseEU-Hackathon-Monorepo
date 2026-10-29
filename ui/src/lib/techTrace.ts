@@ -312,7 +312,7 @@ function worldTile(run: RecordedRun): Tile {
 function tavilyTile(run: RecordedRun): Tile {
   const calls = run.trace.filter((s) => s.node === "tavily");
   const base = { id: "tavily" as const, name: "Tavily web context", glossary: GLOSSARY.tavily };
-  if (!calls.length) return { ...base, used: false, headline: "Off", details: [] };
+  if (!calls.length) return { ...base, used: false, headline: "Off · no web call in this run", details: [] };
   const last = calls[calls.length - 1];
   const details: TileDetail[] = [{ label: "Calls", value: String(calls.length) }, { label: "Call", value: last.summary }];
   const check = run.trace.map((s) => /web_check (supports|contradicts|neutral) (\S+) (\S+)/.exec(s.summary)).find(Boolean);

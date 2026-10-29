@@ -269,7 +269,7 @@ describe("techTrace: pickRunRow (insurer Review)", () => {
 
 describe("techTrace: Tavily tile", () => {
   it("is off without a tavily trace step", () => {
-    expect(tile(QUICK, "tavily").headline).toBe("Off");
+    expect(tile(QUICK, "tavily").headline).toContain("Off");
     expect(tile(QUICK, "tavily").used).toBe(false);
   });
   it("shows the call and the Skeptic web check", () => {

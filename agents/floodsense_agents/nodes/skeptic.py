@@ -338,7 +338,21 @@ def _rationale(deps: Deps, prompt: str) -> tuple[str, str] | None:
     return (str(js["rationale"])[:240] if js.get("rationale") else ""), model_id
 
 
-_TIMING = re.compile(r"warn|alert|status|issued|level|timing|before|after", re.I)
+_TIMING = re.compile(r"\b(warn\w*|alert\w*|status|issued|timing)\b", re.I)
+
+
+def _web_prompt(claim: dict, items: list[dict]) -> str:
+    """Claim plus web snippets as quoted data. URL percent-encoded, title and text cleaned."""
+    from urllib.parse import quote
+
+    from floodsense_agents.tavily import clean
+
+    rows = "\n".join(
+        f'WEB {n} url={quote(i["url"], safe=":/?&=%#@~+,;-._")[:200]} '
+        f'title="{clean(i["title"], 80)}": "{clean(i["text"], 300)}"'
+        for n, i in enumerate(items, 1)
+    )
+    return f"CLAIM {claim['claim_id']}: {claim['text']}\n{rows}"
 
 
 def _web_check(deps: Deps, state: FloodState) -> dict | None:
@@ -352,12 +366,11 @@ def _web_check(deps: Deps, state: FloodState) -> dict | None:
     if not (settings.ff_tavily and items and claims):
         return None
     claim = next((c for c in claims if _TIMING.search(c.get("text", ""))), claims[0])
-    web = "\n".join(f'WEB {n} url={i["url"]} title="{i["title"]}": "{i["text"]}"' for n, i in enumerate(items, 1))
     try:
-        text, _ = deps.llm.complete(
-            "fast", SKEPTIC_WEB, f"CLAIM {claim['claim_id']}: {claim['text']}\n{web}"
-        )
+        text, _ = deps.llm.complete("fast", SKEPTIC_WEB, _web_prompt(claim, items))
         js = parse_json(text)
+        if not isinstance(js, dict):
+            return None
     except Exception as e:
         log.debug("skeptic: web check skipped (%s)", str(e)[:100])
         return None
