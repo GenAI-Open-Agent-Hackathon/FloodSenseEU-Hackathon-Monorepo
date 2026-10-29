@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- `LLM_BACKEND=nebius`: optional chat backend on the Nebius Token Factory (OpenAI-compatible API) with NVIDIA Nemotron models, reusing the Nightshift retry, 429 backoff and JSON-mode handling. `nightshift` stays the default. `NEBIUS_API_KEY` is required when selected. `/ready` and `/config` report `llm_backend`. Tested offline with a mock transport only; no live Token Factory call has been made, and the default model ids are unconfirmed against a live `/v1/models`.
+
 ## [1.0.1] - 2026-10-27
 
 **Highlights.** A cleanup of 1.0.0 before submission. No new features. The test-only alternative LLM provider switch is gone, answers no longer show a hallucination percentage, and the docs describe the Nightshift lanes without naming a model per lane.

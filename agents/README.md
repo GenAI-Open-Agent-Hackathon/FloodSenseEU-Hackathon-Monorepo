@@ -155,6 +155,10 @@ The quick and forecast lanes add a `plain` object next to their claims and summa
 
 `status` (`normal`/`watch`/`elevated`/`unknown`) and `basis` (`gauge`/`model`) let the UI pick the existing status chip. Contract: `plain` in `contracts/schemas/floodsense.schema.json`. Tests: `agents/tests/test_plain.py`.
 
+## Nebius Token Factory backend
+
+`LLM_BACKEND=nebius` swaps the transport for `NebiusClient` (`nightshift.py`): `POST $NEBIUS_BASE_URL/chat/completions` (default `https://api.tokenfactory.nebius.com/v1`, Bearer `NEBIUS_API_KEY`) on `NEBIUS_MODEL_FAST` / `NEBIUS_MODEL_DEEP` (NVIDIA Nemotron ids). Retry, 429 backoff and the JSON-mode downgrade are shared with the Nightshift client. A missing key fails at startup. `GET /config` and `/ready` show `llm_backend`. Default is `nightshift`. Offline tests only (`tests/test_nebius.py`); live calls are unverified. Judge scores whose `model_id` is outside the contract enum are dropped by the API projection, so add the Nebius ids to the schema enum before relying on them there.
+
 ## Nightshift speed and retries
 
 Measured on Nightshift with Nemotron 3.5 Lightning 30B A3B (the model behind both lanes in every call recorded on 27 Oct) at about 60 to 70 completion tokens/s, and most completion tokens are hidden reasoning even with `enable_thinking=false`, so latency follows token count. Long generations get a **502 from the gateway at about 45 s**.

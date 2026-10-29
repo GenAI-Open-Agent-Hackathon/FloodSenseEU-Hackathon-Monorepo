@@ -477,6 +477,44 @@ class NightshiftClient:
         raise RuntimeError(f"Nightshift unavailable: {last}")
 
 
+class NebiusClient(NightshiftClient):
+    """Nebius Token Factory backend (``LLM_BACKEND=nebius``).
+
+    Same retry, 429 backoff and JSON-mode downgrade as NightshiftClient.
+    OpenAI-compatible ``POST {NEBIUS_BASE_URL}/chat/completions`` with
+    ``Authorization: Bearer <NEBIUS_API_KEY>``. Default base URL
+    ``https://api.tokenfactory.nebius.com/v1`` (verified in
+    docs.tokenfactory.nebius.com/api-reference/introduction). Default models are
+    NVIDIA Nemotron ids from Nebius's Nemotron 3 Super post
+    (nebius.com/blog/posts/nemotron3-super-now-available) and third-party catalogue
+    mirrors; they are NOT confirmed against ``GET /v1/models`` with a key, so set
+    NEBIUS_MODEL_FAST / NEBIUS_MODEL_DEEP if the catalogue differs.
+    ``response_format: json_object`` is not documented by Nebius; a 400 naming
+    response_format makes the shared downgrade drop it (the prompt carries JSON).
+    """
+
+    def __init__(self, *args, **kw) -> None:
+        super().__init__(*args, **kw)
+        self.base_url = (settings.nebius_base_url or "").rstrip("/")
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {settings.nebius_api_key}"}
+
+    def complete(self, lane: str, system: str, user: str, *, json: bool = True) -> tuple[str, str]:
+        model = settings.lane(lane)
+        body: dict = {
+            "model": model,
+            "temperature": 0.1,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        }
+        if json:
+            body["response_format"] = {"type": "json_object"}
+        cap = settings.llm_max_tokens_fast if lane == "fast" else settings.llm_max_tokens_deep
+        if cap > 0:
+            body["max_tokens"] = cap
+        return self._send(lane, model, body)
+
+
 class FakeNightshift:
     """Deterministic stand-in for offline runs.
 
@@ -498,6 +536,12 @@ class FakeNightshift:
 
 
 def build_llm() -> LLM:
+    if settings.llm_backend == "nebius":
+        if settings.llm_mode == "fake":
+            return FakeNightshift()
+        if not settings.nebius_api_key:
+            raise RuntimeError("LLM_BACKEND=nebius but NEBIUS_API_KEY is not set")
+        return NebiusClient()
     return _build_nightshift()
 
 
