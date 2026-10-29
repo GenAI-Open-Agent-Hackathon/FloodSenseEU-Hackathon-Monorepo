@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Docs: README section "Built on Nebius and NVIDIA", Token Factory, Tavily and Nebius AI Cloud in the README and C4 diagrams, and `docs/SUBMISSION-NEBIUS.md` (Devpost text, rules checklist, feedback draft, video script, measurements table with TO MEASURE cells).
 - `GET /platform/status` (LLM backend, lane models, per-lane p50/p95 latency, cache hit rate, 429 counts, live sources) and `fetchPlatformStatus` in `ui/src/api/platform.ts`.
 - Tavily Search as a cited web-context source in the full-lane Investigator (`FF_TAVILY`, default off; `TAVILY_API_KEY`). Snippets are claims labelled "Web context, not an official warning" with a URL citation; digits, markup and newlines are stripped from web text. Live calls are not yet verified against a real key.
 - Skeptic `web_check` (one alert-timing claim against fenced web snippets, URL cited, never changes a verdict), a `tavily` trace entry, web citations in the evidence drawer and a Tavily tile in "How this answer was made".
