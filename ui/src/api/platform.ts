@@ -17,6 +17,10 @@ export interface PlatformStatus {
   cache: { backend: string | null; hits: number; misses: number; hitRate: number | null };
   rateLimit: { inFlight: number; maxConcurrent: number; runsPerMin: number; recent429: number; total429: number };
   liveSources: number | null;
+  /** Last live lane check (POST agents /llm/check); null until run. */
+  llmCheck: { ok: boolean; lanes: Record<string, { ok: boolean; modelId: string | null; latencyMs: number }> } | null;
+  /** Agents-process token usage per lane; costUsd null = price not configured. */
+  llmUsage: { lanes: Record<string, { calls: number; totalTokens: number; avgLatencyMs: number | null }>; costUsd: number | null; priceNote: string } | null;
 }
 
 type Obj = Record<string, unknown>;
@@ -24,6 +28,28 @@ const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const n0 = (v: unknown): number => num(v) ?? 0;
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+
+function parseCheck(v: unknown): PlatformStatus["llmCheck"] {
+  const c = obj(v);
+  if (!Object.keys(c).length) return null;
+  const lanes: NonNullable<PlatformStatus["llmCheck"]>["lanes"] = {};
+  for (const [k, l] of Object.entries(obj(c.lanes))) {
+    const o = obj(l);
+    lanes[k] = { ok: o.ok === true, modelId: str(o.model_id), latencyMs: n0(o.latency_ms) };
+  }
+  return { ok: c.ok === true, lanes };
+}
+
+function parseUsage(v: unknown): PlatformStatus["llmUsage"] {
+  const u = obj(v);
+  if (!Object.keys(u).length) return null;
+  const lanes: NonNullable<PlatformStatus["llmUsage"]>["lanes"] = {};
+  for (const [k, l] of Object.entries(obj(u.lanes))) {
+    const o = obj(l);
+    lanes[k] = { calls: n0(o.calls), totalTokens: n0(o.total_tokens), avgLatencyMs: num(o.avg_latency_ms) };
+  }
+  return { lanes, costUsd: num(u.cost_usd), priceNote: str(u.price_note) ?? "price not configured" };
+}
 
 export function parsePlatformStatus(body: unknown): PlatformStatus | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
@@ -53,6 +79,8 @@ export function parsePlatformStatus(body: unknown): PlatformStatus | null {
       total429: n0(rl.rejected_429_total),
     },
     liveSources: num(b.live_sources),
+    llmCheck: parseCheck(b.llm_check),
+    llmUsage: parseUsage(b.llm_usage),
   };
 }
 

@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Nebius evidence: `python tasks.py check-llm` / `POST /llm/check` (per-lane ok, model id, Nemotron flag, latency), per-run `usage` (tokens, calls, latency per lane and model; optional cost from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`), `llm_check` and `llm_usage` in `/config` and `/platform/status`, and `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY` for the pacer. Offline-tested only.
 - Docs: README section "Built on Nebius and NVIDIA", Token Factory, Tavily and Nebius AI Cloud in the README and C4 diagrams, and `docs/SUBMISSION-NEBIUS.md` (Devpost text, rules checklist, feedback draft, video script, measurements table with TO MEASURE cells).
 - `GET /platform/status` (LLM backend, lane models, per-lane p50/p95 latency, cache hit rate, 429 counts, live sources) and `fetchPlatformStatus` in `ui/src/api/platform.ts`.
 - Tavily Search as a cited web-context source in the full-lane Investigator (`FF_TAVILY`, default off; `TAVILY_API_KEY`). Snippets are claims labelled "Web context, not an official warning" with a URL citation; digits, markup and newlines are stripped from web text. Live calls are not yet verified against a real key.

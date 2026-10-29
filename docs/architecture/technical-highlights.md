@@ -111,3 +111,7 @@ Python suites run on 27 Oct 2026 on branch `docs/release-v1` at `main` `c9ff924`
 | ui | `npx vitest run` in `ui/` | 128 passed (19 files) |
 
 CI runs the same suites with `python tasks.py test` on every pull request.
+
+## Model-call evidence (Nebius backend)
+
+Every model call passes `NightshiftClient._send`, which records the reply's `usage` per lane and model id into a per-run meter (`usage` on the run result) and a process meter (`/platform/status`). `check-llm` proves each lane answers with a Nemotron model id. Cost is computed only from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`; none are built in. Paced by `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY`. Offline-tested; not yet run against the live API.

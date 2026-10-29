@@ -27,6 +27,9 @@ async def build_platform_status(*, cache, limiter, counters, agents_json, lookup
         "data_backend": cfg.get("data_backend") or "zetaris",
         "tavily": cfg.get("tavily") is True,
         "latency": counters.latency_stats(),
+        # Additive: last POST /llm/check on the agents (null until run) and token usage since agents start.
+        "llm_check": cfg.get("llm_check"),
+        "llm_usage": cfg.get("llm_usage"),
         "cache": {
             "backend": await asyncio.to_thread(cache.backend),
             "hits": snap["cache_hits"],
