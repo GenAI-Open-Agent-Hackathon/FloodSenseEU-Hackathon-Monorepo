@@ -107,6 +107,7 @@ Invoke-RestMethod http://127.0.0.1:18000/health
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 
 **Hosted judge demo.** `compose.hosted.yaml` plus [docs/DEPLOY-NEBIUS.md](docs/DEPLOY-NEBIUS.md) put the app on a Nebius VM behind a login, on Demo data with live Nebius model answers.
+Model-call evidence on the Nebius backend: `py tasks.py check-llm` (one call per lane, model id and latency) and per-run token `usage` (see `agents/README.md`). Unverified against the live API.
 
 ## Honest limitations
 
