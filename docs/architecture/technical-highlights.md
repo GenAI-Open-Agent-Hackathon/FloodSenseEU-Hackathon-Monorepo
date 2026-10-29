@@ -28,6 +28,7 @@ flowchart LR
   PG -- rank top-k --> I
   NS[Nightshift<br/>meterless/fast, meterless/deep] --- I
   NS --- J
+  NB[Nebius Token Factory<br/>optional, LLM_BACKEND=nebius] -.-> I
   ENG[Engines: H-MEM, World Model] --- I
   L --> ENG
   API[API: cache, replay, rate limits] --> S

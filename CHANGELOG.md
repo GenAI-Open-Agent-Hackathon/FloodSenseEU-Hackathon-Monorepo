@@ -12,6 +12,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 ### Added
 
 - Tavily Search as a cited web-context source in the full-lane Investigator (`FF_TAVILY`, default off; `TAVILY_API_KEY`). Snippets are claims labelled "Web context, not an official warning" with a URL citation; digits, markup and newlines are stripped from web text. Live calls are not yet verified against a real key.
+- `LLM_BACKEND=nebius`: optional chat backend on the Nebius Token Factory (OpenAI-compatible API) with NVIDIA Nemotron models, reusing the Nightshift retry, 429 backoff and JSON-mode handling. `nightshift` stays the default. `NEBIUS_API_KEY` is required when selected. `/ready` and `/config` report `llm_backend`. Tested offline with a mock transport only; no live Token Factory call has been made, and the default model ids are unconfirmed against a live `/v1/models`.
+
 - Apache-2.0 `LICENSE` for the FloodSense code (copyright 2026 FloodSense EU contributors). `THIRD_PARTY_NOTICES.md` section 3 updated.
 
 ### Changed
