@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useId, useMemo, useState } from "react";
 import { next48hQuestion } from "../api/ask";
 import { useConsole } from "../context/ConsoleContext";
@@ -693,7 +694,7 @@ function LiveViewsEvidence({ live, place }: { live: LiveWatch; place: Place | nu
             </p>
             <dl className="kv">
               <div>
-                <dt>Zetaris query id</dt>
+                <dt>{dataBackendName()} query id</dt>
                 <dd>{meta.queryId ?? "not sent by the API for this read"}</dd>
               </div>
               <div>
@@ -733,7 +734,7 @@ export function CitizenEvidence() {
         <section className="card" aria-label="Live sources">
           <p className="section-label">Live sources</p>
           <h2>{ctx.place ? `Behind ${ctx.place.name}` : "Behind right now"}</h2>
-          <p className="muted">The live views FloodSense reads through Zetaris, with their query ids and fetch times.</p>
+          <p className="muted">The live views FloodSense reads through {dataBackendName()}, with their query ids and fetch times.</p>
           {ctx.live.sources.length === 0 && (ctx.live.gauges.state === "loading" || ctx.live.euWatch.state === "loading") ? (
             <LoadingNote what="live sources" />
           ) : (

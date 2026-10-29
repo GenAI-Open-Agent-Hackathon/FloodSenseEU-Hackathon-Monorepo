@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { ReplayCitation } from "../api/replay";
 import { decisionNoteError } from "./decision";
 
@@ -14,7 +15,7 @@ export function sourceChips(citations: readonly ReplayCitation[]): SourceChip[] 
   const seen = new Set<string>();
   for (const c of citations) {
     let chip: SourceChip;
-    if (c.layer === "a") chip = { kind: "zetaris", text: c.queryId ? `Zetaris · query ${c.queryId.slice(0, 8)}` : "Zetaris · query" };
+    if (c.layer === "a") chip = { kind: "zetaris", text: c.queryId ? `${dataBackendName()} · query ${c.queryId.slice(0, 8)}` : `${dataBackendName()} · query` };
     else if (c.layer === "b") chip = { kind: "provenance", text: "Provenance" };
     else if (c.layer === "c") chip = { kind: "document", text: `Document · ${c.title}` };
     else chip = { kind: "other", text: c.title };

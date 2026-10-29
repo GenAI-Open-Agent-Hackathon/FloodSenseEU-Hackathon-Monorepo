@@ -36,6 +36,8 @@ def data_plane_is_live(zetaris: object | None = None) -> bool:
         return False
     if isinstance(zetaris, FakeZetaris):
         return False
+    if getattr(zetaris, "backend", None) == "local":
+        return True  # live floodsense.* rows pulled from the public feeds by the local poller
     if settings.zetaris_mode == "fake":
         return False
     if settings.zetaris_mode == "auto" and not settings.zetaris_rest_url:

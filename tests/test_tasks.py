@@ -115,7 +115,7 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(argv[7], str(self.root / "compose.yaml"))
         self.assertEqual(
             argv[8:],
-            ["--profile", "rag", "--profile", "cache", "down"],
+            ["--profile", "rag", "--profile", "cache", "--profile", "local-data", "down"],
         )
         self.assertNotIn("-v", argv)
         self.assertNotIn("--volumes", argv)

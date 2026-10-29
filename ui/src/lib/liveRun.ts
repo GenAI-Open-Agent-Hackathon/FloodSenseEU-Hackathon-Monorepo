@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import { FORECAST_ORDER, NODE_LABELS, PIPELINE_ORDER, QUICK_ONLY, QUICK_ORDER, statusText, type PipelineNodeId } from "./pipeline";
 
 /**
@@ -150,7 +151,7 @@ export function modelLine(modelId: string | null, lane: string | null): string {
     const provider = providerOf(id);
     return provider ? `${shortModel(id)} · ${provider}` : shortModel(id);
   }))].join(", ");
-  if ((lane ?? "").toLowerCase() === "sql") return "SQL · Zetaris";
+  if ((lane ?? "").toLowerCase() === "sql") return `SQL · ${dataBackendName()}`;
   return "deterministic";
 }
 
@@ -269,7 +270,7 @@ export function formatElapsed(seconds: number): string {
 }
 
 export const WAIT_TIPS = [
-  "Every number in the answer comes from a cited Zetaris query.",
+  "Every number in the answer comes from a cited SQL query.",
   "The Skeptic re-runs counter-check queries before anything reaches you.",
   "H-MEM recalls only findings a person approved earlier.",
   "The Judge scores each claim against its evidence; a flagged claim gets one repair round.",

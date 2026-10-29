@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { ahrFixture, loadAhrRows, type EventRows } from "../lib/replaySource";
@@ -73,8 +74,8 @@ function ReplayBody() {
       source: `hazard_timeline view (${desk.hazard.origin}): ERA5 hourly rain, GloFAS daily discharge. ${desk.hazard.detail}`,
       badge:
         desk.hazard.origin === "fixture"
-          ? "Bundled view extract, not from Zetaris"
-          : `Zetaris · hazard_timeline (${desk.hazard.origin})`,
+          ? `Bundled view extract, not from ${dataBackendName()}`
+          : `${dataBackendName()} · hazard_timeline (${desk.hazard.origin})`,
       fromZetaris: desk.hazard.origin !== "fixture",
     };
   }, [event.eventId, ahrRows, desk.hazard, desk.points]);

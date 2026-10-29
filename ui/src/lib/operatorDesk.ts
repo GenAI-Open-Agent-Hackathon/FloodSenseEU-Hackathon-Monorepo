@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { ReplayClaim } from "../api/replay";
 import type { AskContext } from "./askContext";
 import type { WatchSource } from "./euWatch";
@@ -520,7 +521,7 @@ export function scriptSources(s: WatchSource, evidence: LiveEvidence | null, mea
     {
       n: 1,
       src: "reading",
-      heading: "Data via Zetaris",
+      heading: `Data via ${dataBackendName()}`,
       text: `${evidence?.view ?? (s.kind === "gauge" ? "floodsense.gauge_levels" : "floodsense.eu_watch")} · ${measuredText}${evidence?.queryId ? ` · query ${evidence.queryId}` : ""}`,
     },
     { n: 2, src: "rule", heading: "FloodSense status rule", text: `${timeWord(s.kind)} · ${basisLabel(s.kind)}` },

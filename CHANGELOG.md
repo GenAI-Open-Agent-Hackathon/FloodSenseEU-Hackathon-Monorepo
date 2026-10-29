@@ -9,6 +9,11 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Added
+
+- Local data backend, `DATA_BACKEND=local` (default `zetaris`, unchanged): the eight contract views from a Postgres container in compose (`local-db`, `local-data`, profile `local-data`), so the product runs without a Zetaris install. Seed schema from the migrations' `VALUES` lists and the prep CSVs; live schema from PEGELONLINE (`ingestion/feeds/pegel_poll.py`) and Open-Meteo pollers. Citations carry `local-<hash>` query ids and `Evidence.source = "local"`. `python tasks.py up-local` starts it. Module `agents/floodsense_agents/localdata.py`, tests in `agents/tests/test_localdata.py` (SQLite always, Postgres with `LOCAL_TEST_DATABASE_URL`).
+- `data_backend` in `GET /config` and `GET /ready`; the UI names the backend ("Zetaris" or "Local Postgres") in source labels, badges and attributions.
+
 ## [1.0.1] - 2026-10-27
 
 **Highlights.** A cleanup of 1.0.0 before submission. No new features. The test-only alternative LLM provider switch is gone, answers no longer show a hallucination percentage, and the docs describe the Nightshift lanes without naming a model per lane.

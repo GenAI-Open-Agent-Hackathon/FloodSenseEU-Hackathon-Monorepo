@@ -611,6 +611,10 @@ class FakeZetaris:
 
 
 def build_zetaris() -> Zetaris:
+    if settings.data_backend == "local":  # Postgres + pollers; see localdata.py
+        from floodsense_agents.localdata import LocalData
+
+        return LocalData()
     if settings.zetaris_mode == "fake" or (
         settings.zetaris_mode == "auto" and not settings.zetaris_rest_url
     ):

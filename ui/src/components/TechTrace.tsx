@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useId, useMemo, useState } from "react";
 import { fetchPastRuns } from "../api/pastRuns";
 import { fetchRunSnapshot } from "../api/liveRun";
@@ -121,7 +122,7 @@ export function LatestRunTechTrace({ mode = "live", eventId = null }: { mode?: "
 }
 
 const OVERVIEW: { id: TileId; box: BoxId; name: string; line: string }[] = [
-  { id: "zetaris", box: "zetaris", name: "Zetaris", line: "Every number is a SQL query with an id." },
+  { id: "zetaris", box: "zetaris", get name() { return dataBackendName(); }, line: "Every number is a SQL query with an id." },
   { id: "nightshift", box: "nightshift", name: "Meterless Nightshift", line: "Fast and deep lanes run Nemotron models." },
   { id: "hmem", box: "memory", name: "Meterless H-MEM", line: "Recalls approved findings and labelled demo seeds." },
   { id: "world", box: "memory", name: "Meterless World Model", line: "Tracks which hypotheses still hold." },

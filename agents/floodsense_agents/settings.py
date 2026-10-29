@@ -30,6 +30,11 @@ class Settings:
     zetaris_mode: str = _env(
         "ZETARIS_MODE", "auto"
     )  # auto | live | fake   (fake = in-memory seed views, no network)
+    # Data backend: zetaris (default) | local (Postgres + pollers, no Zetaris install)
+    data_backend: str = _env("DATA_BACKEND", "zetaris").strip().lower()
+    local_database_url: str = _env(
+        "LOCAL_DATABASE_URL", "postgresql://floodsense:floodsense@localhost:15433/floodsense"
+    )
     zetaris_row_limit: int = int(_env("ZETARIS_ROW_LIMIT", "5000"))
     # Independent SELECTs in one node. 8 covers Watchers (5), Investigator (5),
     # and Exposure (3). 1 runs that fan-out one statement at a time.

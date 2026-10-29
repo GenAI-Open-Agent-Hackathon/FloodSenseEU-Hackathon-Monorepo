@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadForecast, type ForecastLoad } from "../api/operatorForecast";
 import { useConsole } from "../context/ConsoleContext";
@@ -126,7 +127,7 @@ export function OperatorSituation() {
           <p className="eyebrow">Civil protection</p>
           <h2 className="now-title">Situation board</h2>
           <p className="now-meta">
-            <span className="now-live-tag">Live data · Zetaris</span>
+            <span className="now-live-tag">Live data · {dataBackendName()}</span>
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}` : ""}
           </p>
         </div>
@@ -221,7 +222,7 @@ export function OperatorSituation() {
         </>
       )}
       <p className="now-source">
-        Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via Zetaris. Model-based screening, not an
+        Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via {dataBackendName()}. Model-based screening, not an
         official warning.
       </p>
     </div>
@@ -452,7 +453,9 @@ async function writeClipboard(text: string): Promise<string> {
 }
 
 const SRC_HEADING: Record<ScriptSrc, string> = {
-  reading: "Data via Zetaris",
+  get reading() {
+    return `Data via ${dataBackendName()}`;
+  },
   rule: "FloodSense status rule",
   official: "Official warning services",
   house: "Call-script template",

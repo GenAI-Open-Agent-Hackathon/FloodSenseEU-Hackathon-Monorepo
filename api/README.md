@@ -24,6 +24,10 @@ Inside compose the process listens on port 8000 and is published on host port 18
 
 The NVIDIA chat key is not a variable for this service. It lives only in Nightshift's Providers tab. Document embeddings use `NVIDIA_NIM_API_KEY` in a gitignored env file (ADR 0009). This service does not call them.
 
+## Data backend
+
+The API never talks to the data layer: the agents do. `GET /config` (passed through) and the agents' `GET /ready` report `data_backend` (`zetaris` or `local`); the UI reads it to name the source. `GET /views/{name}` is the same either way (`x-query-id` is `local-<hash>` for the local backend). See [agents/README.md](../agents/README.md#local-data-backend-data_backendlocal) and `python tasks.py up-local`.
+
 ## Cache and labelled replay
 
 GAMEPLAN "Caching and the honest demo", in `app/cache.py`. Both are off unless their flag is on in `api/.env`.

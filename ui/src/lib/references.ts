@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { ReplayCitation, ReplayClaim } from "../api/replay";
 import type { Answer, Citation } from "../types/contract";
 import { sourceFromCitation, sourceFromRun, type SourceKind, type SourceLink } from "./sources";
@@ -158,7 +159,7 @@ export function isFixtureQueryId(id: string | null): boolean {
 export function drawerFields(ref: Reference): DrawerField[] {
   const qid = ref.queryId
     ? isFixtureQueryId(ref.queryId)
-      ? `${ref.queryId} (fixture id, not a Zetaris query)`
+      ? `${ref.queryId} (fixture id, not a ${dataBackendName()} query)`
       : ref.queryId
     : "not recorded";
   if (ref.kind === "document") {
@@ -169,7 +170,7 @@ export function drawerFields(ref: Reference): DrawerField[] {
       { label: "Publisher", value: ref.publisher ?? "not stated" },
       { label: "Page / paragraph", value: where },
       ...(ref.licence ? [{ label: "Licence", value: ref.licence }] : []),
-      { label: "Zetaris hydration query id", value: qid },
+      { label: `${dataBackendName()} hydration query id`, value: qid },
     ];
   }
   if (ref.kind === "zetaris") {

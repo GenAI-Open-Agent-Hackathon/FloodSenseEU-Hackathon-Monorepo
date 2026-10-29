@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { servingLabel, servingQualifier } from "../lib/format";
 import { statusLabel } from "../lib/origin";
 import { useConsole } from "../context/ConsoleContext";
@@ -76,7 +77,7 @@ export function Colophon() {
         </p>
       ))}
       <p>Portfolio rows are synthetic. Modelled discharge is not an official warning.</p>
-      <p>River gauges: PEGELONLINE (WSV), DL-DE-Zero-2.0, served through Zetaris. Map tiles: OpenStreetMap contributors (ODbL).</p>
+      <p>River gauges: PEGELONLINE (WSV), DL-DE-Zero-2.0, served through {dataBackendName()}. Map tiles: OpenStreetMap contributors (ODbL).</p>
       </details>
       {route === "citizen" && (
         <p>

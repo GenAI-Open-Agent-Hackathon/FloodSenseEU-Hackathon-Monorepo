@@ -81,6 +81,18 @@ py tasks.py demo-seed
 Invoke-RestMethod http://127.0.0.1:18000/health
 ```
 
+### No Zetaris: local Postgres backend
+
+No Zetaris install? `DATA_BACKEND=local` serves the same eight views from a small Postgres container that this compose project starts itself. It loads the repo's seed data (the Zetaris migration `VALUES` lists and `ingestion/prep/*.csv`) and then polls PEGELONLINE and Open-Meteo (GloFAS, DWD ICON) into the live `floodsense.*` views. The default stays `DATA_BACKEND=zetaris`.
+
+```powershell
+py tasks.py init-env
+py tasks.py up-local          # = DATA_BACKEND=local docker compose --profile local-data up -d --build api agents engines ui local-db local-data
+Invoke-RestMethod http://127.0.0.1:18000/health
+```
+
+Set `FF_LIVE_DATA=true` in `agents/.env` to read the polled `floodsense.*` views (the first pull takes a minute; until then those views are empty, and the app says so). With it off you read the frozen `floodsense_seed.*` rows. Citations carry `local-<hash>` query ids and the UI names "Local Postgres", never Zetaris. You still need Nightshift (`:8088`) for the full lane; the reply, quick and forecast lanes need no model. Details: [agents/README.md](agents/README.md#local-data-backend-data_backendlocal). `py tasks.py down` stops it too.
+
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 
 ## Honest limitations

@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { RecordedRun, ReplayStep } from "../api/replay";
 import { laneLabel, providerOf } from "./lanes";
 
@@ -192,7 +193,7 @@ export function buildPipeline(run: RecordedRun): PipelineModel {
     for (const s of steps) for (const m of llmIds(s.modelId)) if (!modelProvider.get(m)) modelProvider.set(m, s.provider ?? run.provider ?? null);
     const queryCount = steps.filter((s) => s.lane === "sql").reduce((n, s) => n + (s.evidenceIds?.length ?? 0), 0);
     const badges: PipelineBadge[] = [];
-    if (queryCount > 0) badges.push({ kind: "zetaris", text: `Zetaris · ${queryCount} queryId${queryCount === 1 ? "" : "s"}` });
+    if (queryCount > 0) badges.push({ kind: "zetaris", text: `${dataBackendName()} · ${queryCount} queryId${queryCount === 1 ? "" : "s"}` });
     for (const [m, p] of modelProvider) badges.push(modelBadge(m, p));
     if (id === "memory" && steps.length) {
       const n = steps.reduce((acc, s) => acc + (recalledCount(s.summary) ?? 0), 0);

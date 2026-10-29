@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -86,7 +87,7 @@ function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly E
     const map = L.map(container, { zoomSnap: 0.5, attributionControl: false, scrollWheelZoom: false });
     L.control
       .attribution({ prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' })
-      .addAttribution(`${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) · Model: Open-Meteo.com (GloFAS, CC BY 4.0) via Zetaris`)
+      .addAttribution(`${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) · Model: Open-Meteo.com (GloFAS, CC BY 4.0) via ${dataBackendName()}`)
       .addTo(map);
     L.tileLayer(TILE_URL, { maxZoom: 18 }).addTo(map);
     siteLayer.current = L.layerGroup().addTo(map);

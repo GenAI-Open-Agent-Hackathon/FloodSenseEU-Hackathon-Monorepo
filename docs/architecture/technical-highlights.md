@@ -46,6 +46,10 @@ flowchart LR
 - Three layers: (a) Zetaris data rows with `query_id`, (b) source provenance (`zetaris/migrations/015_create_view_provenance.sql`), (c) document passages. Model: `agents/floodsense_agents/models.py`.
 - Layer (c) quotes carry `content_sha256`. The Judge recomputes the hash of the quote and of the stored passage text and rejects a mismatch: `agents/floodsense_agents/nodes/judge.py`.
 
+## Data backend choice
+
+`DATA_BACKEND=zetaris` (default) reads the views through Zetaris. `DATA_BACKEND=local` reads the same eight views from a Postgres container (`local-db`) that a loader (`local-data`) fills from the repo seed and the public feeds: `agents/floodsense_agents/localdata.py`. Both return the same `Evidence`; the local `query_id` is `local-<hash>` and `Evidence.source` is `local`, so a citation never names Zetaris when Zetaris did not serve it.
+
 ## Zetaris federation
 
 - FILESTORE tables over CSV: `zetaris/migrations/010_seed_sources.sql`, `033_live_feed_tables.sql`.

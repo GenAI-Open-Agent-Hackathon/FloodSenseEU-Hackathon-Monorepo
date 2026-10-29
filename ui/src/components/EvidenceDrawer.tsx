@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useRef } from "react";
 import { SafeLink } from "./SafeLink";
 import { LiveEvidenceView } from "./LiveSources";
@@ -82,7 +83,7 @@ function EvidenceBlock({ evidence }: { evidence: Evidence }) {
           <dd>{evidence.executed_at_utc}</dd>
         </div>
       </dl>
-      <p className="note">Fixture SQL, not sent to Zetaris from this screen. query_id is a fixture id.</p>
+      <p className="note">Fixture SQL, not sent to {dataBackendName()} from this screen. query_id is a fixture id.</p>
       <pre className="sql">{evidence.sql}</pre>
       <SampleTable rows={evidence.rows_sample} />
     </article>

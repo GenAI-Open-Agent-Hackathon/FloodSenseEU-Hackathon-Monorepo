@@ -1,6 +1,7 @@
 # compose.yaml — runs OUR app only.
 # It never starts, stops, joins, or modifies a Zetaris stack.
 # Do not add a Zetaris service, image, volume, network, or container_name.
+# (local-db / local-data below are our own Postgres for DATA_BACKEND=local, not Zetaris.)
 # Run `python tasks.py down` in this repo. Do not docker system prune or docker volume prune.
 #
 # `name` below is not enough on its own: an exported COMPOSE_PROJECT_NAME
@@ -44,6 +45,10 @@ services:
     # compose, ENGINES_URL is http://127.0.0.1:8300 (the published port).
     environment:
       ENGINES_URL: http://engines:8300
+      # Data backend. zetaris (default) or local (Postgres service local-db, profile
+      # local-data). Set it in the shell or a root .env: `python tasks.py up-local` does.
+      DATA_BACKEND: ${DATA_BACKEND:-zetaris}
+      LOCAL_DATABASE_URL: postgresql://floodsense:floodsense@local-db:5432/floodsense
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -119,6 +124,47 @@ services:
     networks:
       - floodsense
 
+  # Local data backend (DATA_BACKEND=local): no Zetaris needed. A small Postgres holds the
+  # eight contract views; local-data loads the repo seed once and then polls the public
+  # feeds (PEGELONLINE every cycle, Open-Meteo every 30 min). Loopback-only demo credentials.
+  local-db:
+    image: postgres:16-alpine
+    profiles: ["local-data"]
+    environment:
+      POSTGRES_USER: floodsense
+      POSTGRES_PASSWORD: floodsense
+      POSTGRES_DB: floodsense
+    ports:
+      - "127.0.0.1:${FLOODSENSE_LOCALDB_PORT:-15433}:5432"
+    volumes:
+      - localdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U floodsense -d floodsense"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - floodsense
+
+  local-data:
+    build: ./agents
+    profiles: ["local-data"]
+    command: ["python", "-m", "floodsense_agents.localdata", "run"]
+    environment:
+      LOCAL_DATABASE_URL: postgresql://floodsense:floodsense@local-db:5432/floodsense
+      LOCAL_SEED_DIR: /seed
+      LOCAL_REFRESH_S: ${LOCAL_REFRESH_S:-600}
+    volumes:
+      - ./zetaris/migrations:/seed/zetaris/migrations:ro
+      - ./ingestion/prep:/seed/ingestion/prep:ro
+      - ./ingestion/feeds:/seed/ingestion/feeds:ro
+    depends_on:
+      local-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - floodsense
+
   redis:
     image: redis:7-alpine
     profiles: ["cache"]
@@ -140,3 +186,5 @@ volumes:
     name: floodsense-app_engines
   pgdata:
     name: floodsense-app_pgdata
+  localdata:
+    name: floodsense-app_localdata
