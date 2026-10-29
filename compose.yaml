@@ -93,6 +93,7 @@ services:
     build: ./ingestion/feeds
     environment:
       ZETARIS_CONTAINER: ${ZETARIS_CONTAINER:-zetaris-driver-1}
+      # Seconds between polls; values below 30 (or not a number) are raised to 30 with a log line.
       POLL_INTERVAL_S: ${POLL_INTERVAL_S:-600}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
