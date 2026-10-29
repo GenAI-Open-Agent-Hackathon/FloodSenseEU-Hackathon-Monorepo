@@ -1,3 +1,5 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { muiTheme } from "./lib/muiTheme";
 import { ConsoleProvider } from "./context/ConsoleContext";
 import { AskFloodSense } from "./components/AskFloodSense";
 import { Colophon } from "./components/Banners";
@@ -11,9 +13,11 @@ import { useCollapsedNav } from "./hooks/useCollapsedNav";
 
 export function App() {
   return (
-    <ConsoleProvider>
-      <Shell />
-    </ConsoleProvider>
+    <ThemeProvider theme={muiTheme}>
+      <ConsoleProvider>
+        <Shell />
+      </ConsoleProvider>
+    </ThemeProvider>
   );
 }
 

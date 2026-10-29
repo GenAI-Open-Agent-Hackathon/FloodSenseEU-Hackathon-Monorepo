@@ -1,0 +1,5 @@
+.map3d { height: 380px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); }
+@media (max-width: 760px) { .map3d { height: 300px; } }
+.map-view-toggle { display: flex; gap: 0.25rem; }
+.map-view-toggle button { font: inherit; font-size: 0.8rem; font-weight: 600; padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: inherit; cursor: pointer; }
+.map-view-toggle button[aria-pressed="true"] { background: var(--surface-2); border-color: currentColor; }
