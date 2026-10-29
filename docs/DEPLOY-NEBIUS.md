@@ -64,11 +64,12 @@ no live Zetaris views). Chat answers are real model calls through Nebius Token F
    ```
 7. **Verify with curl**:
    ```bash
+   export JUDGE_LOGIN='judge:<the password from step 4>'
    curl -i https://DOMAIN/healthz                       # 200 ok (no login)
    curl -i https://DOMAIN/api/health                    # 401 without login
-   curl -u judge:PASSWORD https://DOMAIN/api/health     # {"status":"ok",...}
-   curl -u judge:PASSWORD https://DOMAIN/api/config     # "llm_backend":"nebius"
-   curl -u judge:PASSWORD https://DOMAIN/api/platform/status
+   curl --user "$JUDGE_LOGIN" https://DOMAIN/api/health     # {"status":"ok",...}
+   curl --user "$JUDGE_LOGIN" https://DOMAIN/api/config     # "llm_backend":"nebius"
+   curl --user "$JUDGE_LOGIN" https://DOMAIN/api/platform/status
    ```
 8. **Smoke test** (stdlib only, from your laptop or the VM):
    ```bash
