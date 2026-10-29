@@ -18,7 +18,7 @@ Copy in the UI is a banner such as `cached at HH:MM`, for example "Cached answer
 
 ## Consequences
 
-- v0.12.0 ([#17](https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/pull/17)) ships the semantic cache and the labelled replay drill in the API (Ayush). `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off. Past runs were already on main. Rate limits are still a follow-up (Mihir).
+- v0.12.0 ([#17](https://github.com/GenAI-Open-Agent-Hackathon/FloodSenseEU-Hackathon-Monorepo/pull/17)) ships the semantic cache and the labelled replay drill in the API (Ayush). `FF_SEMANTIC_CACHE` and `FF_CACHED_REPLAY` default off. Past runs were already on main. Rate limits are still a follow-up (Mihir).
 - The API and the UI share the same two fields. A screen that hides them is a bug.
 - Redis in the `cache` Compose profile is available. This ADR does not say the semantic cache must use it.
 
