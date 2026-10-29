@@ -37,6 +37,13 @@ class WebResult:
     status: str  # ok | empty | unavailable
     items: list[dict] = field(default_factory=list)  # title, url, content
     reason: str = ""
+    query: str = ""
+    latency_ms: int = 0
+    cached: bool = False
+
+
+def _ms(t0: float) -> int:
+    return int((time.monotonic() - t0) * 1000)
 
 
 def _query(place: str) -> str:
@@ -53,10 +60,11 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
     with _lock:
         hit = _cache.get(ck)
         if hit and now - hit[0] < TTL_S:
-            return WebResult("ok" if hit[1] else "empty", hit[1])
+            return WebResult("ok" if hit[1] else "empty", hit[1], query=_query(place), cached=True)
         if now - _last_call < MIN_GAP_S:
             return WebResult("unavailable", reason="rate guard")
         _last_call = now
+    t0 = time.monotonic()
     try:
         with httpx.Client(timeout=settings.tavily_timeout_s, transport=transport) as c:
             r = c.post(
@@ -71,11 +79,11 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
                 },
             )
         if r.status_code != 200:
-            return WebResult("unavailable", reason=f"HTTP {r.status_code}")
+            return WebResult("unavailable", reason=f"HTTP {r.status_code}", query=_query(place), latency_ms=_ms(t0))
         raw = r.json().get("results") or []
     except Exception as exc:  # timeout, transport, bad JSON
         log.warning("tavily unavailable: %s", type(exc).__name__)
-        return WebResult("unavailable", reason=type(exc).__name__)
+        return WebResult("unavailable", reason=type(exc).__name__, query=_query(place), latency_ms=_ms(t0))
     items = [
         {"title": str(x.get("title") or ""), "url": x["url"], "content": str(x.get("content") or "")}
         for x in raw
@@ -85,7 +93,7 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
     ]
     with _lock:
         _cache[ck] = (time.monotonic(), items)
-    return WebResult("ok" if items else "empty", items)
+    return WebResult("ok" if items else "empty", items, query=_query(place), latency_ms=_ms(t0))
 
 
 _NUM = re.compile(r"\d[\d.,:/-]*\s*[A-Za-zµ%°]*")
@@ -127,3 +135,22 @@ def passages(items: list[dict], retrieved_at: str, limit: int = 220) -> list[dic
             }
         )
     return out
+
+
+def tavily_line(res: WebResult) -> str:
+    """Trace summary for the call: query, result count, latency, cached. Never the key."""
+    if res.status == "unavailable":
+        return f"tavily unavailable ({res.reason}); query {res.query or '-'}"
+    return (
+        f"tavily query {res.query!r}; {len(res.items)} results; {res.latency_ms} ms; "
+        f"cached {'yes' if res.cached else 'no'}"
+    )
+
+
+def tavily_state(res: WebResult) -> dict:
+    """What the Skeptic may read: cleaned, digit-free quoted data, never instructions."""
+    items = [
+        {"title": clean(i["title"], 80), "url": i["url"], "text": clean(i["content"], 300)}
+        for i in res.items
+    ]
+    return {"status": res.status, "query": res.query, "latency_ms": res.latency_ms, "cached": res.cached, "items": items}
