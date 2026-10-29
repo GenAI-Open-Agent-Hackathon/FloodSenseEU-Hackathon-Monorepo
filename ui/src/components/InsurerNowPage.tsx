@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { next48hQuestion } from "../api/ask";
-import { fetchEuWatch, type EuWatchLoad } from "../api/euWatch";
-import { fetchHazardNow, type HazardNowResult } from "../api/now";
+import type { EuWatchLoad } from "../api/euWatch";
+import type { HazardNowResult } from "../api/now";
+import { loadEu, loadHazard } from "../hooks/useLiveWatch";
 import { useConsole } from "../context/ConsoleContext";
 import { useGaugeLevels } from "../hooks/useGaugeLevels";
 import { buildSources } from "../lib/euWatch";
@@ -68,11 +69,11 @@ export function InsurerNowPage() {
     const ctrl = new AbortController();
     controller.current = ctrl;
     setLoad((prev) => (prev.state === "ready" ? prev : { state: "loading" }));
-    void fetchEuWatch(ctrl.signal).then((result) => {
+    void loadEu(Date.now(), false).then((result) => {
       // A failed refresh keeps the last good rows on screen.
       if (!ctrl.signal.aborted) setEuWatch((prev) => (result.state === "rows" || prev.state !== "rows" ? result : prev));
     });
-    fetchHazardNow(ctrl.signal)
+    loadHazard(Date.now(), false)
       .then((data) => {
         if (!ctrl.signal.aborted) setLoad({ state: "ready", data, fetchedAt: Date.now() });
       })

@@ -9,7 +9,7 @@ import { DEMO_SNAPSHOT_AT, isDemo } from "../lib/demo";
 import { WATCH_TOTAL, type LiveHealth } from "../lib/mode";
 import { dataTime, staleViews } from "../lib/staleness";
 import { oldestFetch } from "../lib/places";
-import { useGaugeLevels, type GaugeState } from "./useGaugeLevels";
+import { useGaugeLevels, prefetchGauges, type GaugeState } from "./useGaugeLevels";
 
 const REFRESH_MS = 5 * 60_000;
 
@@ -31,7 +31,7 @@ interface Shared<T> {
 let euShared: Shared<EuWatchLoad> | null = null;
 let hazardShared: Shared<HazardNowResult> | null = null;
 
-function loadEu(now: number, force: boolean): Promise<EuWatchLoad> {
+export function loadEu(now: number, force: boolean): Promise<EuWatchLoad> {
   if (force || !euShared || euShared.demo !== isDemo() || now - euShared.at >= REFRESH_MS) {
     const request = fetchEuWatch();
     euShared = { at: now, demo: isDemo(), request };
@@ -42,7 +42,7 @@ function loadEu(now: number, force: boolean): Promise<EuWatchLoad> {
   return euShared.request;
 }
 
-function loadHazard(now: number, force: boolean): Promise<HazardNowResult> {
+export function loadHazard(now: number, force: boolean): Promise<HazardNowResult> {
   if (force || !hazardShared || hazardShared.demo !== isDemo() || now - hazardShared.at >= REFRESH_MS) {
     const request = fetchHazardNow(new AbortController().signal);
     hazardShared = { at: now, demo: isDemo(), request };
@@ -51,6 +51,14 @@ function loadHazard(now: number, force: boolean): Promise<HazardNowResult> {
     });
   }
   return hazardShared.request;
+}
+
+/** Start the three independent live views at once, before React mounts. The hooks then join these shared requests. */
+export function prefetchLiveWatch(): void {
+  const now = Date.now();
+  void loadEu(now, false);
+  loadHazard(now, false).catch(() => undefined);
+  prefetchGauges(now);
 }
 
 export interface LiveWatch {

@@ -24,6 +24,11 @@ function load(now: number, force = false): { at: number; demo: boolean; request:
   return shared;
 }
 
+/** Warm the shared gauge request. */
+export function prefetchGauges(now: number): void {
+  void load(now).request;
+}
+
 /** `reloadKey` > 0 forces one fresh read each time it changes (the Refresh button). */
 export function useGaugeLevels(reloadKey = 0, demo = false): GaugeState {
   const [state, setState] = useState<GaugeState>({ state: "loading", rows: [], detail: "" });

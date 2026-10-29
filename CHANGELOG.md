@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Changed
+
+- First load of the live pages: `eu_watch`, `hazard_now` and `gauge_levels` start together before React mounts (`prefetchLiveWatch`), and the insurer Now page joins the shared requests instead of repeating them. Views and honesty labels are unchanged. The API views cache already coalesces concurrent identical requests (single flight) and serves stale-if-error.
+
 ### Added
 
 - `LLM_BACKEND=nebius`: optional chat backend on the Nebius Token Factory (OpenAI-compatible API) with NVIDIA Nemotron models, reusing the Nightshift retry, 429 backoff and JSON-mode handling. `nightshift` stays the default. `NEBIUS_API_KEY` is required when selected. `/ready` and `/config` report `llm_backend`. Tested offline with a mock transport only; no live Token Factory call has been made, and the default model ids are unconfirmed against a live `/v1/models`.
