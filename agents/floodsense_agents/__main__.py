@@ -63,6 +63,7 @@ from floodsense_agents import __version__
 from floodsense_agents import desk, front_door, labelling, router, tower
 from floodsense_agents.events import ALIASES, EVENTS, HAZARD_VIEWS, hazard_schema, spec
 from floodsense_agents.models import ApprovalDecision, RunRequest
+from floodsense_agents.nightshift import GLOBAL_USAGE, check_lanes
 from floodsense_agents.readiness import report as readiness_report
 from floodsense_agents.verify import report as verify_report
 from floodsense_agents.runtime import NotAwaitingApproval, RunNotFound, Runtime, ThreadNotFound
@@ -374,6 +375,17 @@ def version():
     return _envelope({"sha": settings.git_sha, "built": settings.built_at, "version": __version__})
 
 
+_last_llm_check: dict | None = None
+
+
+@app.post("/llm/check")
+def llm_check():
+    """Live lane check: one tiny call per lane (costs a few tokens). Cached into GET /config."""
+    global _last_llm_check
+    _last_llm_check = check_lanes(runtime().deps.llm)
+    return _envelope(_last_llm_check)
+
+
 @app.get("/config")
 def config():
     return _envelope(
@@ -392,6 +404,8 @@ def config():
             },
             "llm_backend": settings.llm_backend,
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
+            "llm_check": _last_llm_check,
+            "llm_usage": GLOBAL_USAGE.as_dict(),
             "engines_url": settings.engines_url,
             "schema": settings.schema,
             "checkpointer": settings.checkpointer,
