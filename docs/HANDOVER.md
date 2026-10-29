@@ -1,7 +1,9 @@
 # Handover: FloodSense EU (Open Agent Hackathon 2026, Track 02)
 
-Written 27 Oct 2026 and updated for the final state of `main` (`c9ff924`). **Submission is due 27 Oct 21:00 CET.** Read this first, then `README.md`,
-`agents/README.md`, `ui/README.md` and `CHANGELOG.md` (`[Unreleased]`).
+Written 27 Oct 2026, updated 28 Oct 2026 after submission. **Submitted:** the hackathon form (demo video, deck, repository link,
+sponsor write-up) went in before the hard close. The repository is public. The submitted version is tag `v1.0.1`
+([release notes](RELEASE-NOTES-v1.0.1.md)); later commits on `main` are docs only. Read this first, then `README.md`,
+`agents/README.md`, `ui/README.md` and `CHANGELOG.md`.
 
 ## What the product is
 
@@ -49,7 +51,7 @@ Python on the main dev machine has a wrong langgraph.
 
 ## State at handover
 
-`main` is `c9ff924` (merge of PR #101) and is feature-frozen. Release documentation is on the branch `docs/release-v1`. Everything below is merged, reviewed by an independent agent, and passed CI.
+The code was feature-frozen at `c9ff924` (merge of PR #101). The release documentation was merged and tagged `v1.0.0`, then `v1.0.1` (removal of the test-only provider switch and of hallucination percentages; no new features). Both have GitHub Releases. Everything below is merged, reviewed by an independent agent, and passed CI.
 
 ### Merged to `main` since the first handover (27 Oct)
 - #90 global Live | Past flood and Demo data switches, curated Approvals and Review.
@@ -62,7 +64,7 @@ Python on the main dev machine has a wrong langgraph.
 - #100 and #101 H-MEM recall fixes (approved live runs recalled by place; the newest memories are read too).
 - Earlier the same day: router lanes, front door, Europe live watch, forecast lane and DWD ICON weather, live agent pipeline over SSE, approval cards, insurer documents, 13 past-flood documents with 59 cited demo memories, demo seed and System page, NVIDIA backoff, live-first desks, poller container, clarity pass, How it works page.
 
-There are no open feature branches to merge. The `feat/control-tower` and `feat/operator-desk` branches named in the first handover are merged (#95, #94). Unverified from the repository: the state of the older pull requests #88 and #68 (from teammates); check them on GitHub.
+There are no open feature branches to merge. The `feat/control-tower` and `feat/operator-desk` branches named in the first handover are merged (#95, #94). The older teammate pull requests #68 (Skeptic CTE) and #88 (recorded-run UI walkthrough) were still open on 28 Oct and are not part of the submission; check their state on GitHub.
 
 Workflow used all day: branch, coding agent, independent review agent, review findings as PR comments, rework, re-review, CI green, merge, delete branch, update docs and CHANGELOG in every PR. `gh` is at `C:\Program Files\GitHub CLI\gh.exe`; `gh pr view --comments` fails with this token, so use `gh api repos/<owner>/<repo>/issues/<n>/comments`.
 
@@ -94,13 +96,18 @@ A calm headline is allowed only when every checked status is Normal and data is 
 
 Not done on purpose, and not done by the agents:
 
-- Decide the licence and add a `LICENSE` file (the README has a marked TEAM block; until then the code is unlicensed).
-- Confirm the Cursor wording in `README.md` ("How we built it") and `docs/SUBMISSION.md` (both carry a `TEAM: confirm Cursor wording` marker). Add which features each person used and example PRs.
-- Merge `docs/release-v1`, then tag `v1.0.0` and create the GitHub Release (the notes are `docs/RELEASE-NOTES-v1.0.0.md`). No `v1.0.0-rc.N` tag exists.
-- Make the repository public, record the demo video, submit. Submission is due 27 Oct 21:00 CET.
-- Deck (`E:\Projects\GenAI-Hackathon-2026\Submission\FloodSense-EU-Pitch-v6.pptx`, outside the repo, with the scripts in the same folder): add the new screens (Control tower, operator desk, calm answers, tech trace), verify the death tolls on slides 2 and 4 against `docs/DECK-FACTS.md` (the stored sources disagree in places), fix the repo link and prices on the last slide, refresh slide 8 screenshots, update stale speaker notes.
-- Before recording: `LLM_PROVIDER_SWITCH=false` in `agents/.env` (and the root `.env`) and recreate the agents container. For the live demo also set `FF_LIVE_DATA`, `FF_HMEM` and `FF_RAG_DOCS` to true there (the examples ship them off).
-- Run `py tasks.py demo-seed` after a rebuild (set `FF_SEMANTIC_CACHE=true` in `api/.env` first), and walk every page in Live, Past and Demo modes once in a browser.
-- No ffmpeg on the main dev machine; the Higgsfield account has 0 credits. A self-playing HTML walkthrough is the planned stand-in; the final video should be a real screen recording.
+Done before and after submission:
+
+- Licence: Apache-2.0 (`LICENSE`, copyright 2026 FloodSense EU contributors).
+- Cursor wording in `README.md` ("How we built it") and `docs/SUBMISSION.md` states only what the repository records.
+- Tags `v1.0.0` and `v1.0.1` with GitHub Releases. No `v1.0.0-rc.N` tag exists.
+- Repository public; demo video, deck and the submission form are in.
+
+Still open:
+
+- Decide on the open teammate pull requests #68 and #88 (merge or close).
+- Results are announced 6 Nov 2026. A correction to the submission form goes through the organisers (hackathons@genai.works); do not assume the form is still editable.
+- The deck lives outside the repository. Death tolls on its slides should match `docs/DECK-FACTS.md` (the stored sources disagree in places).
+- For any later live demo: set `FF_LIVE_DATA`, `FF_HMEM` and `FF_RAG_DOCS` to true in `agents/.env` (the examples ship them off) and recreate the agents container. Run `py tasks.py demo-seed` after a rebuild (set `FF_SEMANTIC_CACHE=true` in `api/.env` first), and walk every page in Live, Past and Demo modes once in a browser.
 
 Rebuild command, if the stack must be recreated: `docker compose -p floodsense-app --project-directory . -f compose.yaml --profile rag --profile cache up -d --build agents api ui` (add `-f local/compose.console.yaml` only on the main dev machine, where that untracked file exists).

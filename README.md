@@ -2,7 +2,7 @@
 
 FloodSense EU explains why a place in Europe is at flood risk, with a citation for every sentence: a Zetaris query, a stored document passage, or a memory a person approved. It watches 45 places live, answers plain questions in seconds, runs a full multi-agent investigation when a question needs one, and nothing leaves the system until a person approves it.
 
-Open Agent Hackathon 2026, Track 02. Release 1.0.0: [release notes](docs/RELEASE-NOTES-v1.0.0.md), [changelog](CHANGELOG.md).
+Open Agent Hackathon 2026, Track 02. Release 1.0.1 (tag `v1.0.1`, the submitted version): [release notes](docs/RELEASE-NOTES-v1.0.1.md), product description in the [1.0.0 notes](docs/RELEASE-NOTES-v1.0.0.md), [changelog](CHANGELOG.md).
 
 ![FloodSense EU screenshot](docs/assets/screenshot.jpg)
 
@@ -58,7 +58,7 @@ flowchart LR
   POLL --> ZET
 ```
 
-The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and the chat model path is Nightshift (a test-only provider switch exists, off by default and needs a key that is not in the repo).
+The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and every chat model call goes through Nightshift.
 
 ## How the sponsors are used
 
@@ -95,24 +95,20 @@ Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...
 
 ## How we built it
 
-<!-- TEAM: confirm Cursor wording -->
-<!-- TEAM-EDITABLE-BLOCK START (Cursor wording) -->
-Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds a Cursor skill that sets the merge bar for cloud-agent pull requests (`.cursor/skills/floodsense-pr-review/SKILL.md`).
+Some team members used Cursor extensively, including Cursor's Grokbot to run subagents. The repository holds one Cursor skill, `.cursor/skills/floodsense-pr-review/SKILL.md` (added in [PR #35](https://github.com/GenAI-Open-Agent-Hackathon/FloodSenseEU-Hackathon-Monorepo/pull/35)): the merge bar a Cursor cloud agent checks before and after it reviews or fixes a pull request here.
 
-The repository's coding, review and documentation work also used coding agents with independent review agents. Every change went through a branch, an independent review and a pull request (see the pull requests in this repository).
-<!-- TEAM-EDITABLE-BLOCK END -->
+The repository's coding, review and documentation work also used coding agents with independent review agents. Every change went through a branch, an independent review and a pull request (see the pull requests in this repository). Sponsor detail: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Cursor: how we built it".
 
 ## Licence
 
-<!-- TEAM: licence decision -->
-Licence: see the team decision; the code is currently unlicensed until a LICENSE file is added.
-<!-- END TEAM -->
+The FloodSense EU code is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 FloodSense EU contributors.
 
 Third-party content stored in the repository (the document corpus, with its licences, and the vendored Meterless engines under Apache-2.0) is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Every data source and its licence is in [docs/legal/sources.md](docs/legal/sources.md).
 
 ## For judges
 
-- [docs/RELEASE-NOTES-v1.0.0.md](docs/RELEASE-NOTES-v1.0.0.md): what is in 1.0.0, evaluations, limits and known issues.
+- [docs/RELEASE-NOTES-v1.0.1.md](docs/RELEASE-NOTES-v1.0.1.md): the submitted version (tag `v1.0.1`), a cleanup of 1.0.0 with no new features.
+- [docs/RELEASE-NOTES-v1.0.0.md](docs/RELEASE-NOTES-v1.0.0.md): what the product does, evaluations, limits and known issues.
 - [docs/SUBMISSION.md](docs/SUBMISSION.md): how we use Zetaris, Meterless, NVIDIA and Cursor, limits, evaluation, and a 30-second tour.
 - [docs/architecture/technical-highlights.md](docs/architecture/technical-highlights.md): technical details with links to the code.
 - [docs/GAMEPLAN.md](docs/GAMEPLAN.md): the plan, and the unplanned increments of 25 to 27 Oct.
@@ -122,7 +118,7 @@ Third-party content stored in the repository (the document corpus, with its lice
 
 Now page, "Europe · live watch": 26 PEGELONLINE gauges on ten German federal waterways (`pegel-poller` container; `py tasks.py pegel-poll` for a one-off run), 11 Open-Meteo GloFAS river points from Paris to Budapest (`floodsense.eu_watch`, fetched by Zetaris at query time) and 8 Valencia demo points. Gauge colours use official MHW values; GloFAS colours are a model band, not an official warning. Ask "Is the Danube at Budapest at risk right now?", "What is the Elbe at Dresden doing right now?" or "Do the next 48 hours look safe at Köln?".
 
-Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Proposed decisions are in [docs/adr/](docs/adr/). Release notes for every version are in [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases. Tags `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0` and `v0.14.0` exist; the tag policy is at the top of the changelog. `v1.0.0` is tagged by the team after the release documentation is merged. There is no wiki.
+Path ownership is [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Proposed decisions are in [docs/adr/](docs/adr/). Release notes for every version are in [CHANGELOG.md](CHANGELOG.md) and the GitHub Releases. Tags `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0`, `v0.14.0`, `v1.0.0` and `v1.0.1` exist, each with a GitHub Release; `v1.0.1` is the submitted version. The tag policy is at the top of the changelog. There is no wiki.
 
 ## Team
 
@@ -245,7 +241,7 @@ Containers call Zetaris and Nightshift at `host.docker.internal` (`agents/.env`)
 
 ## Branching
 
-`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0` (memory), `v0.12.0` (semantic cache and labelled replay; flags default off), `v0.13.0` (demo baseline: UI shell, audit fixes, Valencia seed path), and `v0.14.0` (RAG layer (c); `FF_RAG_DOCS` default off). `v0.4.0` through `v0.8.0` are not tags. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. There is no patch ladder between `v0.9.0` and `v0.14.0`. No `v1.0.0-rc.N` tag was created. The release is `v1.0.0`, tagged by the team after the release documentation (this branch) is merged. There is no `v0.x.y` fix tag. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
+`main` is the integration branch. Further work lands on short-lived branches (`feat/<area>-<topic>`, `fix/…`, `chore/…`) through pull requests, with one review from outside the pair. Product tags on the 0.x line are `v0.MINOR.0` only: `v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0` (memory), `v0.12.0` (semantic cache and labelled replay; flags default off), `v0.13.0` (demo baseline: UI shell, audit fixes, Valencia seed path), and `v0.14.0` (RAG layer (c); `FF_RAG_DOCS` default off). `v0.4.0` through `v0.8.0` are not tags. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. There is no patch ladder between `v0.9.0` and `v0.14.0`. No `v1.0.0-rc.N` tag was created. The releases are `v1.0.0` and `v1.0.1` (the submitted version: a cleanup of 1.0.0 with no new features). There is no `v0.x.y` fix tag. Tags are not moved. See the gameplan for the increment list. `.github/workflows/ci.yml` runs on pull requests to `main` and on pushes to `main`. It does not create tags.
 
 ## Secrets
 
