@@ -249,6 +249,10 @@ class UsageMeter:
                 {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": 0, "cached_tokens": 0},
             )
             # Cached prompt tokens only if the API reports them; never guessed.
+            if not self._counted and run_meter.get() is self:
+                # One answer per run meter (resume reuses it), only once it made a model call.
+                self._counted = True
+                GLOBAL_USAGE.note_answer()
             r["cached_tokens"] += int((u.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)
             r["calls"] += 1
             r["latency_ms"] += latency_ms
@@ -258,6 +262,7 @@ class UsageMeter:
                 u.get("completion_tokens") or 0
             )
 
+    _counted = False
     answers = 0  # answers (runs) metered; cost per answer = cost / answers
 
     def note_answer(self) -> None:
@@ -283,26 +288,27 @@ class UsageMeter:
         models = []
         total = dict.fromkeys(keys, 0)
         costs: dict[str, float] = {}
-        unpriced = False
+        bad: set[str] = set()  # lanes ("" = total) with an unpriced model: cost stays null, never understated
         for (lane, model), r in sorted(rows.items()):
             c = self._row_cost(model, r, pin, pout)
-            unpriced |= c is None
             models.append({"lane": lane, "model_id": model, **r, "cost_usd": None if c is None else round(c, 6)})
             for name, tgt in ((lane, lanes.setdefault(lane, dict.fromkeys(keys, 0))), ("", total)):
                 for k in keys:
                     tgt[k] += r[k]
-                if c is not None:
+                if c is None:
+                    bad.add(name)
+                else:
                     costs[name] = costs.get(name, 0.0) + c
         for name, t in (*lanes.items(), ("", total)):
             t["avg_latency_ms"] = round(t["latency_ms"] / t["calls"]) if t["calls"] else None
-            t["cost_usd"] = round(costs[name], 6) if name in costs else None
+            t["cost_usd"] = round(costs[name], 6) if name in costs and name not in bad else None
         cost = total["cost_usd"]
         if cost is None:
-            note = "price not configured"
+            note = "price not configured" if not bad else "price not configured for every model used"
         elif pin is not None and pout is not None:
             note = "estimate from NEBIUS_PRICE_PER_M_INPUT/OUTPUT"
         else:
-            note = "Token Factory list price" + (" (some models unpriced)" if unpriced else "")
+            note = "Token Factory list price"
         return {
             "lanes": lanes,
             "models": models,

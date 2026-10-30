@@ -56,25 +56,39 @@ def parse_models(body: object) -> dict[str, dict]:
 def catalog(
     *, get: Callable[..., httpx.Response] | None = None, now: Callable[[], float] = time.monotonic
 ) -> dict[str, dict]:
-    """The cached model table (lower-cased id -> info); {} when not nebius or unreachable."""
+    """The cached model table (lower-cased id -> info); {} when not nebius or never fetched.
+
+    The HTTP fetch runs outside the lock. A failed refresh keeps the last good
+    table (stale-while-error) and retries after FAIL_TTL_S.
+    """
     global _cache
     if settings.llm_backend != "nebius" or not settings.nebius_api_key:
         return {}
     with _lock:
-        if _cache and now() < _cache[0]:
-            return _cache[1]
-        try:
-            r = (get or httpx.get)(
-                f"{settings.nebius_base_url.rstrip('/')}/models",
-                params={"verbose": "true"},
-                headers={"Authorization": f"Bearer {settings.nebius_api_key}"},
-                timeout=5.0,
-            )
-            table = parse_models(r.json()) if r.status_code == 200 else {}
-        except Exception:  # noqa: BLE001 - metadata is best effort
-            table = {}
-        _cache = (now() + (TTL_S if table else FAIL_TTL_S), table)
-        return table
+        cur = _cache
+        if cur and now() < cur[0]:
+            return cur[1]
+    try:
+        r = (get or httpx.get)(
+            f"{settings.nebius_base_url.rstrip('/')}/models",
+            params={"verbose": "true"},
+            headers={"Authorization": f"Bearer {settings.nebius_api_key}"},
+            timeout=5.0,
+        )
+        table = parse_models(r.json()) if r.status_code == 200 else {}
+    except Exception:  # noqa: BLE001 - metadata is best effort
+        table = {}
+    with _lock:
+        if table:
+            _cache = (now() + TTL_S, table)
+        else:
+            _cache = (now() + FAIL_TTL_S, cur[1] if cur else {})
+        return _cache[1]
+
+
+def prewarm() -> None:
+    """Fill the cache in a daemon thread so /config never waits on the first fetch."""
+    threading.Thread(target=catalog, daemon=True, name="tokenfactory-prewarm").start()
 
 
 def reset() -> None:

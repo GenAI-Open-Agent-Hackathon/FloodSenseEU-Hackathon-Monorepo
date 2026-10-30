@@ -889,6 +889,10 @@ def get_view(name: str, event_id: str | None = None, source: str | None = None):
 def main() -> None:
     import uvicorn
 
+    from floodsense_agents import tokenfactory
+
+    tokenfactory.prewarm()  # price/limits table off the request path
+
     uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
 
 

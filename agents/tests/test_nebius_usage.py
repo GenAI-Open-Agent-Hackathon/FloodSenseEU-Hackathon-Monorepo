@@ -122,6 +122,39 @@ class UsageTest(unittest.TestCase):
 
         self.assertEqual(tf.catalog(get=boom), {})
 
+    def test_unpriced_model_makes_cost_null(self):
+        tf._cache = (float("inf"), tf.parse_models(CATALOG))
+        m = ns.UsageMeter()
+        m.record("fast", "nvidia/Nemotron-3_5-Lightning", {"prompt_tokens": 10, "completion_tokens": 5}, 1)
+        m.record("deep", "mystery/model", {"prompt_tokens": 10, "completion_tokens": 5}, 1)
+        d = m.as_dict()
+        self.assertIsNotNone(d["lanes"]["fast"]["cost_usd"])
+        self.assertIsNone(d["lanes"]["deep"]["cost_usd"])
+        self.assertIsNone(d["cost_usd"])
+
+    def test_keeps_stale_table_on_failure(self):
+        tf.reset()
+        t = [0.0]
+        good = lambda url, **kw: httpx.Response(200, json=CATALOG)  # noqa: E731
+        bad = lambda url, **kw: httpx.Response(500)  # noqa: E731
+        self.assertTrue(tf.catalog(get=good, now=lambda: t[0]))
+        t[0] = 4000.0
+        self.assertIn("nvidia/nemotron-3_5-lightning", tf.catalog(get=bad, now=lambda: t[0]))
+
+    def test_answers_counted_once_per_run_with_calls(self):
+        g = ns.GLOBAL_USAGE
+        before = g.answers
+        m, quiet = ns.UsageMeter(), ns.UsageMeter()
+        tok = ns.run_meter.set(m)
+        try:
+            for _ in range(3):  # several calls (and a resume) in one run
+                m.record("fast", "x", {}, 1)
+        finally:
+            ns.run_meter.reset(tok)
+        tok = ns.run_meter.set(quiet)  # quick lane: no model call, never counted
+        ns.run_meter.reset(tok)
+        self.assertEqual(g.answers - before, 1)
+
     def test_pacer_defaults_from_limits(self):
         tf._cache = (float("inf"), tf.parse_models(CATALOG))
         ns._gate = None
