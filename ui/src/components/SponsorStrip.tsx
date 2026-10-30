@@ -15,7 +15,7 @@ export function SponsorChips({ platform, role = "citizen" }: { platform: Platfor
     <ul className="sponsor-strip" aria-label="Sponsor technologies in use">
       {sponsorChips(platform, role === "citizen").map((c: SponsorChip) => (
         <li key={c.id}>
-          <a className={`sponsor-chip sponsor-chip--${c.state}`} href={href} title={c.title} aria-label={`${c.label}, ${STATE_WORD[c.state]}`} data-sponsor={c.id}>
+          <a className={`sponsor-chip sponsor-chip--${c.state}`} href={href} title={c.title} aria-label={`${c.label}${c.detail ? ` ${c.detail}` : ""}, ${STATE_WORD[c.state]}`} data-sponsor={c.id}>
             <span className="sponsor-dot" aria-hidden="true" />
             <span className="sponsor-name">{c.label}</span>
             {c.detail && <span className="sponsor-detail">{c.detail}</span>}

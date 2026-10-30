@@ -88,7 +88,7 @@ export function useStackData(): StackData {
     };
 
     const tick = async (): Promise<boolean> => {
-      const [p, s, past] = await Promise.all([fetchPlatformStatus(), fetchSystem(undefined, ctl.signal), fetchPastRuns(30, ctl.signal)]);
+      const [p, s, past] = await Promise.all([fetchPlatformStatus(undefined, ctl.signal), fetchSystem(undefined, ctl.signal), fetchPastRuns(30, ctl.signal)]);
       if (ctl.signal.aborted) return false;
       setPlatform({ data: p.status, error: p.error, loading: false });
       publishPlatform(p.status);

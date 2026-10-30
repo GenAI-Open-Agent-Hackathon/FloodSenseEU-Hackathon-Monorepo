@@ -94,6 +94,18 @@ function detailedChips(platform: PlatformStatus | null): SponsorChip[] {
 
 export { regionBadge } from "./lanes";
 
+/** Pure: lower case, German umlauts as ae/oe/ue/ss, other diacritics dropped ("Köln", "Koeln", "KOLN" -> koeln, koeln, koln). */
+export const foldPlace = (s: string): string =>
+  s.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/** Pure: a plain, number-free phrase for how long ago an ISO time was; null when unparsable. */
+export function agoPhrase(iso: string | null | undefined, now = Date.now()): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return null;
+  const min = (now - t) / 60_000;
+  return min < 2 ? "just now" : min < 90 ? "a few minutes ago" : min < 24 * 60 ? "earlier today" : "a while ago";
+}
+
 export const usd = (v: number | null | undefined): string =>
   v === null || v === undefined ? "n/a" : v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(6).replace(/0+$/, "")}` : `$${v.toFixed(v < 1 ? 4 : 2)}`;
 

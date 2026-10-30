@@ -95,7 +95,7 @@ flowchart LR
 
 ## Sponsor stack in the UI
 
-`SponsorStrip` shows Nebius, Nemotron (lane model ids), Tavily (calls), Zetaris and Meterless with a dot from `GET /platform/status`; an unreachable API shows "unavailable", not green. Desks show the Tavily web check as plain words (confirmed, conflicts, not confirmed) with up to three links, always labelled "Web context, not an official warning"; the citizen desk gets no numbers. The region badge is read from the model list (`llm_usage.pricing`), so the deep Super VL model can show US while the fast lane shows EU (Finland). Tests: `ui/src/lib/sponsors.test.tsx`. Not verified: rendering in a browser.
+`SponsorStrip` shows Nebius, Nemotron (lane model ids), Tavily (calls), Zetaris and Meterless with a dot from `GET /platform/status` (Meterless is grey "unknown": that endpoint carries no memory status); an unreachable API shows "unavailable", not green. The citizen strip is plain: names and dots only, no counts or model ids. Desks show the Tavily web check as plain words ("A web report supports this", "A web report conflicts with this", "No clear web confirmation") with up to three links, always labelled "Web context, not an official warning" and "From the latest checked answer"; the citizen desk shows it only when that answer is about the selected place, with no numbers, event ids or timestamps (only "checked a few minutes ago" style phrases). The region badge is read from the model list (`llm_usage.pricing`), so the deep Super VL model can show US while the fast lane shows EU (Finland). Tests: `ui/src/lib/sponsors.test.tsx`. Not verified: rendering in a browser.
 
 ## Agents at work (`<AgentsLive/>`)
 

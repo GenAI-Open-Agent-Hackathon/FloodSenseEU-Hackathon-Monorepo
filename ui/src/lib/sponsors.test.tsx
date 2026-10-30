@@ -8,7 +8,7 @@ import { SponsorChips } from "../components/SponsorStrip";
 import { WebCheckCard } from "../components/desk/WebCheck";
 import { TavilyCard } from "../components/stack/TavilyCard";
 import type { StackData } from "../hooks/useStackData";
-import { regionBadge, sponsorChips, webCheckView, webContextOf } from "./sponsors";
+import { agoPhrase, regionBadge, sponsorChips, webCheckView, webContextOf } from "./sponsors";
 import { buildTechTrace } from "./techTrace";
 
 vi.mock("../components/LiveSources", () => ({ LiveSourceBadge: () => null }));
@@ -77,7 +77,7 @@ describe("web check", () => {
   it("citizen: words and links only, at most 3, no numbers; insurer sees detail", () => {
     const raw = { answer: { web_context: WEB } };
     const c = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="citizen" place="Koeln" />);
-    expect(c).toContain("From the latest checked answer (Koeln");
+    expect(c).toContain("From the latest checked answer for Koeln");
     expect(c).toContain("REPLAY");
     expect(c).toContain("A web report conflicts with this.");
     expect(c).toContain("Web context, not an official warning");
@@ -91,6 +91,17 @@ describe("web check", () => {
 
 describe("review fixes", () => {
   const raw = { answer: { web_context: { ...WEB, results: [{ url: "javascript:alert(1)", title: "<b>bold</b>" }, { url: "https://ok.example/x", title: "<img src=x onerror=1>" }] } } };
+  it("citizen web check shows no event id, ISO time or digits; place match folds diacritics", () => {
+    const clean = { answer: { web_context: { ...WEB, results: [{ url: "https://example.org/a", title: "River report" }] } } };
+    const stack = stackOf(clean);
+    (stack.stackRun!.run as unknown as Record<string, unknown>).eventId = "EMSR773";
+    const html = renderToStaticMarkup(<WebCheckCard stack={stack} desk="citizen" place="Köln" />);
+    expect(html).toContain("From the latest checked answer for Köln");
+    expect(html).not.toContain("EMSR773");
+    expect(html).not.toContain("2026-10-30");
+    expect(html.replace(/<[^>]*>/g, " ")).not.toMatch(/\d/);
+    expect(agoPhrase("2026-10-30T09:00:00Z", Date.parse("2026-10-30T09:05:00Z"))).toBe("a few minutes ago");
+  });
   it("citizen sees nothing for a different place", () => {
     const html = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="citizen" place="Valencia" />);
     expect(html).toContain("another place");
