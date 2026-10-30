@@ -1,0 +1,8 @@
+# EXPLICIT OPT-IN. Plain HTTP: the judge password travels in clear text. Use only on a closed network.
+{
+	admin off
+}
+import /etc/caddy/app.caddy
+http://:80 {
+	import app
+}

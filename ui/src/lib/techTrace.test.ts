@@ -266,3 +266,67 @@ describe("techTrace: pickRunRow (insurer Review)", () => {
     expect(pickRunRow(rows, "past", "EMSR999")).toBeNull();
   });
 });
+
+describe("techTrace: Tavily tile", () => {
+  it("is off without a tavily trace step", () => {
+    expect(tile(QUICK, "tavily").headline).toContain("Off");
+    expect(tile(QUICK, "tavily").used).toBe(false);
+  });
+  it("shows the call and the Skeptic web check", () => {
+    const run = body({
+      trace: [
+        step(1, "tavily", "none", null, 300, "tavily query 'Koeln flood warning current'; 3 results; 300 ms; cached no"),
+        step(2, "skeptic", "sql", null, 5, "1 supported; web_check supports C-1 https://example.org/a"),
+      ],
+    });
+    const t = tile(run, "tavily");
+    expect(t.headline).toBe("On · 1 call");
+    expect(t.details.map((d) => d.value).join("|")).toContain("supports C-1, https://example.org/a");
+  });
+  it("says unavailable when the call failed", () => {
+    const run = body({ trace: [step(1, "tavily", "none", null, 1, "tavily unavailable (HTTP 429); query -")] });
+    expect(tile(run, "tavily").headline).toBe("Unavailable");
+  });
+});
+
+describe("Token Factory tile", () => {
+  const usage = {
+    models: [{ lane: "fast", model_id: "nvidia/nemotron-3-nano-30b", calls: 2, total_tokens: 900 }],
+    total: { calls: 2, total_tokens: 900, avg_latency_ms: 800 },
+    cost_usd: null,
+    price_note: "price not configured",
+  };
+  const llm = (over: Record<string, unknown>) => body({ lane: "full", trace: [step(1, "investigator", "fast", "nvidia/nemotron-3-nano-30b", 500, "x")], ...over });
+  const nt = (r: RecordedRun, b?: string) => buildTechTrace(r, b).tiles.find((t) => t.id === "nightshift")!;
+  it("nebius with usage", () => {
+    const t = nt(llm({ usage }), "nebius");
+    expect(t.name).toBe("Nebius Token Factory");
+    const text = JSON.stringify(t.details);
+    expect(text).toContain("nvidia/nemotron-3-nano-30b");
+    expect(text).toContain("900 tokens");
+    expect(text).toContain("price not configured");
+  });
+  it("no usage is honest", () => {
+    expect(JSON.stringify(nt(llm({}), "nebius").details)).toContain("Not recorded for this answer");
+  });
+  it("nightshift keeps its name", () => {
+    expect(nt(llm({ usage }), "nightshift").name).toBe("Meterless Nightshift");
+  });
+});
+
+describe("Token Factory tile: usage states", () => {
+  const nt = (r: RecordedRun) => buildTechTrace(r, "nebius").tiles.find((t) => t.id === "nightshift")!;
+  it("deterministic run with calls=0 says no model call", () => {
+    const t = nt(body({ lane: "quick", usage: { models: [], total: { calls: 0, total_tokens: 0 }, cost_usd: null } }));
+    expect(JSON.stringify(t.details)).toContain("No model call in this answer");
+    expect(JSON.stringify(t.details)).not.toContain("Not recorded");
+  });
+  it("deterministic run without usage adds no usage row", () => {
+    expect(JSON.stringify(nt(body({ lane: "quick" })).details)).not.toContain("Usage");
+  });
+  it("cost is formatted", () => {
+    const usage = { models: [{ lane: "fast", model_id: "m", calls: 1, total_tokens: 5 }], total: { calls: 1, total_tokens: 5 }, cost_usd: 0.0123, price_note: "estimate" };
+    const r = body({ lane: "full", usage, trace: [step(1, "investigator", "fast", "m", 5, "x")] });
+    expect(JSON.stringify(nt(r).details)).toContain("$0.0123");
+  });
+});

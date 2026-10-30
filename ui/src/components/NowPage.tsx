@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Button from "@mui/material/Button";
+import { PageHeader, SectionCard } from "./ui";
 import { next48hQuestion } from "../api/ask";
 import { useConsole } from "../context/ConsoleContext";
 import type { WatchSource } from "../lib/euWatch";
@@ -9,6 +11,8 @@ import { LoadingNote, SlowSourceNote } from "./Loading";
 import { DemoChip, LiveHealthNote, SwitchToLive } from "./ModeSwitch";
 import { PlacePicker, useCitizenPlace } from "./CitizenView";
 import { demoSnapshotText } from "../lib/demo";
+import { ImpactStrip } from "./ImpactStrip";
+import { citizenChips, FACTS, GOALS } from "../lib/impact";
 import { InsurerNowPage } from "./InsurerNowPage";
 import { LiveSourceBadge } from "./LiveSources";
 import { evidenceFor, PlacesToWatch, sourceTitle, StatusChip, timeText } from "./PlacesToWatch";
@@ -48,23 +52,26 @@ function CitizenNowPage() {
 
   return (
     <div className="now-page">
-      <header className="now-head">
-        <div>
-          <h2 className="now-title">Right now, across our watch</h2>
-          <p className="now-meta" aria-live="polite">
+      <ImpactStrip goal={GOALS.citizen} chips={citizenChips(live.sources)} fact={FACTS.citizen} />
+      <PageHeader
+        title="Right now, across our watch"
+        subtitle={
+          <>
             <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : live.sources.length > 0 ? "Live data · Zetaris" : "Live data unavailable"}</span> {demo && <DemoChip />}
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}${live.health.failed.length > 0 && !live.health.loading ? ` · ${live.health.loaded} of ${live.health.total} sources` : ""}` : ""}
-          </p>
-        </div>
-        <div className="button-row">
-          <button type="button" className="now-refresh" onClick={() => openAsk(next48hQuestion(lead?.name), lead ? { place: lead.name } : undefined)}>
-            Is the next 48 h safe {lead ? "at " + lead.name : "anywhere"}?
-          </button>
-          <button type="button" className="now-refresh" onClick={live.refresh}>
-            Refresh
-          </button>
-        </div>
-      </header>
+          </>
+        }
+        actions={
+          <>
+            <Button variant="outlined" size="small" onClick={() => openAsk(next48hQuestion(lead?.name), lead ? { place: lead.name } : undefined)}>
+              Is the next 48 h safe {lead ? "at " + lead.name : "anywhere"}?
+            </Button>
+            <Button variant="outlined" size="small" onClick={live.refresh}>
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       <LiveHealthNote live={live} />
       {lead ? (
@@ -94,17 +101,11 @@ function CitizenNowPage() {
       )}
 
       <SlowSourceNote pending={loading && live.sources.length > 0} what="A live source" />
-      <section className="now-region" aria-label="Find a place">
-        <h3 className="now-subtitle">Find your place</h3>
+      <SectionCard title="Find your place">
         <PlacePicker {...ctx} />
-      </section>
+      </SectionCard>
 
-      <section className="now-region" aria-labelledby="now-eu">
-        <div className="now-region-head">
-          <h3 className="now-subtitle" id="now-eu">
-            Europe · live watch
-          </h3>
-        </div>
+      <SectionCard title="Europe · live watch">
         <EuWatchMap sources={live.sources} />
         <details className="disclosure">
           <summary>How we colour the map</summary>
@@ -122,7 +123,7 @@ function CitizenNowPage() {
         <p className="now-source">
           Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via Zetaris
         </p>
-      </section>
+      </SectionCard>
     </div>
   );
 }

@@ -28,6 +28,22 @@ Compose publishes the dev server on host port 15173 (container port 5173). `VITE
 
 Do not put tokens in `ui/.env`. Vite exposes every `VITE_*` value to the browser. The NVIDIA provider key lives only in Nightshift's Providers tab. This package does not call Nightshift or Zetaris.
 
+## Design system (MUI)
+
+The UI uses Material UI 9 with emotion. `ui/src/lib/muiTheme.ts` is the single theme. It follows the `data-theme` attribute (light/dark) through CSS variables, so `lib/theme.ts` stays the only place that switches theme. `CssBaseline` is on.
+
+- Status tones (`normal`, `watch`, `elevated`, `warning`, `neutral`, `unknown`) are in `theme.palette.status`. Model output uses amber (`elevated`), never red. Colour is never the only signal: every chip shows its word.
+- Shared components live in `src/components/ui/`: `PageHeader`, `SectionCard`, `StatCard`, `StatusChip`, `DataTable` (sticky header, `dense`), `EmptyState`, `LoadingState`. Import from `./ui`.
+- The shell: `Header` (AppBar, Tabs), `SideNav` (Drawer: permanent on wide screens, temporary under 760 px; collapse state from `useCollapsedNav`).
+- Not migrated yet: other pages still use the older classes in `src/styles/*.css`. Delete a CSS rule only when its last user is migrated.
+
+### Add a page
+
+1. Add the route and nav entry in `src/lib/route.ts` (`DESK_NAV`) and the case in the desk view (`CitizenView`, `InsurerView` or `OperatorView`).
+2. Build it as `PageHeader` (title, subtitle, actions) followed by `SectionCard`s; use `StatCard` for single figures and `DataTable` for tabular data. Use `LoadingState` and `EmptyState` for the other states.
+3. Keep the honesty labels (live, demo, model) in the subtitle or card body, and check 375 px for horizontal scroll.
+4. Add a small test next to any new logic; run `npx tsc --noEmit && npx vitest run && npx vite build`.
+
 ## Global mode (Live, Past flood, Demo data)
 
 One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; pure helpers in `src/lib/mode.ts`). The header switch has **Live | Past flood** (with an event picker: Ahr 2021, Valencia 2024) and a **Demo data** checkbox. The state is in the URL query, `?mode=past&event=EMSR773&demo=1` (Live with no demo writes nothing), so a refresh keeps it; the hash is still the page.
@@ -56,6 +72,7 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 | Citizen | What to do | What do I do? | built-in safety guidance, official warning links | Warning links for the place's country | Same guidance, labelled as part of a replay |
 | Citizen | Evidence | Where does this come from? | live view query ids; provenance and citations in Past | View, query id and fetch time per source | Replay provenance and the reviewed answer's citations |
 | Citizen | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Same |
+| Citizen | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Same |
 | Insurer | Control tower | Is the watch loop running, and what did it find? | /watch/status, /watch/events, live watch | Loop state, event feed, scan now, auto-assess switch | Switch to Live to see this |
 | Insurer | Now | What is happening in the watch right now? | hazard_now, gauge_levels, eu_watch | Valencia cards, gauge map and list, Europe map | Switch to Live to see this |
 | Insurer | Replay | How did a past flood unfold? | hazard_timeline (floodsense_seed), bundled Ahr rows | Choose a flood (switches to Past) | Scrubber, chart and table for the chosen flood |
@@ -66,11 +83,15 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 | Insurer | Review | Is the evidence solid? | bundled recorded run (Valencia 2024) | Causal chain, Skeptic, Judge of the recorded run | Same recorded run |
 | Insurer | System | Are memory, cache, limits and models healthy? | /system | Counters and status (same in both modes) | Same |
 | Insurer | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Same |
+| Insurer | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Same |
 | Operator | Situation board | Which places need a call, and what do we say? | gauge_levels, eu_watch, hazard_now, forecast lane | Situation board with N of 45 sources, a call script and Escalate to agents | Live only (no past form) |
 | Operator | Approvals | Which of our escalated runs need a decision? | /runs/past (this desk's own runs) | Queue and decision bar for runs started here | Live only (no past form) |
 | Operator | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Live only (no past form) |
+| Operator | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Live only (no past form) |
 
 (`src/lib/pagePurpose.ts` holds the same rows; `src/lib/mode.test.ts` fails when they drift.)
+
+**Goal and impact strip.** Each desk landing page (Citizen Now, Insurer Now, Operator Situation board) opens with the desk goal, three KPI chips from data already loaded (a missing source shows "no data yet", never a number; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`. Code: `components/ImpactStrip.tsx`, `lib/impact.ts`.
 
 ## What the screen does
 
@@ -116,7 +137,7 @@ The insurer desk shows:
 
 Approve, edit, and reject stay in the browser. Nothing is sent.
 
-The 80 m³/s line (`SIMULATED_ALERT_M3S` in `src/config/scenario.ts`) only colours the replay map's peak band; the Alerts rehearsal uses the 100 m³/s Watchers line. It is not the Watchers anomaly, which is 100 m³/s (`anomaly_discharge` in `agents/floodsense_agents/governance.py`). `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
+The 100 m³/s line (`SIMULATED_ALERT_M3S` in `src/config/scenario.ts`) is the one alert line: the Sites map peak band, Replay and the Alerts rehearsal read it, and it equals `anomaly_discharge` in `agents/floodsense_agents/governance.py` (a test keeps them equal). `warning_level` in the hazard rows is null, and the notice is labelled a simulation.
 
 The chosen past flood is `eventId` in `ConsoleContext` (default EMSR517 = Ahr 2021; the Ahr map date and point live there too), picked in the header and used only in Past flood mode by Replay, Sites / map, Portfolio, Alerts rehearsal and the citizen pages. The header subtitle is the product tagline "Explainable flood risk for Europe" (`headerSubtitle` in `src/lib/events.ts`). The context strip is described under "Global mode". Citizen Now has one Europe live-watch map, the place search and "Places to watch"; insurer Now keeps the dense page (see "Citizen live-first").
 
@@ -176,7 +197,7 @@ The pipeline is a compact stepper: one line per agent (status icon, name, status
 `src/components/AgentPipeline.tsx` (model: `src/lib/pipeline.ts`) draws any run body (live, cache or replay) as Scope → Watchers → Memory → Investigator ⇄ Skeptic → Exposure → Playbook → Judge → Human approval. Each node shows its status, the summed trace `latency_ms`, its lane, how many times it ran, and the trace summary. The revise loop appears when `revise_rounds` > 0 and the repair loop when `repair_rounds` > 0. Badges:
 
 - "Zetaris · N queryIds" on SQL-lane steps.
-- One provider rule (`providerOf` in `src/lib/lanes.ts`) for badges, chips and the live model line: the trace's explicit provider wins when present; otherwise an `nvidia/…nemotron…` id is "Nightshift · …", and every other id is shown as stored.
+- One provider rule (`providerOf` in `src/lib/lanes.ts`) for badges, chips and the live model line: the trace's explicit provider wins when present; without one a recorded run stays neutral (model name only); only a run happening now is named after `llm_backend` from `/platform/status` (shared fetch in `src/hooks/useLlmBackend.ts`, `providerLabel` in `src/lib/lanes.ts`; unknown backend = neutral wording), and every other id is shown as stored.
 - "H-MEM recall · N" only when the memory step recalled at least one finding.
 - "World Model" with the last board (H1 supported / not_supported …).
 - "pgvector + Zetaris JDBC" when layer (c) citations exist.
@@ -185,7 +206,7 @@ The reveal is CSS and stops under `prefers-reduced-motion`. `src/components/Retr
 
 ### How this answer was made (TechTrace)
 
-Every finished answer carries four sponsor tiles under the stepper: Zetaris, Meterless Nightshift, Meterless H-MEM and Meterless World Model, each a button (`aria-expanded`) that opens its detail, with a one-sentence glossary as tooltip and in the panel. A first line states the router's choice and the Judge result ("Router → quick lane (live level question about KÖLN) · Checked 1.00"). `src/lib/techTrace.ts` derives everything from the run snapshot (`claims[].citations`, `trace` model_id / lane / latency_ms, `memory_used`, the World Model board in the trace, `judge_summary`, `lane`, `router_reason`) and invents nothing: Zetaris counts the distinct cited `query_id`s over layers a and c and lists the views and layer b upstream sources; Nightshift lists the models and lanes with the count of model-assisted steps (not calls) and the time in those steps (it includes data queries), labels a non-Nemotron model "test provider", notes cached or replayed answers as recorded, and for a run without a model call says "No model call: answered deterministically from Zetaris data"; H-MEM lists recalled memories (demo seed labelled), separates "recall not active in this run" from "no approved memory matched", and adds "+ writes on approval" only when recall ran and the run awaits approval; World Model lists H1..Hn verdicts or "Not used by this lane". `src/components/TechTrace.tsx` mounts after the stepper in the Ask answer; on insurer Review `LatestRunTechTrace` shows it in a collapsed disclosure for the run awaiting review (else the newest finished run from `GET /runs/past`; in Past mode the newest run of the chosen event, pass `mode` and `eventId`), and How it works opens with the same four tiles plus the live status dot from `/config` and `/system`. Styles: `src/styles/techTrace.css`. Tests: `src/lib/techTrace.test.ts` (quick, full and forecast runs).
+Every finished answer carries four sponsor tiles (the Nightshift tile reads "Nebius Token Factory" and adds calls, tokens and cost from `run.usage` when `/platform/status` says `llm_backend=nebius`; the System page has a Platform strip fed by `fetchPlatformStatus`) under the stepper: Zetaris, Meterless Nightshift, Meterless H-MEM and Meterless World Model, each a button (`aria-expanded`) that opens its detail, with a one-sentence glossary as tooltip and in the panel. A first line states the router's choice and the Judge result ("Router → quick lane (live level question about KÖLN) · Checked 1.00"). `src/lib/techTrace.ts` derives everything from the run snapshot (`claims[].citations`, `trace` model_id / lane / latency_ms, `memory_used`, the World Model board in the trace, `judge_summary`, `lane`, `router_reason`) and invents nothing: Zetaris counts the distinct cited `query_id`s over layers a and c and lists the views and layer b upstream sources; Nightshift lists the models and lanes with the count of model-assisted steps (not calls) and the time in those steps (it includes data queries), labels a non-Nemotron model "test provider", notes cached or replayed answers as recorded, and for a run without a model call says "No model call: answered deterministically from Zetaris data"; H-MEM lists recalled memories (demo seed labelled), separates "recall not active in this run" from "no approved memory matched", and adds "+ writes on approval" only when recall ran and the run awaits approval; World Model lists H1..Hn verdicts or "Not used by this lane". `src/components/TechTrace.tsx` mounts after the stepper in the Ask answer; on insurer Review `LatestRunTechTrace` shows it in a collapsed disclosure for the run awaiting review (else the newest finished run from `GET /runs/past`; in Past mode the newest run of the chosen event, pass `mode` and `eventId`), and How it works opens with the same four tiles plus the live status dot from `/config` and `/system`. Styles: `src/styles/techTrace.css`. Tests: `src/lib/techTrace.test.ts` (quick, full and forecast runs).
 
 ### Disaster replay
 
@@ -213,6 +234,10 @@ Every Ask request carries `context` from `screenContext()` in ConsoleContext (ro
 The API caches the views (`x-views-cache` miss, hit or stale; `x-views-age-s`). When a view is served stale the live sources failed and this is the last good copy: `LiveHealthNote` says "Last good reading from HH:MM UTC (live source temporarily unavailable)", the context strip says "Live data · view eu_watch is N min old" and never plain "Live". The headers are read in `src/api/euWatch.ts`, `gauges.ts`, `now.ts`; the logic is in `src/lib/staleness.ts`.
 
 `GET {VITE_API_URL}/views/gauge_levels` (Zetaris `floodsense.gauge_levels`, PEGELONLINE Rhine/Mosel gauges). The browser never calls PEGELONLINE. Numbers sent as strings are coerced. Markers sit at the view's `lat`/`lon` (fallback: `STATION_POSITIONS` in `src/lib/gauges.ts`), coloured by `band` (below, near, above, unknown = No threshold). Cards show level, `trend_cm_h` as rising/steady/falling, MW and MHW, and the measured time. Each row's origin comes from `source`: a seed, fixture or replay stamp is labelled Seed or Fixture (dashed marker), never Live. A row with `is_stale` true (or missing) is labelled Stale. Live appears only for a live-source, fresh row, and the map chip says Live only when every gauge is. The view is re-read every 5 minutes; a failed or empty read is retried, not cached. An empty or unreachable view says "No live gauge readings yet". No sample gauges are drawn. Tiles: OpenStreetMap via Leaflet.
+
+## Under the hood (`#/<desk>/stack`)
+
+One page under every desk, with one card per technology in `src/components/stack/`: Nebius Token Factory and Nemotron (fast and deep lane calls, tokens, latency counting up), the agent pool (the eight steps lighting up from a run trace, with play/pause, scrub and speed; a running run is followed over SSE), Zetaris (views, rows and query ids flowing to PEGELONLINE, Open-Meteo, Copernicus EMS and seed CSVs), the Meterless engines (H-MEM and World Model counts, memory recalled in the run, the approve-then-remember loop), the Redis cache (hit-rate ring) and rate limiting (run slots, 429 counters). Data comes from `GET /platform/status`, `GET /system`, `GET /runs/past` and `GET /runs/{id}/replay`; the mappers are pure (`src/lib/stack.ts`). Each card carries a LIVE (read from the API now), REPLAY (recorded run) or SAMPLE (bundled recording) badge, or NO DATA with an empty state. Motion is CSS only and stops under `prefers-reduced-motion`.
 
 ## Fixture and live
 

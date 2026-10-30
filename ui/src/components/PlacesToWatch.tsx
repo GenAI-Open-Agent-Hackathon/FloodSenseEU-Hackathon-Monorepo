@@ -1,3 +1,4 @@
+import { StatusChip as UiStatusChip } from "./ui/StatusChip";
 import { useMemo, useState } from "react";
 import type { LiveWatch } from "../hooks/useLiveWatch";
 import type { WatchSource } from "../lib/euWatch";
@@ -22,7 +23,7 @@ export function evidenceFor(live: Pick<LiveWatch, "gauges" | "euWatch" | "hazard
 }
 
 export function StatusChip({ view, large }: { view: StatusView; large?: boolean }) {
-  return <span className={`plain-chip plain-chip--${view.tone}${large ? " plain-chip--lg" : ""}`}>{view.word}</span>;
+  return <UiStatusChip tone={view.tone} label={view.word} large={large} />;
 }
 
 /** "Measured 27 Oct, 10:15 UTC" for a gauge; "Modelled …" for a model hour; "Modelled for 27 Oct" for a model day. */

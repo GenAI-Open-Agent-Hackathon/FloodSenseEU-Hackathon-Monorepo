@@ -37,6 +37,9 @@ flowchart LR
   ENG["Engines sidecar :8300<br/>Meterless H-MEM + World Model"]
   NS["Meterless Nightshift :8088<br/>meterless/fast, meterless/deep"]
   NEM["NVIDIA Nemotron 3.5"]
+  TF["Nebius Token Factory<br/>LLM_BACKEND=nebius, NVIDIA Nemotron<br/>one OpenAI-compatible API, fast and deep lanes"]
+  TAV["Tavily Search<br/>FF_TAVILY, labelled web context"]
+  HOST["Nebius AI Cloud<br/>hosting (kit in review)"]
   PGV[("pgvector :15432<br/>1,859 passages")]
   NIM["NVIDIA NIM<br/>nemotron-embed"]
   ZET["Zetaris<br/>the only SQL path to data"]
@@ -49,6 +52,9 @@ flowchart LR
   LANES --> ZET
   FULL --> ZET
   FULL --> NS --> NEM
+  FULL -. "alternative backend" .-> TF
+  FULL -. "web context" .-> TAV
+  HOST -. "runs the app (planned)" .-> API
   FULL <--> ENG
   LANES -. "H-MEM recall" .-> ENG
   FULL --> PGV
@@ -58,23 +64,43 @@ flowchart LR
   POLL --> ZET
 ```
 
-The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and every chat model call goes through Nightshift.
+The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detailed version. Agents never call a public data source themselves, and every chat model call goes through one backend: Nebius Token Factory (default, `LLM_BACKEND=nebius`) or Nightshift (`LLM_BACKEND=nightshift`).
 
 ## How the sponsors are used
 
 - **Zetaris: the only SQL path to the data.** Hazard, exposure, gauge, provenance and document metadata are read only through Zetaris views (FILESTORE CSV tables, REST tables that call Open-Meteo, and the pgvector database over JDBC). The numbered migrations in `zetaris/migrations/` (up to `073`) define them; `py tasks.py zetaris-sync` applies and verifies them. Every data citation carries the Zetaris `query_id`. Code: `agents/floodsense_agents/zetaris.py`.
 - **Meterless Nightshift: the gateway for all Nemotron calls, plus H-MEM and the World Model.** All chat completions go through Nightshift on two lanes, `meterless/fast` and `meterless/deep`, with backoff on NVIDIA 429. The Meterless H-MEM (memory of approved findings) and World Model (hypothesis board) engines run in the `engines/` sidecar; memory is written only after a human approves. Code: `agents/floodsense_agents/nightshift.py`, `engines.py`, `nodes/memory.py`.
+- **Nebius Token Factory + NVIDIA Nemotron (selectable backend).** Set `LLM_BACKEND=nebius` and `NEBIUS_API_KEY` to send the same chat calls to the Token Factory OpenAI-compatible API with NVIDIA Nemotron models instead of Nightshift. This is the default backend (`LLM_BACKEND=nebius`); Nightshift stays fully supported with `LLM_BACKEND=nightshift`. On 30 Oct 2026, with a real Token Factory key, only these were run live: the lane check (fast 1.1 s, deep 30.4 s for a one-token prompt); full-lane replay of Ahr EMSR517 in 148 s (12 model calls, 44,569 tokens) and Valencia EMSR773 in 281 s (run concurrently with the Ahr one; 14 calls, 40,370 tokens), every claim judged. Details: [docs/SUBMISSION-NEBIUS.md](docs/SUBMISSION-NEBIUS.md), section 6. Code: `NebiusClient` in `agents/floodsense_agents/nightshift.py`.
 - **NVIDIA: Nemotron 3.5 models and NIM embeddings.** Nightshift routes the lanes to NVIDIA Nemotron (`nvidia/nemotron-3.5-lightning-30b-a3b` in every measured call on 27 Oct 2026). Document embeddings come from NVIDIA NIM `nvidia/nemotron-3.5-embed-1b`, the one model call that does not go through Nightshift (ADR 0009). Code: `agents/floodsense_agents/nim_embed.py`, `scripts/rag_ingest.py`.
+- **Tavily: current public web context.** With `FF_TAVILY=true` and `TAVILY_API_KEY` set (default off), the full-lane Investigator makes one Tavily Search call per place and adds up to three snippets as claims labelled "Web context, not an official warning", each cited with its URL and retrieval time. Web text is cleaned (digits and units removed, markup, quotes and newlines stripped, length capped) and shown only as a quoted excerpt, so it carries no numbers into a claim; web claims have no severity and are never red; a failed or empty call is skipped silently. The Skeptic also compares one alert-timing claim with the web snippets (untrusted quoted data; it records supports, contradicts or neutral with the URL, and never changes a verdict), the call shows as its own trace entry (query, result count, latency, cached), and the evidence drawer and the "How this answer was made" panel show web citations and a Tavily tile. Live Tavily calls are not yet verified against a real key. Code: `agents/floodsense_agents/tavily.py`.
 - **Cursor: see [How we built it](#how-we-built-it).**
 
 Each answer in the UI has a "How this answer was made" panel with one tile per technology. The sponsor details with file references are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
 
+## Built on Nebius and NVIDIA
+
+Entry for the Nebius x NVIDIA Global AI Hackathon, track Best Apps and Agents. FloodSense was built 22 to 27 Oct 2026; the Nebius port (Token Factory backend, Tavily web context, Nebius hosting kit) is the main new work of the submission period. Submission pack: [docs/SUBMISSION-NEBIUS.md](docs/SUBMISSION-NEBIUS.md).
+
+- **Runtime call to Token Factory with NVIDIA Nemotron.** `LLM_BACKEND=nebius` sends every chat completion to `POST https://api.tokenfactory.nebius.com/v1/chat/completions` (OpenAI-compatible, Bearer `NEBIUS_API_KEY`; override with `NEBIUS_BASE_URL`). Code: `NebiusClient` in `agents/floodsense_agents/nightshift.py`, settings in `agents/floodsense_agents/settings.py`.
+- **Which Nemotron, per lane.** Defaults: fast lane `NEBIUS_MODEL_FAST=nvidia/Nemotron-3_5-Lightning` (a reasoning model) (Investigator, Skeptic rationale, Playbook first draft, front door); deep lane `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL` (Judge grounding, Playbook repair). Both are env-overridable. The ids come from a keyed `GET /v1/models`, which also lists `nvidia/Nemotron-3-Ultra-550b-a55b`, `nvidia/nemotron-3-super-120b-a12b` and `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`; the Judge contract accepts all five.
+- **One API for all lanes.** Both lanes use the same endpoint and key; only the `model` field differs. `MODEL_FAST` / `MODEL_DEEP` are ignored in this mode.
+- **Resilience.** Shared with the Nightshift client: a process-wide call gate (max concurrency and a requests-per-minute pacer, `NIGHTSHIFT_MAX_CONCURRENCY`, `NIGHTSHIFT_RPM`; the env names keep the old prefix), exponential backoff with jitter on 429 and empty responses, a total per-call time budget, and a JSON-mode downgrade if `response_format` is rejected.
+- **Model id on the record.** The id that answered each step is stored in the trace (`model_id`, `duration_ms`) and on each Judge score; the UI's "How this answer was made" panel shows it. The Nemotron ids above are accepted by the Judge contract enum.
+- **Where Token Factory helped.** Measured 30 Oct 2026: Ahr 2021 full lane 148 s, 12 calls, 44,569 tokens; Valencia 2024 281 s (concurrent run), 14 calls, 40,370 tokens. No cost claim until prices are configured. Details: [docs/SUBMISSION-NEBIUS.md](docs/SUBMISSION-NEBIUS.md).
+- **Tavily web evidence.** With `FF_TAVILY=true` and `TAVILY_API_KEY`, the full-lane Investigator makes one Tavily Search call per place and adds up to three snippets as claims labelled "Web context, not an official warning", each cited by URL and retrieval time. Digits, markup and newlines are stripped, so web text carries no numbers into a claim. Default off. Code: `agents/floodsense_agents/tavily.py`.
+- **Hosting on Nebius AI Cloud.** Hosting kit in review (no `docs/DEPLOY-NEBIUS.md` on main yet).
+- **Run it with your own keys.** In `agents/.env`: `NEBIUS_API_KEY=<your Token Factory key>` (`LLM_BACKEND=nebius` is the default; use `LLM_BACKEND=nightshift` for Nightshift), and optionally `FF_TAVILY=true`, `TAVILY_API_KEY=<your key>`. Then `python tasks.py up` (needs your own Zetaris, see Quick start). Without a key `/ready` answers 503 and says to set `NEBIUS_API_KEY` or choose `nightshift`.
+- **Honest status.** Token Factory: On 30 Oct 2026, with a real Token Factory key, only these were run live: the lane check (fast 1.1 s, deep 30.4 s for a one-token prompt); full-lane replay of Ahr EMSR517 in 148 s (12 model calls, 44,569 tokens) and Valencia EMSR773 in 281 s (run concurrently with the Ahr one; 14 calls, 40,370 tokens), every claim judged. Tavily live call unverified. Unit tests use fakes and mock transports and need no key (`agents/tests/test_nebius.py`). The 27 Oct eval figures were measured on Nightshift, not Token Factory. Zetaris is the data layer.
+
+**Under the hood.** The UI page `#/<desk>/stack` shows, with animated cards fed by the live API (platform status, `/system`, a recorded run's trace and usage), how Nebius and Nemotron, the agent pool, Zetaris, H-MEM and the World Model, the Redis cache and the rate limits are used. Every card says whether its data is live, a replay or a bundled sample.
+
 ## Quick start
 
-You need Python 3.10+, Docker Desktop, and your own local Zetaris (UI `:3000`, REST `:8888`, JDBC `:10000`) and Nightshift (`:8088`); this repository starts neither. Fill `agents/.env` and `ingestion/.env` with your own keys after the first command. For the live demo set `FF_LIVE_DATA=true`, `FF_HMEM=true` and `FF_RAG_DOCS=true` in `agents/.env` (the examples ship them off, and with `FF_LIVE_DATA` off every question goes to the full lane). `demo-seed` warms the answer cache only when `FF_SEMANTIC_CACHE=true` is set in `api/.env`.
+You need Python 3.10+, Docker Desktop, and your own local Zetaris (UI `:3000`, REST `:8888`, JDBC `:10000`) and a Nebius Token Factory key (`NEBIUS_API_KEY` in `agents/.env`; or Nightshift on `:8088` with `LLM_BACKEND=nightshift`); this repository starts neither Zetaris nor Nightshift. Fill `agents/.env` and `ingestion/.env` with your own keys after the first command. For the live demo set `FF_LIVE_DATA=true`, `FF_HMEM=true` and `FF_RAG_DOCS=true` in `agents/.env` (the examples ship them off, and with `FF_LIVE_DATA` off every question goes to the full lane). `demo-seed` warms the answer cache only when `FF_SEMANTIC_CACHE=true` is set in `api/.env`.
 
 ```powershell
 py tasks.py init-env
+# then set NEBIUS_API_KEY in agents/.env (or LLM_BACKEND=nightshift)
 py tasks.py up-all
 py tasks.py zetaris-sync
 py tasks.py demo-seed
@@ -82,6 +108,9 @@ Invoke-RestMethod http://127.0.0.1:18000/health
 ```
 
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
+
+**Hosted judge demo.** `compose.hosted.yaml` plus [docs/DEPLOY-NEBIUS.md](docs/DEPLOY-NEBIUS.md) put the app on a Nebius VM behind a login, on Demo data with live Nebius model answers.
+Model-call evidence on the Nebius backend: `py tasks.py check-llm` (one call per lane, model id and latency) and per-run token `usage` (see `agents/README.md`). Verified live on 30 Oct (see "Built on Nebius and NVIDIA").
 
 ## Honest limitations
 
@@ -177,7 +206,7 @@ python3 tasks.py up-all
 
 That adds pgvector on `127.0.0.1:15432` and Redis on `127.0.0.1:16379`. `init-env` also copies `pgvector/.env.example`. `down` stops this project only, including those profiles, even when `pgvector/.env` was never created. It does not remove volumes and it does not stop Zetaris.
 
-**Live German gauges need no host process.** The `pegel-poller` service (default profile, so `python tasks.py up` and `up-all` both start it; `up-all` is the one command for everything) polls the 26 PEGELONLINE stations every 600 s and copies `live.csv` into the Zetaris driver container with `docker cp`. Zetaris is a separate stack, so the poller mounts the Docker socket (`/var/run/docker.sock`; Docker Desktop on Windows and macOS provides that path inside containers, so the same compose file works on all three). It has no keys and no `.env`. Settings: `ZETARIS_CONTAINER` (default `zetaris-driver-1`) and `POLL_INTERVAL_S` (default `600`), set in the shell or a root `.env` for Compose. If Zetaris is not up yet it logs `FAILED ... retry in 30s` (backoff 30 s to 5 min) and keeps going; `docker compose -p floodsense-app ps` shows it `unhealthy` when `live.csv` has not been refreshed for 2x the interval. Logs: `docker logs -f floodsense-app-pegel-poller-1`. `python tasks.py pegel-poll [--interval 600]` still works for a one-off run on the host; do not run both. Mounting the socket gives that container control of the Docker daemon, so use it on a development machine only.
+**Live German gauges need no host process.** The `pegel-poller` service (default profile, so `python tasks.py up` and `up-all` both start it; `up-all` is the one command for everything) polls the 26 PEGELONLINE stations every 600 s and copies `live.csv` into the Zetaris driver container with `docker cp`. Zetaris is a separate stack, so the poller mounts the Docker socket (`/var/run/docker.sock`; Docker Desktop on Windows and macOS provides that path inside containers, so the same compose file works on all three). It has no keys and no `.env`. Settings: `ZETARIS_CONTAINER` (default `zetaris-driver-1`) and `POLL_INTERVAL_S` (default `600`, floor `30`; lower values are raised with a log line), set in the shell or a root `.env` for Compose. If Zetaris is not up yet it logs `FAILED ... retry in 30s` (backoff 30 s to 5 min) and keeps going; `docker compose -p floodsense-app ps` shows it `unhealthy` when `live.csv` has not been refreshed for 2x the interval. Logs: `docker logs -f floodsense-app-pegel-poller-1`. `python tasks.py pegel-poll [--interval 600]` still works for a one-off run on the host; do not run both. Mounting the socket gives that container control of the Docker daemon, so use it on a development machine only.
 
 Compose is always `docker compose -p floodsense-app` with this repo's `compose.yaml`. An exported `COMPOSE_PROJECT_NAME` or `COMPOSE_FILE` cannot point the task script at another Compose project. If you run `docker compose` yourself, pass the same `-p`.
 

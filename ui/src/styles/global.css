@@ -183,52 +183,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app-shell[data-nav="collapsed"] {
   --nav-width: 3.5rem;
 }
-.app-shell[data-nav="collapsed"] .side-nav {
-  align-items: center;
-  padding-left: 0.4rem;
-  padding-right: 0.4rem;
-}
 .shell-stage {
   margin-left: var(--nav-width);
   min-width: 0;
   padding-bottom: 4.5rem;
-}
-.side-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: var(--nav-width);
-  z-index: 15;
-  overflow: auto;
-  border-right: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 88%, var(--bg-raised));
-  padding: 0.85rem 0.55rem;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.85rem;
-}
-.nav-toggle { flex: none; }
-.side-nav ul {
-  list-style: none;
-  margin: 0.35rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.15rem;
-}
-.side-nav a {
-  display: block;
-  text-decoration: none;
-  color: var(--ink);
-  padding: 0.4rem 0.7rem;
-  border-radius: 10px;
-}
-.side-nav a:hover { background: var(--bg-sunken); }
-.side-nav a[aria-current="page"] {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 650;
 }
 .page-kicker.section-label {
   margin-top: 0.9rem;
@@ -926,8 +884,6 @@ a.button.primary { color: #f4fffc; }
 /* ---------- Mock UI look (ported from Hackathon-Monorepo-mock-ui) ---------- */
 .header { background: var(--surface); backdrop-filter: none; }
 .product { font-size: 1.05rem; }
-.side-nav { background: var(--surface); }
-.side-nav a[aria-current="page"] { background: var(--brand-soft); color: var(--brand-ink); }
 .nav-links a[aria-current="page"] { background: var(--brand); color: var(--on-brand); }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
@@ -1062,7 +1018,6 @@ a.button.primary { color: #f4fffc; }
 .colophon details { width: min(1240px, calc(100% - 2rem)); margin: 0 auto; }
 .colophon summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 
-.nav-backdrop { display: none; }
 
 @media (max-width: 980px) {
   .grid--citizen { grid-template-columns: 1fr; }
@@ -1073,9 +1028,6 @@ a.button.primary { color: #f4fffc; }
   html, body { overflow-x: hidden; }
   .app-shell, .app-shell[data-nav="collapsed"] { --nav-width: 0px; }
   .shell-stage { margin-left: 0; }
-  .app-shell[data-nav="collapsed"] .side-nav { bottom: auto; width: auto; border: 0; background: transparent; padding: 0.7rem 0.5rem; z-index: 25; }
-  .app-shell[data-nav="open"] .side-nav { width: min(16rem, 80vw); z-index: 40; box-shadow: var(--shadow); }
-  .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 30; border: 0; background: rgb(16 35 58 / 35%); }
   .header-inner { padding-left: 2.8rem; flex-wrap: wrap; row-gap: 0.4rem; }
   .product-sub { display: none; }
   /* Two rows: brand and tools, then the desk switch. */
@@ -1167,3 +1119,8 @@ a.button.primary { color: #f4fffc; }
 @media (max-width: 760px) {
   .system-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.impact-strip { margin: 0 0 1rem; }
+.impact-goal { margin: 0.25rem 0 0.5rem; font-weight: 600; }
+.impact-chips { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; }
+.impact-why { margin: 0.5rem 0 0; }

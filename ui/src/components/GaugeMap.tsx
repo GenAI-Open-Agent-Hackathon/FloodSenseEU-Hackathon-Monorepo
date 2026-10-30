@@ -1,10 +1,12 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { escapeHtml, GAUGE_BOUNDS, gaugesLabel, isLiveGauge, type GaugeStatus, type GaugeSummary } from "../lib/gauges";
 import type { GaugeState } from "../hooks/useGaugeLevels";
 import { formatHour } from "../lib/format";
 import { statusLabel } from "../lib/origin";
+
+const GaugeMap3D = lazy(() => import("./GaugeMap3D"));
 
 export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
@@ -53,6 +55,7 @@ const LOAD_CHIP: Record<string, string> = {
 export function GaugeMap({ load, gauges }: { load: GaugeState; gauges: GaugeSummary[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const [view, setView] = useState<"2d" | "3d">("2d");
   const placed = useMemo(() => gauges.filter((g) => g.lat !== null && g.lon !== null), [gauges]);
 
   useEffect(() => {
@@ -119,10 +122,24 @@ export function GaugeMap({ load, gauges }: { load: GaugeState; gauges: GaugeSumm
     <div className="gauge-map">
       <div className="gauge-map__toolbar">
         <MapLegend showNotLive={gauges.some((g) => !isLiveGauge(g))} />
+        <div className="map-view-toggle">
+          <button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>
+            2D map
+          </button>
+          <button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>
+            3D terrain
+          </button>
+        </div>
         <span className={`chip ${chip.cls}`}>{chip.text}</span>
       </div>
       <div className="gauge-map__frame">
-        <div ref={containerRef} className="leaflet-map" role="region" aria-label="River gauges" />
+        {/* Leaflet stays mounted (hidden) so toggling back keeps its view. */}
+        <div ref={containerRef} className="leaflet-map" role="region" aria-label="River gauges" hidden={view === "3d"} />
+        {view === "3d" && (
+          <Suspense fallback={<p className="note">Loading 3D terrain…</p>}>
+            <GaugeMap3D gauges={gauges} />
+          </Suspense>
+        )}
         {load.state !== "rows" && load.state !== "loading" && <p className="gauge-map__empty">No live gauge readings yet.</p>}
       </div>
       {unplaced > 0 && (
