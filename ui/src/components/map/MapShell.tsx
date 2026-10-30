@@ -177,7 +177,13 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     let loaded = false;
     (async () => {
       try {
-        const [ml] = await Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl.css")]);
+        const [ml, worker] = await Promise.all([
+          import("maplibre-gl"),
+          import("maplibre-gl/dist/maplibre-gl-worker.mjs?url"),
+          import("maplibre-gl/dist/maplibre-gl.css"),
+        ]);
+        // Dev pre-bundling serves the worker with no MIME type; point at the asset URL instead.
+        ml.setWorkerUrl(worker.default);
         const container = ref.current;
         if (dead || !container) return;
         map = new ml.Map({
