@@ -304,7 +304,7 @@ class UsageMeter:
             t["cost_usd"] = round(costs[name], 6) if name in costs and name not in bad else None
         cost = total["cost_usd"]
         if cost is None:
-            note = "price not configured" if not bad else "price not configured for every model used"
+            note = "price not configured"
         elif pin is not None and pout is not None:
             note = "estimate from NEBIUS_PRICE_PER_M_INPUT/OUTPUT"
         else:
