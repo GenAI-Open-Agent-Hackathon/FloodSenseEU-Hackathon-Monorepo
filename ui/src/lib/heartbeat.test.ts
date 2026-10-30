@@ -12,4 +12,8 @@ describe("heartbeat", () => {
     expect(heartbeat(ok, 1000, 2000).state).toBe("watching");
     expect(heartbeat(ok, 1000, 1000 + STALE_AFTER_MS + 1).state).toBe("stale");
   });
+  it("boundaries: exactly STALE_AFTER_MS is still fresh; status with at=0 is starting", () => {
+    expect(heartbeat(ok, 1000, 1000 + STALE_AFTER_MS).state).toBe("watching");
+    expect(heartbeat(ok, 0, 5).state).toBe("starting");
+  });
 });

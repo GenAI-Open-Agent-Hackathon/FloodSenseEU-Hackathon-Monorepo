@@ -10,8 +10,8 @@ export const STALE_AFTER_MS = 90_000;
 
 /** Pure: the header heartbeat from the real platform snapshot. No snapshot means no pulse: never a guessed "watching". */
 export function heartbeat(status: PlatformStatus | null, at: number, now: number): Heartbeat {
-  if (!at) return { state: "starting", text: "Connecting to the agents" };
-  if (!status) return { state: "unreachable", text: "Agent status unreachable" };
+  if (!at) return { state: "starting", text: "Checking platform status" };
+  if (!status) return { state: "unreachable", text: "Platform status unreachable" };
   const t = new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  return now - at > STALE_AFTER_MS ? { state: "stale", text: `Agents last checked in at ${t}` } : { state: "watching", text: `Agents watching · last check ${t}` };
+  return now - at > STALE_AFTER_MS ? { state: "stale", text: `Platform status last checked ${t}` } : { state: "watching", text: `Platform status OK · last check ${t}` };
 }

@@ -13,7 +13,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
-- UI polish (`ui/src/styles/polish.css`): staggered section enter, hover/focus states, a header heartbeat ("Agents watching, last check hh:mm:ss") that pulses only while the real `/platform/status` poll is fresh (stale or unreachable shows a still amber dot), sponsor chips that breathe only when reported `on`, still "watching" dots on idle agents, and a sweep on the running agent. All motion stops under `prefers-reduced-motion`; no new timers beyond one 30 s staleness check.
+- UI polish (`ui/src/styles/polish.css`): staggered section enter and card hover (operator and insurer desks only; citizen stays still), a header heartbeat ("Platform status OK, last check hh:mm:ss") that pulses only while the real `/platform/status` poll is fresh (stale or unreachable shows a still amber dot), sponsor chips that breathe only when reported `on`, and a neutral dot on idle agents. All motion stops under `prefers-reduced-motion`; no new timers beyond one 30 s staleness check.
 
 ### Fixed
 
