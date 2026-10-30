@@ -14,6 +14,10 @@ os.environ.setdefault("ZETARIS_MODE", "fake")
 os.environ.setdefault("LLM_MODE", "fake")
 os.environ.setdefault("LLM_BACKEND", "nightshift")
 
+from unittest import mock as _um  # noqa: E402
+
+mock_patch = _um
+
 import httpx  # noqa: E402
 
 from floodsense_agents import tavily  # noqa: E402
@@ -119,6 +123,62 @@ class TavilyTest(unittest.TestCase):
         self.assertIs(body["tavily"], True)
         self.assertNotIn("tvly", json.dumps(body))
 
+    def test_stats_retrieved_at_and_live_check(self):
+        for k in ("calls", "cache_hits", "live_calls", "live_ms"):
+            tavily._stats[k] = 0
+        r = tavily.search("Koeln", transport=mock(lambda q: httpx.Response(200, json=OK)))
+        self.assertRegex(r.retrieved_at, r"^\d{4}-\d\d-\d\dT")
+        c = tavily.search("Koeln")  # cache hit keeps the live fetch time
+        self.assertTrue(c.cached)
+        self.assertEqual(c.retrieved_at, r.retrieved_at)
+        st = tavily.stats()
+        self.assertEqual((st["calls"], st["cache_hits"], st["last_status"]), (2, 1, "ok"))
+        self.assertNotIn("tvly-test", repr(st))
+        self.assertEqual(tavily.tavily_state(r)["retrieved_at"], r.retrieved_at)
+        tavily._cache.clear()
+        tavily._last_call = 0.0
+        tavily.search("Koeln", transport=mock(lambda q: httpx.Response(500)))
+        self.assertEqual(tavily.stats()["last_error"], "HTTP 500")
+        before = tavily.stats()
+        lc = tavily.live_check(transport=mock(lambda q: httpx.Response(200, json=OK)))
+        self.assertEqual((lc["ok"], lc["n_results"], lc["status"]), (True, 3 if len(OK["results"]) > 3 else len(OK["results"]), "ok"))
+        bad = tavily.live_check(transport=mock(lambda q: httpx.Response(500)))
+        self.assertEqual((bad["ok"], bad["error"]), (False, "HTTP 500"))
+
+        def boom(req):
+            raise httpx.ReadTimeout("slow")
+
+        self.assertEqual(tavily.live_check(transport=mock(boom))["error"], "ReadTimeout")
+        self.assertEqual(tavily.stats(), before)  # live_check leaves run counters alone
+        settings.tavily_api_key = None
+        self.assertEqual(tavily.live_check()["configured"], False)
+
+    def test_skeptic_place_match(self):
+        from floodsense_agents.nodes.skeptic import _names_place as m
+
+        self.assertFalse(m("Ahr", "Bahrain and the Fahrt"))
+        self.assertTrue(m("Ahr", "Pegel Altenahr zeigt"))
+        self.assertTrue(m("ahrtal", "Hochwasser an der AHR"))
+        self.assertTrue(m("Köln", "Koln und KÖLN"))
+        self.assertFalse(m("", "anything"))
+
+    def test_skeptic_unknown_place_is_neutral(self):
+        from floodsense_agents.nodes import skeptic as sk
+
+        class L:
+            def complete(self, *a, **k):
+                return json.dumps({"verdict": "contradicts", "url": "https://example.org/a"}), "m"
+
+        class D:
+            llm = L()
+
+        item = {"title": "Ahr flood", "url": "https://example.org/a", "text": "alert"}
+        claims = [{"claim_id": "C-1", "text": "The alert was issued early."}]
+        with mock_patch.patch.object(settings, "ff_tavily", True):
+            for ctx, want in (({}, "neutral"), ({"place": "Ahr"}, "contradicts")):
+                st = {"request": {"context": ctx}, "web": {"items": [item]}, "claims": claims}
+                self.assertEqual(sk._web_check(D(), st)["verdict"], want)
+
     def test_flag_default_off(self):
         self.assertFalse(settings.ff_tavily)
 
@@ -193,8 +253,9 @@ class TavilyTest(unittest.TestCase):
             return json.dumps(reply)
 
         deps = Deps(zetaris=FakeZetaris(), llm=FakeNightshift({"skeptic_web": h}), memory=NoMemory())
-        items = [{"title": "T", "url": "https://example.org/a", "text": "alert lifted"}] if items is None else items
+        items = [{"title": "Koeln", "url": "https://example.org/a", "text": "alert lifted"}] if items is None else items
         state = {
+            "request": {"context": {"place": "Koeln"}},
             "web": {"items": items},
             "claims": [
                 {"claim_id": "C-1", "text": "The warning was issued early."},
@@ -212,6 +273,42 @@ class TavilyTest(unittest.TestCase):
         self.assertEqual((wc["claim_id"], wc["verdict"], wc["url"]), ("C-1", "contradicts", "https://example.org/a"))
         self.assertIn("not an official warning", wc["label"])
         self.assertIn("untrusted", seen[0][0])
+
+    def test_query_is_regional(self):
+        self.assertEqual(tavily._query("Ahr"), "Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz")
+        self.assertEqual(tavily._query("Valencia"), "Valencia Spain inundaciones aviso AEMET")
+        self.assertEqual(tavily._query("Oslo"), "Oslo flood warning current")
+        seen = {}
+
+        def h(req):
+            seen["body"] = json.loads(req.content)
+            return httpx.Response(200, json=OK)
+
+        tavily.search("Ahr", transport=mock(h))
+        self.assertEqual((seen["body"]["topic"], seen["body"]["max_results"]), ("news", 5))
+        self.assertIn("facebook.com", seen["body"]["exclude_domains"])
+
+    def test_skeptic_unrelated_page_is_neutral(self):
+        # The page never names the place: a contradiction is downgraded.
+        import json as _j
+        from unittest import mock as um
+
+        with um.patch.object(settings, "ff_tavily", True):
+            from floodsense_agents.nodes import skeptic as sk
+
+            class L:
+                def complete(self, *a, **k):
+                    return _j.dumps({"verdict": "contradicts", "url": "https://example.org/a"}), "m"
+
+            class D:
+                llm = L()
+
+            st = {
+                "request": {"context": {"place": "Ahr"}},
+                "web": {"items": [{"title": "Spain storms", "url": "https://example.org/a", "text": "alert lifted"}]},
+                "claims": [{"claim_id": "C-1", "text": "The alert was issued early."}],
+            }
+            self.assertEqual(sk._web_check(D(), st)["verdict"], "neutral")
 
     def test_skeptic_web_check_degrades_silently(self):
         self.assertIsNone(self._skeptic({"verdict": "supports", "url": "https://example.org/a"}, flag=False)[0])
