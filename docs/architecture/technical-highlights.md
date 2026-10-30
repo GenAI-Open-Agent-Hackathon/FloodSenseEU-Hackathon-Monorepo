@@ -76,7 +76,7 @@ flowchart LR
 ## Views cache and prewarm
 
 - `GET /views/{name}` is cached per view and query string, single flight, with stale-if-error up to 24 h: `api/app/views_cache.py`.
-- A background task (`ViewsCache.prewarm`) fills `gauge_levels`, `eu_watch`, `hazard_now` and the other live views at startup, 5 s apart, then refreshes them every `VIEWS_PREWARM_INTERVAL_S` (default 120 s, floor 30, 0 = fill once). It shares the request path's single flight, tolerates upstream errors (the old copy stays and is served as `stale`), and is cancelled on shutdown. Copies keep their own `x-query-id` and age; prewarmed data is never relabelled as freshly queried. The interval is conservative because `eu_watch` makes many Open-Meteo free-tier calls.
+- A background task (`ViewsCache.prewarm`) fills `gauge_levels`, `eu_watch`, `hazard_now` and the other live views at startup, 5 s apart, then re-checks every `VIEWS_PREWARM_INTERVAL_S` (default 120 s, floor 30, 0 = fill once) and refreshes a view only near its TTL (about once per 600 s for the Open-Meteo views), with a doubling backoff (cap 1 h) after a failure. It shares the request path's single flight, tolerates upstream errors (the old copy stays and is served as `stale`), and is cancelled on shutdown. Copies keep their own `x-query-id` and age; prewarmed data is never relabelled as freshly queried. The TTL, not the interval, sets the call rate, because `eu_watch` makes many Open-Meteo free-tier calls.
 
 ## Semantic cache and labelled replay
 

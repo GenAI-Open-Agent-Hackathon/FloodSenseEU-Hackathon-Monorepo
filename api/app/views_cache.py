@@ -279,53 +279,45 @@ class ViewsCache:
         interval_s: float,
         names: tuple[str, ...] = WARM_VIEWS,
         gap_s: float = WARM_GAP_S,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
-        """Background task: fill the cache, then refresh every ``interval_s``. Never raises, ends on cancel.
+        """Background task: fill the cache, then re-check every ``interval_s``. Never raises, ends on cancel.
 
-        Goes through ``get`` so it is single flight with requests. Copies keep their own
-        x-query-id and x-executed-at; a failed refresh leaves the old copy (stale-if-error).
-        Views are called ``gap_s`` apart (Open-Meteo free tier).
+        A view is called only when it has no copy or its copy is within a margin of its TTL
+        (so at most about one upstream call per view per TTL window, 600 s for the Open-Meteo
+        views). After a failure (error, 429, empty body, stale answer) the next try waits
+        ``interval_s * 2**failures`` (cap 1 h); a success resets it. Goes through ``get`` so it is single
+        flight with requests. Copies keep their own x-query-id and age; a failed refresh keeps
+        the old copy (stale-if-error). Calls are ``gap_s`` apart.
         """
-        force = False  # the first pass skips views that are already fresh (Redis survived a restart)
+        failures: dict[str, int] = {}
+        retry_at: dict[str, float] = {}
         while True:
-            for i, name in enumerate(names):
-                if i:
-                    await asyncio.sleep(gap_s)
+            called = False
+            for name in names:
+                ttl = ttl_for(name, None)
+                if ttl is None or self._clock() < retry_at.get(name, 0.0):
+                    continue
+                copy = await asyncio.to_thread(self.lookup, name, "")
+                if copy is not None and self._clock() - copy.stored_at < ttl - min(interval_s, ttl / 2):
+                    continue
+                if called:
+                    await sleep(gap_s)
+                called = True
                 try:
-                    await self.get(name, None, upstream_for(name), force=force)
+                    served = await self.get(name, None, upstream_for(name), force=True)
+                    ok = served.cache in ("miss", "hit")
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001 - prewarm never stops the API
                     log.warning("views prewarm for %s failed: %s", name, type(exc).__name__)
+                    ok = False
+                if ok:
+                    failures.pop(name, None)
+                    retry_at.pop(name, None)
+                else:
+                    failures[name] = failures.get(name, 0) + 1
+                    retry_at[name] = self._clock() + min(interval_s * 2 ** failures[name], 3600.0)
             if interval_s <= 0:
                 return
-            force = True
-            await asyncio.sleep(interval_s)
-
-    # -- warm-up -----------------------------------------------------------
-    def warm(
-        self,
-        fetch: Callable[[str], Raw],
-        names: tuple[str, ...] = WARM_VIEWS,
-        gap_s: float = WARM_GAP_S,
-        sleep: Callable[[float], None] = time.sleep,
-    ) -> None:
-        """Blocking: one call per view, serialized, ``gap_s`` apart. Skips views already fresh."""
-        called = False
-        for name in names:
-            ttl = ttl_for(name, None)
-            if ttl is None or self._fresh(self.lookup(name, ""), ttl):
-                continue
-            if called:
-                sleep(gap_s)
-            called = True
-            try:
-                status, body, ctype, headers = fetch(name)
-            except Exception as exc:  # noqa: BLE001 - warm-up never stops the API
-                self._error(name, f"warm-up {type(exc).__name__}")
-                log.warning("views cache warm-up for %s failed: %s", name, type(exc).__name__)
-                continue
-            if status == 200 and not _empty(body):
-                self.store(name, "", Copy(status, body, ctype, headers, self._clock()))
-            else:
-                self._error(name, f"warm-up HTTP {status}")
+            await sleep(interval_s)

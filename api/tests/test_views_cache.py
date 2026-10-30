@@ -243,73 +243,88 @@ class ViewsCacheTest(unittest.TestCase):
         self.assertEqual(run(vc.get("eu_watch", {}, up)).cache, "hit")
         self.assertEqual(vc.stats()["backend"], "memory")
 
-    def test_warm_is_serialized_with_gaps_and_skips_fresh(self) -> None:
-        vc = self.make()
-        run(vc.get("eu_watch", {}, Upstream(ok(1))))
-        seen, naps = [], []
 
-        def fetch(name):
-            seen.append(name)
-            if name == "hazard_now":
-                return 429, "x", "text/plain", {}
-            return ok(3)
+class Stop(Exception):
+    pass
 
-        vc.warm(fetch, sleep=naps.append)
-        self.assertNotIn("eu_watch", seen)
-        self.assertEqual(seen[0], "hazard_now")
-        self.assertEqual(len(naps), len(seen) - 1)
-        self.assertTrue(all(n == 5.0 for n in naps))
-        self.assertEqual(run(vc.get("gauge_levels", {}, Upstream(ok(4)))).cache, "hit")
-        self.assertIn("429", vc.stats()["views"]["hazard_now"]["last_upstream_error"]["detail"])
-        self.assertIsNone(vc.stats()["views"]["hazard_now"]["last_ok_at"])
-        self.assertIsNotNone(vc.stats()["views"]["gauge_levels"]["last_ok_at"])
 
 class PrewarmTest(unittest.TestCase):
-    NAMES = ("gauge_levels", "eu_watch", "hazard_now")
+    NAMES = ("gauge_levels", "eu_watch")
 
-    def fake(self, calls, fail=()):
-        def upstream_for(name):
-            async def up():
-                calls.append(name)
-                if name in fail:
-                    raise httpx.ConnectError("down")
-                return ok(len(calls))
+    def setUp(self) -> None:
+        self.clock = Clock()
+        self.vc = ViewsCache(clock=self.clock)
+        self.calls: list[str] = []
+        self.fail: set[str] = set()
+        self.ticks = 0
 
-            return up
+    def upstream_for(self, name):
+        async def up():
+            self.calls.append(name)
+            if name in self.fail:
+                raise httpx.ConnectError("down")
+            return ok(len(self.calls))
 
-        return upstream_for
+        return up
 
-    def test_fills_cache_with_original_query_id_and_tolerates_errors(self) -> None:
-        vc, calls = ViewsCache(), []
-        run(vc.prewarm(self.fake(calls, fail=("eu_watch",)), 0, self.NAMES, gap_s=0))
-        self.assertEqual(calls, list(self.NAMES))
-        served = run(vc.get("gauge_levels", None, Upstream(ok(99))))
-        self.assertEqual(served.cache, "hit")
-        self.assertEqual(served.headers["x-query-id"], ok(1)[3]["x-query-id"])
-        self.assertEqual(run(vc.get("hazard_now", None, Upstream(ok(99)))).cache, "hit")
+    def go(self, interval, ticks, gap=0):
+        async def sleep(s):
+            if s == interval and interval:
+                self.ticks += 1
+                if self.ticks >= ticks:
+                    raise asyncio.CancelledError
+            self.clock.t += s
 
-    def test_periodic_refresh_forces_past_fresh_copy(self) -> None:
-        async def go():
-            vc, calls = ViewsCache(), []
-            t = asyncio.ensure_future(vc.prewarm(self.fake(calls), 0.01, ("gauge_levels",), gap_s=0))
-            await asyncio.sleep(0.05)
-            t.cancel()
-            await asyncio.gather(t, return_exceptions=True)
-            return calls
+        async def main():
+            try:
+                await self.vc.prewarm(self.upstream_for, interval, self.NAMES, gap_s=gap, sleep=sleep)
+            except asyncio.CancelledError:
+                pass
 
-        calls = run(go())
-        self.assertGreater(len(calls), 1)  # periodic refresh forced past the fresh copy
+        run(main())
+
+    def test_fills_cache_and_tolerates_errors(self) -> None:
+        self.fail.add("eu_watch")
+        self.go(0, 1)
+        self.assertEqual(self.calls, ["gauge_levels", "eu_watch"])
+        served = run(self.vc.get("gauge_levels", None, Upstream(ok(99))))
+        self.assertEqual((served.cache, served.headers["x-query-id"]), ("hit", "q1"))
+
+    def test_refresh_respects_ttl_per_view(self) -> None:
+        self.go(120, 6)  # 720 s: gauge_levels (TTL 120) refreshes, eu_watch (TTL 600) about once
+        self.assertGreater(self.calls.count("gauge_levels"), self.calls.count("eu_watch"))
+        self.assertLessEqual(self.calls.count("eu_watch"), 2)
+
+    def test_backoff_doubles_after_failure_and_failed_refresh_serves_stale(self) -> None:
+        self.go(0, 1)  # fill both
+        q = run(self.vc.get("eu_watch", None, Upstream(ok(99)))).headers["x-query-id"]
+        self.fail.add("eu_watch")
+        self.calls.clear()
+        self.go(30, 12)  # 360 s, eu_watch due at ~570 s so not yet
+        self.assertNotIn("eu_watch", self.calls)
+        self.ticks = 0
+        self.go(30, 40)  # 1200 s more: fails, then backs off 60, 120, 240 s ...
+        n = self.calls.count("eu_watch")
+        self.assertTrue(1 <= n <= 6, n)
+        self.clock.t += 700  # past TTL, upstream still down
+        served = run(self.vc.get("eu_watch", None, self.upstream_for("eu_watch")))
+        self.assertEqual((served.cache, served.headers["x-query-id"]), ("stale", q))
+        self.fail.clear()
+        self.clock.t += 4000
+        self.calls.clear()
+        self.ticks = 0
+        self.go(30, 1)
+        self.assertIn("eu_watch", self.calls)
 
     def test_cancel_ends_task(self) -> None:
-        async def go():
-            vc = ViewsCache()
-            t = asyncio.ensure_future(vc.prewarm(self.fake([]), 3600, ("gauge_levels",), gap_s=0))
+        async def main():
+            t = asyncio.ensure_future(self.vc.prewarm(self.upstream_for, 3600, self.NAMES, gap_s=0))
             await asyncio.sleep(0.01)
             t.cancel()
             await asyncio.gather(t, return_exceptions=True)
             return t.cancelled()
 
-        self.assertTrue(run(go()))
+        self.assertTrue(run(main()))
 
     def test_interval_floor_and_disable(self) -> None:
         for raw, want in (("5", 30.0), ("0", 0.0), ("-1", 0.0), ("300", 300.0), ("x", 120.0)):

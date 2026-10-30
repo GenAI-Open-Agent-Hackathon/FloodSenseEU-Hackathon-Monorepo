@@ -75,7 +75,7 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 
 ### Known bugs and weak spots
 - Insurer Approvals queue had 29 old test runs (curated in #90). Insurer "Now" page is dense.
-- First load of live pages took 5-10 s because the Zetaris views were cold. The cold latency is server side (a client prefetch did not help). The API now prewarms the views cache at startup and refreshes it in the background (`VIEWS_PREWARM_INTERVAL_S`, default 120 s, floor 30, 0 off). Measured on the running API (older build with the startup fill only): `/views/gauge_levels` 0.49 s first read, 0.06 s and 0.007 s after; `/views/eu_watch` 0.005 s on a warm cache. The cold 5-10 s of `eu_watch` was not re-measured (the cache was already warm); check it after a clean `up`.
+- First load of live pages took 5-10 s because the Zetaris views were cold. The cold latency is server side (a client prefetch did not help). The API now prewarms the views cache at startup and refreshes it in the background (`VIEWS_PREWARM_INTERVAL_S`, default 120 s, floor 30, 0 off). Not reproduced: the cold 5-10 s was not seen because the running API (an older build with the startup fill only) was already warm. Warm numbers only: `/views/gauge_levels` 0.49 s, then 0.06 s and 0.007 s; `/views/eu_watch` 0.005 s. Re-measure the cold case after a clean `up`.
 - Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Open-Meteo free tier is non-commercial; one forecast question is about 45 calls.
 - No flood-history documents/memories for Saar, Ems, Rhone, Ebro, Tisza.
