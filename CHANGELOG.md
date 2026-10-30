@@ -23,6 +23,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
+- Similar-question cache behind a flag: `EMBEDDINGS_BACKEND=nebius` (default `nim` = unchanged, exact match only) embeds questions with Token Factory `POST /v1/embeddings` (`NEBIUS_EMBEDDING_MODEL`, default `Qwen/Qwen3-Embedding-8B`; 429 backoff and RPM pacing as for chat) and serves a reworded repeat above `EMBED_CACHE_THRESHOLD` (cosine, default 0.85) as a cached answer, labelled `served_from=cache`. Vectors (4096 numbers) are in API process memory only, so no pgvector migration; vectors of another length never match. One live call verified on 30 Oct (ok, 4096 dims); the end-to-end cache hit is tested with a mocked transport only. Code: `api/app/embed.py`, `api/app/cache.py`.
 - README: one-line Nebius Token Factory + NVIDIA Nemotron lead and a "Judge quick path" section (hosted demo URL still TO FILL). No new screenshots: the built-in browser could only capture 800x500 cropped dark-theme images.
 - "Goal and impact" strip (`ImpactStrip`, `lib/impact.ts`) at the top of each desk landing page (Citizen Now, Insurer Now, Operator Situation board): the desk goal, KPI chips from the live hooks ("no data yet" when a source is missing; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`.
 

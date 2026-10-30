@@ -15,8 +15,13 @@ run was a clocked replay. The historical clock stays: replay_ts and cached_at
 are that UTC instant, never "now", and the answer is not called live. Live
 data expires sooner than a historical replay. A follow-up in a thread is
 never cached or served from the cache, because it depends on its conversation.
-"Similar" means the same after folding for now; embedding similarity needs
-the embed lane.
+"Similar" means the same after folding. With EMBEDDINGS_BACKEND=nebius
+(app/embed.py) a reworded repeat also hits when its question embedding is
+within EMBED_CACHE_THRESHOLD (cosine, default 0.85) of a cached one with the
+same event, customer, clock, language, flags and context. Vectors live in
+process memory only (no pgvector column, so no dimension migration; vectors
+of another length never match). A miss or an embeddings failure falls back to
+the exact key. The hit is labelled cache like any other.
 
 Replay (FF_CACHED_REPLAY). When a live run fails (the agents answer 5xx, are
 unreachable, or return a failed run), the API serves the newest recorded run
@@ -52,6 +57,8 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
+
+from app.embed import Embedder, cosine
 
 log = logging.getLogger("floodsense.api.cache")
 
@@ -533,8 +540,15 @@ class AnswerCache:
     The methods are blocking; async handlers call them through asyncio.to_thread.
     """
 
-    def __init__(self, settings: CacheSettings | None = None, redis_client: Any = None) -> None:
+    def __init__(
+        self,
+        settings: CacheSettings | None = None,
+        redis_client: Any = None,
+        embedder: Embedder | None = None,
+    ) -> None:
         self.settings = settings or CacheSettings()
+        self._embedder = embedder or Embedder()
+        self._vectors: dict[tuple, list[float]] = {}
         if redis_client is None:
             redis_client = _client_from_env(self.settings.lookup_timeout_s)
         self._redis = (
@@ -607,7 +621,30 @@ class AnswerCache:
             while len(self._entries) > self.settings.max_entries:
                 self._entries.popitem(last=False)  # Redis keeps it until its TTL
         self._write_entry(key, entry, entry.ttl_s)
+        vec = self._embedder.embed(str(request.get("question") or ""))
+        if vec is not None:
+            with self._lock:
+                self._vectors[key] = vec
+                for k in [k for k in self._vectors if k not in self._entries]:
+                    del self._vectors[k]  # bounded with the entries
         return True
+
+    def _similar(self, key: tuple, question: str) -> Entry | None:
+        if not self._vectors:
+            return None
+        vec = self._embedder.embed(question)
+        if vec is None:
+            return None
+        best, best_score = None, self._embedder.threshold
+        with self._lock:
+            stored = list(self._vectors.items())
+        for k, v in stored:
+            if k[:1] + k[2:] != key[:1] + key[2:]:  # all but the question must match
+                continue
+            score = cosine(vec, v)
+            if score >= best_score and (e := self._memory_entry(k)) is not None:
+                best, best_score = e, score
+        return best
 
     def _memory_entry(self, key: tuple) -> Entry | None:
         with self._lock:
@@ -639,8 +676,8 @@ class AnswerCache:
                 # Written while Redis was down, or Redis lost it: put it back.
                 left = entry.ttl_s - (time.time() - entry.stored_at)
                 self._write_entry(key, entry, left)
-            return entry
-        return self._memory_entry(key)
+            return entry or self._similar(key, str(request.get("question") or ""))
+        return self._memory_entry(key) or self._similar(key, str(request.get("question") or ""))
 
     def drop(
         self, run_id: str, request: dict[str, Any] | None = None, flags: str | None = None
