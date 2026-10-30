@@ -28,14 +28,32 @@ forwards `/api/*` to the API with the prefix stripped, the same contract as
 
 ## On the hosted demo
 
-To serve it at `/eu/` behind the judge login, mount the files into the proxy
-(`./ui-eu/web:/srv-eu:ro` in `compose.hosted.yaml`) and add one route in
-`deploy/hosted/app.caddy`, before the UI's catch-all `handle`:
+`compose.hosted.yaml` mounts `ui-eu/web` into the proxy, and
+`deploy/hosted/app.caddy` serves it at `/eu/`, behind the same judge login as
+`ui/`. The proxy's `/api` route is shared, so nothing else changes.
 
-    handle_path /eu/* {
-        root * /srv-eu
-        header Cache-Control "no-store"
-        file_server
-    }
+## Using it as the main UI
 
-The UI calls `/api` from the root, so it needs nothing else.
+The two interfaces are interchangeable: both call the same API at `/api` and
+neither needs the other.
+
+- **Hosted, at `/`:** in `deploy/hosted/app.caddy`, point the catch-all
+  `handle` at `/srv-eu` instead of `/srv`, and drop the `try_files` line
+  (ui-eu routes with `#/...`, so it needs no SPA fallback). `ui/` can then
+  move to its own path, or come out of the proxy image.
+- **Dev, on its own:** `compose.eu.yaml` already runs it; the `ui` service is
+  not needed for it.
+
+What it calls, all on `/api`:
+
+| Endpoint | Used for |
+|---|---|
+| `GET /views/gauge_levels`, `/views/eu_watch`, `/views/hazard_now` | places and their state |
+| `GET /views/exposure_join` | insured sites (insurer) |
+| `GET /watch/status`, `/watch/events` | the watch loop, next check, feed |
+| `GET /platform/status` | model backend and Tavily |
+| `POST /runs?wait=false`, `GET /runs/{id}`, `/runs/{id}/events` (SSE), `/runs/past` | Ask and the live pipeline |
+| `POST /runs/{id}/approval` | Decide (sign-off) |
+
+Ask sends `context: {role, page: "ask", place}` with `role` one of `citizen`,
+`insurer` or `operator`, so answers are worded for that reader.

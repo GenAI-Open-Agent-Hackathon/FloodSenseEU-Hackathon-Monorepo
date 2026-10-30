@@ -8,7 +8,7 @@ Treat the first deploy as the test, and run the smoke script before you send the
 
 | Service | Role | Published |
 |---|---|---|
-| `proxy` (Caddy) | Basic-auth login, HTTPS, 32 KB request cap, `/api/*` to API, serves the production UI build (built in the image with `VITE_API_URL=/api`, SPA fallback) | 80, 443 |
+| `proxy` (Caddy) | Basic-auth login, HTTPS, 32 KB request cap, `/api/*` to API, serves the production UI build (built in the image with `VITE_API_URL=/api`, SPA fallback) at `/`, and the role-based `ui-eu/` (mounted, no build) at `/eu/` | 80, 443 |
 | `api` | FastAPI, rate limits, semantic cache, replay | no |
 | `agents` | LangGraph agents, `LLM_BACKEND=nebius` (Token Factory), `ZETARIS_MODE=fake` | no |
 | `redis` | Cache and replay recordings, 128 MB LRU, no persistence | no |

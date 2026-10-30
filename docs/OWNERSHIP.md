@@ -26,6 +26,7 @@ GitHub usernames are not filled in yet. Replace the names with real logins when 
 | `/agents/floodsense_agents/nodes/judge.py` | Zain, Mihir | LLM-as-a-Judge |
 | `/api/` | Zain, Ayush | Runs, SSE, approval. `v0.12.0` adds the semantic cache and labelled replay (`FF_SEMANTIC_CACHE`, `FF_CACHED_REPLAY`, both default off). Cache is Ayush's. Rate limits are Mihir's and are still a follow-up |
 | `/ui/` | Zain | Citizen page and insurer console. `v0.13.0` adds the shell nav and hash pages ([#36](https://github.com/GenAI-Open-Agent-Hackathon/FloodSenseEU-Hackathon-Monorepo/pull/36)). Zain owns the UI path. Mihir landed the console |
+| `/ui-eu/` | Zain | Second interface on the same API: plain HTML/CSS/JS, no build, a home and an Ask per role. Dev: `compose.eu.yaml`. Hosted: `/eu/` behind the judge login. See [ui-eu/README.md](../ui-eu/README.md) |
 | `/corpus/` | Urvashi, Saleeta, Mihir | Layer (c) manifest and redistributable documents. In `v0.14.0`. `corpus/fetched/` and `corpus/.embed-cache/` stay gitignored |
 | `/pgvector/` | Urvashi | Layer (c) document store, in `v0.14.0`. Ayush on the embedding model. JDBC hydrate through Zetaris is required (ADR 0009). Not in `v0.13.0`. Not load-bearing while `FF_RAG_DOCS` is off |
 | `/evals/` | Saleeta, Zain, Mihir | In v0.2.0: Valencia 2024 and Ahr 2021. Not its own increment tag |

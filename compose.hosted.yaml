@@ -27,6 +27,7 @@ services:
       JUDGE_HASH: ${JUDGE_HASH:?run scripts/hosted_auth.py and set JUDGE_HASH}
     volumes:
       - ./deploy/hosted:/etc/caddy:ro
+      - ./ui-eu/web:/srv-eu:ro  # second UI at /eu/
       - caddy-data:/data
     depends_on:
       api: {condition: service_healthy}
