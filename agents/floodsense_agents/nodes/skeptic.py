@@ -405,7 +405,9 @@ def _web_check(deps: Deps, state: FloodState) -> dict | None:
     if js.get("verdict") not in ("supports", "contradicts", "neutral") or url not in {i["url"] for i in items}:
         return None
     verdict = js["verdict"]
-    place = str(((state.get("request") or {}).get("context") or {}).get("place") or "").strip().lower()
+    from floodsense_agents.tavily import web_place
+
+    place = web_place(state).lower()
     page = next(i for i in items if i["url"] == url)
     # Conservative: a page that never names the place cannot support or contradict a claim about it.
     if verdict != "neutral" and not _names_place(place, f'{page.get("title", "")} {page.get("text", "")}'):

@@ -274,6 +274,39 @@ class TavilyTest(unittest.TestCase):
         self.assertIn("not an official warning", wc["label"])
         self.assertIn("untrusted", seen[0][0])
 
+    def test_event_place_when_context_has_none(self):
+        # Demo runs carry no context.place: the event supplies it. Unknown event / flag off: no call.
+        from floodsense_agents.nodes.investigator import make
+        from floodsense_agents.state import Deps, NoMemory
+
+        def run(event_id, flag=True):
+            qs = []
+
+            def h(req):
+                qs.append(json.loads(req.content)["query"])
+                return httpx.Response(200, json=OK)
+
+            tavily._cache.clear()
+            tavily._last_call = 0.0
+            real = tavily.search
+            orig, settings.ff_tavily = settings.ff_tavily, flag
+            try:
+                with _um.patch.object(tavily, "search", lambda p: real(p, transport=mock(h))):
+                    from floodsense_agents.nodes.investigator import _attach_web
+
+                    place = tavily.web_place({"event_id": event_id, "request": {"context": {}}})
+                    if flag and place:
+                        _attach_web([], place, "")
+            finally:
+                settings.ff_tavily = orig
+            return qs
+
+        self.assertEqual(run("EMSR773"), ["Valencia Spain inundaciones aviso AEMET"])
+        self.assertEqual(run("EMSR517"), ["Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz"])
+        self.assertEqual(run("EMSR000"), [])
+        self.assertEqual(run("EMSR773", flag=False), [])
+        self.assertEqual(tavily.web_place({"event_id": "EMSR773", "request": {"context": {"place": " Turis "}}}), "Turis")
+
     def test_query_is_regional(self):
         self.assertEqual(tavily._query("Ahr"), "Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz")
         self.assertEqual(tavily._query("Valencia"), "Valencia Spain inundaciones aviso AEMET")

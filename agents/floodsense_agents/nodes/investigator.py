@@ -1664,8 +1664,10 @@ def make(deps: Deps):
                         extra = [*extra, *doc_evidence]
         web = None
         if settings.ff_tavily and state.get("event_id") != WATCH_EVENT:
-            place = ((state.get("request") or {}).get("context") or {}).get("place")
-            if isinstance(place, str) and place.strip():
+            from floodsense_agents.tavily import web_place
+
+            place = web_place(state)
+            if place:
                 web_out: dict = {}
                 claims, web_ev, doc_note = _attach_web(claims, place, doc_note, web_out)
                 extra = [*extra, *web_ev]

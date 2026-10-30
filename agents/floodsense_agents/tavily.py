@@ -76,6 +76,18 @@ def _query(place: str) -> str:
     return f"{place} {_REGIONS[r]}" if r else f"{place} flood warning current"
 
 
+# Demo events carry no context.place; their search place comes from the event. Live/other: none.
+_EVENT_PLACE = {"EMSR773": "Valencia", "EMSR517": "Ahr"}
+
+
+def web_place(state) -> str:
+    """Place for the web check: context.place if given, else the known event's place, else ''."""
+    place = ((state.get("request") or {}).get("context") or {}).get("place")
+    if isinstance(place, str) and place.strip():
+        return place.strip()
+    return _EVENT_PLACE.get(str(state.get("event_id") or ""), "")
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
