@@ -37,6 +37,10 @@ import { routeHref } from "../lib/route";
 import { evidenceFor, StatusChip, timeText } from "./PlacesToWatch";
 import { LiveSourceBadge } from "./LiveSources";
 import { RefMarks } from "./RefMarks";
+import { fetchPastRuns } from "../api/pastRuns";
+import { FACTS, GOALS, operatorChips } from "../lib/impact";
+import { SCRIPT_KEYS } from "../lib/operatorDesk";
+import { ImpactStrip } from "./ImpactStrip";
 import "../styles/operator.css";
 
 /*
@@ -99,6 +103,15 @@ export function OperatorSituation() {
     return () => window.clearInterval(tick);
   }, []);
 
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    void fetchPastRuns(50, ctrl.signal).then((r) => {
+      if (!ctrl.signal.aborted && r.ok) setPending(r.rows.filter((x) => x.state === "awaiting").length);
+    });
+    return () => ctrl.abort();
+  }, []);
+
   const groups = useMemo(() => buildRiverGroups(live.sources), [live.sources]);
   const countries = useMemo(() => groupCountries(groups), [groups]);
   const [groupKey, setGroupKey] = useState<string | null>(null);
@@ -121,6 +134,7 @@ export function OperatorSituation() {
 
   return (
     <div className="op-page now-page">
+      <ImpactStrip goal={GOALS.operator} chips={operatorChips(live.sources, SCRIPT_KEYS.length, pending)} fact={FACTS.operator} />
       <header className="now-head">
         <div>
           <p className="eyebrow">Civil protection</p>
