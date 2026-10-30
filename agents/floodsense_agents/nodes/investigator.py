@@ -1663,15 +1663,13 @@ def make(deps: Deps):
                         )
                         extra = [*extra, *doc_evidence]
         web = None
-        if settings.ff_tavily and state.get("event_id") != WATCH_EVENT:
-            from floodsense_agents.tavily import web_place
+        from floodsense_agents.tavily import should_search, web_place
 
-            place = web_place(state)
-            if place:
-                web_out: dict = {}
-                claims, web_ev, doc_note = _attach_web(claims, place, doc_note, web_out)
-                extra = [*extra, *web_ev]
-                web = web_out.get("res")
+        if should_search(state):
+            web_out: dict = {}
+            claims, web_ev, doc_note = _attach_web(claims, web_place(state), doc_note, web_out)
+            extra = [*extra, *web_ev]
+            web = web_out.get("res")
         out_live = {"live_findings": findings} if findings is not None else {}
         steps = trace(
             state,

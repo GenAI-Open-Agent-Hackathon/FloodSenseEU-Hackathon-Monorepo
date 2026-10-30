@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -108,7 +109,11 @@ class TavilyTest(unittest.TestCase):
         tavily.search("Koeln", transport=mock(h))
         tavily.search("Koeln", transport=mock(h))
         self.assertEqual(len(n), 1)
-        self.assertEqual(tavily.search("Bonn", transport=mock(h)).reason, "rate guard")
+        t0 = time.monotonic()
+        self.assertEqual(tavily.search("Bonn", transport=mock(h)).status, "ok")  # queued ~1 s, not refused
+        self.assertGreater(time.monotonic() - t0, 0.5)
+        tavily._last_call = time.monotonic() + 1.5  # a queue deeper than the bound
+        self.assertEqual(tavily.search("Oslo", transport=mock(h)).reason, "rate guard")  # would wait ~2 s
 
     def test_config_publishes_the_switch(self):
         """The API's platform status reads /config; it must see Tavily on when it is."""
@@ -276,9 +281,6 @@ class TavilyTest(unittest.TestCase):
 
     def test_event_place_when_context_has_none(self):
         # Demo runs carry no context.place: the event supplies it. Unknown event / flag off: no call.
-        from floodsense_agents.nodes.investigator import make
-        from floodsense_agents.state import Deps, NoMemory
-
         def run(event_id, flag=True):
             qs = []
 
@@ -288,15 +290,11 @@ class TavilyTest(unittest.TestCase):
 
             tavily._cache.clear()
             tavily._last_call = 0.0
-            real = tavily.search
             orig, settings.ff_tavily = settings.ff_tavily, flag
             try:
-                with _um.patch.object(tavily, "search", lambda p: real(p, transport=mock(h))):
-                    from floodsense_agents.nodes.investigator import _attach_web
-
-                    place = tavily.web_place({"event_id": event_id, "request": {"context": {}}})
-                    if flag and place:
-                        _attach_web([], place, "")
+                state = {"event_id": event_id, "request": {"context": {}}}
+                if tavily.should_search(state):
+                    tavily.search(tavily.web_place(state), transport=mock(h))
             finally:
                 settings.ff_tavily = orig
             return qs
@@ -304,8 +302,35 @@ class TavilyTest(unittest.TestCase):
         self.assertEqual(run("EMSR773"), ["Valencia Spain inundaciones aviso AEMET"])
         self.assertEqual(run("EMSR517"), ["Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz"])
         self.assertEqual(run("EMSR000"), [])
+        self.assertEqual(run("LIVE-EU"), [])
         self.assertEqual(run("EMSR773", flag=False), [])
         self.assertEqual(tavily.web_place({"event_id": "EMSR773", "request": {"context": {"place": " Turis "}}}), "Turis")
+
+    def test_skeptic_downgrade_uses_derived_place(self):
+        from floodsense_agents.nodes import skeptic as sk
+
+        class L:
+            def complete(self, *a, **k):
+                return json.dumps({"verdict": "contradicts", "url": "https://example.org/a"}), "m"
+
+        class D:
+            llm = L()
+
+        def verdict(title):
+            st = {
+                "event_id": "EMSR773",
+                "request": {"context": {}},
+                "web": {"items": [{"title": title, "url": "https://example.org/a", "text": "alert lifted"}]},
+                "claims": [{"claim_id": "C-1", "text": "The alert was issued early."}],
+            }
+            orig, settings.ff_tavily = settings.ff_tavily, True
+            try:
+                return sk._web_check(D(), st)["verdict"]
+            finally:
+                settings.ff_tavily = orig
+
+        self.assertEqual(verdict("Valencia alert"), "contradicts")
+        self.assertEqual(verdict("Bavaria storms"), "neutral")
 
     def test_query_is_regional(self):
         self.assertEqual(tavily._query("Ahr"), "Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz")

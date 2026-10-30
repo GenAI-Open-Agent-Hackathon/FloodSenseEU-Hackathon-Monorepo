@@ -26,6 +26,7 @@ log = logging.getLogger("floodsense.tavily")
 URL = "https://api.tavily.com/search"
 LABEL = "Web context, not an official warning"
 TTL_S = 900.0
+MAX_WAIT_S = 1.0  # longest a call queues behind the guard before it reports unavailable
 MIN_GAP_S = 1.0  # per-process rate guard: at most one live call a second
 # Social posts came back as "news" for a Paiporta question (two of three results
 # were Facebook). They are not evidence a reviewer can weigh, so they are not asked for.
@@ -88,6 +89,13 @@ def web_place(state) -> str:
     return _EVENT_PLACE.get(str(state.get("event_id") or ""), "")
 
 
+def should_search(state) -> bool:
+    """The Investigator's gate: flag on, not the watch event, and a place (given or from the event)."""
+    from floodsense_agents.events import WATCH_EVENT
+
+    return bool(settings.ff_tavily and state.get("event_id") != WATCH_EVENT and web_place(state))
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -125,9 +133,12 @@ def _search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebR
         hit = _cache.get(ck)
         if hit and now - hit[0] < TTL_S:
             return WebResult("ok" if hit[1] else "empty", hit[1], query=_query(place), cached=True, retrieved_at=hit[2])
-        if now - _last_call < MIN_GAP_S:
+        slot = max(now, _last_call + MIN_GAP_S)  # queue behind the previous live call
+        if slot - now > MAX_WAIT_S:
             return WebResult("unavailable", reason="rate guard")
-        _last_call = now
+        _last_call = slot
+    if slot > now:
+        time.sleep(slot - now)
     t0 = time.monotonic()
     try:
         with httpx.Client(timeout=settings.tavily_timeout_s, transport=transport) as c:
