@@ -11,10 +11,10 @@ Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `m
 ## What the 3D view does and does not show
 
 - Hover labels carry the status word and "not live (stale or seed)" for non-live sources; insured-site circles are labelled "(synthetic)", as in the 2D tooltips.
-- A point with no reading (gauge status unknown, or no discharge value) gets no column, only a small flat grey circle labelled "no reading, no column".
+- A point with no reading (gauge status unknown, or no discharge value) gets a hollow grey pin labelled "no reading".
 - Pin colour is the band; the dial fill is the band **order** (low, typical, elevated, peak; ok, near, over), never a measured value. The legend and the sentence next to the toggle say so.
 - Colours stay amber for every model band, never red. Gauge "over MHW" uses the dark amber too.
-- No terrain: a free elevation (DEM) tile source needs a key or a hosted tile service, so there is no relief. The view is pitch plus extruded markers. There are no river polylines because the views carry points only, not river geometry.
+- Relief is real but exaggerated (1.8x) so mountains and valleys read; the sentence next to the toggle says so. Rivers and lakes are drawn from free OpenFreeMap vector tiles, decoration only, not a hydrological model. If those tiles fail the map keeps working without them.
 
 ## 2D vs 3D trade-offs
 
@@ -22,8 +22,8 @@ Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `m
 |---|---|---|
 | Bundle | In the main chunk | Separate lazy chunk, about 1.1 MB (304 KB gzip) plus 72 KB CSS, fetched on first use |
 | GPU | None needed (DOM / SVG) | WebGL required; heavier on old laptops and phones; falls back to 2D |
-| Accessibility | Markers are focusable buttons with aria-label and titles; tooltips | Canvas: columns are not focusable and have no per-point aria-label. Use the point selector or the source list below the map |
-| Keyboard | Tab to markers, Enter opens the popup; arrow keys pan and +/- zoom | Arrow keys pan, +/- zoom, Shift+arrows rotate and tilt; selecting a point needs the selector or list |
+| Accessibility | Markers are focusable buttons with aria-label and titles; tooltips | Canvas plus DOM pins: each pin is a focusable button with an aria-label; the source list below the map stays the accessible alternative |
+| Keyboard | Tab to markers, Enter opens the popup; arrow keys pan and +/- zoom | Arrow keys pan, +/- zoom, Shift+arrows rotate and tilt; Tab to a pin and press Enter to select it |
 | Reading values | Colour dots | Pin colour plus dial fill (order only); hover shows the label |
 | Scroll behaviour | Wheel zoom off, page scrolls | Cooperative gestures: Ctrl + wheel to zoom |
 

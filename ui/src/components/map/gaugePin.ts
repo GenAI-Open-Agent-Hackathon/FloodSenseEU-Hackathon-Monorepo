@@ -3,7 +3,7 @@ import type { ShellPoint } from "./shellLogic";
 /** Zoom at which a pin opens into the animated dial. */
 export const DIAL_ZOOM = 10;
 
-const cssId = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "_");
+let pinSeq = 0;
 
 /**
  * DOM for one gauge on the 3D map: a pulsing teardrop pin from far away, an animated water dial up close.
@@ -12,11 +12,12 @@ const cssId = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "_");
 export function gaugePinEl(p: ShellPoint, fill: number, selected: boolean): HTMLElement {
   const el = document.createElement("div");
   const known = p.rank >= 0;
-  const clip = `gc-${cssId(p.id)}`;
+  const clip = `gc-${++pinSeq}`;
   el.className = `gpin${known ? "" : " gpin--unknown"}${selected ? " gpin--sel" : ""}${p.alert ? " gpin--over" : ""}`;
   el.style.setProperty("--c", p.color);
   el.style.setProperty("--fill", String(known ? Math.max(0.12, fill) : 0));
   el.setAttribute("role", "button");
+  el.setAttribute("aria-pressed", "false");
   el.setAttribute("aria-label", known ? p.label : `${p.label} · no reading`);
   el.tabIndex = 0;
   el.innerHTML = `

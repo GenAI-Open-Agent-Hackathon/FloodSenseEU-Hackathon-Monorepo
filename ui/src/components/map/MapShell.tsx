@@ -115,8 +115,8 @@ export function MapShell(props: MapShellProps) {
         )}
         {use3d && (
           <span className="muted small">
-            Pin colour shows the band; the dial fill shows band order, not a measured value. Zoom in to open the dial. Hover for status
-            {props.onSelect ? "; for keyboard access use the point selector or list." : "."}
+            Pin colour shows the band; the dial fill shows relative band order, not a measured value; relief is exaggerated. Zoom in to open
+            the dial. Tab to a pin for its status{props.onSelect ? " and press Enter to select it." : "."}
           </span>
         )}
       </div>
@@ -207,6 +207,7 @@ function Map3D(props: Shown & { onFail: () => void }) {
   const mapRef = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
   const markers = useRef<{ remove(): void }[]>([]);
+  const pinEls = useRef(new Map<string, HTMLElement>());
   const mlRef = useRef<typeof import("maplibre-gl") | null>(null);
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
@@ -247,6 +248,7 @@ function Map3D(props: Shown & { onFail: () => void }) {
             sources: {
               osm: { type: "raster", tiles: [TILE_URL], tileSize: 256, maxzoom: 18 },
               dem: { type: "raster-dem", tiles: [DEM_URL], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
+              // Same tiles twice on purpose: MapLibre advises separate sources for terrain and hillshade.
               shade: { type: "raster-dem", tiles: [DEM_URL], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
               ofm: { type: "vector", url: WATER_URL },
             },
@@ -273,7 +275,8 @@ function Map3D(props: Shown & { onFail: () => void }) {
         map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · Terrain: Mapzen / AWS Open Data · ${attribution}` }));
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-left");
         const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), 15000);
-        map.on("error", (e) => (e as { sourceId?: string }).sourceId !== "ofm" && !loaded && !dead && failRef.current());
+        // Water and relief are extras: a failed water, elevation or hillshade tile must not drop the viewer to 2D.
+        map.on("error", (e) => !["ofm", "dem", "shade"].includes((e as { sourceId?: string }).sourceId ?? "") && !loaded && !dead && failRef.current());
         const popup = new ml.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
         map.on("load", () => {
           if (dead || !map) return;
@@ -327,14 +330,14 @@ function Map3D(props: Shown & { onFail: () => void }) {
           let raf = 0;
           const tick = (now: number) => {
             if (dead || !map) return;
-            const next = Math.floor(now / 90) % FLOW_FRAMES.length;
-            if (!still && next !== step && map.getZoom() >= 8 && !document.hidden) {
+            const next = Math.floor(now / 140) % FLOW_FRAMES.length;
+            if (next !== step && map.getZoom() >= 8) {
               step = next;
               map.setPaintProperty("flow", "line-dasharray", FLOW_FRAMES[next]);
             }
             raf = requestAnimationFrame(tick);
           };
-          raf = requestAnimationFrame(tick);
+          if (!still) raf = requestAnimationFrame(tick);
           cleanup = () => cancelAnimationFrame(raf);
           loaded = true;
           window.clearTimeout(loadTimer);
@@ -358,22 +361,32 @@ function Map3D(props: Shown & { onFail: () => void }) {
     const map = mapRef.current;
     if (!ready || !map) return;
     for (const m of markers.current) m.remove();
+    pinEls.current.clear();
     const maxRank = Math.max(2, ...points3d.map((p) => p.rank));
     markers.current = points3d
       .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
-      .slice(0, 300)
       .map((p) => {
-        const el = gaugePinEl(p, (p.rank + 1) / (maxRank + 1), p.id === selectedId);
+        const el = gaugePinEl(p, (p.rank + 1) / (maxRank + 1), false);
         const act = () => selectRef.current?.(p.id);
         el.addEventListener("click", act);
         el.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), act()));
         el.title = p.rank >= 0 ? p.label : `${p.label} · no reading`;
+        pinEls.current.set(p.id, el);
         return new mlRef.current!.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
       });
     return () => {
       for (const m of markers.current) m.remove();
       markers.current = [];
+      pinEls.current.clear();
     };
+  }, [ready, points3d]);
+
+  // Selection only toggles a class, so keyboard focus and the running animations survive a select.
+  useEffect(() => {
+    for (const [id, el] of pinEls.current) {
+      el.classList.toggle("gpin--sel", id === selectedId);
+      el.setAttribute("aria-pressed", String(id === selectedId));
+    }
   }, [ready, points3d, selectedId]);
 
   useEffect(() => {
