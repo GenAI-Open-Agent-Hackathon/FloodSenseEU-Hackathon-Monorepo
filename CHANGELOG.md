@@ -13,6 +13,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 - UI model wording follows `llm_backend` from `GET /platform/status`: chips, the run model line, pipeline badges and the How it works box say "Nebius Token Factory" when that is the backend and "Nightshift" only when it is. The Control tower shows a plain sentence for a raw upstream HTTP 429 and keeps the raw text in the Technical detail line.
 
+### Changed
+
+- `LLM_BACKEND` now defaults to `nebius` (Token Factory), with `NEBIUS_MODEL_FAST=nvidia/Nemotron-3_5-Lightning` and `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL`. `LLM_BACKEND=nightshift` is unchanged. Without `NEBIUS_API_KEY`, `/ready` answers 503 naming the fix. The Judge `model_id` allow-list (schema, Python, TypeScript, API copy) also accepts `nvidia/Nemotron-3_5-Lightning`, `nvidia/Nemotron-3-Ultra-550b-a55b` and `nvidia/nemotron-3-super-120b-a12b`. Hosted token caps raised to 6000/8000. Verified live on 30 Oct (lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 148 s, 12 calls, 44,569 tokens; Valencia EMSR773 281 s, 14 calls, 40,370 tokens; every claim judged). Tavily live call still unverified.
+
 ### Added
 
 - UI: the How this answer was made Nightshift tile reads Nebius Token Factory when /platform/status reports llm_backend=nebius, and shows per-lane Nemotron ids, calls, tokens and cost (price not configured when unset) from run.usage, or Not recorded for this answer; a Platform strip on the System page (backend, lanes, latency p50/p95, cache, rate limit, llm_check, llm_usage).
