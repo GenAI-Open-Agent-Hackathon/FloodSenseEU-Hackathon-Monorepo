@@ -1,6 +1,4 @@
-import { useEffect } from "react";
-import { fetchPlatformStatus } from "./api/platform";
-import { setLlmBackend } from "./lib/lanes";
+import { useLoadLlmBackend } from "./hooks/useLlmBackend";
 import { ConsoleProvider } from "./context/ConsoleContext";
 import { AskFloodSense } from "./components/AskFloodSense";
 import { Colophon } from "./components/Banners";
@@ -22,9 +20,7 @@ export function App() {
 
 function Shell() {
   const nav = useCollapsedNav();
-  useEffect(() => {
-    void fetchPlatformStatus().then((r) => setLlmBackend(r.status?.llmBackend));
-  }, []);
+  useLoadLlmBackend();
   return (
     <div className="app-shell" data-nav={nav.collapsed ? "collapsed" : "open"}>
       <div className="shell-stage">

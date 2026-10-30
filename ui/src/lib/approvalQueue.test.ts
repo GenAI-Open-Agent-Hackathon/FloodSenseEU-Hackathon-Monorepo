@@ -89,7 +89,7 @@ describe("Approvals header", () => {
       { label: "Live run", value: "new" },
       { label: "Started", value: "27 Oct 2026, 10:30 UTC" },
       { label: "Lane", value: "Full investigation" },
-      { label: "Model", value: "Nemotron 3.5 Lightning 30B via Nightshift" },
+      { label: "Model", value: "Nemotron 3.5 Lightning 30B" },
       { label: "Judge", value: "0.91 · passes" },
       { label: "Event", value: "Live" },
     ]);

@@ -141,7 +141,7 @@ export function modelBadge(modelId: string, provider?: string | null): PipelineB
   const p = providerOf(modelId, provider);
   if (p === "Nightshift") return { kind: "nightshift", text: `Nightshift · ${label}` };
   if (p) return { kind: "model", text: `${p} · ${label}` };
-  return { kind: "model", text: modelId };
+  return { kind: "model", text: label };
 }
 
 /** Pure: N from a memory summary "recalled N past approved finding(s)", else null. */

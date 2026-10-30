@@ -22,13 +22,13 @@ function llmIds(modelId: string | null | undefined): string[] {
  * The model chip for one agent step, from the trace `model_id` and `lane` (fast / deep / sql):
  * "Nemotron 3.5 Lightning 30B · Nebius Token Factory fast lane" (or Nightshift), "SQL · Zetaris", or "rules" for a deterministic step.
  */
-export function modelChip(modelId: string | null | undefined, lane: string | null | undefined, provider?: string | null): string {
+export function modelChip(modelId: string | null | undefined, lane: string | null | undefined, provider?: string | null, liveBackend?: string | null): string {
   const ids = llmIds(modelId);
   const l = (lane ?? "").toLowerCase();
   if (ids.length) {
     const id = ids[ids.length - 1];
     const name = modelName(id);
-    const p = providerOf(id, provider);
+    const p = providerOf(id, provider, liveBackend);
     if (p !== "Nightshift" && p !== NEBIUS_NAME) return p ? `${name} · ${p}` : name;
     const laneWord = l === "deep" ? "deep lane" : l === "fast" ? "fast lane" : null;
     return laneWord ? `${name} · ${p} ${laneWord}` : `${name} · ${p}`;
@@ -38,10 +38,10 @@ export function modelChip(modelId: string | null | undefined, lane: string | nul
 }
 
 /** The run-level model: "Nemotron 3.5 Lightning 30B via Nebius Token Factory" (or Nightshift), or the bare id for any other model. */
-export function runModelLine(modelIds: readonly string[]): string | null {
+export function runModelLine(modelIds: readonly string[], provider?: string | null, liveBackend?: string | null): string | null {
   const ids = modelIds.flatMap((m) => llmIds(m));
   if (!ids.length) return null;
   const id = ids[ids.length - 1];
-  const provider = providerOf(id);
-  return provider ? `${modelName(id)} via ${provider}` : modelName(id);
+  const p = providerOf(id, provider, liveBackend);
+  return p ? `${modelName(id)} via ${p}` : modelName(id);
 }

@@ -16,21 +16,34 @@ export const NEBIUS_NAME = "Nebius Token Factory";
 const PROVIDER_NAMES: Record<string, string> = { nightshift: "Nightshift", nebius: NEBIUS_NAME };
 
 let llmBackend: string | null = null;
-/** Set once from GET /platform/status (llm_backend). Until known, labels stay as the trace states them. */
+const listeners = new Set<() => void>();
+/** Set from GET /platform/status (llm_backend). null = not known (loading, or the fetch failed). */
 export function setLlmBackend(b: string | null | undefined): void {
-  llmBackend = b ? b.toLowerCase() : null;
+  const next = b ? b.toLowerCase() : null;
+  if (next === llmBackend) return;
+  llmBackend = next;
+  listeners.forEach((l) => l());
+}
+export const getLlmBackend = (): string | null => llmBackend;
+export function subscribeLlmBackend(l: () => void): () => void {
+  listeners.add(l);
+  return () => void listeners.delete(l);
 }
 
-/** providerOf, but a Nemotron id with no stated provider is named after the live backend (Nebius, else Nightshift). */
-export function providerLabel(modelId: string, explicit?: string | null): string | null {
-  const p = providerOf(modelId, explicit);
-  return p === "Nightshift" && !(explicit ?? "").trim() && llmBackend === "nebius" ? NEBIUS_NAME : p;
+/**
+ * Provider label for a model. Only the run's own stated provider names one; a recorded run without it stays
+ * neutral (null). `liveBackend` is passed only for a run happening now, which the current backend did serve.
+ */
+export function providerLabel(modelId: string, explicit?: string | null, liveBackend?: string | null): string | null {
+  if ((explicit ?? "").trim()) return providerOf(modelId, explicit);
+  const b = (liveBackend ?? "").toLowerCase();
+  return b === "nebius" ? NEBIUS_NAME : b === "nightshift" ? "Nightshift" : null;
 }
 
-/** Title of the language-model box: names the backend only when known. */
+/** Title of the language-model box: names the backend only when known, else neutral. */
 export function llmBoxTitle(backend: string | null | undefined): string {
   const b = (backend ?? "").toLowerCase();
-  return b === "nebius" ? `${NEBIUS_NAME} · NVIDIA Nemotron` : b === "nightshift" ? "Nightshift · NVIDIA Nemotron" : "Language model · NVIDIA Nemotron";
+  return b === "nebius" ? `${NEBIUS_NAME} · NVIDIA Nemotron` : b === "nightshift" ? "Nightshift · NVIDIA Nemotron" : "Model backend · NVIDIA Nemotron";
 }
 
 /**
