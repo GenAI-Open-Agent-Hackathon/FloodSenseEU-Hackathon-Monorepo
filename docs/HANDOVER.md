@@ -2,7 +2,7 @@
 
 Written 27 Oct 2026, updated 28 Oct 2026 after submission. **Submitted:** the hackathon form (demo video, deck, repository link,
 sponsor write-up) went in before the hard close. The repository is public. The submitted version is tag `v1.0.1`
-([release notes](RELEASE-NOTES-v1.0.1.md)); later commits on `main` are docs only. Read this first, then `README.md`,
+([release notes](RELEASE-NOTES-v1.0.1.md)); `main` is ahead of the tag with the Nebius port and UI work (see the draft [v2.0.0 notes](RELEASE-NOTES-v2.0.0.md)). Read this first, then `README.md`,
 `agents/README.md`, `ui/README.md` and `CHANGELOG.md`.
 
 ## What the product is
