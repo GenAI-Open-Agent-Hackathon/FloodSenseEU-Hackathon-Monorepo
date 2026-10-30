@@ -32,7 +32,7 @@ function LegendRow({ kind, statuses }: { kind: WatchSource["kind"]; statuses: Ga
         const v = statusView(kind, st);
         return (
           <li key={st}>
-            <span className={`eu-shape eu-shape--${kind} eu-tone--${v.tone}`} aria-hidden="true" />
+            <span className={`eu-shape eu-shape--${kind} eu-tone--${v.tone}${kind === "gauge" && st === "over" ? " eu-shape--alert" : ""}`} aria-hidden="true" />
             {v.word}
           </li>
         );
@@ -150,7 +150,7 @@ export function EuWatchList({ sources }: { sources: WatchSource[] }) {
         {sorted.map((s) => (
           <li key={s.id}>
             <button type="button" className={`eu-row eu-row--${s.status}`} onClick={() => ask(openAsk, s)} title={s.question}>
-              <span className={`eu-shape eu-shape--${s.kind} eu-tone--${statusView(s.kind, s.status).tone}`} aria-hidden="true" />
+              <span className={`eu-shape eu-shape--${s.kind} eu-tone--${statusView(s.kind, s.status).tone}${s.kind === "gauge" && s.live && s.status === "over" ? " eu-shape--alert" : ""}`} aria-hidden="true" />
               <span className="eu-row__place">
                 {s.river ? (
                   <>

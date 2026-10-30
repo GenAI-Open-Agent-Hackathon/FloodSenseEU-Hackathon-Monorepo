@@ -28,7 +28,8 @@
 .gpin--over .gpin__pulse--b { animation-delay: .55s; }
 .leaflet-container .map-marker--alert { fill: #c0392b; stroke: #5a0f08; stroke-width: 4; stroke-dasharray: none; }
 .map-legend__dot--alert { background: #c0392b; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #5a0f08; }
-.eu-shape--gauge.eu-tone--elevated { background: #c0392b; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #5a0f08; }
+.eu-shape.eu-shape--alert.eu-tone--elevated { background: #c0392b; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #5a0f08; }
 @media (prefers-reduced-motion: reduce) { .gpin--over .gpin__pulse { animation: none; } }
 .gpin__bang { position: absolute; left: -5px; top: -30px; width: 10px; text-align: center; font: 700 12px/1 system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px #5a0f08, 0 0 2px #5a0f08; pointer-events: none; }
-.map3d--near .gpin__bang { display: none; }
+.map3d--near .gpin--over .gpin__bang { top: -42px; }
+.map3d--near .gpin--over .gpin__dial { filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 3px #fff) drop-shadow(0 4px 6px rgb(0 0 0 / .5)); }

@@ -16,7 +16,7 @@ const GAUGE_VIEW: Bounds = [
 const LEGEND: { status: GaugeStatus; label: string }[] = [
   { status: "ok", label: "Below MHW" },
   { status: "near", label: "Near MHW" },
-  { status: "over", label: "Above MHW" },
+  { status: "over", label: "Above MHW (red, live only)" },
   { status: "unknown", label: "No threshold" },
 ];
 
