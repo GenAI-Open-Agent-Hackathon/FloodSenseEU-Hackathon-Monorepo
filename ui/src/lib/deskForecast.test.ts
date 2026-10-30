@@ -21,6 +21,9 @@ describe("forecastLine", () => {
     expect(forecastLine(val, [pt(10, 10, "down")])).toBe("Water is falling, no rise expected in the next 48 h.");
     expect(forecastLine(val, [pt(10, 10.2, "flat")])).toBe("Water is steady, no rise expected in the next 48 h.");
   });
+  it("trend up but forecast max below the rise threshold is not called steady", () => {
+    expect(forecastLine(val, [pt(10, 10.5, "up")])).toBe("Water level is up slightly, no big rise expected in the next 48 h.");
+  });
   it("null when nothing real to say", () => {
     expect(forecastLine({ id: "gauge:X" }, [pt(10, 30)])).toBeNull();
     expect(forecastLine(val, [pt(10, null)])).toBeNull();

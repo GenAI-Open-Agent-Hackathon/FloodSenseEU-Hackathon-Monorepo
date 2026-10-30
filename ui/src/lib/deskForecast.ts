@@ -22,5 +22,6 @@ export function forecastLine(source: Pick<WatchSource, "id"> | null, valencia: r
   const rise = p.forecastMax.discharge_m3s > now * 1.1 && p.forecastMax.discharge_m3s - now > 0.5;
   if (rise) return `Water is rising and may peak around ${peakText(p.forecastMax.ts_utc)}.`;
   if (p.trend === "down") return "Water is falling, no rise expected in the next 48 h.";
+  if (p.trend === "up") return "Water level is up slightly, no big rise expected in the next 48 h.";
   return "Water is steady, no rise expected in the next 48 h.";
 }
