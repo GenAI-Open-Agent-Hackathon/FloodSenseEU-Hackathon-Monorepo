@@ -5,26 +5,33 @@ import { SafeLink } from "../SafeLink";
 import { DataBadge } from "../stack/StackBits";
 import { DeskCard } from "./DeskPage";
 
+/** Pure: does the run answer about this place? The run states its question; a place name in it (or in its summary) is the match. */
+export function runMatchesPlace(run: { question?: string | null; summary: string }, place: string | null | undefined): boolean {
+  const p = (place ?? "").trim().toLowerCase();
+  return p.length > 0 && `${run.question ?? ""} ${run.summary}`.toLowerCase().includes(p);
+}
+
 /**
- * Evidence slot: the Tavily web check of the run shown (Skeptic verdict in plain words, up to 3 cited links).
- * Citizens get words only: no counts, latency or charts. Insurer and operator also see the call detail.
- * No run, or a run without a web call: an honest empty state.
+ * Evidence slot: the Tavily web check of the NEWEST CHECKED ANSWER (not necessarily the place on screen), labelled as such.
+ * Citizens: words and links only, and only when that answer is about the selected `place`; otherwise the empty state.
+ * Insurer and operator also see the call detail. No run, or no web call: an honest empty state.
  */
-export function WebCheckCard({ stack, desk }: { stack: StackData; desk: "citizen" | "insurer" | "operator" }) {
+export function WebCheckCard({ stack, desk, place }: { stack: StackData; desk: "citizen" | "insurer" | "operator"; place?: string | null }) {
   const run = stack.stackRun;
-  const v = webCheckView(run ? webContextOf(run.raw) : null);
-  const detailed = desk !== "citizen";
+  const citizen = desk === "citizen";
+  const shown = run && (!citizen || runMatchesPlace(run.run, place)) ? run : null;
+  const v = webCheckView(shown ? webContextOf(shown.raw) : null);
+  const detailed = !citizen;
+  const what = shown ? shown.run.eventId ?? (citizen ? place : null) ?? "place not stated" : null;
   return (
     <DeskCard label="Web check · Tavily" title="Was this checked against the web?">
-      <p>
-        {run && <DataBadge kind={run.kind} />} {v.headline}
-        {v.verdict && (
-          <>
-            {" "}
-            <span className={`webcheck-verdict webcheck-verdict--${v.verdict === "conflicts" ? "conflicts" : "other"}`}>{v.verdict}</span>
-          </>
-        )}
-      </p>
+      {run && !shown && <p className="note">The latest checked answer is about another place, so no web check is shown for this one.</p>}
+      {shown && (
+        <p className="note">
+          From the latest checked answer ({what}, {webContextOf(shown.raw)?.retrieved_at ?? "time not stated"}) <DataBadge kind={shown.kind} />
+        </p>
+      )}
+      <p>{v.headline}</p>
       {detailed && v.detail && (
         <p className="note">
           {v.detail}

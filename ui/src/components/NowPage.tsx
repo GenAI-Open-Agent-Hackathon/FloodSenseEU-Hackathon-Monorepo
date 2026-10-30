@@ -141,7 +141,7 @@ function CitizenNowPage() {
       evidence={
         <>
           {evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
-          <WebCheckCard stack={stack} desk="citizen" />
+          <WebCheckCard stack={stack} desk="citizen" place={lead?.name} />
         </>
       }
       agents={<AgentsLive stack={stack} compact plain />}

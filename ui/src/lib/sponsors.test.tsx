@@ -35,7 +35,7 @@ const WEB = {
   web_check: { claim_id: "C-1", verdict: "contradicts", url: "https://example.org/1" },
 };
 const stackOf = (raw: unknown): StackData =>
-  ({ platform: { data: null, error: null, loading: false }, system: { data: null, error: null, loading: false }, stackRun: raw ? { raw, run: {} as never, kind: "replay" } : null, live: null, runsError: null }) as StackData;
+  ({ platform: { data: null, error: null, loading: false }, system: { data: null, error: null, loading: false }, stackRun: raw ? { raw, run: { summary: "Koeln level is high", question: "Is Koeln flooding?", eventId: null } as never, kind: "replay" } : null, live: null, runsError: null }) as StackData;
 
 describe("sponsor chips", () => {
   it("every dot is unavailable without a status, never a guess", () => {
@@ -76,13 +76,50 @@ describe("web check", () => {
   });
   it("citizen: words and links only, at most 3, no numbers; insurer sees detail", () => {
     const raw = { answer: { web_context: WEB } };
-    const c = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="citizen" />);
+    const c = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="citizen" place="Koeln" />);
+    expect(c).toContain("From the latest checked answer (Koeln");
+    expect(c).toContain("REPLAY");
+    expect(c).toContain("A web report conflicts with this.");
     expect(c).toContain("Web context, not an official warning");
     expect(c).toContain("conflicts");
     expect(c).toContain('rel="noopener noreferrer"');
     expect(c).not.toContain("Item 4");
     expect(c).not.toContain("310 ms");
     expect(renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="insurer" />)).toContain("310 ms");
+  });
+});
+
+describe("review fixes", () => {
+  const raw = { answer: { web_context: { ...WEB, results: [{ url: "javascript:alert(1)", title: "<b>bold</b>" }, { url: "https://ok.example/x", title: "<img src=x onerror=1>" }] } } };
+  it("citizen sees nothing for a different place", () => {
+    const html = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="citizen" place="Valencia" />);
+    expect(html).toContain("another place");
+    expect(html).not.toContain("conflicts");
+  });
+  it("javascript: url is not a link; html titles are text", () => {
+    const html = renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="insurer" />);
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("<b>bold");
+    expect(html).toContain("&lt;b&gt;bold");
+    expect(html).toContain("&lt;img");
+  });
+  it("citizen strip has no digits; Meterless is unknown, not agentsOk", () => {
+    const html = renderToStaticMarkup(<SponsorChips platform={status()} role="citizen" />);
+    expect(html.replace(/<[^>]*>/g, " ").replace(/(title|aria-label|href|class|data-sponsor)="[^"]*"/g, (m) => m)).not.toMatch(/\d/);
+    expect(html.match(/title="[^"]*"|aria-label="[^"]*"/g)?.join(" ")).not.toMatch(/\d/);
+    expect(sponsorChips(status()).find((c) => c.id === "meterless")?.state).toBe("unknown");
+  });
+  it("poll stops on cleanup and does not overlap", async () => {
+    vi.useFakeTimers();
+    const { startPlatformPoll, resetPlatform } = await import("./platformStore");
+    resetPlatform();
+    let calls = 0;
+    const stop = startPlatformPoll(async () => ((calls += 1), { status: null }), 1000);
+    expect(calls).toBe(1);
+    stop();
+    vi.advanceTimersByTime(10_000);
+    expect(calls).toBe(1);
+    vi.useRealTimers();
   });
 });
 

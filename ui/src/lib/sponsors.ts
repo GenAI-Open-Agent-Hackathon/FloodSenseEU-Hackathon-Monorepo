@@ -13,7 +13,7 @@ export const WHY_SPONSOR: readonly (readonly [string, string])[] = [
   ["Meterless", "memory (H-MEM) that learns only from approved answers; the World Model tracks which hypotheses the evidence still supports."],
 ];
 
-export type ChipState = "on" | "off" | "unavailable";
+export type ChipState = "on" | "off" | "unavailable" | "unknown";
 export interface SponsorChip {
   id: "nebius" | "nemotron" | "tavily" | "zetaris" | "meterless";
   label: string;
@@ -30,7 +30,21 @@ const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ?
 const short = (id: string | undefined): string | null => (id ? modelDisplay(id).replace(/^Nemotron\s*/i, "") : null);
 
 /** Pure: the global sponsor strip. `platform` null = /platform/status not reachable: every dot is "unavailable", never a guess. */
-export function sponsorChips(platform: PlatformStatus | null): SponsorChip[] {
+export function sponsorChips(platform: PlatformStatus | null, plain = false): SponsorChip[] {
+  const chips = detailedChips(platform);
+  if (!plain) return chips;
+  // Citizen: plain names, no counts, model ids or sizes in text or tooltips.
+  const PLAIN: Record<SponsorChip["id"], [string, string]> = {
+    nebius: ["Nebius", "Runs the AI models."],
+    nemotron: ["NVIDIA Nemotron", "The AI models that write the answers."],
+    tavily: ["Tavily web check", "A web search that double-checks answers. Web context, not an official warning."],
+    zetaris: ["Zetaris", "Reads the measurements and data."],
+    meterless: ["Meterless", "Memory that learns only from approved answers."],
+  };
+  return chips.map((c) => ({ ...c, label: PLAIN[c.id][0], title: PLAIN[c.id][1], detail: null }));
+}
+
+function detailedChips(platform: PlatformStatus | null): SponsorChip[] {
   const down = (on: boolean): ChipState => (!platform ? "unavailable" : on ? "on" : "off");
   const t = platform?.tavilyStatus ?? null;
   const tavilyOn = t ? t.enabled : platform?.tavily === true;
@@ -71,8 +85,9 @@ export function sponsorChips(platform: PlatformStatus | null): SponsorChip[] {
       id: "meterless",
       label: "Meterless H-MEM / World Model",
       detail: null,
-      state: down(platform?.agentsOk === true),
-      title: "Memory that learns only from approved answers. Dot shows the agents process, not the memory alone.",
+      // /platform/status carries no memory or engine status, so the dot is honest grey (unknown), never the agents flag.
+      state: platform ? "unknown" : "unavailable",
+      title: "Memory that learns only from approved answers. Its status is not part of /platform/status.",
     },
   ];
 }
@@ -134,7 +149,7 @@ export function webCheckView(web: WebContext | null): WebCheckView {
       : web.status === "empty"
         ? "The web search found nothing for this run."
         : verdict
-          ? `A web search ${verdict === "confirmed" ? "confirmed" : verdict === "conflicts" ? "conflicts with" : "did not confirm"} the main statement.`
+          ? { confirmed: "A web report supports this.", conflicts: "A web report conflicts with this.", "not confirmed": "No clear web confirmation." }[verdict]
           : "A web search ran for this run.";
   const lat = web.latency_ms > 0 ? `${web.latency_ms} ms` : "latency n/a";
   return {
