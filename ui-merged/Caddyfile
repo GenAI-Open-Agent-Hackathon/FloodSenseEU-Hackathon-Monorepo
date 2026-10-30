@@ -1,0 +1,16 @@
+# ui-merged: the plain HTML UI with the 3D map, and the running stack's API under /api.
+:8080 {
+	encode zstd gzip
+
+	handle_path /api/* {
+		reverse_proxy {$API_UPSTREAM:host.docker.internal:18000} {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv
+		header Cache-Control "no-store"
+		file_server
+	}
+}
