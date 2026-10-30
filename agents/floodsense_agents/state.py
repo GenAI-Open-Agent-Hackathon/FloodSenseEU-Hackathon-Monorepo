@@ -15,6 +15,7 @@ from floodsense_agents.engines import NoWorld, WorldModel, memory_origin
 from floodsense_agents.plain import sentence_cut
 from floodsense_agents.models import Evidence, TraceEvent
 from floodsense_agents.nightshift import LLM
+from floodsense_agents.settings import settings
 from floodsense_agents.zetaris import Zetaris, now_utc
 
 
@@ -109,6 +110,9 @@ def trace(
 ) -> list[dict[str, Any]]:
     prev = state.get("trace", [])
     ms = int((time.time() - started) * 1000) if started else None
+    # Named here, not guessed from the id downstream: a Nemotron id answers on
+    # Nightshift and on Token Factory alike, and only the backend knows which.
+    llm = bool(model_id) and model_id != "deterministic"
     ev = TraceEvent(
         run_id=state.get("run_id", ""),
         seq=len(prev) + 1,
@@ -120,6 +124,7 @@ def trace(
         duration_ms=ms,
         summary=summary,
         evidence_ids=evidence_ids or [],
+        provider=settings.llm_backend if llm else None,
     )
     return [*prev, ev.model_dump()]
 

@@ -406,6 +406,9 @@ def config():
                 "FF_FORECAST_LANE": router.forecast_enabled(),
             },
             "llm_backend": settings.llm_backend,
+            # The API's platform status reads this; it was only on /ready, so the
+            # status said Tavily was off while runs were citing it. Never the key.
+            "tavily": settings.ff_tavily,
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "llm_check": _last_llm_check,
             "llm_usage": GLOBAL_USAGE.as_dict(),
