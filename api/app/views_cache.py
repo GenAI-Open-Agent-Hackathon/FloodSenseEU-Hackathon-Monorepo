@@ -211,8 +211,12 @@ class ViewsCache:
             return copy
         return result
 
-    async def get(self, name: str, params: dict[str, str] | None, upstream: Upstream) -> Served:
+    async def get(
+        self, name: str, params: dict[str, str] | None, upstream: Upstream, force: bool = False
+    ) -> Served:
         """Serve from cache, or call ``upstream`` once for all concurrent callers.
+
+        ``force`` skips the fresh-copy shortcut (periodic refresh); it still joins any flight in progress.
 
         Raises whatever ``upstream`` raises when it fails and no copy exists.
         """
@@ -222,7 +226,7 @@ class ViewsCache:
             return Served(status, body, ctype, headers, None)
         query = query_of(params)
         copy = await asyncio.to_thread(self.lookup, name, query)
-        if self._fresh(copy, ttl):
+        if self._fresh(copy, ttl) and not force:
             self._bump(name, "hits")
             assert copy is not None
             return self._from_copy(copy, "hit")
@@ -267,6 +271,36 @@ class ViewsCache:
                 self._bump(name, "stale_serves")
             return self._from_copy(copy, "stale")
         return Served(status, body, ctype, headers, None)
+
+    # -- prewarm -----------------------------------------------------------
+    async def prewarm(
+        self,
+        upstream_for: Callable[[str], Upstream],
+        interval_s: float,
+        names: tuple[str, ...] = WARM_VIEWS,
+        gap_s: float = WARM_GAP_S,
+    ) -> None:
+        """Background task: fill the cache, then refresh every ``interval_s``. Never raises, ends on cancel.
+
+        Goes through ``get`` so it is single flight with requests. Copies keep their own
+        x-query-id and x-executed-at; a failed refresh leaves the old copy (stale-if-error).
+        Views are called ``gap_s`` apart (Open-Meteo free tier).
+        """
+        force = False  # the first pass skips views that are already fresh (Redis survived a restart)
+        while True:
+            for i, name in enumerate(names):
+                if i:
+                    await asyncio.sleep(gap_s)
+                try:
+                    await self.get(name, None, upstream_for(name), force=force)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - prewarm never stops the API
+                    log.warning("views prewarm for %s failed: %s", name, type(exc).__name__)
+            if interval_s <= 0:
+                return
+            force = True
+            await asyncio.sleep(interval_s)
 
     # -- warm-up -----------------------------------------------------------
     def warm(

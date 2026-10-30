@@ -264,6 +264,61 @@ class ViewsCacheTest(unittest.TestCase):
         self.assertIsNone(vc.stats()["views"]["hazard_now"]["last_ok_at"])
         self.assertIsNotNone(vc.stats()["views"]["gauge_levels"]["last_ok_at"])
 
+class PrewarmTest(unittest.TestCase):
+    NAMES = ("gauge_levels", "eu_watch", "hazard_now")
+
+    def fake(self, calls, fail=()):
+        def upstream_for(name):
+            async def up():
+                calls.append(name)
+                if name in fail:
+                    raise httpx.ConnectError("down")
+                return ok(len(calls))
+
+            return up
+
+        return upstream_for
+
+    def test_fills_cache_with_original_query_id_and_tolerates_errors(self) -> None:
+        vc, calls = ViewsCache(), []
+        run(vc.prewarm(self.fake(calls, fail=("eu_watch",)), 0, self.NAMES, gap_s=0))
+        self.assertEqual(calls, list(self.NAMES))
+        served = run(vc.get("gauge_levels", None, Upstream(ok(99))))
+        self.assertEqual(served.cache, "hit")
+        self.assertEqual(served.headers["x-query-id"], ok(1)[3]["x-query-id"])
+        self.assertEqual(run(vc.get("hazard_now", None, Upstream(ok(99)))).cache, "hit")
+
+    def test_periodic_refresh_forces_past_fresh_copy(self) -> None:
+        async def go():
+            vc, calls = ViewsCache(), []
+            t = asyncio.ensure_future(vc.prewarm(self.fake(calls), 0.01, ("gauge_levels",), gap_s=0))
+            await asyncio.sleep(0.05)
+            t.cancel()
+            await asyncio.gather(t, return_exceptions=True)
+            return calls
+
+        calls = run(go())
+        self.assertGreater(len(calls), 1)  # periodic refresh forced past the fresh copy
+
+    def test_cancel_ends_task(self) -> None:
+        async def go():
+            vc = ViewsCache()
+            t = asyncio.ensure_future(vc.prewarm(self.fake([]), 3600, ("gauge_levels",), gap_s=0))
+            await asyncio.sleep(0.01)
+            t.cancel()
+            await asyncio.gather(t, return_exceptions=True)
+            return t.cancelled()
+
+        self.assertTrue(run(go()))
+
+    def test_interval_floor_and_disable(self) -> None:
+        for raw, want in (("5", 30.0), ("0", 0.0), ("-1", 0.0), ("300", 300.0), ("x", 120.0)):
+            with mock.patch.dict(os.environ, {"VIEWS_PREWARM_INTERVAL_S": raw}):
+                self.assertEqual(api._prewarm_interval_s(), want)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("VIEWS_PREWARM_INTERVAL_S", None)
+            self.assertEqual(api._prewarm_interval_s(), 120.0)
+
 
 class ViewsRouteTest(unittest.TestCase):
     def setUp(self) -> None:
