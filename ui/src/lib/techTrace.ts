@@ -10,10 +10,12 @@ import { formatLatency, parseBoard } from "./pipeline";
  * and a cached or recorded answer says it was not run just now.
  */
 
-export type TileId = "zetaris" | "nightshift" | "hmem" | "world" | "tavily";
+export type TileId = "zetaris" | "nightshift" | "tokenfactory" | "hmem" | "world" | "tavily";
 
 export const GLOSSARY: Record<TileId, string> = {
   zetaris: "Zetaris: the only SQL path to the data.",
+  tokenfactory:
+    "Nebius Token Factory: the hosted inference service that serves the agents' model calls (fast and deep lanes) with NVIDIA Nemotron models.",
   nightshift:
     "Meterless Nightshift: the gateway that routes the agents' model calls (meterless/fast and meterless/deep) to NVIDIA Nemotron models.",
   hmem: "Meterless H-MEM: remembers approved findings (and clearly labelled demo seeds).",
@@ -177,7 +179,34 @@ export const RECORDED_NOTE = "Recorded run: replayed from cache, not run just no
 
 const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.servedFrom !== "live";
 
-function nightshiftTile(run: RecordedRun): Tile {
+/** Usage rows from run.usage. Absent usage is only reported when the run made model calls; a deterministic run adds nothing. */
+function usageDetails(run: RecordedRun, hadModelCalls: boolean): { before: TileDetail[]; after: TileDetail[] } {
+  const u = run.usage;
+  if (!u) return { before: hadModelCalls ? [{ label: "Usage", value: "Not recorded for this answer (cached, replayed or older run)" }] : [], after: [] };
+  if (u.calls === 0) return { before: [], after: [{ label: "Usage", value: "No model call in this answer" }] };
+  return {
+    before: [],
+    after: [
+      ...u.models.map((m) => ({ label: `${m.lane} lane · ${m.modelId}`, value: `${plural(m.calls, "call")} · ${m.totalTokens} tokens` })),
+      { label: "This run", value: `${plural(u.calls, "model call")} · ${u.totalTokens} tokens${u.avgLatencyMs != null ? ` · avg ${formatLatency(u.avgLatencyMs)}` : ""}` },
+      { label: "Cost", value: u.costUsd == null ? "price not configured" : `$${u.costUsd.toFixed(4)} (${u.priceNote})` },
+    ],
+  };
+}
+
+function nightshiftTile(run: RecordedRun, backend?: string | null): Tile {
+  const t = nightshiftBase(run);
+  const u = usageDetails(run, modelUse(run).models.length > 0);
+  // Keep the "Time in model-assisted steps" row last among the trace rows; unrecorded-usage note goes before it.
+  const i = t.details.findIndex((d) => d.label.startsWith("Time in model"));
+  const details = [...t.details];
+  details.splice(i < 0 ? details.length : i, 0, ...u.before);
+  details.push(...u.after);
+  if (backend !== "nebius") return { ...t, details };
+  return { ...t, name: "Nebius Token Factory", glossary: GLOSSARY.tokenfactory, details };
+}
+
+function nightshiftBase(run: RecordedRun): Tile {
   const use = modelUse(run);
   const recorded: TileDetail[] = isRecorded(run) ? [{ label: "Served from", value: RECORDED_NOTE }] : [];
   const name = "Meterless Nightshift";
@@ -369,10 +398,10 @@ export function pickRunRow<T extends { runId: string; status: string; eventId: s
 }
 
 /** Pure: everything the TechTrace panel draws. */
-export function buildTechTrace(run: RecordedRun): TechTraceModel {
+export function buildTechTrace(run: RecordedRun, backend?: string | null): TechTraceModel {
   return {
     routerLine: routerLine(run),
     judgeLine: judgeLine(run),
-    tiles: [zetarisTile(run), nightshiftTile(run), hmemTile(run), worldTile(run), tavilyTile(run)],
+    tiles: [zetarisTile(run), nightshiftTile(run, backend), hmemTile(run), worldTile(run), tavilyTile(run)],
   };
 }
