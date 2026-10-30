@@ -79,7 +79,7 @@ const NO_SITES: ExposureJoinRow[] = [];
 
 function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly ExposureJoinRow[] }) {
   const [map, setMap] = useState<L.Map | null>(null);
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: s.river ? `${s.river} · ${s.name}` : s.name }, s.status)), [sources]);
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status)), [sources]);
 
   useEffect(() => {
     if (!map) return;
@@ -106,7 +106,7 @@ function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly E
 
   // Sites are many (hundreds): one small canvas-free circle each, no tooltip text beyond id and segment.
   const siteRows = useMemo(() => sites.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon)), [sites]);
-  const extra3d = useMemo(() => siteRows.map((r) => ({ id: r.policy_id, lat: r.lat, lon: r.lon })), [siteRows]);
+  const extra3d = useMemo(() => siteRows.map((r) => ({ id: r.policy_id, lat: r.lat, lon: r.lon, label: `${r.policy_id} · ${r.segment} (synthetic)` })), [siteRows]);
   useEffect(() => {
     if (!map) return;
     const layer = L.layerGroup().addTo(map);

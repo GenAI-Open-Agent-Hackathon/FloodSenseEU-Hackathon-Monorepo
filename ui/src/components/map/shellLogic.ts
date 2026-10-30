@@ -33,7 +33,13 @@ export function writeMapMode(mode: MapMode, storage: StorageLike | null = browse
   }
 }
 
-/** One point as the shell draws it. `rank` 0..3 is the band order, not a measured value. */
+/** Shown mode after a 3D failure (no WebGL, style or tile error): back to 2D, and 2D is saved so the next load does not retry. */
+export function failMapMode(storage: StorageLike | null = browserStorage()): MapMode {
+  writeMapMode("2d", storage);
+  return "2d";
+}
+
+/** One point as the shell draws it. `rank` 0..3 is the band order, not a measured value; -1 = no reading, no column. */
 export interface ShellPoint {
   id: string;
   lat: number;
@@ -45,26 +51,28 @@ export interface ShellPoint {
 
 export interface ExtraPoint {
   id: string;
+  label?: string;
   lat: number;
   lon: number;
 }
 
 /** Amber, never red, for every model band; red is not in this palette at all. */
-const BAND_STYLE: Record<DischargeBand, { rank: number; color: string }> = {
+export const BAND_STYLE: Record<DischargeBand, { rank: number; color: string }> = {
   low: { rank: 0, color: "#3f8f5f" },
   typical: { rank: 1, color: "#d9b44a" },
   elevated: { rank: 2, color: "#d98a1f" },
   peak: { rank: 3, color: "#a85d00" },
 };
-const STATUS_STYLE: Record<GaugeStatus, { rank: number; color: string }> = {
+export const STATUS_STYLE: Record<GaugeStatus, { rank: number; color: string }> = {
   ok: { rank: 0, color: "#3f8f5f" },
   near: { rank: 1, color: "#d9b44a" },
   over: { rank: 2, color: "#a85d00" },
-  unknown: { rank: 0, color: "#8a97a8" },
+  unknown: { rank: -1, color: "#8a97a8" },
 };
 
 type Base = { id: string; lat: number; lon: number; label: string };
-export const bandPoint = (p: Base, band: DischargeBand): ShellPoint => ({ ...p, ...BAND_STYLE[band] });
+/** `null` band = no value for that point: a flat marker, not a column. */
+export const bandPoint = (p: Base, band: DischargeBand | null): ShellPoint => ({ ...p, ...(band ? BAND_STYLE[band] : STATUS_STYLE.unknown) });
 export const statusPoint = (p: Base, status: GaugeStatus): ShellPoint => ({ ...p, ...STATUS_STYLE[status] });
 
 const M_PER_DEG = 111_000;
@@ -75,7 +83,7 @@ const M_PER_DEG = 111_000;
  */
 export function columnsGeoJson(points: readonly ShellPoint[], selectedId: string | undefined, halfDeg: number) {
   const features = points
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+    .filter((p) => p.rank >= 0 && Number.isFinite(p.lat) && Number.isFinite(p.lon))
     .map((p) => {
       const h = p.id === selectedId ? halfDeg * 1.6 : halfDeg;
       const dx = h / Math.max(Math.cos((p.lat * Math.PI) / 180), 0.2);
@@ -93,4 +101,18 @@ export function columnsGeoJson(points: readonly ShellPoint[], selectedId: string
       };
     });
   return { type: "FeatureCollection" as const, features };
+}
+
+/** Points with no reading: a small flat grey circle labelled as such, never a column. */
+export function flatGeoJson(points: readonly ShellPoint[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: points
+      .filter((p) => p.rank < 0 && Number.isFinite(p.lat) && Number.isFinite(p.lon))
+      .map((p) => ({
+        type: "Feature" as const,
+        properties: { id: p.id, label: `${p.label} · no reading, no column`, color: p.color },
+        geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
+      })),
+  };
 }

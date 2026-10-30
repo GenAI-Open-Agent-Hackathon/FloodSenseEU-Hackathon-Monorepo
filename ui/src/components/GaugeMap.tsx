@@ -60,7 +60,7 @@ export function GaugeMap({ load, gauges }: { load: GaugeState; gauges: GaugeSumm
   const points3d = useMemo(
     () =>
       placed.map((g) =>
-        statusPoint({ id: `${g.station}-${g.water}`, lat: g.lat as number, lon: g.lon as number, label: `${g.station} (${g.water}): ${Math.round(g.levelCm)} cm` }, g.status),
+        statusPoint({ id: `${g.station}-${g.water}`, lat: g.lat as number, lon: g.lon as number, label: `${g.station} (${g.water}): ${Math.round(g.levelCm)} cm · ${gaugeBadge(g).text}${g.status === "unknown" ? " · no MHW threshold" : ""}` }, g.status),
       ),
     [placed],
   );

@@ -277,11 +277,11 @@ function EventMap({
     () =>
       points.map((p) => {
         const m3s = values.get(p.point_id) ?? null;
-        return bandPoint({ id: p.point_id, lat: p.lat, lon: p.lon, label: pointPopupText(p, m3s, formatDay(date)) }, m3s === null ? "low" : dischargeBand(m3s));
+        return bandPoint({ id: p.point_id, lat: p.lat, lon: p.lon, label: pointPopupText(p, m3s, formatDay(date)) }, m3s === null ? null : dischargeBand(m3s));
       }),
     [points, values, date],
   );
-  const extra3d = useMemo(() => exposure.map((r) => ({ id: r.policy_id, lat: r.lat, lon: r.lon })), [exposure]);
+  const extra3d = useMemo(() => exposure.map((r) => ({ id: r.policy_id, lat: r.lat, lon: r.lon, label: `${r.policy_id} · ${r.segment}` })), [exposure]);
   const fit3d = useMemo(() => boundsOf(points), [points]);
 
   return (

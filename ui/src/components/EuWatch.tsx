@@ -77,7 +77,7 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
   const [map, setMap] = useState<L.Map | null>(null);
   const askRef = useRef(openAsk);
   askRef.current = openAsk;
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: s.river ? `${s.river} · ${s.name}` : s.name }, s.status)), [sources]);
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status)), [sources]);
 
   useEffect(() => {
     if (!map) return;

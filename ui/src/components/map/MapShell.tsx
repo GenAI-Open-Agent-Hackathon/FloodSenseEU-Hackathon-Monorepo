@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { boundsOf } from "../../lib/events";
 import {
   columnsGeoJson,
+  failMapMode,
+  flatGeoJson,
   readMapMode,
   writeMapMode,
   type ExtraPoint,
@@ -21,6 +23,9 @@ export type Bounds = [[number, number], [number, number]];
 // One shared mode for every map on the page; persisted, 2D by default.
 let mode: MapMode = readMapMode();
 const listeners = new Set<() => void>();
+function resetToTwoD() {
+  mode = failMapMode();
+}
 function useMapMode(): [MapMode, (next: MapMode) => void] {
   const current = useSyncExternalStore(
     (cb) => (listeners.add(cb), () => void listeners.delete(cb)),
@@ -63,7 +68,7 @@ export interface MapShellProps {
 export function MapShell(props: MapShellProps) {
   const [current, setMode] = useMapMode();
   const [failed, setFailed] = useState(false);
-  const use3d = current === "3d" && !failed;
+  const use3d = current === "3d";
   return (
     <div className="gauge-map__frame">
       <div className="map-mode" role="group" aria-label="Map view">
@@ -81,12 +86,26 @@ export function MapShell(props: MapShellProps) {
             {m.toUpperCase()}
           </button>
         ))}
-        {failed && current === "3d" && <span className="muted small">3D needs WebGL and did not start; showing 2D.</span>}
+        {failed && current === "2d" && (
+          <span className="muted small" role="status">
+            3D did not start (WebGL, style or tiles failed); showing 2D.
+          </span>
+        )}
         {use3d && (
-          <span className="muted small">Column height shows band order, not a measured value. Use the list or selector for keyboard access.</span>
+          <span className="muted small">
+            Column height shows band order, not a measured value. Hover for status
+            {props.onSelect ? "; for keyboard access use the point selector or list." : "."}
+          </span>
         )}
       </div>
-      {use3d ? <Map3D {...props} onFail={() => setFailed(true)} /> : <Map2D {...props} />}
+      {use3d ? <Map3D
+          {...props}
+          onFail={() => {
+            resetToTwoD();
+            setFailed(true);
+            listeners.forEach((cb) => cb());
+          }}
+        /> : <Map2D {...props} />}
       {props.children}
     </div>
   );
@@ -145,6 +164,8 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
   const [ready, setReady] = useState(false);
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
+  const onSelectSet = useRef(!!onSelect);
+  onSelectSet.current = !!onSelect;
   const failRef = useRef(onFail);
   failRef.current = onFail;
   const view = fit3d ?? fit?.bounds ?? boundsOf(points3d) ?? FALLBACK_VIEW;
@@ -153,6 +174,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
   useEffect(() => {
     let dead = false;
     let map: MlMap | null = null;
+    let loaded = false;
     (async () => {
       try {
         const [ml] = await Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl.css")]);
@@ -172,6 +194,8 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
         });
         map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · ${attribution}` }));
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-left");
+        const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), 15000);
+        map.on("error", () => !loaded && !dead && failRef.current());
         const popup = new ml.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
         map.on("load", () => {
           if (dead || !map) return;
@@ -189,15 +213,19 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
             const id = e.features?.[0]?.properties?.id;
             if (typeof id === "string") selectRef.current?.(id);
           });
-          map.on("mousemove", "columns", (e: MapLayerMouseEvent) => {
-            map!.getCanvas().style.cursor = "pointer";
-            const label = e.features?.[0]?.properties?.label;
-            if (typeof label === "string") popup.setLngLat(e.lngLat).setText(label).addTo(map!);
-          });
-          map.on("mouseleave", "columns", () => {
-            map!.getCanvas().style.cursor = "";
-            popup.remove();
-          });
+          map.on("mousemove", "columns", () => (map!.getCanvas().style.cursor = onSelectSet.current ? "pointer" : ""));
+          map.on("mouseleave", "columns", () => (map!.getCanvas().style.cursor = ""));
+          map.addSource("flat", { type: "geojson", data: empty });
+          map.addLayer({ id: "flat", type: "circle", source: "flat", paint: { "circle-radius": 4, "circle-color": ["get", "color"], "circle-stroke-width": 1, "circle-stroke-color": "#ffffff" } });
+          for (const layerId of ["columns", "flat", "extra"]) {
+            map.on("mousemove", layerId, (e: MapLayerMouseEvent) => {
+              const label = e.features?.[0]?.properties?.label;
+              if (typeof label === "string") popup.setLngLat(e.lngLat).setText(label).addTo(map!);
+            });
+            map.on("mouseleave", layerId, () => popup.remove());
+          }
+          loaded = true;
+          window.clearTimeout(loadTimer);
           mapRef.current = map;
           setReady(true);
         });
@@ -207,6 +235,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     })();
     return () => {
       dead = true;
+      setReady(false);
       mapRef.current = null;
       map?.remove();
     };
@@ -216,6 +245,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     const map = mapRef.current;
     if (!ready || !map) return;
     (map.getSource("columns") as { setData(d: unknown): void } | undefined)?.setData(columnsGeoJson(points3d, selectedId, columnDeg));
+    (map.getSource("flat") as { setData(d: unknown): void } | undefined)?.setData(flatGeoJson(points3d));
   }, [ready, points3d, selectedId, columnDeg]);
 
   useEffect(() => {
@@ -223,7 +253,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     if (!ready || !map) return;
     const features = (extra3d ?? []).map((p) => ({
       type: "Feature" as const,
-      properties: { id: p.id },
+      properties: { id: p.id, label: p.label ?? p.id },
       geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
     }));
     (map.getSource("extra") as { setData(d: unknown): void } | undefined)?.setData({ type: "FeatureCollection", features });

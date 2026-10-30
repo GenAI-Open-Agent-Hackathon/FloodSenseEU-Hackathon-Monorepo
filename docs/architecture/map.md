@@ -4,12 +4,14 @@ All four UI maps (event replay in `MapPanel`, Europe live watch in `EuWatch`, in
 
 - **2D (default):** Leaflet, unchanged behaviour. The choice is saved in `localStorage` (`floodsense.mapMode`, read in try/catch) and shared by every map on the page.
 - **3D:** MapLibre GL, loaded with a dynamic `import()` the first time a viewer picks 3D, so the 2D bundle does not grow. Tilted view (pitch 55), OSM raster tiles, no token. Each point is an extruded column coloured by its band; clicking a column calls the same `onSelect`. Insured sites show as small circles.
-- If WebGL or the chunk fails, the shell says so and keeps showing 2D.
+- If WebGL, the chunk, the style or the first tiles fail (map `error` before load, or no load within 15 s), the shell switches back to 2D, saves 2D (so the next load does not retry), and shows a `role="status"` note. The toggle always shows the mode that is on screen.
 
 Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `map/shellLogic.ts` with tests in `shellLogic.test.ts`.
 
 ## What the 3D view does and does not show
 
+- Hover labels carry the status word and "not live (stale or seed)" for non-live sources; insured-site circles are labelled "(synthetic)", as in the 2D tooltips.
+- A point with no reading (gauge status unknown, or no discharge value) gets no column, only a small flat grey circle labelled "no reading, no column".
 - Column height is the band **order** (low, typical, elevated, peak; ok, near, over), never a measured value. The legend and the sentence next to the toggle say so.
 - Colours stay amber for every model band, never red. Gauge "over MHW" uses the dark amber too.
 - No terrain: a free elevation (DEM) tile source needs a key or a hosted tile service, so there is no relief. The view is pitch plus extruded markers. There are no river polylines because the views carry points only, not river geometry.

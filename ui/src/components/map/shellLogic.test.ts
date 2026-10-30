@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandPoint, columnsGeoJson, MAP_MODE_KEY, readMapMode, statusPoint, writeMapMode } from "./shellLogic";
+import { BAND_STYLE, STATUS_STYLE, bandPoint, columnsGeoJson, failMapMode, flatGeoJson, MAP_MODE_KEY, readMapMode, statusPoint, writeMapMode } from "./shellLogic";
 
 const store = () => {
   const m = new Map<string, string>();
@@ -44,12 +44,29 @@ describe("columns", () => {
   it("drops non-finite positions", () => {
     expect(columnsGeoJson([bandPoint({ ...base, lat: NaN }, "low")], undefined, 0.01).features).toHaveLength(0);
   });
-  it("never uses a red colour", () => {
-    const colors = [bandPoint(base, "peak"), bandPoint(base, "elevated"), statusPoint(base, "over"), statusPoint(base, "unknown")].map((p) => p.color);
+  it("never uses a red colour, on every actual palette value", () => {
+    const colors = [...Object.values(BAND_STYLE), ...Object.values(STATUS_STYLE)].map((v) => v.color);
+    expect(colors.length).toBeGreaterThan(7);
     for (const c of colors) {
-      const r = parseInt(c.slice(1, 3), 16);
-      const g = parseInt(c.slice(3, 5), 16);
-      expect(r - g).toBeLessThan(100);
+      const [r, g, b] = [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)) as [number, number, number];
+      expect(r - g).toBeLessThan(100); // red would be r far above g
+      expect(r > 150 && g < 90 && b < 90).toBe(false);
     }
+  });
+  it("unknown status and missing value get no column, only a labelled flat marker", () => {
+    const pts = [statusPoint(base, "unknown"), bandPoint({ ...base, id: "n" }, null), statusPoint({ ...base, id: "ok" }, "ok")];
+    expect(columnsGeoJson(pts, undefined, 0.01).features.map((f) => f.properties.id)).toEqual(["ok"]);
+    const flat = flatGeoJson(pts).features;
+    expect(flat.map((f) => f.properties.id)).toEqual(["a", "n"]);
+    expect(flat[0]!.properties.label).toContain("no reading");
+  });
+});
+
+describe("3D failure", () => {
+  it("saves 2d so the next load does not retry", () => {
+    const s = store();
+    writeMapMode("3d", s);
+    expect(failMapMode(s)).toBe("2d");
+    expect(readMapMode(s)).toBe("2d");
   });
 });
