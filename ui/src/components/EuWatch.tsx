@@ -5,7 +5,7 @@ import { useConsole } from "../context/ConsoleContext";
 import { EU_WATCH_BOUNDS, sortSources, type SortKey, type WatchSource } from "../lib/euWatch";
 import { escapeHtml, type GaugeStatus } from "../lib/gauges";
 import { MapShell, type Bounds } from "./map/MapShell";
-import { statusPoint } from "./map/shellLogic";
+import { riverFocusIds, statusPoint } from "./map/shellLogic";
 import { basisLabel, statusView } from "../lib/places";
 
 const EU_VIEW: Bounds = [
@@ -73,11 +73,12 @@ export function EuWatchLegend() {
 
 /** All live-watch sources on one map (2D Leaflet or 3D MapLibre). Clicking a marker pre-fills Ask FloodSense. */
 export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
-  const { openAsk } = useConsole();
+  const { openAsk, placeId } = useConsole();
   const [map, setMap] = useState<L.Map | null>(null);
   const askRef = useRef(openAsk);
   askRef.current = openAsk;
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status)), [sources]);
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge")), [sources]);
+  const focusIds = useMemo(() => riverFocusIds(sources, placeId), [sources, placeId]);
 
   useEffect(() => {
     if (!map) return;
@@ -113,6 +114,8 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
       fit={{ bounds: EU_VIEW, padding: 8 }}
       onMap2d={setMap}
       points3d={points3d}
+      selectedId={placeId ?? undefined}
+      focusIds={focusIds}
       onSelect={(id) => {
         const s = sources.find((x) => x.id === id);
         if (s) ask(askRef.current, s);

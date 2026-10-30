@@ -79,7 +79,9 @@ const NO_SITES: ExposureJoinRow[] = [];
 
 function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly ExposureJoinRow[] }) {
   const [map, setMap] = useState<L.Map | null>(null);
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status)), [sources]);
+  const { placeId } = useConsole();
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge")), [sources]);
+  const focusIds = useMemo(() => riverFocusIds(sources, placeId), [sources, placeId]);
 
   useEffect(() => {
     if (!map) return;
@@ -128,6 +130,8 @@ function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly E
       onMap2d={setMap}
       points3d={points3d}
       extra3d={extra3d}
+      selectedId={placeId ?? undefined}
+      focusIds={focusIds}
       columnDeg={0.08}
     />
   );

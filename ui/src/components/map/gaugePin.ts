@@ -13,7 +13,7 @@ export function gaugePinEl(p: ShellPoint, fill: number, selected: boolean): HTML
   const el = document.createElement("div");
   const known = p.rank >= 0;
   const clip = `gc-${cssId(p.id)}`;
-  el.className = `gpin${known ? "" : " gpin--unknown"}${selected ? " gpin--sel" : ""}`;
+  el.className = `gpin${known ? "" : " gpin--unknown"}${selected ? " gpin--sel" : ""}${p.alert ? " gpin--over" : ""}`;
   el.style.setProperty("--c", p.color);
   el.style.setProperty("--fill", String(known ? Math.max(0.12, fill) : 0));
   el.setAttribute("role", "button");

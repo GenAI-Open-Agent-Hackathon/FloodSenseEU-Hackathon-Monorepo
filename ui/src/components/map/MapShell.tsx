@@ -6,6 +6,8 @@ import "../../styles/map3d.css";
 import { boundsOf } from "../../lib/events";
 import { DIAL_ZOOM, gaugePinEl } from "./gaugePin";
 import {
+  focusBounds,
+  type Bounds,
   failMapMode,
   readMapMode,
   writeMapMode,
@@ -27,7 +29,7 @@ const FLOW_FRAMES = [
 export const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
 
-export type Bounds = [[number, number], [number, number]];
+export type { Bounds };
 
 // One shared mode for every map on the page; persisted, 2D by default.
 let mode: MapMode = readMapMode();
@@ -66,6 +68,8 @@ export interface MapShellProps {
   points3d: readonly ShellPoint[];
   extra3d?: readonly ExtraPoint[];
   selectedId?: string;
+  /** Ids of the points to fly to (e.g. the gauges of the selected river). Empty or unknown ids: full view. A "Show full view" button resets it. */
+  focusIds?: readonly string[];
   onSelect?: (id: string) => void;
   /** Column half side in degrees (about 0.0015 for a river reach, 0.08 for Europe). */
   columnDeg: number;
@@ -78,6 +82,10 @@ export function MapShell(props: MapShellProps) {
   const [current, setMode] = useMapMode();
   const [failed, setFailed] = useState(false);
   const use3d = current === "3d";
+  const focusKey = (props.focusIds ?? []).join("|");
+  const [dismissed, setDismissed] = useState("");
+  const focus = focusKey && dismissed !== focusKey ? focusBounds(props.points3d, props.focusIds) : null;
+  const shown = { ...props, focus };
   return (
     <div className="gauge-map__frame">
       <div className="map-mode" role="group" aria-label="Map view">
@@ -95,6 +103,11 @@ export function MapShell(props: MapShellProps) {
             {m.toUpperCase()}
           </button>
         ))}
+        {focus && (
+          <button type="button" className="eu-sort" onClick={() => setDismissed(focusKey)}>
+            Show full view
+          </button>
+        )}
         {failed && current === "2d" && (
           <span className="muted small" role="status">
             3D did not start (WebGL, style or tiles failed); showing 2D.
@@ -108,20 +121,25 @@ export function MapShell(props: MapShellProps) {
         )}
       </div>
       {use3d ? <Map3D
-          {...props}
+          {...shown}
           onFail={() => {
             resetToTwoD();
             setFailed(true);
             listeners.forEach((cb) => cb());
           }}
-        /> : <Map2D {...props} />}
+        /> : <Map2D {...shown} />}
       {props.children}
     </div>
   );
 }
 
-function Map2D({ ariaLabel, attribution, zoomSnap = 1, fit, onMap2d }: MapShellProps) {
+type Shown = MapShellProps & { focus: Bounds | null };
+
+function Map2D({ ariaLabel, attribution, zoomSnap = 1, fit, onMap2d, focus }: Shown) {
   const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const focusKey = JSON.stringify(focus);
+  const wasFocused = useRef(false);
   const cb = useRef(onMap2d);
   cb.current = onMap2d;
   const fitRef = useRef(fit);
@@ -139,7 +157,7 @@ function Map2D({ ariaLabel, attribution, zoomSnap = 1, fit, onMap2d }: MapShellP
     let touched = false;
     const doFit = () => {
       const f = fitRef.current;
-      if (f) map.fitBounds(f.bounds, { padding: [f.padding, f.padding] });
+      if (f && !wasFocused.current) map.fitBounds(f.bounds, { padding: [f.padding, f.padding] });
     };
     doFit();
     // Once the user zooms or drags, a resize keeps their view.
@@ -151,12 +169,28 @@ function Map2D({ ariaLabel, attribution, zoomSnap = 1, fit, onMap2d }: MapShellP
     });
     resize.observe(container);
     cb.current?.(map);
+    mapRef.current = map;
     return () => {
       resize.disconnect();
       cb.current?.(null);
+      mapRef.current = null;
       map.remove();
     };
   }, [zoomSnap, attribution]);
+
+  // Fly to the focused gauges; when the focus goes away, fly back to the full view.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (focus) {
+      wasFocused.current = true;
+      map.flyToBounds(focus, { padding: [40, 40], maxZoom: 14, duration: 1.2 });
+    } else if (wasFocused.current) {
+      wasFocused.current = false;
+      if (fitRef.current) map.flyToBounds(fitRef.current.bounds, { padding: [fitRef.current.padding, fitRef.current.padding], duration: 1.2 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey]);
 
   return <div ref={ref} className="leaflet-map" role="region" aria-label={ariaLabel} />;
 }
@@ -166,8 +200,9 @@ const FALLBACK_VIEW: Bounds = [
   [60, 25],
 ];
 
-function Map3D(props: MapShellProps & { onFail: () => void }) {
-  const { ariaLabel, attribution, fit, fit3d, points3d, extra3d, selectedId, onSelect, onFail } = props;
+function Map3D(props: Shown & { onFail: () => void }) {
+  const { ariaLabel, attribution, fit, fit3d, points3d, extra3d, selectedId, onSelect, onFail, focus } = props;
+  const wasFocused = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -181,6 +216,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
   failRef.current = onFail;
   const view = fit3d ?? fit?.bounds ?? boundsOf(points3d) ?? FALLBACK_VIEW;
   const viewKey = JSON.stringify(view);
+  const focusKey = JSON.stringify(focus);
 
   useEffect(() => {
     let dead = false;
@@ -363,6 +399,25 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, viewKey]);
+
+  // Focus: fly to the gauges of the selected river at pitch 60; clearing it flies back to the full view.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const box = focus ?? (wasFocused.current ? view : null);
+    wasFocused.current = !!focus;
+    if (!box) return;
+    map.fitBounds(
+      [
+        [box[0][1], box[0][0]],
+        [box[1][1], box[1][0]],
+      ],
+      focus
+        ? { padding: 60, maxZoom: 14, pitch: 60, bearing: -12, duration: 1800, essential: true }
+        : { padding: 40, maxZoom: 13, pitch: 55, bearing: -12, duration: 1800, essential: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focusKey]);
 
   return <div ref={ref} className="leaflet-map" role="region" aria-label={`${ariaLabel} (3D view)`} />;
 }
