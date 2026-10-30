@@ -32,6 +32,12 @@
 		# Production UI build baked into the image, SPA fallback to index.html.
 		handle {
 			root * /srv
+			# The page shell must not be cached. A browser that shows it from cache
+			# never meets the login, then sends a stale password with every API call
+			# and gets 401s (the page reads "Live data unavailable"). Assets are
+			# content-hashed, so they stay cacheable.
+			@shell not path /assets/*
+			header @shell Cache-Control "no-store"
 			try_files {path} /index.html
 			file_server
 		}
