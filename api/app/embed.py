@@ -33,11 +33,50 @@ BACKOFF_BASE_S, BACKOFF_RETRIES, BACKOFF_MAX_WAIT_S = 2.0, 3, 20.0
 DEFAULT_THRESHOLD = 0.90
 FAST_TIMEOUT_S = 3.0
 
-_NEGATIONS = {"not", "no", "never", "without", "nicht", "kein", "keine", "keinen", "ohne",
-              "nie", "nunca", "sin", "ningun", "ninguna", "pas", "sans",
-              # antonyms embeddings barely separate (above/below scored 0.98 live)
-              "above", "below", "over", "under", "more", "less", "higher", "lower",
-              "rising", "falling", "before", "after", "increase", "decrease"}
+# Copy of agents/floodsense_agents/events.py POINT_NAMES, GERMAN_PLACES and the
+# event names (the API image has no agents package). Change both together.
+_PLACES = {
+    "valencia", "paiporta", "catarroja", "sedavi", "sedaví", "alfafar", "benetusser", "benetússer",
+    "algemesi", "algemesí", "chiva", "utiel", "ahr", "altenahr", "ahrweiler", "ahrtal", "schuld",
+    "dernau", "neuenahr", "rhine", "rhein", "köln", "koeln", "cologne", "bonn", "koblenz", "mosel",
+    "moselle", "germany", "deutschland", "nrw", "spain", "españa", "spanien", "eifel", "poyo",
+}
+_NEGATIONS = {
+    "not", "no", "never", "without", "none", "nothing", "nobody", "neither", "nor", "cannot",
+    "nicht", "kein", "keine", "keinen", "keiner", "keines", "ohne", "nie", "niemals", "nichts",
+    "kaum", "weder", "niemand", "nunca", "sin", "ningun", "ninguna", "ninguno", "nada", "nadie",
+    "ni", "jamais", "aucun", "aucune", "pas", "sans", "rien", "non", "nul", "ne",
+    # antonyms embeddings barely separate (above/below scored 0.98 live)
+    "above", "below", "over", "under", "more", "less", "fewer", "most", "least", "higher",
+    "lower", "highest", "lowest", "rising", "falling", "before", "after", "increase", "decrease",
+    "inside", "outside", "up", "down", "open", "closed", "safe", "unsafe", "dry", "wet",
+    "max", "min", "maximum", "minimum", "within", "beyond", "mehr", "weniger", "über", "unter",
+    "höher", "niedriger", "más", "menos", "plus", "moins",
+}
+_NEG_AFFIX = re.compile(r"^(?:non-?|un|in|nicht-?)\w{3,}", re.I)
+_NUMBER_WORDS = {
+    **{w: str(i) for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+        "fifteen sixteen seventeen eighteen nineteen twenty".split())},
+    **{w: str(i) for i, w in enumerate(
+        "null eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf".split())},
+    **{w: str(i) for i, w in enumerate(
+        "cero uno dos tres cuatro cinco seis siete ocho nueve diez once doce".split())},
+    **{w: str(i) for i, w in enumerate(
+        "zéro un deux trois quatre cinq six sept huit neuf dix onze douze".split())},
+    "ein": "1", "eine": "1", "une": "1", "thirty": "30", "forty": "40", "fifty": "50",
+    "hundred": "100", "hundert": "100", "cent": "100", "cien": "100", "dreißig": "30",
+    "zwanzig": "20", "dreissig": "30", "vierzig": "40", "fünfzig": "50", "veinte": "20",
+    "treinta": "30", "vingt": "20", "trente": "30",
+}
+_UNITS = {"mi": "mile", "mile": "mile", "miles": "mile", "meter": "m", "meters": "m", "metre": "m",
+          "metres": "m", "kilometer": "km", "kilometers": "km", "kilometre": "km",
+          "kilometres": "km", "hour": "h", "hours": "h", "hr": "h", "hrs": "h", "stunden": "h",
+          "stunde": "h", "horas": "h", "heures": "h", "day": "d", "days": "d", "tage": "d",
+          "tag": "d", "dias": "d", "días": "d", "jours": "d", "percent": "%", "prozent": "%",
+          "minutes": "min", "minute": "min", "minuten": "min", "feet": "ft", "foot": "ft"}
+_NUMS = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s?(km|mm|cm|min|ha|ft|mi|m|h|d|%|[a-zà-ÿ]+)?", re.I | re.UNICODE)
 
 
 def _num(name: str, default: float) -> float:
@@ -47,19 +86,45 @@ def _num(name: str, default: float) -> float:
         return default
 
 
-_NUMS = re.compile(r"\d+(?:[.,]\d+)?(?:\s?(?:km|mm|cm|min|ha|hours?|days?|h|m|%))?", re.I)
-
-
 def guard_key(question: str) -> tuple:
-    """What an embedding is weak on: numbers, negations, place names (capitalised
-    words that do not start the sentence). Two questions must agree on all three."""
-    words = re.findall(r"[\w'.,-]+", question)
-    nums = frozenset(m.replace(" ", "").lower() for m in _NUMS.findall(question))
-    neg = frozenset(w.lower() for w in words if w.lower().strip(".,") in _NEGATIONS)
-    names = frozenset(w.strip(".,'").lower() for w in words[1:] if w[:1].isupper())
-    return nums, neg, names
+    """Heuristic. What an embedding is weak on: numbers (digits or spelled out) with
+    their unit, negation and antonym words, and place names. Two questions must agree
+    on all three; a false miss is the safe side. Known gaps: unlisted antonyms,
+    languages beyond en/de/es/fr, places missing from _PLACES that are lowercase."""
+    text = question.replace("’", "'")
+    low = text.lower()
+    words = re.findall(r"[\w'-]+", low, re.UNICODE)
+    nums = set()
+    for m in _NUMS.finditer(low):
+        unit = (m.group(2) or "").lower()
+        unit = _UNITS.get(unit, unit)
+        nums.add(m.group(1).replace(",", ".") + (unit if unit in _UNIT_SET else ""))
+    for i, w in enumerate(words):
+        if w in _NUMBER_WORDS:
+            nxt = _UNITS.get(words[i + 1], words[i + 1]) if i + 1 < len(words) else ""
+            nums.add(_NUMBER_WORDS[w] + (nxt if nxt in _UNIT_SET else ""))
+    neg = {w for w in words if w in _NEGATIONS or w.endswith("n't")
+           or (_NEG_AFFIX.match(w) and w not in _AFFIX_OK)}
+    caps = {w.strip(".,'-").lower() for w in re.findall(r"[\w'-]+", text, re.UNICODE)
+            if w[:1].isupper() and w.lower() not in _STOP_CAPS}
+    names = caps | {w for w in words if w in _PLACES}
+    return frozenset(nums), frozenset(neg), frozenset(names)
 
 
+_UNIT_SET = {"km", "mm", "cm", "min", "ha", "ft", "mile", "m", "h", "d", "%"}
+# Capitalised function/question words (any sentence start) that are not names.
+_STOP_CAPS = {"which", "what", "how", "is", "are", "was", "were", "do", "does", "did", "the",
+              "a", "an", "show", "list", "give", "tell", "who", "where", "when", "why", "can",
+              "will", "has", "have", "wie", "was", "welche", "welcher", "welches", "wo", "wann",
+              "ist", "sind", "gibt", "zeige", "qué", "cuántos", "cuáles", "cómo", "dónde", "es",
+              "son", "quels", "quelles", "comment", "où", "combien", "est", "sont", "i", "in",
+              "of", "and", "der", "die", "das", "el", "la", "le", "les", "los", "las", "for"}
+# Words that look like a negation prefix (in-, un-) but are not.
+_AFFIX_OK = {"inside", "into", "under", "until", "unit", "units", "insured", "insurer",
+             "insurance", "inundated", "inundation", "information", "increase", "index",
+             "indicator", "industrial", "input", "international", "investigate", "inland",
+             "intensity", "interval", "unknown_", "uncertain_", "union", "unter", "uns", "non",
+             "innen", "inner", "indem", "increasing", "included", "including", "inland"}
 class Embedder:
     def __init__(
         self,

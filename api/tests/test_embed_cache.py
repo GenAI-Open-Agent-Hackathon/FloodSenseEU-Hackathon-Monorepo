@@ -75,12 +75,11 @@ class EmbedCacheTest(unittest.TestCase):
             c.lookup({"question": "What places are at risk?", "event_id": "EMSR517"}, "f")
         )
 
-    def test_retries_a_429_then_succeeds(self) -> None:
+    def test_slow_path_retries_a_429_then_succeeds(self) -> None:
         calls: list = []
-        c = self.cache(calls, statuses=[429])
-        self.assertTrue(c.remember(run("Which sites are exposed?"), "f"))
+        e = embedder(calls, statuses=[429])
+        self.assertEqual(e.embed("Which sites are exposed?"), VECS["which sites are exposed?"])
         self.assertEqual(len(calls), 2)
-        self.assertIsNotNone(c.lookup({"question": "What places are at risk?"}, "f"))
 
     def test_failure_falls_back_to_exact_match(self) -> None:
         c = self.cache([], statuses=[500])
@@ -130,9 +129,25 @@ class EmbedCacheTest(unittest.TestCase):
             ("Is the Ahr above the level?", "Is the Ahr below the level?"),
             ("Wie viele sind betroffen?", "Wie viele sind nicht betroffen?"),
         ]
+        pairs += [
+            ("Which sites are within five km of the river?", "Which sites are within ten km of the river?"),
+            ("Wie viele Standorte innerhalb fünf km?", "Wie viele Standorte innerhalb zehn km?"),
+            ("Sites within 5 km?", "Sites within 5 miles?"),
+            ("Valencia: which sites are flooded?", "Ahr: which sites are flooded?"),
+            ("Valencia flooded?", "Ahr flooded?"),
+            ("sites flooded in valencia?", "sites flooded in ahr?"),
+            ("Which sites are flooded?", "Which sites aren't flooded?"),
+            ("Which sites are flooded?", "Which sites are non-flooded?"),
+            ("Is any site safe?", "Is any site unsafe?"),
+            ("Sites inside the zone?", "Sites outside the zone?"),
+            ("Wie viele sind betroffen?", "Wie viele sind kaum betroffen?"),
+            ("Sites at least 5 m?", "Sites at most 5 m?"),
+            ("Is any site flooded?", "Is no site flooded?"),
+        ]
         for a, b in pairs:
             self.assertNotEqual(guard_key(a), guard_key(b), (a, b))
         self.assertEqual(guard_key("Which sites are exposed?"), guard_key("Which sites are at risk?"))
+        self.assertEqual(guard_key("Which sites are exposed?"), guard_key("Which of the sites are exposed?"))
 
     def test_guard_stops_a_high_scoring_near_miss_in_the_cache(self) -> None:
         VECS["sites not flooded?"] = [0.99, 0.1, 0.0]
@@ -144,9 +159,13 @@ class EmbedCacheTest(unittest.TestCase):
     def test_lookup_path_makes_one_short_attempt(self) -> None:
         calls: list = []
         c = self.cache(calls, statuses=[429, 200])
-        c._embedder._client  # noqa: B018 - shared client, created once
         self.assertIsNone(c._embedder.embed("Which sites are exposed?", fast=True))
         self.assertEqual(len(calls), 1)
+        first = c._embedder._client
+        c._embedder.embed("Which sites are exposed?", fast=True)
+        self.assertIs(c._embedder._client, first)  # one client, reused
+        c.close()
+        self.assertIsNone(c._embedder._client)
 
     def test_bad_env_values_do_not_crash(self) -> None:
         with mock.patch.dict(os.environ, {"EMBED_CACHE_THRESHOLD": "x", "NIGHTSHIFT_RPM": "y"}):

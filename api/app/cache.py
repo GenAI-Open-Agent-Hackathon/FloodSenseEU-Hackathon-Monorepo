@@ -22,7 +22,8 @@ same event, customer, clock, language, flags and context. Vectors live in
 process memory only (no pgvector column, so no dimension migration; vectors
 of another length never match). A miss or an embeddings failure falls back to
 the exact key. The hit is labelled cache like any other. A similar hit also
-needs the same numbers, negation words and place names in both questions.
+needs the same numbers and units, negation or antonym words and place names in both
+questions (a heuristic, see embed.guard_key; experimental, off by default).
 
 Replay (FF_CACHED_REPLAY). When a live run fails (the agents answer 5xx, are
 unreachable, or return a failed run), the API serves the newest recorded run
@@ -623,13 +624,16 @@ class AnswerCache:
                 self._entries.popitem(last=False)  # Redis keeps it until its TTL
         self._write_entry(key, entry, entry.ttl_s)
         question = str(request.get("question") or "")
-        vec = self._embedder.embed(question)
+        vec = self._embedder.embed(question, fast=True)  # on the approval request path
         if vec is not None:
             with self._lock:
                 self._vectors[key] = (question, vec)
                 for k in [k for k in self._vectors if k not in self._entries]:
                     del self._vectors[k]  # bounded with the entries
         return True
+
+    def close(self) -> None:
+        self._embedder.close()
 
     def _similar(self, key: tuple, question: str) -> Entry | None:
         if not self._vectors:
