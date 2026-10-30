@@ -75,7 +75,6 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 
 ### Known bugs and weak spots
 - Insurer Approvals queue had 29 old test runs (curated in #90). Insurer "Now" page is dense.
-- Review's Skeptic/Judge tabs are still the bundled Valencia fixture.
 - First load of live pages takes 5-10 s (Zetaris views are queried one by one).
 - Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Open-Meteo free tier is non-commercial; one forecast question is about 45 calls.

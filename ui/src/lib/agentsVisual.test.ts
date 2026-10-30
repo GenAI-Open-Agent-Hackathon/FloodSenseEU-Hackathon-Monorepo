@@ -245,5 +245,7 @@ describe("replay sources and labels", () => {
     expect(causalChainNote({ kind: "bundled" })).toMatch(/Bundled recording/);
     expect(causalChainNote({ kind: "failed", id: "abc" })).toMatch(/Could not load recorded run abc/);
     expect(causalChainNote({ kind: "configured", id: "abc" })).toBeNull();
+    expect(causalChainNote({ kind: "looking", label: "Valencia 2024" })).toMatch(/Looking for the newest/);
+    expect(causalChainNote({ kind: "none", label: "Valencia 2024" })).toMatch(/^Sample, not a real run/);
   });
 });

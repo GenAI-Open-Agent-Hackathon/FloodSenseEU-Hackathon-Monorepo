@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptPastRuns, approvalHeader, buildQueue, completedFullRuns, curateQueue, earlierText, isSmallTalk, pickSelection, preferJudgePass, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
+import { adoptPastRuns, approvalHeader, buildQueue, eventLabel, completedFullRuns, curateQueue, earlierText, isSmallTalk, pickSelection, preferJudgePass, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
 
 const PAST = {
   runs: [
@@ -220,5 +220,32 @@ describe("Review run choice", () => {
     expect(preferJudgePass(c, { a: true, b: true })?.runId).toBe("a");
     expect(preferJudgePass(c, { a: false, b: false })?.runId).toBe("a");
     expect(preferJudgePass([], {})).toBeNull();
+  });
+});
+
+describe("event label, Valencia scope, newest run", () => {
+  const rows = adoptPastRuns({
+    runs: [
+      { run_id: "val", status: "awaiting_approval", event_id: "EMSR773", mode: "event", lane: "full", question: "Valencia sites?", created_at: "2026-10-30T00:18:24Z" },
+      { run_id: "liv", status: "awaiting_approval", event_id: "EMSR773", mode: "live", lane: "full", question: "Any point at risk?", created_at: "2026-10-30T00:10:00Z" },
+    ],
+  });
+  it("labels a live-data run Live even when it carries EMSR773", () => {
+    expect(eventLabel("EMSR773", "live")).toBe("Live");
+    expect(eventLabel("EMSR773", "event")).toBe("Valencia 2024");
+    expect(queueRowLine(rows[1])).toContain("Live");
+    expect(queueRowLine(rows[1])).not.toContain("Valencia");
+    expect(approvalHeader({ runId: "liv", row: rows[1], modelIds: [], judgeScore: 1, judgePasses: true, eventId: "EMSR773" }).facts).toContainEqual({ label: "Event", value: "Live" });
+  });
+  it("Past Valencia keeps the EMSR773 event run, Live keeps the live one", () => {
+    const base = buildQueue(rows, null, []);
+    const counts = { val: { outbound: 2, total: 3 }, liv: { outbound: 1, total: 1 } };
+    const past = curateQueue(base, { mode: "past", eventId: "EMSR773", hidden: new Set(), showHidden: false, actionCounts: counts });
+    expect(past.rows.map((r) => r.runId)).toEqual(["val"]);
+    const live = curateQueue(base, { mode: "live", eventId: "EMSR773", hidden: new Set(), showHidden: false, actionCounts: counts });
+    expect(live.rows.map((r) => r.runId)).toEqual(["liv"]);
+  });
+  it("picks the newest completed full run for the event", () => {
+    expect(completedFullRuns(rows, "past", "EMSR773").map((r) => r.runId)).toEqual(["val"]);
   });
 });

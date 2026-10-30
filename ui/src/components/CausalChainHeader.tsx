@@ -19,15 +19,17 @@ export function sampleRecordedRun(): RecordedRun | null {
   return adoptRunBody(sampleRun as unknown as Record<string, unknown>, SAMPLE_RUN_ID);
 }
 
-export type Source = { kind: "bundled" } | { kind: "newest"; id: string; label: string; question: string | null } | { kind: "none"; label: string } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
+export type Source = { kind: "bundled" } | { kind: "newest"; id: string; label: string; question: string | null } | { kind: "none"; label: string } | { kind: "looking"; label: string } | { kind: "configured"; id: string } | { kind: "failed"; id: string } | { kind: "loading"; id: string };
 
 /** Pure: the note under the header for where the run came from. Null for a configured run that loaded. */
 export function causalChainNote(source: Source): string | null {
   switch (source.kind) {
     case "newest":
       return `Newest completed full run for ${source.label}${source.question ? `: “${source.question}”` : ""} (${source.id}).`;
+    case "looking":
+      return `Looking for the newest completed full run for ${source.label}…`;
     case "none":
-      return `No completed full-lane run for ${source.label} yet. Showing the bundled recording of run ${SAMPLE_RUN_ID} instead, a Valencia 2024 example. Not live.`;
+      return `Sample, not a real run: No completed full-lane run for ${source.label} yet. Showing the bundled recording of run ${SAMPLE_RUN_ID} instead, a Valencia 2024 example. Not live.`;
     case "bundled":
       return `Bundled recording of run ${SAMPLE_RUN_ID}, shipped with the UI. Not this session's run, not live.`;
     case "failed":
@@ -45,17 +47,18 @@ export function causalChainNote(source: Source): string | null {
  */
 export function useReviewRun(): { run: RecordedRun | null; source: Source } {
   const { mode, eventId } = useConsole();
-  const [run, setRun] = useState<RecordedRun | null>(() => sampleRecordedRun());
+  // No sample while the newest real run is being looked up: it would be shown as if it were the answer.
+  const [run, setRun] = useState<RecordedRun | null>(() => (replayRunId() ? sampleRecordedRun() : null));
   const [source, setSource] = useState<Source>(() => {
     const id = replayRunId();
-    return id ? { kind: "loading", id } : { kind: "bundled" };
+    return id ? { kind: "loading", id } : { kind: "looking", label: mode === "past" ? eventLabel(eventId) : "live data" };
   });
   useEffect(() => {
     const controller = new AbortController();
     const configured = replayRunId();
     const label = mode === "past" ? eventLabel(eventId) : "live data";
-    setRun(sampleRecordedRun());
     if (configured) {
+      setRun(sampleRecordedRun());
       setSource({ kind: "loading", id: configured });
       void fetchRecordedRun(configured, undefined, controller.signal).then((r) => {
         if (controller.signal.aborted) return;
@@ -66,9 +69,15 @@ export function useReviewRun(): { run: RecordedRun | null; source: Source } {
       });
       return () => controller.abort();
     }
-    setSource({ kind: "none", label });
+    setRun(null);
+    setSource({ kind: "looking", label });
+    const useSample = () => {
+      setRun(sampleRecordedRun());
+      setSource({ kind: "none", label });
+    };
     void fetchPastRuns(50, controller.signal).then(async (list) => {
-      if (controller.signal.aborted || !list.ok) return;
+      if (controller.signal.aborted) return;
+      if (!list.ok) return useSample();
       // The newest run that passed the Judge (looking at the latest few); else the newest. The row list carries no verdict.
       const candidates = completedFullRuns(list.rows, mode, eventId).slice(0, 6);
       const loaded: Record<string, RecordedRun> = {};
@@ -82,7 +91,7 @@ export function useReviewRun(): { run: RecordedRun | null; source: Source } {
         if (r.judgePasses === true) break;
       }
       const row = preferJudgePass(candidates.filter((c) => loaded[c.runId]), verdicts);
-      if (!row) return;
+      if (!row) return useSample();
       setRun(loaded[row.runId]);
       setSource({ kind: "newest", id: row.runId, label, question: row.question });
     });
@@ -96,6 +105,12 @@ export function ReviewPage() {
   const { run, source } = useReviewRun();
   const real = source.kind === "newest" || source.kind === "configured";
   const { mode, eventId } = useConsole();
+  if (source.kind === "looking")
+    return (
+      <div className="page-stack">
+        <p className="note" role="status">{causalChainNote(source)}</p>
+      </div>
+    );
   return (
     <div className="page-stack">
       {run && real ? <TechTrace run={run} /> : <LatestRunTechTrace mode={mode} eventId={eventId} />}

@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- Insurer Review no longer paints the bundled Valencia sample while it looks up the newest run; the sample shows only when no real run exists and is labelled "Sample, not a real run". Approvals shows "Loading runs" instead of 0 until /runs/past answers, labels live-data runs "Live" (not the event the console had selected) and shows the Exposure policy total when the site count is unknown (the asset sample is capped at 20 rows). Evidence drawer: a Zetaris view citation shows one "Structured data row, no text quote" line instead of two "missing" notes.
+
 ### Added
 
 - Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.

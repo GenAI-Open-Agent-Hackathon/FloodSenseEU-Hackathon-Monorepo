@@ -217,7 +217,8 @@ export function approvalHeader(input: {
     { label: "Model", value: model ?? "rules only (no model call recorded)" },
     { label: "Judge", value: judge },
   ];
-  if (eventId) facts.push({ label: "Event", value: eventLabel(eventId) });
+  // A live-data run carries whichever event the console had selected; it is a live forecast, not that event's replay.
+  if (eventId) facts.push({ label: "Event", value: eventLabel(eventId, input.row?.mode) });
   const missing = [!started && "start time", !lane && "lane"].filter(Boolean);
   return {
     title: `Live run ${input.runId}`,
@@ -230,7 +231,8 @@ export function approvalHeader(input: {
 const EVENT_LABELS: Record<string, string> = { EMSR517: "Ahr 2021", EMSR773: "Valencia 2024", "LIVE-EU": "Live" };
 
 /** Plain event name for a run: "Ahr 2021", "Valencia 2024", "Live"; an unknown id is shown as given. */
-export function eventLabel(eventId: string | null | undefined): string {
+export function eventLabel(eventId: string | null | undefined, mode?: string | null): string {
+  if (mode === "live") return "Live";
   if (!eventId) return "";
   return EVENT_LABELS[eventId] ?? eventId;
 }
@@ -247,7 +249,7 @@ export function queueRowLine(row: QueueRow): string {
   const parts = [
     row.state === "running" ? "Agents working" : null,
     row.internalOnly ? "Internal notes" : null,
-    (row.mode === "live" ? "Live" : eventLabel(row.eventId)) || null,
+    eventLabel(row.eventId, row.mode) || null,
     hhmmUtc(row.createdAt),
     row.judgeOverall !== null ? `Judge ${row.judgeOverall.toFixed(2)}` : null,
   ];
