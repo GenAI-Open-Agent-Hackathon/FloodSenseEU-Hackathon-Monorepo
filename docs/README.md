@@ -3,9 +3,10 @@
 Owner: Mihir (architecture, ADRs, security review). The Architect is one role among five peers, not a team lead.
 
 - [GAMEPLAN.md](GAMEPLAN.md) — how we ship FloodSense EU this week.
+- [RELEASE-NOTES-v2.0.0.md](RELEASE-NOTES-v2.0.0.md) — DRAFT, not released: Nebius Token Factory default, under-the-hood UI, upgrade notes.
 - [RELEASE-NOTES-v1.0.1.md](RELEASE-NOTES-v1.0.1.md) — the submitted version: cleanup of 1.0.0, no new features.
 - [RELEASE-NOTES-v1.0.0.md](RELEASE-NOTES-v1.0.0.md) — judge-facing notes for 1.0.0 (product, evaluations, known issues).
-- [HANDOVER.md](HANDOVER.md) — state after submission and what remains for humans.
+- [HANDOVER.md](HANDOVER.md) — state at 30 Oct (on main, open PRs), how to run, env keys, honesty rules.
 - [SUBMISSION.md](SUBMISSION.md) — sponsor usage, evaluation, honest limits.
 - [DEPLOY-NEBIUS.md](DEPLOY-NEBIUS.md) — host the judge demo on a Nebius VM: compose, login, caps, smoke test, cost worksheet.
 - [SUBMISSION-NEBIUS.md](SUBMISSION-NEBIUS.md) — Nebius x NVIDIA hackathon pack: Devpost text, rules checklist, feedback draft, video script, measurements table.
