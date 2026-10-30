@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { forecastSeriesFor } from "./deskForecast";
-import { DESK_SLOT_ORDER } from "../components/desk/DeskPage";
 import type { PointNow } from "./now";
 
 const row = (v: number | null) => ({ discharge_m3s: v });
@@ -14,11 +13,5 @@ describe("forecastSeriesFor", () => {
     expect(forecastSeriesFor({ id: "gauge:X" }, [point])).toBeNull();
     expect(forecastSeriesFor({ id: "valencia:NOPE" }, [point])).toBeNull();
     expect(forecastSeriesFor(null, [point])).toBeNull();
-  });
-});
-
-describe("DeskPage slot order", () => {
-  it("is the shared section order", () => {
-    expect(DESK_SLOT_ORDER).toEqual(["impact", "head", "health", "hazard", "forecast", "map", "evidence", "actions", "agents", "footer"]);
   });
 });

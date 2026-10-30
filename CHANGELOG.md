@@ -13,7 +13,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Changed
 
-- UI: Citizen Now, Insurer Now and the Operator Situation board render through one shared `DeskPage` skeleton (impact, head, health, hazard, forecast, map, evidence, actions, agents, footer) with one set of `desk-*` classes. Citizen gets a 48 h sparkline for Valencia places (other places say none is stored, no invented series); Insurer gets the shared hazard lead, evidence entry and an exposure and approvals block; Operator uses the shared hazard lead and evidence slots. Data fetching and honesty labels are unchanged; the agents slot is empty here.
+- UI: Citizen Now, Insurer Now and the Operator Situation board render through one shared `DeskPage` skeleton (impact, head, health, hazard, forecast, map, evidence, actions, agents, footer) with one set of `desk-*` classes. Citizen gets a 48 h sparkline for Valencia places (other places get a one-line note that none is stored, no invented series); Insurer gets the shared hazard lead, evidence entry and an exposure and approvals block; Operator uses the shared hazard lead and evidence slots. Data fetching and honesty labels are unchanged; the agents slot is empty here.
 
 ### Fixed
 

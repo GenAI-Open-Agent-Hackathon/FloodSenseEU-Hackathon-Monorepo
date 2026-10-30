@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { WatchSource } from "../../lib/euWatch";
 import type { LiveEvidence } from "../../lib/liveEvidence";
 import { basisLabel, calmSentence, countryName, plainOf } from "../../lib/places";
@@ -41,15 +41,15 @@ export function DeskPage({ desk, ...slots }: DeskSlots & { desk: "citizen" | "in
   );
 }
 
-/** Head slot: title, live/demo tag, updated time and the refresh / ask buttons. */
+/** Head slot: title, live/demo tag, updated time and the refresh / ask buttons. Only `tag` is a live region (a short status). */
 export function DeskHead({ eyebrow, title, tag, updated, children }: { eyebrow?: string; title: string; tag?: ReactNode; updated?: ReactNode; children?: ReactNode }) {
   return (
     <header className="desk-head">
       <div>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h2 className="desk-title">{title}</h2>
-        <p className="desk-meta" aria-live="polite">
-          {tag} {updated}
+        <p className="desk-meta">
+          <span aria-live="polite">{tag}</span> {updated}
         </p>
       </div>
       {children && <div className="button-row">{children}</div>}
@@ -57,24 +57,44 @@ export function DeskHead({ eyebrow, title, tag, updated, children }: { eyebrow?:
   );
 }
 
-/** A titled card, the one section style for every slot. */
+/** A card with an h3: `title` when given (the eyebrow `label` stays above it), otherwise the label itself is the heading. */
 export function DeskCard({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
+  const id = useId();
   return (
-    <section className="card desk-card" aria-label={title ?? label}>
-      <p className="eyebrow">{label}</p>
-      {title && <h3 className="desk-card__title">{title}</h3>}
+    <section className="card desk-card" aria-labelledby={id}>
+      {title && <p className="eyebrow">{label}</p>}
+      <h3 id={id} className={title ? "desk-card__title" : "desk-card__title desk-card__title--label"}>
+        {title ?? label}
+      </h3>
       {children}
     </section>
   );
 }
 
-/** Hazard slot: the lead place as chip, one plain sentence with its source, and the detail grid behind <details>. */
-export function HazardLead({ label, source, evidence, detail }: { label: string; source: WatchSource; evidence: LiveEvidence; detail?: ReactNode }) {
+/**
+ * Hazard slot: the lead place as heading, chip, one plain sentence with its source, and the reading time, basis and
+ * freshness in plain sight. `summary` is also always visible; only `detail` sits behind <details>.
+ */
+export function HazardLead({
+  label,
+  title,
+  source,
+  evidence,
+  summary,
+  detail,
+}: {
+  label: string;
+  title?: string;
+  source: WatchSource;
+  evidence: LiveEvidence;
+  summary?: ReactNode;
+  detail?: ReactNode;
+}) {
   const view = plainOf(source);
   return (
-    <DeskCard label={label}>
+    <DeskCard label={label} title={title ?? sourceTitle(source)}>
       <p>
-        <StatusChip view={view} large /> <strong>{sourceTitle(source)}</strong> <span className="muted small">{countryName(source.country)}</span>
+        <StatusChip view={view} large /> <span className="muted small">{countryName(source.country)}</span>
       </p>
       {source.live ? (
         <p>
@@ -86,24 +106,16 @@ export function HazardLead({ label, source, evidence, detail }: { label: string;
           <LiveSourceBadge n={1} evidence={evidence} />
         </p>
       )}
-      <details className="disclosure">
-        <summary>Details</summary>
-        <dl className="desk-grid">
-          <div>
-            <dt>Reading</dt>
-            <dd>{timeText(source.kind, source.measuredAt)}</dd>
-          </div>
-          <div>
-            <dt>Basis</dt>
-            <dd>{basisLabel(source.kind)}</dd>
-          </div>
-          <div>
-            <dt>Freshness</dt>
-            <dd>{source.live ? "live" : "not live (stale or seed)"}</dd>
-          </div>
-        </dl>
-        {detail}
-      </details>
+      <p className="note">
+        {timeText(source.kind, source.measuredAt)} · {basisLabel(source.kind)} · {source.live ? "live" : "not live (stale or seed)"}
+      </p>
+      {summary}
+      {detail && (
+        <details className="disclosure">
+          <summary>Details</summary>
+          {detail}
+        </details>
+      )}
     </DeskCard>
   );
 }
@@ -122,7 +134,7 @@ export function ForecastCard({ title = "Outlook", head, children, note }: { titl
 /** Evidence slot: the source badge and the entry that opens the evidence drawer. */
 export function EvidenceRow({ evidence, onOpen, children }: { evidence: LiveEvidence; onOpen: () => void; children?: ReactNode }) {
   return (
-    <DeskCard label="Evidence">
+    <DeskCard label="Evidence" title="Where this comes from">
       <p>
         <LiveSourceBadge n={1} evidence={evidence} /> {evidence.kind}, {evidence.title}
       </p>

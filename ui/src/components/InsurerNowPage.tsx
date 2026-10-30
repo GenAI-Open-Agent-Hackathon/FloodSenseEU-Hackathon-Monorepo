@@ -59,6 +59,7 @@ export function InsurerNowPage() {
   const lastDemo = useRef(demo);
   const gaugeSummaries = useMemo(() => summariseGauges(gauges.rows), [gauges.rows]);
   const [euWatch, setEuWatch] = useState<EuWatchLoad>({ state: "loading", rows: [], detail: "", queryId: null });
+  const [euFetchedAt, setEuFetchedAt] = useState<number | null>(null);
   const watchSources = useMemo(() => buildSources(gaugeSummaries, euWatch.rows), [gaugeSummaries, euWatch.rows]);
   const [clock, setClock] = useState(() => Date.now());
   const controller = useRef<AbortController | null>(null);
@@ -69,6 +70,7 @@ export function InsurerNowPage() {
       lastDemo.current = demo;
       setLoad({ state: "loading" });
       setEuWatch({ state: "loading", rows: [], detail: "", queryId: null });
+      setEuFetchedAt(null);
     }
     controller.current?.abort();
     const ctrl = new AbortController();
@@ -76,7 +78,9 @@ export function InsurerNowPage() {
     setLoad((prev) => (prev.state === "ready" ? prev : { state: "loading" }));
     void fetchEuWatch(ctrl.signal).then((result) => {
       // A failed refresh keeps the last good rows on screen.
-      if (!ctrl.signal.aborted) setEuWatch((prev) => (result.state === "rows" || prev.state !== "rows" ? result : prev));
+      if (ctrl.signal.aborted) return;
+      if (result.state === "rows") setEuFetchedAt(Date.now());
+      setEuWatch((prev) => (result.state === "rows" || prev.state !== "rows" ? result : prev));
     });
     fetchHazardNow(ctrl.signal)
       .then((data) => {
@@ -128,7 +132,7 @@ export function InsurerNowPage() {
   const lead = worstFirst(sources)[0] ?? null;
   // The shared evidence helpers read the view metadata of the three live loads this page makes itself.
   const evidence = lead
-    ? evidenceFor({ gauges, euWatch: { ...euWatch, fetchedAt: null }, hazard: load } as Parameters<typeof evidenceFor>[0], lead)
+    ? evidenceFor({ gauges, euWatch: { ...euWatch, fetchedAt: euFetchedAt }, hazard: load }, lead)
     : null;
   const chips = insurerChips(exposure.rows, watchSources.length);
 
@@ -153,8 +157,8 @@ export function InsurerNowPage() {
             ) : undefined
           }
         >
-          <button type="button" className="now-refresh" onClick={() => openAsk(next48hQuestion(lead?.name), lead ? { place: lead.name } : undefined)}>
-            Is the next 48 h safe {lead ? "at " + lead.name : "anywhere"}?
+          <button type="button" className="now-refresh" onClick={() => openAsk(next48hQuestion())}>
+            Is the next 48 h safe anywhere?
           </button>
           <button type="button" className="now-refresh" onClick={refresh}>
             Refresh

@@ -347,7 +347,7 @@ function FocusBrief({
     <DeskPage
       desk="operator"
       {...shell}
-      hazard={<HazardLead label={`Brief for ${s.river ? `${s.river} · ` : ""}${s.name}`} source={s} evidence={evidence} />}
+      hazard={<HazardLead label="Brief for" title={s.river ? `${s.river} · ${s.name}` : s.name} source={s} evidence={evidence} />}
       forecast={
         <ForecastCard
           title="Outlook"

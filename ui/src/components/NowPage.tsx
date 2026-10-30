@@ -88,7 +88,7 @@ function CitizenNowPage() {
             label={chosen ? "Your place" : "Most notable right now"}
             source={lead}
             evidence={evidence}
-            detail={
+            summary={
               <p className="note">
                 Across the watch: {headlineText(headlineCounts(live.sources))}
                 {partial ? ` (of the ${live.sources.length} loaded)` : ""}.
@@ -104,20 +104,19 @@ function CitizenNowPage() {
         )
       }
       forecast={
-        lead && (
+        lead &&
+        (series ? (
           <ForecastCard title={lead.name}>
-            {series ? (
-              <Sparkline
-                values={series.values}
-                activeIndex={series.split ?? series.values.length - 1}
-                splitIndex={series.split}
-                label={`${lead.name} discharge, past 72 h and forecast 48 h (dashed)`}
-              />
-            ) : (
-              <p className="note">No 48 h series is stored for this place here. Ask for its outlook instead.</p>
-            )}
+            <Sparkline
+              values={series.values}
+              activeIndex={series.split ?? series.values.length - 1}
+              splitIndex={series.split}
+              label={`${lead.name} discharge, past 72 h and forecast 48 h (dashed)`}
+            />
           </ForecastCard>
-        )
+        ) : (
+          <p className="note">No 48 h series is stored for this place here. Ask for its outlook instead.</p>
+        ))
       }
       map={
         <>
@@ -143,9 +142,9 @@ function CitizenNowPage() {
       }
       evidence={evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
       actions={
-        <DeskCard label="Places to watch">
+        <div className="card desk-card">
           <PlacesToWatch live={live} onAsk={ask} start={2} exclude={lead?.id ?? null} />
-        </DeskCard>
+        </div>
       }
       footer={
         <p className="desk-source">Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via Zetaris</p>

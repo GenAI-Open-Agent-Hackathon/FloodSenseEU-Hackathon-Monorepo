@@ -1184,6 +1184,4 @@ a.button.primary { color: #f4fffc; }
 .desk-card { padding: 1rem 1.15rem; display: grid; gap: 0.5rem; align-content: start; }
 .desk-card > * { margin-top: 0; margin-bottom: 0; }
 .desk-card__title { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
-.desk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.5rem 1rem; margin: 0.5rem 0 0; }
-.desk-grid dt { color: var(--muted); font-size: 0.8rem; }
-.desk-grid dd { margin: 0; }
+.desk-card__title--label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
