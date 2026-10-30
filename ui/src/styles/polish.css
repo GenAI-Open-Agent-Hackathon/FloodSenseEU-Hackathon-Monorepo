@@ -1,0 +1,39 @@
+/* Visual polish: enter transitions, heartbeat, hover and focus. Motion only reflects real state; all of it stops under reduced motion. */
+@keyframes pl-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes pl-beat { 0% { box-shadow: 0 0 0 0 var(--ok-soft); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+@keyframes pl-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Staggered section enter (once, on mount). */
+.desk__slot { animation: pl-rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.desk__slot:nth-child(2) { animation-delay: 0.05s; }
+.desk__slot:nth-child(3) { animation-delay: 0.1s; }
+.desk__slot:nth-child(4) { animation-delay: 0.15s; }
+.desk__slot:nth-child(n + 5) { animation-delay: 0.2s; }
+
+.card { transition: border-color 0.2s, box-shadow 0.2s; }
+.card:hover { box-shadow: 0 2px 10px var(--accent-soft); }
+.button, .icon-button, .nav-links a, .sponsor-chip { transition: background-color 0.18s, border-color 0.18s, color 0.18s, transform 0.18s; }
+.button:active, .icon-button:active { transform: translateY(1px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header heartbeat: pulses only when the platform poll is fresh. */
+.beat { display: flex; align-items: center; gap: 0.4rem; margin: 0 auto; padding: 0.2rem 1rem 0; max-width: var(--page, 1200px); font-size: 0.72rem; color: var(--muted); }
+.beat__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.beat--watching .beat__dot { background: var(--ok-ink); animation: pl-beat 2.4s ease-out infinite; }
+.beat--stale .beat__dot, .beat--unreachable .beat__dot { background: var(--warn-ink); }
+
+/* Sponsor chips that report "on" breathe softly; off and unavailable stay still. */
+.sponsor-chip--on .sponsor-dot { animation: pl-beat 3s ease-out infinite; }
+.sponsor-chip:hover { transform: translateY(-1px); }
+
+/* Agents: idle nodes show a still "watching" dot; the active node carries a sweep; new watch lines slide in. */
+.agl-node--idle .agl-state::before { content: ""; display: inline-block; width: 0.4em; height: 0.4em; margin-right: 0.4em; border-radius: 50%; background: var(--muted); }
+.agl-node--active { background-image: linear-gradient(90deg, transparent 30%, var(--accent-soft) 50%, transparent 70%); background-size: 200% 100%; animation: stk-pulse 1.2s ease-in-out infinite, pl-sweep 2.2s linear infinite; }
+.agl-wire--on { box-shadow: 0 0 6px var(--accent); }
+.agl-watch li { animation: pl-rise 0.3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .desk__slot, .agl-watch li, .beat--watching .beat__dot, .sponsor-chip--on .sponsor-dot, .agl-node--active { animation: none; }
+  .card, .button, .icon-button, .nav-links a, .sponsor-chip { transition: none; }
+  .sponsor-chip:hover, .button:active, .icon-button:active { transform: none; }
+}

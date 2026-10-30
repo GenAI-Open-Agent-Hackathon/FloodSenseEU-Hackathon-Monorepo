@@ -11,6 +11,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
+### Added
+
+- UI polish (`ui/src/styles/polish.css`): staggered section enter, hover/focus states, a header heartbeat ("Agents watching, last check hh:mm:ss") that pulses only while the real `/platform/status` poll is fresh (stale or unreachable shows a still amber dot), sponsor chips that breathe only when reported `on`, still "watching" dots on idle agents, and a sweep on the running agent. All motion stops under `prefers-reduced-motion`; no new timers beyond one 30 s staleness check.
+
 ### Fixed
 
 - UI: the plain citizen agents block and the 48 h forecast line now show on the Citizen Overview (`#/citizen`), not only on Now; the Operator auto forecast request is documented as the deterministic forecast lane only.
