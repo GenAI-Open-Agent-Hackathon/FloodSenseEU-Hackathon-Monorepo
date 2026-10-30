@@ -79,7 +79,7 @@ export function useReviewRun(): { run: RecordedRun | null; source: Source } {
       if (controller.signal.aborted) return;
       if (!list.ok) return useSample();
       // The newest run that passed the Judge (looking at the latest few); else the newest. The row list carries no verdict.
-      const candidates = completedFullRuns(list.rows, mode, eventId).slice(0, 6);
+      const candidates = completedFullRuns(list.rows, mode, eventId, SAMPLE_RUN_ID).slice(0, 3);
       const loaded: Record<string, RecordedRun> = {};
       const verdicts: Record<string, boolean | null> = {};
       for (const c of candidates) {

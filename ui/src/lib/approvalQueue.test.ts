@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { adoptPastRuns, approvalHeader, buildQueue, eventLabel, completedFullRuns, curateQueue, earlierText, isSmallTalk, pickSelection, preferJudgePass, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
 
+import realPast from "../fixtures/runs_past_real.json";
+
 const PAST = {
   runs: [
     { run_id: "old", status: "awaiting_approval", question: "Old one", created_at: "2026-10-27T08:00:00Z", lane: "full", judge_overall: 0.8 },
@@ -246,6 +248,20 @@ describe("event label, Valencia scope, newest run", () => {
     expect(live.rows.map((r) => r.runId)).toEqual(["liv"]);
   });
   it("picks the newest completed full run for the event", () => {
-    expect(completedFullRuns(rows, "past", "EMSR773").map((r) => r.runId)).toEqual(["val"]);
+    expect(completedFullRuns(rows, "past", "EMSR773").map((r) => r.runId)).toEqual(["val", "liv"]);
+  });
+  it("real /runs/past payload: newest by created_at, not list order, null judge ok", () => {
+    const real = adoptPastRuns(realPast);
+    // f1673 is listed first but is the 26 Oct recording; skip it. Live: newest of the rest, any event.
+    const live = completedFullRuns(real, "live", "EMSR773", "f16733274f1c").map((r) => r.runId);
+    expect(live[0]).toBe("2b613166f0f5");
+    expect(live).not.toContain("f16733274f1c");
+    // Shuffled input gives the same answer.
+    expect(completedFullRuns([...real].reverse(), "live", "EMSR773", "f16733274f1c")[0].runId).toBe("2b613166f0f5");
+    // Past Valencia prefers EMSR773 over the equally new EMSR517 run; Past Ahr prefers EMSR517.
+    expect(completedFullRuns(real, "past", "EMSR773", "f16733274f1c")[0].runId).toBe("2b613166f0f5");
+    expect(completedFullRuns(real, "past", "EMSR517", "f16733274f1c")[0].runId).toBe("438fbad8e8e2");
+    // Answered forecast runs are never offered.
+    expect(live).not.toContain("40e0b5838c31");
   });
 });

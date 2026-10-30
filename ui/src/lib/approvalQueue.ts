@@ -359,12 +359,17 @@ export function writeHidden(storage: Pick<Storage, "setItem"> | null, ids: Reado
 }
 
 /** Pure: finished full-lane runs for the mode's event (Live: live-data runs), newest first, from the /runs/past rows. */
-export function completedFullRuns(rows: readonly QueueRow[], mode: "live" | "past", eventId: string): QueueRow[] {
-  const done = rows.filter((r) => {
-    if (r.lane !== "full" || isSmallTalk(r.question) || r.state === "running" || r.status === "out_of_scope" || r.status === "running") return false;
-    return mode === "live" ? r.mode === "live" || r.eventId === "LIVE-EU" : r.eventId === eventId && r.mode !== "live";
-  });
-  return [...done].sort((a, b) => t(b.createdAt) - t(a.createdAt));
+export function completedFullRuns(rows: readonly QueueRow[], mode: "live" | "past", eventId: string, skipId?: string): QueueRow[] {
+  // awaiting_approval or approved only; newest by created_at (list order is not trusted). Live: any event.
+  // Past flood: the chosen event's runs first, then the rest, so a real run is always shown when one exists.
+  const done = rows.filter(
+    (r) => r.lane === "full" && !isSmallTalk(r.question) && (r.status === "awaiting_approval" || r.status === "approved") && r.runId !== skipId,
+  );
+  // Equal start times: the current event's run first.
+  const byNewest = (a: QueueRow, b: QueueRow) => t(b.createdAt) - t(a.createdAt) || Number(b.eventId === eventId) - Number(a.eventId === eventId);
+  if (mode === "live") return [...done].sort(byNewest);
+  const own = (r: QueueRow) => r.eventId === eventId && r.mode !== "live";
+  return [...done.filter(own).sort(byNewest), ...done.filter((r) => !own(r)).sort(byNewest)];
 }
 
 /**
