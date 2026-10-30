@@ -54,6 +54,12 @@ class PlatformStatusTest(unittest.TestCase):
         self.assertNotIn("SECRET", json.dumps(body))
 
 
+    def test_tavily_status_absent(self):
+        from app.platform_status import _tavily
+
+        self.assertIsNone(_tavily(None))
+        self.assertIsNone(_tavily("x"))
+
     def test_project_web(self):
         from app.project import _project_web
 

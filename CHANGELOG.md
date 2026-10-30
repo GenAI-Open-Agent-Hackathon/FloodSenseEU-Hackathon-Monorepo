@@ -13,7 +13,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
-- Tavily run data: each run's API answer carries `web_context` (status ok|empty|unavailable, place-only query, n_results, latency_ms, cached, retrieved_at, results url/title/retrieved_at, and the Skeptic `web_check` verdict) in the JSON schema, Python and TS contracts. `/config` and `GET /platform/status` add `tavily_status` (enabled, key_configured boolean, calls, cache_hits, avg_latency_ms, last_status, last_error; never the key). `POST /llm/check` and `python tasks.py check-llm` also run one tiny Tavily search when `FF_TAVILY` is on and report it under `tavily` (not gating).
+- Tavily run data: each run's API answer carries `web_context` (status ok|empty|unavailable, query built from the place name, n_results, latency_ms, cached, retrieved_at, results url/title/retrieved_at, and the Skeptic `web_check` verdict) in the JSON schema, Python and TS contracts. `/config` and `GET /platform/status` add `tavily_status` (enabled, key_configured boolean, calls, cache_hits, avg_latency_ms, last_status, last_error; never the key). `POST /llm/check` and `python tasks.py check-llm` also run one tiny Tavily search when `FF_TAVILY` is on and report it under `tavily` (not gating).
 
 ### Fixed
 

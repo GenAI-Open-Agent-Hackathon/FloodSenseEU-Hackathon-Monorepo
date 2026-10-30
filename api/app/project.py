@@ -253,7 +253,7 @@ def _dropped(raw: Any) -> dict[str, Any]:
 
 
 def _project_web(body: dict[str, Any]) -> dict[str, Any] | None:
-    """Tavily call of the run (query is the place only) plus the Skeptic web_check. None if no call."""
+    """Tavily call of the run (query is built from the place name) plus the Skeptic web_check. None if no call."""
     w = body.get("web")
     if not isinstance(w, dict) or w.get("status") not in ("ok", "empty", "unavailable"):
         return None

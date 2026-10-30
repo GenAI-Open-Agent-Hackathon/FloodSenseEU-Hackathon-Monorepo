@@ -90,6 +90,7 @@ def stats() -> dict:
 
 
 def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebResult:
+    place = place.strip()[:80]  # untrusted request text: capped before it leaves
     res = _search(place, transport=transport)
     with _lock:
         _stats["calls"] += 1
@@ -216,17 +217,18 @@ def tavily_state(res: WebResult) -> dict:
     }
 
 
-def live_check() -> dict:
-    """One tiny search for readiness: {configured, ok, status, n_results, latency_ms, error}. Never the key."""
-    if not settings.tavily_api_key:
+def live_check(*, transport: httpx.BaseTransport | None = None) -> dict:
+    """One real tiny search for readiness: no cache, no rate guard, no run counters. Never the key."""
+    key = settings.tavily_api_key
+    if not key:
         return {"configured": False, "ok": False, "status": "unavailable", "n_results": 0, "latency_ms": 0, "error": "TAVILY_API_KEY not set"}
-    r = search("Valencia")
-    return {
-        "configured": True,
-        "ok": r.status in ("ok", "empty"),
-        "status": r.status,
-        "n_results": len(r.items),
-        "latency_ms": r.latency_ms,
-        "cached": r.cached,
-        "error": r.reason or None,
-    }
+    t0 = time.monotonic()
+    try:
+        with httpx.Client(timeout=settings.tavily_timeout_s, transport=transport) as c:
+            r = c.post(URL, headers={"Authorization": f"Bearer {key}"}, json={"query": "Valencia flood", "max_results": 1})
+        if r.status_code != 200:
+            return {"configured": True, "ok": False, "status": "unavailable", "n_results": 0, "latency_ms": _ms(t0), "error": f"HTTP {r.status_code}"}
+        n = len(r.json().get("results") or [])
+    except Exception as exc:  # reported, never raised
+        return {"configured": True, "ok": False, "status": "unavailable", "n_results": 0, "latency_ms": _ms(t0), "error": type(exc).__name__}
+    return {"configured": True, "ok": True, "status": "ok" if n else "empty", "n_results": n, "latency_ms": _ms(t0), "error": None}

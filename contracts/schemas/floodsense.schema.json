@@ -276,7 +276,7 @@
     "web_context": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The run's Tavily web search (FF_TAVILY): web context, never an official warning. query is the place only.",
+      "description": "The run's Tavily web search (FF_TAVILY): web context, never an official warning. query is built from the place name and fixed search words.",
       "required": ["status", "query", "n_results", "latency_ms", "cached", "results"],
       "properties": {
         "status": { "enum": ["ok", "empty", "unavailable"] },
