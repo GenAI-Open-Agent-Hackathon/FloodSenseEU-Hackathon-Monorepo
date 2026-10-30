@@ -362,7 +362,7 @@ class ProjectionHonestyTest(unittest.TestCase):
             "fake-deep",
             "fake-fast",
             "meterless/auto",
-            "nvidia/nemotron-3-super-120b-a12b",
+            "nvidia/not-a-real-model",
         )
         for model_id in outside:
             body = _minimal_run()

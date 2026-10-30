@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Changed
+
+- `LLM_BACKEND` now defaults to `nebius` (Token Factory), with `NEBIUS_MODEL_FAST=nvidia/Nemotron-3_5-Lightning` and `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL`. `LLM_BACKEND=nightshift` is unchanged. Without `NEBIUS_API_KEY`, `/ready` answers 503 naming the fix. The Judge `model_id` allow-list (schema, Python, TypeScript, API copy) also accepts `nvidia/Nemotron-3_5-Lightning`, `nvidia/Nemotron-3-Ultra-550b-a55b` and `nvidia/nemotron-3-super-120b-a12b`. Hosted token caps raised to 6000/8000. Verified live on 30 Oct (lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 148 s, 12 calls, 44,569 tokens; Valencia EMSR773 281 s, 14 calls, 40,370 tokens; every claim judged). Tavily live call still unverified.
+
 ### Added
 
 - Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.
