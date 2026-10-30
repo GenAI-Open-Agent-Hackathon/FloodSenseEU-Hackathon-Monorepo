@@ -16,6 +16,7 @@ import logging
 import math
 import os
 import random
+import re
 import threading
 import time
 
@@ -26,9 +27,37 @@ log = logging.getLogger("floodsense.api.embed")
 NEBIUS_URL = "https://api.tokenfactory.nebius.com/v1"
 NEBIUS_MODEL = "Qwen/Qwen3-Embedding-8B"
 BACKOFF_BASE_S, BACKOFF_RETRIES, BACKOFF_MAX_WAIT_S = 2.0, 3, 20.0
-# Conservative: a wrong cached answer is worse than a miss. Measured live with
-# Qwen3-Embedding-8B: a heavy rewording scored 0.65, an unrelated question 0.43.
-DEFAULT_THRESHOLD = 0.85
+# Live, Qwen3-Embedding-8B: 6 paraphrases scored 0.78 to 0.98 (five at 0.946+), but
+# near-misses (negation, number, place, above/below) scored 0.72 to 0.98, so the
+# guard_key check, not the threshold, keeps them apart. 0.90 hits 5 of 6.
+DEFAULT_THRESHOLD = 0.90
+FAST_TIMEOUT_S = 3.0
+
+_NEGATIONS = {"not", "no", "never", "without", "nicht", "kein", "keine", "keinen", "ohne",
+              "nie", "nunca", "sin", "ningun", "ninguna", "pas", "sans",
+              # antonyms embeddings barely separate (above/below scored 0.98 live)
+              "above", "below", "over", "under", "more", "less", "higher", "lower",
+              "rising", "falling", "before", "after", "increase", "decrease"}
+
+
+def _num(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name) or default)
+    except ValueError:
+        return default
+
+
+_NUMS = re.compile(r"\d+(?:[.,]\d+)?(?:\s?(?:km|mm|cm|min|ha|hours?|days?|h|m|%))?", re.I)
+
+
+def guard_key(question: str) -> tuple:
+    """What an embedding is weak on: numbers, negations, place names (capitalised
+    words that do not start the sentence). Two questions must agree on all three."""
+    words = re.findall(r"[\w'.,-]+", question)
+    nums = frozenset(m.replace(" ", "").lower() for m in _NUMS.findall(question))
+    neg = frozenset(w.lower() for w in words if w.lower().strip(".,") in _NEGATIONS)
+    names = frozenset(w.strip(".,'").lower() for w in words[1:] if w[:1].isupper())
+    return nums, neg, names
 
 
 class Embedder:
@@ -43,9 +72,10 @@ class Embedder:
         self._sleep = sleep
         self._lock = threading.Lock()
         self._next = 0.0
-        rpm = float(os.environ.get("NIGHTSHIFT_RPM") or 0)
+        rpm = _num("NIGHTSHIFT_RPM", 0.0)
         self._spacing = 60.0 / rpm if rpm > 0 else 0.0
-        self.threshold = float(os.environ.get("EMBED_CACHE_THRESHOLD") or DEFAULT_THRESHOLD)
+        t = _num("EMBED_CACHE_THRESHOLD", DEFAULT_THRESHOLD)
+        self.threshold = t if 0 < t <= 1 else DEFAULT_THRESHOLD
 
     @property
     def enabled(self) -> bool:
@@ -61,24 +91,33 @@ class Embedder:
         if start > now:
             self._sleep(start - now)
 
-    def embed(self, text: str) -> list[float] | None:
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def embed(self, text: str, *, fast: bool = False) -> list[float] | None:
+        """fast: one attempt, FAST_TIMEOUT_S, no backoff sleep (the lookup path)."""
         key = os.environ.get("NEBIUS_API_KEY", "")
         if not self.enabled or not key or not text.strip():
             return None
         base = (os.environ.get("NEBIUS_BASE_URL") or NEBIUS_URL).rstrip("/")
         body = {"model": os.environ.get("NEBIUS_EMBEDDING_MODEL") or NEBIUS_MODEL, "input": [text]}
-        client = self._client or httpx.Client()
+        if self._client is None:
+            self._client = httpx.Client()
+        client = self._client
         waited = 0.0
-        for n in range(BACKOFF_RETRIES + 1):
-            self._pace()
+        for n in range(1 if fast else BACKOFF_RETRIES + 1):
+            if not fast:
+                self._pace()
             try:
                 r = client.post(
                     f"{base}/embeddings",
                     json=body,
-                    timeout=10.0,
+                    timeout=FAST_TIMEOUT_S if fast else 10.0,
                     headers={"Authorization": f"Bearer {key}"},
                 )
-                if r.status_code == 429 and n < BACKOFF_RETRIES:
+                if r.status_code == 429 and not fast and n < BACKOFF_RETRIES:
                     try:
                         delay = float(r.headers.get("retry-after"))
                     except (TypeError, ValueError):

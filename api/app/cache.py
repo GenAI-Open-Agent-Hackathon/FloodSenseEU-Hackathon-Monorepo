@@ -17,11 +17,12 @@ data expires sooner than a historical replay. A follow-up in a thread is
 never cached or served from the cache, because it depends on its conversation.
 "Similar" means the same after folding. With EMBEDDINGS_BACKEND=nebius
 (app/embed.py) a reworded repeat also hits when its question embedding is
-within EMBED_CACHE_THRESHOLD (cosine, default 0.85) of a cached one with the
+within EMBED_CACHE_THRESHOLD (cosine, default 0.90) of a cached one with the
 same event, customer, clock, language, flags and context. Vectors live in
 process memory only (no pgvector column, so no dimension migration; vectors
 of another length never match). A miss or an embeddings failure falls back to
-the exact key. The hit is labelled cache like any other.
+the exact key. The hit is labelled cache like any other. A similar hit also
+needs the same numbers, negation words and place names in both questions.
 
 Replay (FF_CACHED_REPLAY). When a live run fails (the agents answer 5xx, are
 unreachable, or return a failed run), the API serves the newest recorded run
@@ -58,7 +59,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.embed import Embedder, cosine
+from app.embed import Embedder, cosine, guard_key
 
 log = logging.getLogger("floodsense.api.cache")
 
@@ -548,7 +549,7 @@ class AnswerCache:
     ) -> None:
         self.settings = settings or CacheSettings()
         self._embedder = embedder or Embedder()
-        self._vectors: dict[tuple, list[float]] = {}
+        self._vectors: dict[tuple, tuple[str, list[float]]] = {}
         if redis_client is None:
             redis_client = _client_from_env(self.settings.lookup_timeout_s)
         self._redis = (
@@ -621,10 +622,11 @@ class AnswerCache:
             while len(self._entries) > self.settings.max_entries:
                 self._entries.popitem(last=False)  # Redis keeps it until its TTL
         self._write_entry(key, entry, entry.ttl_s)
-        vec = self._embedder.embed(str(request.get("question") or ""))
+        question = str(request.get("question") or "")
+        vec = self._embedder.embed(question)
         if vec is not None:
             with self._lock:
-                self._vectors[key] = vec
+                self._vectors[key] = (question, vec)
                 for k in [k for k in self._vectors if k not in self._entries]:
                     del self._vectors[k]  # bounded with the entries
         return True
@@ -632,14 +634,17 @@ class AnswerCache:
     def _similar(self, key: tuple, question: str) -> Entry | None:
         if not self._vectors:
             return None
-        vec = self._embedder.embed(question)
+        vec = self._embedder.embed(question, fast=True)
         if vec is None:
             return None
+        guard = guard_key(question)
         best, best_score = None, self._embedder.threshold
         with self._lock:
             stored = list(self._vectors.items())
-        for k, v in stored:
+        for k, (q, v) in stored:
             if k[:1] + k[2:] != key[:1] + key[2:]:  # all but the question must match
+                continue
+            if guard_key(q) != guard:
                 continue
             score = cosine(vec, v)
             if score >= best_score and (e := self._memory_entry(k)) is not None:

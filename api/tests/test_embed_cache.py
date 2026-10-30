@@ -91,6 +91,67 @@ class EmbedCacheTest(unittest.TestCase):
     def test_other_dimension_never_matches(self) -> None:
         self.assertEqual(cosine([1.0, 0.0], [1.0, 0.0, 0.0]), 0.0)
 
+    def _at(self, cos: float, **kw) -> AnswerCache:
+        # Embedder.threshold is 0.90 by default; vectors are unit, so cosine == cos.
+        VECS["q-new"] = [cos, (1 - cos * cos) ** 0.5, 0.0]
+        VECS["q-old"] = [1.0, 0.0, 0.0]
+        c = self.cache([], **kw)
+        c.remember(run("q-old"), "f")
+        return c
+
+    def test_threshold_edge(self) -> None:
+        self.assertIsNone(self._at(0.89).lookup({"question": "q-new"}, "f"))
+        self.assertIsNotNone(self._at(0.91).lookup({"question": "q-new"}, "f"))
+
+    def test_scope_mismatch_never_matches(self) -> None:
+        c = self._at(0.99)
+        for extra in ({"lang": "de"}, {"customer_id": "other"}, {"replay_ts": "2024-10-29T10:00:00Z"}):
+            self.assertIsNone(c.lookup({"question": "q-new", **extra}, "f"), extra)
+        self.assertIsNone(c.lookup({"question": "q-new"}, "other-flags"))
+
+    def test_expired_entry_is_a_miss(self) -> None:
+        c = self._at(0.99)
+        with mock.patch("app.cache.time.time", return_value=10**10):
+            self.assertIsNone(c.lookup({"question": "q-new"}, "f"))
+
+    def test_vectors_are_pruned_with_evicted_entries(self) -> None:
+        c = AnswerCache(CacheSettings(max_entries=1), embedder=embedder([]))
+        c.remember(run("Which sites are exposed?"), "f")
+        c.remember(run("How deep is the river?"), "f")
+        self.assertEqual(len(c._vectors), 1)
+
+    def test_guard_blocks_negation_number_place_and_antonym(self) -> None:
+        from app.embed import guard_key
+
+        pairs = [
+            ("Which sites are flooded?", "Which sites are not flooded?"),
+            ("Sites within 5 km of the river?", "Sites within 10 km of the river?"),
+            ("Sites flooded in Valencia?", "Sites flooded in Ahr?"),
+            ("Is the Ahr above the level?", "Is the Ahr below the level?"),
+            ("Wie viele sind betroffen?", "Wie viele sind nicht betroffen?"),
+        ]
+        for a, b in pairs:
+            self.assertNotEqual(guard_key(a), guard_key(b), (a, b))
+        self.assertEqual(guard_key("Which sites are exposed?"), guard_key("Which sites are at risk?"))
+
+    def test_guard_stops_a_high_scoring_near_miss_in_the_cache(self) -> None:
+        VECS["sites not flooded?"] = [0.99, 0.1, 0.0]
+        VECS["sites flooded?"] = [1.0, 0.0, 0.0]
+        c = self.cache([])
+        c.remember(run("Sites flooded?"), "f")
+        self.assertIsNone(c.lookup({"question": "Sites not flooded?"}, "f"))
+
+    def test_lookup_path_makes_one_short_attempt(self) -> None:
+        calls: list = []
+        c = self.cache(calls, statuses=[429, 200])
+        c._embedder._client  # noqa: B018 - shared client, created once
+        self.assertIsNone(c._embedder.embed("Which sites are exposed?", fast=True))
+        self.assertEqual(len(calls), 1)
+
+    def test_bad_env_values_do_not_crash(self) -> None:
+        with mock.patch.dict(os.environ, {"EMBED_CACHE_THRESHOLD": "x", "NIGHTSHIFT_RPM": "y"}):
+            self.assertEqual(Embedder("nim").threshold, 0.90)
+
     def test_default_backend_is_off_and_makes_no_call(self) -> None:
         calls: list = []
         e = embedder(calls)
