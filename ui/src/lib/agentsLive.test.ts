@@ -1,6 +1,6 @@
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import sample from "../fixtures/run_f16733274f1c.json";
 import { parsePlatformStatus } from "../api/platform";
 import { adoptReplay } from "../api/replay";
@@ -18,6 +18,7 @@ import {
   secondsLeft,
   servedBadge,
   sourceKind,
+  startReplay,
   toolChips,
   wireOn,
 } from "./agentsLive";
@@ -153,5 +154,31 @@ describe("<AgentsLive/> render", () => {
   it("first replay frame has every later agent idle", () => {
     expect(traceFrames(run.trace).length).toBeGreaterThan(0);
     expect(nodeStatesAt(traceFrames(run.trace), 0).every((n) => n.state === "idle")).toBe(true);
+  });
+});
+
+describe("review fixes", () => {
+  it("a stream that ended is not LIVE even while `live` is still held", () => {
+    const ended = liveReducer(initialLiveState("r1"), { type: "status", data: { status: "answered" } });
+    expect(sourceKind(ended, { kind: "live" })).toBe("replay");
+    expect(sourceKind(ended, null)).toBe("none");
+  });
+  it("recorded badge reads as a fact about a past run", () => {
+    expect(servedBadge("cache", true).text).toBe("Recorded run: cache hit");
+    expect(servedBadge("cache").text).toBe("Cache hit");
+  });
+  it("startReplay steps, holds, loops and cleanup stops it", () => {
+    vi.useFakeTimers();
+    const seen: number[] = [];
+    const stop = startReplay([f("scope", 5000), f("judge", 5000)], (n) => seen.push(n));
+    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(500);
+    expect(seen).toEqual([0, 1, 2]);
+    vi.advanceTimersByTime(5000);
+    expect(seen).toEqual([0, 1, 2, 0]);
+    stop();
+    vi.advanceTimersByTime(60000);
+    expect(seen).toEqual([0, 1, 2, 0]);
+    vi.useRealTimers();
   });
 });

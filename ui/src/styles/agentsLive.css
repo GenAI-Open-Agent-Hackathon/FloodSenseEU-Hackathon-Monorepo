@@ -35,3 +35,4 @@
   .agl-node, .agl-node--active, .agl-tool, .agl-handoff, .agl-wire--on i, .agl-dot.is-on, .agl-node--active .agl-state::after { animation: none; transition: none; transform: none; }
   .agl-wire--on i { left: 50%; margin-left: -4px; }
 }
+.ct-agents { min-width: 0; }

@@ -198,8 +198,7 @@ function ControlTowerBody() {
       )}
 
       <section aria-label="Watch the agents" className="ct-agents">
-        <h3 className="ct-agents__title">Watch the agents</h3>
-        <AgentsLive />
+        <AgentsLive watch={{ events: ct.events, open: ct.streaming }} />
       </section>
 
       <div className="ct-grid">

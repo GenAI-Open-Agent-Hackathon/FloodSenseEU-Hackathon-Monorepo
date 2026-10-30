@@ -1,7 +1,8 @@
-import { Fragment } from "react";
+import { Fragment, useId } from "react";
 import "../../styles/stack.css";
 import "../../styles/agentsLive.css";
 import { useAgentsLive, useAgentsLiveFrom, type AgentsLiveModel } from "../../hooks/useAgentsLive";
+import type { WatchEvent } from "../../lib/controlTower";
 import type { StackData } from "../../hooks/useStackData";
 import { backendName, cacheLine, laneRows, rateView, servedBadge, watchLines, wireOn } from "../../lib/agentsLive";
 import { CORE_NODES } from "../../lib/stack";
@@ -16,22 +17,25 @@ const modelText = (id: string | null): string =>
  * Shows a running run when there is one; otherwise replays the newest recorded run, badged REPLAY (never LIVE).
  * `stack`: pass a page's own useStackData() result to avoid a second poll. `compact`: nodes, badges and one status line only.
  */
-export function AgentsLive({ stack, compact = false }: { stack?: StackData; compact?: boolean }) {
-  return stack ? <Given stack={stack} compact={compact} /> : <Own compact={compact} />;
+type WatchIn = { events: WatchEvent[]; open: boolean };
+
+export function AgentsLive({ stack, compact = false, watch }: { stack?: StackData; compact?: boolean; watch?: WatchIn }) {
+  return stack ? <Given stack={stack} compact={compact} watch={watch} /> : <Own compact={compact} watch={watch} />;
 }
 
-function Own({ compact }: { compact: boolean }) {
-  const { model, stack } = useAgentsLive();
+function Own({ compact, watch }: { compact: boolean; watch?: WatchIn }) {
+  const { model, stack } = useAgentsLive(watch);
   return <View model={model} stack={stack} compact={compact} />;
 }
 
-function Given({ stack, compact }: { stack: StackData; compact: boolean }) {
-  return <View model={useAgentsLiveFrom(stack)} stack={stack} compact={compact} />;
+function Given({ stack, compact, watch }: { stack: StackData; compact: boolean; watch?: WatchIn }) {
+  return <View model={useAgentsLiveFrom(stack, watch)} stack={stack} compact={compact} />;
 }
 
 function View({ model: m, stack, compact }: { model: AgentsLiveModel; stack: StackData; compact: boolean }) {
   const platform = stack.platform.data;
-  const served = servedBadge(m.servedFrom);
+  const served = servedBadge(m.servedFrom, m.kind !== "live");
+  const hid = useId();
   const rate = rateView(platform);
   const lanes = laneRows(platform);
   const backend = backendName(platform?.llmBackend);
@@ -40,9 +44,9 @@ function View({ model: m, stack, compact }: { model: AgentsLiveModel; stack: Sta
   const label = (id: string) => m.nodes.find((n) => n.id === id)?.label ?? id;
 
   return (
-    <section className={`card agl${compact ? " agl--compact" : ""}${m.still ? " agl--still" : ""}`} aria-labelledby="agl-h" data-agents-live={m.kind}>
+    <section className={`card agl${compact ? " agl--compact" : ""}${m.still ? " agl--still" : ""}`} aria-labelledby={hid} data-agents-live={m.kind}>
       <header className="agl-head">
-        <h2 id="agl-h" className="stk-title">
+        <h2 id={hid} className="stk-title">
           Agents at work
         </h2>
         <DataBadge kind={m.kind} />

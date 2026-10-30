@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchWatchEvents, subscribeWatch } from "../api/watch";
 import { reducedMotion } from "../components/stack/StackBits";
 import {
-  REPLAY_HOLD_MS,
   handoffAt,
   handoffLive,
-  replayDelayMs,
-  replayNext,
+  startReplay,
   retryDeadline,
   secondsLeft,
   sourceKind,
@@ -53,8 +51,9 @@ export interface AgentsLiveModel {
 }
 
 /** Merges the stack poll (platform status every 5 s, running/recorded run), the watch stream and the latest run into one view. */
-export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
-  const { live, stackRun } = stack;
+export function useAgentsLiveFrom(stack: StackData, watchIn?: { events: WatchEvent[]; open: boolean }): AgentsLiveModel {
+  const { stackRun } = stack;
+  const live = stack.live && stack.live.status === "running" ? stack.live : null;
   const run = stackRun?.run ?? null;
   const frames = useMemo(() => traceFrames(run?.trace), [run]);
   const total = frames.length;
@@ -72,19 +71,22 @@ export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
       setPlayed(total);
       return;
     }
-    const t = setTimeout(() => setPlayed((p) => replayNext(p, total)), played < total ? replayDelayMs(frames[played]) : REPLAY_HOLD_MS);
-    return () => clearTimeout(t);
-  }, [live, still, total, played, frames]);
-  useEffect(() => setPlayed(still ? total : 0), [run?.runId, still, total]);
+    return startReplay(frames, setPlayed);
+  }, [!!live, still, total, frames]);
 
   // Watch feed: SSE for new events, a slow poll for the backlog and for a 429's Retry-After.
   useEffect(() => {
+    if (watchIn) return;
     const ctl = new AbortController();
     const load = async () => {
       const r = await fetchWatchEvents(null, 20, ctl.signal);
       if (ctl.signal.aborted) return;
       if (r.ok) setWatch((prev) => mergeEvents(prev, r.value, 50));
-      else if (r.status === 429) setRetryUntil(retryDeadline(r.retryAfterS, Date.now()));
+      else if (r.status === 429) {
+        const t = Date.now();
+        setNow(t);
+        setRetryUntil(retryDeadline(r.retryAfterS, t));
+      }
     };
     void load();
     const poll = setInterval(() => void load(), WATCH_POLL_MS);
@@ -94,7 +96,7 @@ export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
       clearInterval(poll);
       stop();
     };
-  }, []);
+  }, [!!watchIn]);
 
   // One-second clock only while a Retry-After countdown runs.
   useEffect(() => {
@@ -111,8 +113,9 @@ export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
   const nodes = live ? nodesFromLive(live) : nodeStatesAt(frames, shown);
   const handoff = live ? handoffLive(nodes) : handoffAt(frames, shown);
   const loops = live ? { revise: live.reviseRounds, repair: live.repairRounds } : loopsAt(frames, shown);
-  const raw = (stackRun?.raw ?? {}) as Record<string, unknown>;
+  const rawBody = stackRun?.raw;
   const chips = useMemo(() => {
+    const raw = (rawBody ?? {}) as Record<string, unknown>;
     const ev = viewReads(raw.evidence);
     const ctx = {
       reads: ev.length ? ev : readsFromCitations(run?.claims ?? []),
@@ -120,7 +123,7 @@ export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
       worldModelSteps: worldModelSteps(run?.trace),
     };
     return Object.fromEntries(CORE_NODES.map((id) => [id, toolChips(id, ctx)])) as Record<CoreId, string[]>;
-  }, [raw, run]);
+  }, [rawBody, run]);
 
   return {
     kind: sourceKind(live, stackRun),
@@ -134,15 +137,15 @@ export function useAgentsLiveFrom(stack: StackData): AgentsLiveModel {
     played: shown,
     total,
     still,
-    watch,
-    watchOpen,
+    watch: watchIn ? watchIn.events : watch,
+    watchOpen: watchIn ? watchIn.open : watchOpen,
     retryLeft: secondsLeft(retryUntil, now),
     announce: live ? live.announce : "",
   };
 }
 
 /** Standalone: polls on its own. On a page that already runs useStackData, pass its result to <AgentsLive stack={...}/> instead. */
-export function useAgentsLive(): { model: AgentsLiveModel; stack: StackData } {
+export function useAgentsLive(watchIn?: { events: WatchEvent[]; open: boolean }): { model: AgentsLiveModel; stack: StackData } {
   const stack = useStackData();
-  return { model: useAgentsLiveFrom(stack), stack };
+  return { model: useAgentsLiveFrom(stack, watchIn), stack };
 }

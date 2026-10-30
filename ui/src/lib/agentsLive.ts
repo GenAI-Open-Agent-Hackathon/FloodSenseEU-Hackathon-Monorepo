@@ -11,8 +11,9 @@ import { CORE_NODES, hitRateOf, slotLights, type CoreId, type DataKind, type Fra
  */
 
 /** The badge: live = a run streaming now; replay = a recorded run played back; sample = the bundled example. */
-export function sourceKind(live: LiveRunState | null, recorded: { kind: "live" | "replay" | "sample" } | null): DataKind {
-  if (live) return "live";
+export function sourceKind(live: Pick<LiveRunState, "status"> | null, recorded: { kind: "live" | "replay" | "sample" } | null): DataKind {
+  // useStackData keeps `live` for a moment after the stream ends; only a still-running stream is live.
+  if (live && live.status === "running") return "live";
   if (!recorded) return "none";
   // A run that streamed here and finished is a recording now, not something happening.
   return recorded.kind === "sample" ? "sample" : "replay";
@@ -31,6 +32,22 @@ export function replayDelayMs(frame: Pick<Frame, "latencyMs"> | undefined): numb
 /** Next played-step count: one more frame, then back to 0 after the hold on the finished run. */
 export function replayNext(played: number, total: number): number {
   return played < total ? played + 1 : 0;
+}
+
+/** Steps the recorded trace on timers, loops after the hold. Returns the cleanup that cancels the pending timer. */
+export function startReplay(frames: readonly Pick<Frame, "latencyMs">[], onPlayed: (n: number) => void): () => void {
+  let n = 0;
+  let t: ReturnType<typeof setTimeout>;
+  const step = () => {
+    t = setTimeout(() => {
+      n = replayNext(n, frames.length);
+      onPlayed(n);
+      step();
+    }, n < frames.length ? replayDelayMs(frames[n]) : REPLAY_HOLD_MS);
+  };
+  onPlayed(0);
+  step();
+  return () => clearTimeout(t);
 }
 
 /* ---------- handoff ---------- */
@@ -109,15 +126,16 @@ export interface CacheBadge {
   tone: "live" | "cache" | "replay" | "none";
 }
 
-/** A run's served_from as a badge: live / cache / replay, or nothing stated. */
-export function servedBadge(servedFrom: string | null | undefined): CacheBadge {
+/** A run's served_from as a badge: live / cache / replay, or nothing stated. `recorded` words it as a fact about a past run. */
+export function servedBadge(servedFrom: string | null | undefined, recorded = false): CacheBadge {
+  const pre = recorded ? "Recorded run: " : "";
   switch (servedFrom) {
     case "live":
-      return { text: "Computed live", tone: "live" };
+      return { text: `${pre}${recorded ? "computed live" : "Computed live"}`, tone: "live" };
     case "cache":
-      return { text: "Cache hit", tone: "cache" };
+      return { text: `${pre}${recorded ? "cache hit" : "Cache hit"}`, tone: "cache" };
     case "replay":
-      return { text: "Replayed answer", tone: "replay" };
+      return { text: `${pre}${recorded ? "replayed answer" : "Replayed answer"}`, tone: "replay" };
     default:
       return { text: "Source not stated", tone: "none" };
   }
