@@ -1,3 +1,6 @@
+import { AgentsLive } from "./agents/AgentsLive";
+import { useStackData } from "../hooks/useStackData";
+import { forecastLine } from "../lib/deskForecast";
 import { useId, useMemo, useState } from "react";
 import { next48hQuestion } from "../api/ask";
 import { useConsole } from "../context/ConsoleContext";
@@ -444,6 +447,8 @@ export function CitizenOverview() {
   const ctx = useCitizenPlace();
   const { place } = ctx;
   const past = desk.mode === "past";
+  const stack = useStackData();
+  const fline = place?.source ? forecastLine(place.source, ctx.live.valencia) : null;
   return (
     <div className="view">
       <div className="view__intro">
@@ -464,6 +469,7 @@ export function CitizenOverview() {
           </header>
           <div className="card__body">
             <RiskCard ctx={ctx} />
+            {!past && (fline ? <p className="note">{fline}</p> : place && <p className="note">No 48 h forecast is stored for this place here. Ask for its outlook instead.</p>)}
             <PlacePicker {...ctx} />
             {place?.source && (
               <PlacesToWatch live={ctx.live} limit={3} start={2} exclude={place.id} title="Elsewhere in our watch" />
@@ -500,6 +506,7 @@ export function CitizenOverview() {
           </div>
         </section>
         <PastFloods />
+        {!past && <AgentsLive stack={stack} compact plain />}
       </div>
     </div>
   );

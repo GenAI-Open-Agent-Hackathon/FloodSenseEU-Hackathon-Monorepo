@@ -11,6 +11,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
+### Fixed
+
+- UI: the plain citizen agents block and the 48 h forecast line now show on the Citizen Overview (`#/citizen`), not only on Now; the Operator auto forecast request is documented as the deterministic forecast lane only.
+
 ### Added
 
 - UI: the sponsor stack is visible everywhere. A global sponsor strip under the header (Nebius Token Factory, NVIDIA Nemotron with the fast and deep model ids, Tavily with its call count, Zetaris, Meterless H-MEM / World Model), each chip with a status dot from `GET /platform/status` (on, off, or unavailable when the API did not answer) linking to Under the hood. All three desks fill the `agents` slot with `<AgentsLive compact/>` and the `evidence` slot with a Tavily "Web check" card: the Skeptic web verdict in plain words ("A web report supports this", "A web report conflicts with this", "No clear web confirmation"), up to three cited links, the label "Web context, not an official warning" and a "From the latest checked answer" line; the citizen strip is plain (names and dots, no counts or model ids) and the citizen card has words and links only, shown only when the answer is about the selected place, with no numbers, event ids or timestamps; insurer and operator also see status, result count, latency and retrieved time; no run or no web call shows an honest empty state. The Evidence drawer lists web citations with a globe icon and the web-context label; TechTrace shows the real Tavily call (status, results, latency, cached) and a per-lane region next to the cost. Under the hood: model prices per 1M tokens, rate limits, region badge ("EU (Finland)" or "US", never implying EU-only) and cost per answer when `/platform/status` carries them (PR #140), a Tavily card with a web-search activity indicator only while the status is LIVE and Tavily is on, and a "Why each sponsor" list.
