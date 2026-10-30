@@ -11,6 +11,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
+### Changed
+
+- UI: Citizen Now, Insurer Now and the Operator Situation board render through one shared `DeskPage` skeleton (impact, head, health, hazard, forecast, map, evidence, actions, agents, footer) with one set of `desk-*` classes. Citizen gets one plain forecast line for Valencia places (for example "Water is rising and may peak around Fri 06:00 CET", in the place's local time, Europe/Madrid for Valencia; or falling, steady, or up slightly; from the trend and 48 h forecast max, no numbers or charts; other places get a one-line note that none is stored); Insurer gets the shared hazard lead, evidence entry and an exposure and approvals block; Operator uses the shared hazard lead and evidence slots. Data fetching and honesty labels are unchanged; the agents slot is empty here.
+
 ### Added
 
 - Tavily run data: each run's API answer carries `web_context` (status ok|empty|unavailable, query built from the place name, n_results, latency_ms, cached, retrieved_at, results url/title/retrieved_at, and the Skeptic `web_check` verdict) in the JSON schema, Python and TS contracts. `/config` and `GET /platform/status` add `tavily_status` (enabled, key_configured boolean, calls, cache_hits, avg_latency_ms, last_status, last_error; never the key). `POST /llm/check` and `python tasks.py check-llm` also run one tiny Tavily search when `FF_TAVILY` is on and report it under `tavily` (not gating).
