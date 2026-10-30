@@ -25,6 +25,13 @@ describe("backend-aware LLM wording", () => {
     expect(runModelLine([ID])).toBe("Nemotron 3.5 Lightning 30B");
     expect(modelBadge(ID).text).not.toMatch(/Nebius|Nightshift/);
   });
+  it("a run with only usage model ids and no provider never names a backend", () => {
+    setLlmBackend("nebius");
+    const line = runModelLine(["nvidia/Nemotron-3.5-Super-VL"]);
+    expect(line).not.toMatch(/Nightshift|Nebius/);
+    expect(modelChip("nvidia/Nemotron-3_5-Lightning", "fast")).not.toMatch(/Nightshift|Nebius/);
+    expect(runModelLine(["nvidia/Nemotron-3.5-Super-VL"], "nightshift")).toMatch(/via Nightshift$/);
+  });
   it("a stated provider wins", () => {
     expect(providerLabel(ID, "nightshift", "nebius")).toBe("Nightshift");
     expect(modelBadge(ID, "nebius")).toEqual({ kind: "model", text: expect.stringContaining("Nebius Token Factory") });

@@ -11,7 +11,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Fixed
 
-- UI model wording follows `llm_backend` from `GET /platform/status`: chips, the run model line, pipeline badges and the How it works box say "Nebius Token Factory" when that is the backend and "Nightshift" only when it is. The Control tower shows a plain sentence for a raw upstream HTTP 429 and keeps the raw text in the Technical detail line.
+- UI model wording follows `llm_backend` from `GET /platform/status`: chips, the run model line, pipeline badges and the How it works box say "Nebius Token Factory" when that is the backend and "Nightshift" only when it is. The Control tower shows a plain sentence for a raw upstream HTTP 429 and keeps the raw text in the Technical detail line. A recorded run that states no provider is shown with its model names only, never with a backend name.
+- Insurer Review no longer paints the bundled Valencia sample while it looks up the newest run; the sample shows only when no real run exists and is labelled "Sample, not a real run". Approvals shows "Loading runs" instead of 0 until /runs/past answers, labels live-data runs "Live" (not the event the console had selected) and shows the Exposure policy total when the site count is unknown (the asset sample is capped at 20 rows). Evidence drawer: a Zetaris view citation shows one "Structured data row, no text quote" line instead of two "missing" notes.
 
 ### Changed
 
@@ -19,6 +20,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- UI page "Under the hood" (`#/citizen|insurer|operator/stack`): animated cards for Nebius + Nemotron, the agent pool (trace replay with play/pause/speed, SSE follow of a running run), Zetaris, H-MEM + World Model, the Redis cache and rate limiting, each driven by API data and badged LIVE, REPLAY or SAMPLE. CSS-only motion, reduced-motion safe.
 - UI: the How this answer was made Nightshift tile reads Nebius Token Factory when /platform/status reports llm_backend=nebius, and shows per-lane Nemotron ids, calls, tokens and cost (price not configured when unset) from run.usage, or Not recorded for this answer; a Platform strip on the System page (backend, lanes, latency p50/p95, cache, rate limit, llm_check, llm_usage).
 - Docs: real Token Factory measurements from live runs on 30 Oct 2026 in `docs/SUBMISSION-NEBIUS.md` (lane latency, Ahr and Valencia full-lane time, calls and tokens), updated rules checklist and feedback draft. Cost per run still TO FILL (no official prices retrieved).
 - Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.
