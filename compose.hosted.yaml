@@ -66,7 +66,7 @@ services:
       LLM_BACKEND: nebius
       NEBIUS_API_KEY: ${NEBIUS_API_KEY:?set NEBIUS_API_KEY in deploy/hosted/hosted.env}
       NEBIUS_BASE_URL: ${NEBIUS_BASE_URL:-https://api.tokenfactory.nebius.com/v1}
-      NEBIUS_MODEL_FAST: ${NEBIUS_MODEL_FAST:-nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B}
+      NEBIUS_MODEL_FAST: ${NEBIUS_MODEL_FAST:-nvidia/Nemotron-3_5-Lightning}
       NEBIUS_MODEL_DEEP: ${NEBIUS_MODEL_DEEP:-nvidia/Nemotron-3.5-Super-VL}
       # Demo data: offline Zetaris stand-in. No Zetaris reachable from the cloud VM.
       ZETARIS_MODE: fake
@@ -92,8 +92,8 @@ services:
       WATCH_AUTO_PER_DAY: "0"
       NIGHTSHIFT_MAX_CONCURRENCY: ${NIGHTSHIFT_MAX_CONCURRENCY:-2}
       NIGHTSHIFT_RPM: ${NIGHTSHIFT_RPM:-20}
-      LLM_MAX_TOKENS_FAST: ${LLM_MAX_TOKENS_FAST:-4000}
-      LLM_MAX_TOKENS_DEEP: ${LLM_MAX_TOKENS_DEEP:-5000}
+      LLM_MAX_TOKENS_FAST: ${LLM_MAX_TOKENS_FAST:-6000}
+      LLM_MAX_TOKENS_DEEP: ${LLM_MAX_TOKENS_DEEP:-8000}
       SKEPTIC_MAX_ROUNDS: ${SKEPTIC_MAX_ROUNDS:-1}
       JUDGE_REPAIR_ROUNDS: ${JUDGE_REPAIR_ROUNDS:-0}
       LLM_TIMEOUT_S: "120"
