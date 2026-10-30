@@ -25,7 +25,7 @@ export function MapLegend({ showNotLive }: { showNotLive: boolean }) {
     <ul className="map-legend" aria-label="Map legend">
       {LEGEND.map((item) => (
         <li key={item.status}>
-          <span className={`map-legend__dot map-legend__dot--${item.status}${item.status === "over" ? " map-legend__dot--alert" : ""}`} aria-hidden="true" />
+          <span className={`map-legend__dot ${item.status === "over" ? "map-legend__dot--alert" : `map-legend__dot--${item.status}`}`} aria-hidden="true" />
           {item.label}
         </li>
       ))}
