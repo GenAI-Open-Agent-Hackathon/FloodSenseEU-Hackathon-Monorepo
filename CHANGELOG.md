@@ -17,6 +17,8 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Fixed
 
+- Merged and EU UIs: Leaflet map tooltips now take a text node, not an HTML string, so place and policy names from the API cannot inject markup.
+- Citizen 3D map: shows "Loading map…" until the place pin appears (the 3D map adds pins only after its tiles load, up to ~45 s on a slow network, then falls back to 2D); the pin stays calm amber or green.
 - UI: the plain citizen agents block and the 48 h forecast line now show on the Citizen Overview (`#/citizen`), not only on Now; the Operator auto forecast request is documented as the deterministic forecast lane only.
 
 ### Added

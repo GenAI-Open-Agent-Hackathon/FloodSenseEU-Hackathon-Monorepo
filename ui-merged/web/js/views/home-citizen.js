@@ -1,6 +1,6 @@
 // Citizen home: one question, "is the river near me safe?", answered for one place
 // in plain words, with what to do. No dashboards.
-import { makeMap, tone } from "../map.js";
+import { makeMap, tip, tone } from "../map.js";
 import { make3d } from "../map3d.js";
 import { hydrograph } from "../hydro.js";
 import { STATE, bySeverity, loadPlaces } from "../places.js";
@@ -48,15 +48,20 @@ export function homeCitizen(root) {
     fill(result, card);
     const slot = card.querySelector(".c-map");
     if (slot) {
+      // The 3D map adds its pin only once its tiles are in, which can take a minute: say so meanwhile.
+      const wait = h("p", { class: "muted small", role: "status", text: "Loading map…" });
+      slot.before(wait);
+      const done = new MutationObserver(() => slot.querySelector(".gpin, .leaflet-interactive") && (done.disconnect(), wait.remove()));
+      done.observe(slot, { childList: true, subtree: true });
       const made = await make3d(slot, (pin) => [placePin(pin, p)], { ariaLabel: `Map of ${p.place}`, columnDeg: 0.004, attribution: "FloodSense", focusIds: [] });
       if (made && result.contains(slot)) m3 = made; else if (made) made.map.destroy();
       if (!made) {
         // No WebGL or bundle: the same place on a plain Leaflet map.
         const m = await makeMap(slot, [[p.lat - 0.05, p.lon - 0.05], [p.lat + 0.05, p.lon + 0.05]]).catch(() => null);
-        if (!m) return slot.remove();
+        if (!m) return (done.disconnect(), wait.remove(), slot.remove());
         if (!result.contains(slot)) return m.map.remove();
         const c = tone({ normal: "ok", watch: "watch", high: "watch" }[p.state] || "faint");
-        m.L.circleMarker([p.lat, p.lon], { radius: 8, weight: 1.5, color: c, fillColor: c, fillOpacity: 0.7 }).bindTooltip(`${p.place}: ${STATE[p.state].word}`).addTo(m.map);
+        m.L.circleMarker([p.lat, p.lon], { radius: 8, weight: 1.5, color: c, fillColor: c, fillOpacity: 0.7 }).bindTooltip(tip(`${p.place}: ${STATE[p.state].word}`)).addTo(m.map);
         m3 = { map: { destroy: () => m.map.remove() } };
       }
     }

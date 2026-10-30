@@ -1,7 +1,7 @@
 // Civil-protection home: an operations board. The situation in one strip, the map,
 // the places to act on first, and what the watch noticed, refreshed every minute.
 import { get } from "../api.js";
-import { makeMap, tone } from "../map.js";
+import { makeMap, tip, tone } from "../map.js";
 import { make3d } from "../map3d.js";
 import { STATE, bySeverity, loadPlaces } from "../places.js";
 import { ago, clock, dial, fill, h, loading, num, status } from "../ui.js";
@@ -89,7 +89,7 @@ export function homeCivil(root) {
       // Red only for a measured gauge; a model place at "high" stays amber.
       const c = tone(p.group !== "germany" && p.state === "high" ? "watch" : COLOUR[p.state]);
       L.circleMarker([p.lat, p.lon], { radius: RADIUS[p.state], weight: 1.5, color: c, fillColor: c, fillOpacity: p.state === "normal" ? 0.35 : 0.7 })
-        .bindTooltip(`${p.place}, ${p.where}: ${STATE[p.state].word}, ${p.value}`).addTo(layer);
+        .bindTooltip(tip(`${p.place}, ${p.where}: ${STATE[p.state].word}, ${p.value}`)).addTo(layer);
     }
   }
   draw().catch(() => fill(strip, h("p", { class: "err", text: "The situation is unavailable right now." })));

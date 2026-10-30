@@ -1,7 +1,7 @@
 // Insurer home: an exposure desk. Numbers first, the sites on a map, the largest
 // exposures, and the actions waiting for sign-off.
 import { get } from "../api.js";
-import { makeMap, tone } from "../map.js";
+import { makeMap, tip, tone } from "../map.js";
 import { titled } from "../places.js";
 import { ago, dial, fill, h, loading, num } from "../ui.js";
 
@@ -68,7 +68,7 @@ export function homeInsurer(root) {
         radius: 3 + 7 * Math.sqrt(s.sum_insured_eur / max), weight: 1,
         color: s.in_footprint ? tone("high") : tone("faint"), fillColor: s.in_footprint ? tone("high") : tone("faint"),
         fillOpacity: s.in_footprint ? 0.55 : 0.25,
-      }).bindTooltip(`${s.policy_id}, ${titled(s.segment)}, ${euros(s.sum_insured_eur)}${s.in_footprint ? ", inside the footprint" : ""}`).addTo(map);
+      }).bindTooltip(tip(`${s.policy_id}, ${titled(s.segment)}, ${euros(s.sum_insured_eur)}${s.in_footprint ? ", inside the footprint" : ""}`)).addTo(map);
     }
   }).catch(() => fill(body, h("p", { class: "err", text: "The insured sites are unavailable right now." })));
 

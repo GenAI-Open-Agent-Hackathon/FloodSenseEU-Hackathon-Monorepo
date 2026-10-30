@@ -28,3 +28,6 @@ export async function makeMap(el, bounds) {
 
 /** The colour behind a token, for Leaflet's circle markers. */
 export const tone = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
+
+/** Tooltip content as a text node: Leaflet treats a string as HTML, and place and policy names come from the API. */
+export const tip = (text) => document.createTextNode(text);
