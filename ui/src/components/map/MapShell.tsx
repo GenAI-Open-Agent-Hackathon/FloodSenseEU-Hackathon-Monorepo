@@ -15,6 +15,8 @@ import {
 } from "./shellLogic";
 
 export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+/** Free Terrarium elevation tiles (AWS Open Data, no key) for the 3D relief. */
+const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 export const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
 
@@ -194,11 +196,23 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
           bearing: -12,
           style: {
             version: 8,
-            sources: { osm: { type: "raster", tiles: [TILE_URL], tileSize: 256, maxzoom: 18 } },
-            layers: [{ id: "osm", type: "raster", source: "osm" }],
+            sources: {
+              osm: { type: "raster", tiles: [TILE_URL], tileSize: 256, maxzoom: 18 },
+              dem: { type: "raster-dem", tiles: [DEM_URL], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
+            },
+            layers: [
+              { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.25, "raster-brightness-max": 0.9 } },
+              {
+                id: "hills",
+                type: "hillshade",
+                source: "dem",
+                paint: { "hillshade-exaggeration": 0.7, "hillshade-shadow-color": "#1b2b3a", "hillshade-highlight-color": "#ffffff" },
+              },
+            ],
+            terrain: { source: "dem", exaggeration: 1.8 },
           },
         });
-        map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · ${attribution}` }));
+        map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · Terrain: Mapzen / AWS Open Data · ${attribution}` }));
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-left");
         const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), 15000);
         map.on("error", () => !loaded && !dead && failRef.current());

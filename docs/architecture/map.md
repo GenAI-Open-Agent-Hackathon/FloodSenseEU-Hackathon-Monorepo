@@ -3,7 +3,7 @@
 All four UI maps (event replay in `MapPanel`, Europe live watch in `EuWatch`, insured sites in `LiveSitesMap`, river gauges in `GaugeMap`) render through `ui/src/components/map/MapShell.tsx`. The shell owns the OpenStreetMap tiles, the attribution, resize handling and a 2D / 3D toggle above the map. Each map keeps its own markers, tooltips, selection callbacks, legend and date slider; the shell only gives it a Leaflet map (`onMap2d`) or, in 3D, normalized points.
 
 - **2D (default):** Leaflet, unchanged behaviour. The choice is saved in `localStorage` (`floodsense.mapMode`, read in try/catch) and shared by every map on the page.
-- **3D:** MapLibre GL, loaded with a dynamic `import()` the first time a viewer picks 3D, so the 2D bundle does not grow. Tilted view (pitch 55), OSM raster tiles, no token. Each point is an extruded column coloured by its band; clicking a column calls the same `onSelect`. Insured sites show as small circles.
+- **3D:** MapLibre GL, loaded with a dynamic `import()` the first time a viewer picks 3D, so the 2D bundle does not grow. Tilted view (pitch 55), OSM raster tiles plus free Terrarium elevation tiles (AWS Open Data) for terrain and hillshade, no token. Each point is an extruded column coloured by its band; clicking a column calls the same `onSelect`. Insured sites show as small circles.
 - If WebGL, the chunk, the style or the first tiles fail (map `error` before load, or no load within 15 s), the shell switches back to 2D, saves 2D (so the next load does not retry), and shows a `role="status"` note. The toggle always shows the mode that is on screen.
 
 Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `map/shellLogic.ts` with tests in `shellLogic.test.ts`.
