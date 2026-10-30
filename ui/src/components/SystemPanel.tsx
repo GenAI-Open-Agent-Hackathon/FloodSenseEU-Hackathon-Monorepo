@@ -26,12 +26,16 @@ export function SystemPanel() {
     const controller = new AbortController();
     let timer: number | undefined;
     const tick = async () => {
-      const got = await fetchSystem(undefined, controller.signal);
+      const [gotR, platR] = await Promise.allSettled([fetchSystem(undefined, controller.signal), fetchPlatformStatus()]);
+      if (controller.signal.aborted) return;
+      if (platR.status === "fulfilled") setPlatform(platR.value);
+      if (gotR.status !== "fulfilled") {
+        timer = window.setTimeout(() => void tick(), SYSTEM_POLL_MS);
+        return;
+      }
+      const got = gotR.value;
       if (controller.signal.aborted || got.aborted) return;
       if (got.status) setStatus(got.status);
-      const p = await fetchPlatformStatus();
-      if (controller.signal.aborted) return;
-      setPlatform(p);
       setError(got.error);
       setCheckedAt(new Date());
       timer = window.setTimeout(() => void tick(), SYSTEM_POLL_MS);
@@ -235,7 +239,7 @@ export function platformLines(p: PlatformStatus): string[] {
     : "not run yet";
   const u = p.llmUsage;
   const use = u
-    ? `${Object.entries(u.lanes).map(([k, l]) => `${k} ${l.calls} calls, ${l.totalTokens} tokens`).join("; ") || "no calls yet"} · cost ${u.costUsd == null ? "price not configured" : `$${u.costUsd}`}`
+    ? `${Object.entries(u.lanes).map(([k, l]) => `${k} ${l.calls} calls, ${l.totalTokens} tokens`).join("; ") || "no calls yet"} · cost ${u.costUsd == null ? "price not configured" : `$${u.costUsd.toFixed(4)}`}`
     : "not reported";
   return [
     `LLM backend: ${p.llmBackend ?? "unknown"} (${lanes})`,

@@ -179,22 +179,31 @@ export const RECORDED_NOTE = "Recorded run: replayed from cache, not run just no
 
 const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.servedFrom !== "live";
 
-/** "calls · tokens · cost" lines from run.usage; an honest absence note when the run recorded none. */
-function usageDetails(run: RecordedRun): TileDetail[] {
+/** Usage rows from run.usage. Absent usage is only reported when the run made model calls; a deterministic run adds nothing. */
+function usageDetails(run: RecordedRun, hadModelCalls: boolean): { before: TileDetail[]; after: TileDetail[] } {
   const u = run.usage;
-  if (!u) return [{ label: "Usage", value: "Not recorded for this answer (cached, replayed or older run)" }];
-  return [
-    ...u.models.map((m) => ({ label: `${m.lane} lane · ${m.modelId}`, value: `${plural(m.calls, "call")} · ${m.totalTokens} tokens` })),
-    { label: "This run", value: `${plural(u.calls, "model call")} · ${u.totalTokens} tokens${u.avgLatencyMs != null ? ` · avg ${formatLatency(u.avgLatencyMs)}` : ""}` },
-    { label: "Cost", value: u.costUsd == null ? "price not configured" : `$${u.costUsd} (${u.priceNote})` },
-  ];
+  if (!u) return { before: hadModelCalls ? [{ label: "Usage", value: "Not recorded for this answer (cached, replayed or older run)" }] : [], after: [] };
+  if (u.calls === 0) return { before: [], after: [{ label: "Usage", value: "No model call in this answer" }] };
+  return {
+    before: [],
+    after: [
+      ...u.models.map((m) => ({ label: `${m.lane} lane · ${m.modelId}`, value: `${plural(m.calls, "call")} · ${m.totalTokens} tokens` })),
+      { label: "This run", value: `${plural(u.calls, "model call")} · ${u.totalTokens} tokens${u.avgLatencyMs != null ? ` · avg ${formatLatency(u.avgLatencyMs)}` : ""}` },
+      { label: "Cost", value: u.costUsd == null ? "price not configured" : `$${u.costUsd.toFixed(4)} (${u.priceNote})` },
+    ],
+  };
 }
 
 function nightshiftTile(run: RecordedRun, backend?: string | null): Tile {
   const t = nightshiftBase(run);
-  const usage = usageDetails(run);
-  if (backend !== "nebius") return { ...t, details: [...t.details, ...usage] };
-  return { ...t, id: "nightshift", name: "Nebius Token Factory", glossary: GLOSSARY.tokenfactory, details: [...t.details, ...usage] };
+  const u = usageDetails(run, modelUse(run).models.length > 0);
+  // Keep the "Time in model-assisted steps" row last among the trace rows; unrecorded-usage note goes before it.
+  const i = t.details.findIndex((d) => d.label.startsWith("Time in model"));
+  const details = [...t.details];
+  details.splice(i < 0 ? details.length : i, 0, ...u.before);
+  details.push(...u.after);
+  if (backend !== "nebius") return { ...t, details };
+  return { ...t, name: "Nebius Token Factory", glossary: GLOSSARY.tokenfactory, details };
 }
 
 function nightshiftBase(run: RecordedRun): Tile {

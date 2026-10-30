@@ -158,7 +158,7 @@ describe("techTrace: full lane (models, memory, world model)", () => {
     expect(n.headline).toBe("Super VL 120B + Lightning 30B · 3 model-assisted steps");
     expect(n.details.find((d) => d.label === "Nemotron 3.5 Super VL 120B")?.value).toBe("deep lane · 2 model-assisted steps · 16.0 s");
     expect(n.details.find((d) => d.label === "Nemotron 3.5 Lightning 30B")?.value).toBe("fast lane · 1 model-assisted step · 8.0 s");
-    expect(n.details.find((d) => d.label.startsWith("Time in model"))?.value).toBe("24.0 s over 3 steps");
+    expect(n.details.at(-1)?.value).toBe("24.0 s over 3 steps");
   });
   it("shows recalled memories, the seed label and the write on approval", () => {
     const h = tile(FULL, "hmem");
@@ -233,7 +233,7 @@ describe("techTrace: router-LLM quick run and non-Nemotron models", () => {
     const n = tile(llmQuick, "nightshift");
     expect(n.used).toBe(true);
     expect(n.headline).toBe("Lightning 30B · 1 model-assisted step");
-    expect(n.details.find((d) => d.label.startsWith("Time in model"))?.label).toBe("Time in model-assisted steps (includes data queries)");
+    expect(n.details.at(-1)?.label).toBe("Time in model-assisted steps (includes data queries)");
   });
   it("never labels a non-Nemotron model as Nightshift", () => {
     const test = body({ lane: "full", trace: [step(1, "skeptic", "deep", "acme/model-x", 3000, "checked")] });
@@ -311,5 +311,22 @@ describe("Token Factory tile", () => {
   });
   it("nightshift keeps its name", () => {
     expect(nt(llm({ usage }), "nightshift").name).toBe("Meterless Nightshift");
+  });
+});
+
+describe("Token Factory tile: usage states", () => {
+  const nt = (r: RecordedRun) => buildTechTrace(r, "nebius").tiles.find((t) => t.id === "nightshift")!;
+  it("deterministic run with calls=0 says no model call", () => {
+    const t = nt(body({ lane: "quick", usage: { models: [], total: { calls: 0, total_tokens: 0 }, cost_usd: null } }));
+    expect(JSON.stringify(t.details)).toContain("No model call in this answer");
+    expect(JSON.stringify(t.details)).not.toContain("Not recorded");
+  });
+  it("deterministic run without usage adds no usage row", () => {
+    expect(JSON.stringify(nt(body({ lane: "quick" })).details)).not.toContain("Usage");
+  });
+  it("cost is formatted", () => {
+    const usage = { models: [{ lane: "fast", model_id: "m", calls: 1, total_tokens: 5 }], total: { calls: 1, total_tokens: 5 }, cost_usd: 0.0123, price_note: "estimate" };
+    const r = body({ lane: "full", usage, trace: [step(1, "investigator", "fast", "m", 5, "x")] });
+    expect(JSON.stringify(nt(r).details)).toContain("$0.0123");
   });
 });

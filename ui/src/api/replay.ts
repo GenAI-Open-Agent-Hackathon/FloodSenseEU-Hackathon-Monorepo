@@ -47,7 +47,6 @@ export interface ReplayJudgeClaim {
   modelId: string | null;
 }
 
-/** A recorded agent run, read from GET /runs/{id}/replay. Always a replay, never live. */
 export interface RunUsage {
   models: { lane: string; modelId: string; calls: number; totalTokens: number }[];
   calls: number;
@@ -57,17 +56,18 @@ export interface RunUsage {
   priceNote: string;
 }
 
+/** Per-run token meter; null when the run carries none. calls may be 0 (a deterministic run). */
 export function parseRunUsage(v: unknown): RunUsage | null {
   const u = rec(v);
   const total = rec(u?.total);
-  if (!u || !total || !Array.isArray(u.models) || !(num(total.calls) && num(total.calls)! > 0)) return null;
+  if (!u || !total || !Array.isArray(u.models) || num(total.calls) === null) return null;
   return {
     models: u.models.flatMap((raw) => {
       const m = rec(raw);
       const modelId = m && str(m.model_id);
       return m && modelId ? [{ lane: str(m.lane) ?? "?", modelId, calls: num(m.calls) ?? 0, totalTokens: num(m.total_tokens) ?? 0 }] : [];
     }),
-    calls: num(total.calls)!,
+    calls: num(total.calls) ?? 0,
     totalTokens: num(total.total_tokens) ?? 0,
     avgLatencyMs: num(total.avg_latency_ms),
     costUsd: num(u.cost_usd),
@@ -75,6 +75,7 @@ export function parseRunUsage(v: unknown): RunUsage | null {
   };
 }
 
+/** A recorded agent run, read from GET /runs/{id}/replay. Always a replay, never live. */
 export interface RecordedRun {
   runId: string;
   label: string;
