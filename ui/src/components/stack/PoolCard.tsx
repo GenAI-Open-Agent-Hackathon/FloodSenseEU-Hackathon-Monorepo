@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RecordedRun } from "../../api/replay";
 import type { LiveRunState } from "../../lib/liveRun";
 import { judgeChips, loopsAt, nodeStatesAt, nodesFromLive, traceFrames, type DataKind, type NodeView } from "../../lib/stack";
 import { modelDisplay } from "../../lib/techTrace";
+import { createThrottle } from "../../lib/throttle";
 import { Empty, StackCard, ms, reducedMotion } from "./StackBits";
 
-/** Latest value, committed at most once per `gap` ms: keeps a screen-reader region from announcing every event. */
+/** Latest value, announced at most once per `gap` ms (leading and trailing edge). */
 function useThrottled(value: string, gap: number): string {
   const [out, setOut] = useState(value);
+  const t = useRef<ReturnType<typeof createThrottle<string>> | null>(null);
   useEffect(() => {
-    if (value === out) return;
-    const t = setTimeout(() => setOut(value), gap);
-    return () => clearTimeout(t);
-  }, [value, out, gap]);
+    t.current = createThrottle(setOut, gap);
+    return () => t.current?.cancel();
+  }, [gap]);
+  useEffect(() => t.current?.push(value), [value]);
   return out;
 }
 
