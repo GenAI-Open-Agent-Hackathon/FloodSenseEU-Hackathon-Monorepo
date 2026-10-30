@@ -2,9 +2,21 @@
 
 FloodSense EU explains why a place in Europe is at flood risk, with a citation for every sentence: a Zetaris query, a stored document passage, or a memory a person approved. It watches 45 places live, answers plain questions in seconds, runs a full multi-agent investigation when a question needs one, and nothing leaves the system until a person approves it.
 
+The default LLM backend is Nebius Token Factory with NVIDIA Nemotron.
+
 Open Agent Hackathon 2026, Track 02. Release 1.0.1 (tag `v1.0.1`, the submitted version): [release notes](docs/RELEASE-NOTES-v1.0.1.md), product description in the [1.0.0 notes](docs/RELEASE-NOTES-v1.0.0.md), [changelog](CHANGELOG.md).
 
 ![FloodSense EU screenshot](docs/assets/screenshot.jpg)
+
+## Judge quick path
+
+Hosted demo: TO FILL (not yet published; the steps below also work on a local run).
+
+1. Open the Insurer desk, Now page. Ask: "Which of our insured sites are exposed in Valencia?" (the book is synthetic; the risk figures are a model, not an official warning).
+2. Ask "How much insured value sits inside the flood footprint?" or "Which sites should we review first?", then open Approvals (a person approves; nothing leaves the system without it).
+3. Open Review and read the "How this answer was made" tiles (Nebius Token Factory, per-lane Nemotron calls and tokens), then **Under the hood** for the live pipeline.
+
+Run locally with your own keys: see [Built on Nebius and NVIDIA](#built-on-nebius-and-nvidia) and [Quick start](#quick-start).
 
 ## Three desks
 

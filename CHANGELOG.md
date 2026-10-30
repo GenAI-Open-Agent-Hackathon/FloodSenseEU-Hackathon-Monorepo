@@ -23,6 +23,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
+- README: one-line Nebius Token Factory + NVIDIA Nemotron lead and a "Judge quick path" section (hosted demo URL still TO FILL). No new screenshots: the built-in browser could only capture 800x500 cropped dark-theme images.
 - "Goal and impact" strip (`ImpactStrip`, `lib/impact.ts`) at the top of each desk landing page (Citizen Now, Insurer Now, Operator Situation board): the desk goal, KPI chips from the live hooks ("no data yet" when a source is missing; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`.
 
 - UI page "Under the hood" (`#/citizen|insurer|operator/stack`): animated cards for Nebius + Nemotron, the agent pool (trace replay with play/pause/speed, SSE follow of a running run), Zetaris, H-MEM + World Model, the Redis cache and rate limiting, each driven by API data and badged LIVE, REPLAY or SAMPLE. CSS-only motion, reduced-motion safe.
