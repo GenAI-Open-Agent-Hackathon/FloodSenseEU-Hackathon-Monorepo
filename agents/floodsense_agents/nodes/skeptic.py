@@ -381,7 +381,8 @@ def _web_check(deps: Deps, state: FloodState) -> dict | None:
     place = str(((state.get("request") or {}).get("context") or {}).get("place") or "").strip().lower()
     page = next(i for i in items if i["url"] == url)
     # Conservative: a page that never names the place cannot support or contradict a claim about it.
-    if verdict != "neutral" and place and place not in f'{page.get("title", "")} {page.get("text", "")}'.lower():
+    names = ["ahr", "ahrtal", "ahrweiler", "altenahr"] if place in ("ahr", "ahrtal", "ahrweiler", "altenahr") else [place]
+    if verdict != "neutral" and place and not any(n in f'{page.get("title", "")} {page.get("text", "")}'.lower() for n in names):
         verdict = "neutral"
     return {
         "claim_id": claim["claim_id"],

@@ -233,7 +233,7 @@ class TavilyTest(unittest.TestCase):
         self.assertIn("untrusted", seen[0][0])
 
     def test_query_is_regional(self):
-        self.assertEqual(tavily._query("Ahr"), "Ahr Germany Hochwasser Warnung")
+        self.assertEqual(tavily._query("Ahr"), "Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz")
         self.assertEqual(tavily._query("Valencia"), "Valencia Spain inundaciones aviso AEMET")
         self.assertEqual(tavily._query("Oslo"), "Oslo flood warning current")
         seen = {}

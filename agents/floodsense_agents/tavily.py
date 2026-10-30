@@ -71,6 +71,8 @@ def _region(place: str) -> str | None:
 
 def _query(place: str) -> str:
     r = _region(place)
+    if re.search(r"\b(ahr|ahrtal|altenahr|ahrweiler)\b", place, re.I):
+        return "Ahrtal Ahrweiler Hochwasser Warnung Rheinland-Pfalz"
     return f"{place} {_REGIONS[r]}" if r else f"{place} flood warning current"
 
 
