@@ -17,6 +17,10 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
+- Token Factory pricing and limits: the agents read per-model price, rpm/tpm limits and region from `GET /v1/models?verbose=true` (cached 1 h, never raises, falls back to "price not configured"). `usage` now has `cost_usd` per model, lane and total, `answers`, `cost_per_answer_usd`, `cached_tokens` and a `pricing` block per lane (price per 1M tokens, rpm/tpm, region, country), all passed through `/platform/status` `llm_usage`. The TS parser in `ui/src/api/platform.ts` reads them.
+
+- Nebius pacer defaults follow the published limits: `NEBIUS_RPM` a quarter of the lowest lane rpm (capped at 300), `NEBIUS_MAX_CONCURRENCY` 8 (were 60 and 4, a guess).
+- Honesty: the fast lane model (Lightning) runs in Finland (`eu-north1`) but the deep lane model (Super-VL) is listed in the US (`us-north1`); docs no longer imply EU-only inference.
 - Tavily run data: each run's API answer carries `web_context` (status ok|empty|unavailable, query built from the place name, n_results, latency_ms, cached, retrieved_at, results url/title/retrieved_at, and the Skeptic `web_check` verdict) in the JSON schema, Python and TS contracts. `/config` and `GET /platform/status` add `tavily_status` (enabled, key_configured boolean, calls, cache_hits, avg_latency_ms, last_status, last_error; never the key). `POST /llm/check` and `python tasks.py check-llm` also run one tiny Tavily search when `FF_TAVILY` is on and report it under `tavily` (not gating).
 
 ### Fixed

@@ -7,6 +7,18 @@ export interface LaneLatency {
   p95Ms: number;
 }
 
+/** Official Token Factory price (USD per 1M tokens), limits and region of one lane's model. */
+export interface LanePricing {
+  modelId: string | null;
+  pricePerMInput: number | null;
+  pricePerMOutput: number | null;
+  pricePerMCacheRead: number | null;
+  rpmLimit: number | null;
+  tpmLimit: number | null;
+  region: string | null;
+  country: string | null;
+}
+
 export interface PlatformStatus {
   agentsOk: boolean;
   llmBackend: "nightshift" | "nebius" | string | null;
@@ -30,7 +42,7 @@ export interface PlatformStatus {
   /** Last live lane check (POST agents /llm/check); null until run. */
   llmCheck: { ok: boolean; lanes: Record<string, { ok: boolean; modelId: string | null; latencyMs: number }> } | null;
   /** Agents-process token usage per lane; costUsd null = price not configured. */
-  llmUsage: { lanes: Record<string, { calls: number; totalTokens: number; avgLatencyMs: number | null }>; costUsd: number | null; priceNote: string } | null;
+  llmUsage: { lanes: Record<string, { calls: number; totalTokens: number; avgLatencyMs: number | null }>; costUsd: number | null; costPerAnswerUsd: number | null; answers: number; priceNote: string; pricing: Record<string, LanePricing> } | null;
 }
 
 type Obj = Record<string, unknown>;
@@ -73,7 +85,28 @@ function parseUsage(v: unknown): PlatformStatus["llmUsage"] {
     const o = obj(l);
     lanes[k] = { calls: n0(o.calls), totalTokens: n0(o.total_tokens), avgLatencyMs: num(o.avg_latency_ms) };
   }
-  return { lanes, costUsd: num(u.cost_usd), priceNote: str(u.price_note) ?? "price not configured" };
+  const pricing: Record<string, LanePricing> = {};
+  for (const [k, l] of Object.entries(obj(u.pricing))) {
+    const o = obj(l);
+    pricing[k] = {
+      modelId: str(o.model_id),
+      pricePerMInput: num(o.price_per_m_input),
+      pricePerMOutput: num(o.price_per_m_output),
+      pricePerMCacheRead: num(o.price_per_m_cache_read),
+      rpmLimit: num(o.rpm_limit),
+      tpmLimit: num(o.tpm_limit),
+      region: str(o.region),
+      country: str(o.country),
+    };
+  }
+  return {
+    lanes,
+    costUsd: num(u.cost_usd),
+    costPerAnswerUsd: num(u.cost_per_answer_usd),
+    answers: n0(u.answers),
+    priceNote: str(u.price_note) ?? "price not configured",
+    pricing,
+  };
 }
 
 export function parsePlatformStatus(body: unknown): PlatformStatus | null {
