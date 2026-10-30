@@ -10,10 +10,12 @@ import { formatLatency, parseBoard } from "./pipeline";
  * and a cached or recorded answer says it was not run just now.
  */
 
-export type TileId = "zetaris" | "nightshift" | "hmem" | "world" | "tavily";
+export type TileId = "zetaris" | "nightshift" | "tokenfactory" | "hmem" | "world" | "tavily";
 
 export const GLOSSARY: Record<TileId, string> = {
   zetaris: "Zetaris: the only SQL path to the data.",
+  tokenfactory:
+    "Nebius Token Factory: the hosted inference service that serves the agents' model calls (fast and deep lanes) with NVIDIA Nemotron models.",
   nightshift:
     "Meterless Nightshift: the gateway that routes the agents' model calls (meterless/fast and meterless/deep) to NVIDIA Nemotron models.",
   hmem: "Meterless H-MEM: remembers approved findings (and clearly labelled demo seeds).",
@@ -177,7 +179,25 @@ export const RECORDED_NOTE = "Recorded run: replayed from cache, not run just no
 
 const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.servedFrom !== "live";
 
-function nightshiftTile(run: RecordedRun): Tile {
+/** "calls · tokens · cost" lines from run.usage; an honest absence note when the run recorded none. */
+function usageDetails(run: RecordedRun): TileDetail[] {
+  const u = run.usage;
+  if (!u) return [{ label: "Usage", value: "Not recorded for this answer (cached, replayed or older run)" }];
+  return [
+    ...u.models.map((m) => ({ label: `${m.lane} lane · ${m.modelId}`, value: `${plural(m.calls, "call")} · ${m.totalTokens} tokens` })),
+    { label: "This run", value: `${plural(u.calls, "model call")} · ${u.totalTokens} tokens${u.avgLatencyMs != null ? ` · avg ${formatLatency(u.avgLatencyMs)}` : ""}` },
+    { label: "Cost", value: u.costUsd == null ? "price not configured" : `$${u.costUsd} (${u.priceNote})` },
+  ];
+}
+
+function nightshiftTile(run: RecordedRun, backend?: string | null): Tile {
+  const t = nightshiftBase(run);
+  const usage = usageDetails(run);
+  if (backend !== "nebius") return { ...t, details: [...t.details, ...usage] };
+  return { ...t, id: "nightshift", name: "Nebius Token Factory", glossary: GLOSSARY.tokenfactory, details: [...t.details, ...usage] };
+}
+
+function nightshiftBase(run: RecordedRun): Tile {
   const use = modelUse(run);
   const recorded: TileDetail[] = isRecorded(run) ? [{ label: "Served from", value: RECORDED_NOTE }] : [];
   const name = "Meterless Nightshift";
@@ -369,10 +389,10 @@ export function pickRunRow<T extends { runId: string; status: string; eventId: s
 }
 
 /** Pure: everything the TechTrace panel draws. */
-export function buildTechTrace(run: RecordedRun): TechTraceModel {
+export function buildTechTrace(run: RecordedRun, backend?: string | null): TechTraceModel {
   return {
     routerLine: routerLine(run),
     judgeLine: judgeLine(run),
-    tiles: [zetarisTile(run), nightshiftTile(run), hmemTile(run), worldTile(run), tavilyTile(run)],
+    tiles: [zetarisTile(run), nightshiftTile(run, backend), hmemTile(run), worldTile(run), tavilyTile(run)],
   };
 }

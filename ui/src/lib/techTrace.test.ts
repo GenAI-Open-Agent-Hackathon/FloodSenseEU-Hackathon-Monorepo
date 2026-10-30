@@ -158,7 +158,7 @@ describe("techTrace: full lane (models, memory, world model)", () => {
     expect(n.headline).toBe("Super VL 120B + Lightning 30B · 3 model-assisted steps");
     expect(n.details.find((d) => d.label === "Nemotron 3.5 Super VL 120B")?.value).toBe("deep lane · 2 model-assisted steps · 16.0 s");
     expect(n.details.find((d) => d.label === "Nemotron 3.5 Lightning 30B")?.value).toBe("fast lane · 1 model-assisted step · 8.0 s");
-    expect(n.details.at(-1)?.value).toBe("24.0 s over 3 steps");
+    expect(n.details.find((d) => d.label.startsWith("Time in model"))?.value).toBe("24.0 s over 3 steps");
   });
   it("shows recalled memories, the seed label and the write on approval", () => {
     const h = tile(FULL, "hmem");
@@ -233,7 +233,7 @@ describe("techTrace: router-LLM quick run and non-Nemotron models", () => {
     const n = tile(llmQuick, "nightshift");
     expect(n.used).toBe(true);
     expect(n.headline).toBe("Lightning 30B · 1 model-assisted step");
-    expect(n.details.at(-1)?.label).toBe("Time in model-assisted steps (includes data queries)");
+    expect(n.details.find((d) => d.label.startsWith("Time in model"))?.label).toBe("Time in model-assisted steps (includes data queries)");
   });
   it("never labels a non-Nemotron model as Nightshift", () => {
     const test = body({ lane: "full", trace: [step(1, "skeptic", "deep", "acme/model-x", 3000, "checked")] });
@@ -286,5 +286,30 @@ describe("techTrace: Tavily tile", () => {
   it("says unavailable when the call failed", () => {
     const run = body({ trace: [step(1, "tavily", "none", null, 1, "tavily unavailable (HTTP 429); query -")] });
     expect(tile(run, "tavily").headline).toBe("Unavailable");
+  });
+});
+
+describe("Token Factory tile", () => {
+  const usage = {
+    models: [{ lane: "fast", model_id: "nvidia/nemotron-3-nano-30b", calls: 2, total_tokens: 900 }],
+    total: { calls: 2, total_tokens: 900, avg_latency_ms: 800 },
+    cost_usd: null,
+    price_note: "price not configured",
+  };
+  const llm = (over: Record<string, unknown>) => body({ lane: "full", trace: [step(1, "investigator", "fast", "nvidia/nemotron-3-nano-30b", 500, "x")], ...over });
+  const nt = (r: RecordedRun, b?: string) => buildTechTrace(r, b).tiles.find((t) => t.id === "nightshift")!;
+  it("nebius with usage", () => {
+    const t = nt(llm({ usage }), "nebius");
+    expect(t.name).toBe("Nebius Token Factory");
+    const text = JSON.stringify(t.details);
+    expect(text).toContain("nvidia/nemotron-3-nano-30b");
+    expect(text).toContain("900 tokens");
+    expect(text).toContain("price not configured");
+  });
+  it("no usage is honest", () => {
+    expect(JSON.stringify(nt(llm({}), "nebius").details)).toContain("Not recorded for this answer");
+  });
+  it("nightshift keeps its name", () => {
+    expect(nt(llm({ usage }), "nightshift").name).toBe("Meterless Nightshift");
   });
 });

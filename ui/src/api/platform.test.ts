@@ -20,3 +20,15 @@ describe("parsePlatformStatus", () => {
     expect(parsePlatformStatus({})?.dataBackend).toBe("zetaris");
   });
 });
+
+import { platformLines } from "../components/SystemPanel";
+describe("platformLines", () => {
+  it("handles a sparse status", () => {
+    const s = parsePlatformStatus({ llm_backend: "nebius", lanes: { fast: "m1" }, tavily: false, cache: {}, rate_limit: {} })!;
+    const out = platformLines(s).join("\n");
+    expect(out).toContain("LLM backend: nebius (fast: m1)");
+    expect(out).toContain("Cache hit rate: –");
+    expect(out).toContain("LLM check: not run yet");
+    expect(out).toContain("LLM usage: not reported");
+  });
+});
