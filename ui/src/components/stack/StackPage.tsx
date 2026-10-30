@@ -1,6 +1,7 @@
 import "../../styles/stack.css";
 import { useStackData } from "../../hooks/useStackData";
 import { memoryRecall, readsFromCitations, usageOfRun, viewReads, type DataKind } from "../../lib/stack";
+import { AgentsLive } from "../agents/AgentsLive";
 import { CacheCard } from "./CacheCard";
 import { EnginesCard } from "./EnginesCard";
 import { ModelsCard } from "./ModelsCard";
@@ -10,7 +11,8 @@ import { ZetarisCard } from "./ZetarisCard";
 
 /** "Under the hood": one animated card per technology, each fed by real API data and labelled with where it came from. */
 export function StackPage() {
-  const { platform, system, stackRun, live, runsError } = useStackData();
+  const stack = useStackData();
+  const { platform, system, stackRun, live, runsError } = stack;
   const raw = (stackRun?.raw ?? {}) as Record<string, unknown>;
   const run = stackRun?.run ?? null;
   const runKind: DataKind = stackRun?.kind ?? "none";
@@ -32,6 +34,7 @@ export function StackPage() {
         {platform.error && <p className="stk-note stk-warn">{platform.error}. Cards that need it show no numbers.</p>}
         {runsError && <p className="stk-note stk-warn">{runsError}. The agent card shows the bundled sample run.</p>}
       </header>
+      <AgentsLive stack={stack} />
       <div className="stk-grid">
         <ModelsCard
           platform={platform.data}

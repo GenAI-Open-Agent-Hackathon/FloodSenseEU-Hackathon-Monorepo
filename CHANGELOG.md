@@ -23,6 +23,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Added
 
+- UI `<AgentsLive/>` (+ `useAgentsLive` hook): the agent pool in motion with status and duration per agent, handoff animation, revise/repair loops, tool-call chips, cache hit/miss badges and counters, rate-limit lane with Retry-After countdown, model/backend lanes with tokens and latency, and the watch feed. A running run is LIVE; otherwise the newest recorded trace replays on timers, badged REPLAY or SAMPLE. Reduced-motion safe; `compact` variant for desk pages. Mounted on Under the hood and as "Watch the agents" on the Control tower.
 - README: one-line Nebius Token Factory + NVIDIA Nemotron lead and a "Judge quick path" section (hosted demo URL still TO FILL). No new screenshots: the built-in browser could only capture 800x500 cropped dark-theme images.
 - "Goal and impact" strip (`ImpactStrip`, `lib/impact.ts`) at the top of each desk landing page (Citizen Now, Insurer Now, Operator Situation board): the desk goal, KPI chips from the live hooks ("no data yet" when a source is missing; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`.
 
