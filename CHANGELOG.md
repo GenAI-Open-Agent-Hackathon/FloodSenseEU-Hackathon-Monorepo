@@ -20,6 +20,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- "Goal and impact" strip (`ImpactStrip`, `lib/impact.ts`) at the top of each desk landing page (Citizen Now, Insurer Now, Operator Situation board): the desk goal, KPI chips from the live hooks ("no data yet" when a source is missing; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`.
+
 - UI page "Under the hood" (`#/citizen|insurer|operator/stack`): animated cards for Nebius + Nemotron, the agent pool (trace replay with play/pause/speed, SSE follow of a running run), Zetaris, H-MEM + World Model, the Redis cache and rate limiting, each driven by API data and badged LIVE, REPLAY or SAMPLE. CSS-only motion, reduced-motion safe.
 - UI: the How this answer was made Nightshift tile reads Nebius Token Factory when /platform/status reports llm_backend=nebius, and shows per-lane Nemotron ids, calls, tokens and cost (price not configured when unset) from run.usage, or Not recorded for this answer; a Platform strip on the System page (backend, lanes, latency p50/p95, cache, rate limit, llm_check, llm_usage).
 - Docs: real Token Factory measurements from live runs on 30 Oct 2026 in `docs/SUBMISSION-NEBIUS.md` (lane latency, Ahr and Valencia full-lane time, calls and tokens), updated rules checklist and feedback draft. Cost per run still TO FILL (no official prices retrieved).
