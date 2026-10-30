@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "agents"))
 os.environ.setdefault("CHECKPOINTER", "memory")
 os.environ.setdefault("ZETARIS_MODE", "fake")
 os.environ.setdefault("LLM_MODE", "fake")
+os.environ.setdefault("LLM_BACKEND", "nightshift")
 
 from jsonschema import Draft202012Validator  # noqa: E402
 from jsonschema.exceptions import ValidationError  # noqa: E402

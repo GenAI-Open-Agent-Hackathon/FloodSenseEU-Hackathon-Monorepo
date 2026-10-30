@@ -98,6 +98,7 @@ You need Python 3.10+, Docker Desktop, and your own local Zetaris (UI `:3000`, R
 
 ```powershell
 py tasks.py init-env
+# then set NEBIUS_API_KEY in agents/.env (or LLM_BACKEND=nightshift)
 py tasks.py up-all
 py tasks.py zetaris-sync
 py tasks.py demo-seed
