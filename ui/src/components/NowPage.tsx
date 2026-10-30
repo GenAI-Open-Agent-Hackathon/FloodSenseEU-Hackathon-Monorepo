@@ -11,10 +11,9 @@ import { PlacePicker, useCitizenPlace } from "./CitizenView";
 import { demoSnapshotText } from "../lib/demo";
 import { ImpactStrip } from "./ImpactStrip";
 import { citizenChips, FACTS, GOALS } from "../lib/impact";
-import { forecastSeriesFor } from "../lib/deskForecast";
+import { forecastLine } from "../lib/deskForecast";
 import { InsurerNowPage } from "./InsurerNowPage";
 import { DeskCard, DeskHead, DeskPage, EvidenceRow, ForecastCard, HazardLead } from "./desk/DeskPage";
-import { Sparkline } from "./Sparkline";
 import { evidenceFor, PlacesToWatch } from "./PlacesToWatch";
 
 /** Now: insurers keep the dense page; citizens get the calm, live-first one. Both render through DeskPage. */
@@ -50,7 +49,7 @@ function CitizenNowPage() {
   const loading = live.gauges.state === "loading" || live.euWatch.state === "loading" || live.hazard.state === "loading";
   const ask = (s: WatchSource) => openAsk(s.question, { page: "now", place: s.name });
   const evidence = lead ? evidenceFor(live, lead) : null;
-  const series = forecastSeriesFor(lead, live.valencia);
+  const line = forecastLine(lead, live.valencia);
   const partial = live.health.failed.length > 0 && !live.health.loading;
 
   return (
@@ -105,17 +104,12 @@ function CitizenNowPage() {
       }
       forecast={
         lead &&
-        (series ? (
+        (line ? (
           <ForecastCard title={lead.name}>
-            <Sparkline
-              values={series.values}
-              activeIndex={series.split ?? series.values.length - 1}
-              splitIndex={series.split}
-              label={`${lead.name} discharge, past 72 h and forecast 48 h (dashed)`}
-            />
+            <p>{line}</p>
           </ForecastCard>
         ) : (
-          <p className="note">No 48 h series is stored for this place here. Ask for its outlook instead.</p>
+          <p className="note">No 48 h forecast is stored for this place here. Ask for its outlook instead.</p>
         ))
       }
       map={
