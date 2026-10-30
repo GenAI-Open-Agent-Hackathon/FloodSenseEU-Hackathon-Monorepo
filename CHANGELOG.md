@@ -13,7 +13,7 @@ Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.
 
 ### Changed
 
-- UI: Citizen Now, Insurer Now and the Operator Situation board render through one shared `DeskPage` skeleton (impact, head, health, hazard, forecast, map, evidence, actions, agents, footer) with one set of `desk-*` classes. Citizen gets one plain forecast line for Valencia places ("Water is rising and may peak around Fri 05:00 UTC", falling, or steady; from the trend and 48 h forecast max, no numbers or charts; other places get a one-line note that none is stored); Insurer gets the shared hazard lead, evidence entry and an exposure and approvals block; Operator uses the shared hazard lead and evidence slots. Data fetching and honesty labels are unchanged; the agents slot is empty here.
+- UI: Citizen Now, Insurer Now and the Operator Situation board render through one shared `DeskPage` skeleton (impact, head, health, hazard, forecast, map, evidence, actions, agents, footer) with one set of `desk-*` classes. Citizen gets one plain forecast line for Valencia places ("Water is rising and may peak around Fri 06:00 CET, the place's local time", falling, or steady; from the trend and 48 h forecast max, no numbers or charts; other places get a one-line note that none is stored); Insurer gets the shared hazard lead, evidence entry and an exposure and approvals block; Operator uses the shared hazard lead and evidence slots. Data fetching and honesty labels are unchanged; the agents slot is empty here.
 
 ### Fixed
 

@@ -1,11 +1,13 @@
 import type { WatchSource } from "./euWatch";
 import type { PointNow } from "./now";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** The only forecast places are the Valencia points, so the place's local zone is Europe/Madrid (CET/CEST). */
+const PLACE_ZONE = "Europe/Madrid";
 
 function peakText(iso: string): string {
-  const d = new Date(iso);
-  return `${DAYS[d.getUTCDay()]} ${String(d.getUTCHours()).padStart(2, "0")}:00 UTC`;
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: PLACE_ZONE, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short" }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("weekday")} ${get("hour")}:${get("minute")} ${get("timeZoneName")}`;
 }
 
 /**

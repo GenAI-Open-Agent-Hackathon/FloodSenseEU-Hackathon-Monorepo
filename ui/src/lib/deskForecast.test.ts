@@ -14,7 +14,7 @@ const val = { id: "valencia:VAL01" };
 describe("forecastLine", () => {
   it("rising names the peak time, with no numbers", () => {
     const line = forecastLine(val, [pt(10, 30, "up")]);
-    expect(line).toBe("Water is rising and may peak around Fri 05:00 UTC.");
+    expect(line).toBe("Water is rising and may peak around Fri 06:00 CET.");
     expect(line).not.toMatch(/\d\d\s?m/);
   });
   it("falling and steady", () => {
