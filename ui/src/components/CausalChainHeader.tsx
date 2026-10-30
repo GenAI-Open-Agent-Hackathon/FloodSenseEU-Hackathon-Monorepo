@@ -12,6 +12,7 @@ import { ReviewColumn } from "./ReviewColumn";
 import { plainLanguage } from "../lib/plain";
 import { routeHref } from "../lib/route";
 
+/** Id of the bundled recording (fixtures/run_f16733274f1c.json). The API may list the same id; Review never picks it as a "real" run. */
 export const SAMPLE_RUN_ID = "f16733274f1c";
 
 /** The bundled recorded run (f16733274f1c, one revise and one repair round). Always a replay. */

@@ -28,7 +28,7 @@ flowchart LR
   PG -- rank top-k --> I
   NS[Nightshift<br/>meterless/fast, meterless/deep] --- I
   NS --- J
-  NB[Nebius Token Factory<br/>optional, LLM_BACKEND=nebius] -.-> I
+  NB[Nebius Token Factory<br/>default, LLM_BACKEND=nebius] -.-> I
   ENG[Engines: H-MEM, World Model] --- I
   L --> ENG
   API[API: cache, replay, rate limits] --> S
@@ -64,7 +64,7 @@ flowchart LR
 
 ## Web context (Tavily)
 
-`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`. The snippet and title pass through `tavily.clean` first (digits and units replaced by `[n]`, control characters, markup, quotes and newlines stripped, length capped) and sit only inside a quoted excerpt, so web text can neither supply a figure the Judge would skip nor act as instructions. The Investigator records the call as a `tavily` trace entry (query, result count, latency, cached yes/no, no key) and hands the cleaned snippets to the Skeptic through `state["web"]`. The Skeptic asks the fast lane whether a web snippet supports, contradicts or is neutral on one alert-timing or status claim; the reply is accepted only with a verdict from that set and a URL that is one of the snippets, and appears as `web_check <verdict> <claim> <url>` in the Skeptic trace. It never flips a hypothesis verdict. With the flag off or the call unavailable the check does not run. The UI lists web citations in the evidence drawer and shows a Tavily tile in the "How this answer was made" panel.
+`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`. The snippet and title pass through `tavily.clean` first (digits and units replaced by `[n]`, control characters, markup, quotes and newlines stripped, length capped) and sit only inside a quoted excerpt, so web text can neither supply a figure the Judge would skip nor act as instructions. The Investigator records the call as a `tavily` trace entry (query, result count, latency, cached yes/no, no key) and hands the cleaned snippets to the Skeptic through `state["web"]`. The Skeptic asks the fast lane whether a web snippet supports, contradicts or is neutral on one alert-timing or status claim; the reply is accepted only with a verdict from that set and a URL that is one of the snippets, and appears as `web_check <verdict> <claim> <url>` in the Skeptic trace. It never flips a hypothesis verdict. With the flag off or the call unavailable the check does not run. The UI lists web citations in the evidence drawer and shows a Tavily tile in the "How this answer was made" panel; with `LLM_BACKEND=nebius` the model tile is named Nebius Token Factory and lists per-run calls, tokens and cost (price not configured unless set).
 
 ## Live mode
 
@@ -96,7 +96,7 @@ flowchart LR
 
 - No "Live" chip unless the answer is live (`ui/src/components/Banners.tsx`, `AskFloodSense.tsx`, `api/app/main.py`).
 - The insurer portfolio is labelled synthetic in the data (`zetaris/migrations/018_label_exposure_synthetic.sql`) and the UI (`ui/src/components/Portfolio.tsx`).
-- Every chat completion goes through Meterless Nightshift; there is no alternative provider path (`agents/floodsense_agents/nightshift.py`, [ADR 0004](../adr/0004-nightshift-only-llm-calls.md)).
+- Every chat completion goes through one backend: Nebius Token Factory by default, or Meterless Nightshift with `LLM_BACKEND=nightshift` (no other provider path; `agents/floodsense_agents/nightshift.py`, [ADR 0004](../adr/0004-nightshift-only-llm-calls.md), written when Nightshift was the only path).
 
 ## Test counts
 
@@ -114,4 +114,4 @@ CI runs the same suites with `python tasks.py test` on every pull request.
 
 ## Model-call evidence (Nebius backend)
 
-Every model call passes `NightshiftClient._send`, which records the reply's `usage` per lane and model id into a per-run meter (`usage` on the run result) and a process meter (`/platform/status`). `check-llm` proves each lane answers with a Nemotron model id. Cost is computed only from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`; none are built in. Paced by `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY`. Offline-tested; not yet run against the live API.
+Every model call passes `NightshiftClient._send`, which records the reply's `usage` per lane and model id into a per-run meter (`usage` on the run result) and a process meter (`/platform/status`). `check-llm` proves each lane answers with a Nemotron model id. Cost is computed only from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`; none are built in. Paced by `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY`. Verified live on 30 Oct 2026: lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 full lane 148 s (12 calls, 44,569 tokens); Valencia EMSR773 281 s (14 calls, 40,370 tokens); every claim judged. Unit tests use fakes.
