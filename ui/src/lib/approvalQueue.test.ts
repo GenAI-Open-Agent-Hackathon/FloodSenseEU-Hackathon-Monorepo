@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { adoptPastRuns, approvalHeader, buildQueue, eventLabel, completedFullRuns, curateQueue, earlierText, isSmallTalk, pickSelection, preferJudgePass, queueRowLine, readHidden, utcStamp, writeHidden } from "./approvalQueue";
 
+import type { RecordedRun } from "../api/replay";
+import { loadNewestRun } from "../components/CausalChainHeader";
 import realPast from "../fixtures/runs_past_real.json";
 
 const PAST = {
@@ -263,5 +265,16 @@ describe("event label, Valencia scope, newest run", () => {
     expect(completedFullRuns(real, "past", "EMSR517", "f16733274f1c")[0].runId).toBe("438fbad8e8e2");
     // Answered forecast runs are never offered.
     expect(live).not.toContain("40e0b5838c31");
+  });
+  it("loadNewestRun: an aborted first fetch retries the next candidate; all failing is reported, not hidden", async () => {
+    const real = adoptPastRuns(realPast);
+    const ok = (id: string) => ({ runId: id }) as unknown as RecordedRun;
+    const tried: string[] = [];
+    const got = await loadNewestRun(real, "live", "EMSR773", async (id) => (tried.push(id), tried.length === 1 ? null : ok(id)));
+    expect(tried.length).toBe(2);
+    expect(got.run?.runId).toBe(tried[1]);
+    const none = await loadNewestRun(real, "live", "EMSR773", async () => null);
+    expect(none).toEqual({ run: null, failedId: expect.any(String) });
+    expect(await loadNewestRun([], "live", "EMSR773", async () => null)).toEqual({ run: null, failedId: null });
   });
 });

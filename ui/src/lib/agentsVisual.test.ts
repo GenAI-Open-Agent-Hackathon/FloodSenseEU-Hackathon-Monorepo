@@ -243,8 +243,8 @@ describe("replay sources and labels", () => {
     expect(d).toContain("Peak discharge 249.6 m³/s on 14 Jul 2021");
     expect(d).toContain("Crossed the line on 14 Jul 2021 (daily value)");
     expect(causalChainNote({ kind: "bundled" })).toMatch(/Bundled recording/);
-    expect(causalChainNote({ kind: "failed", id: "abc" })).toMatch(/Could not load recorded run abc/);
-    expect(causalChainNote({ kind: "configured", id: "abc" })).toBeNull();
+    expect(causalChainNote({ kind: "failed", id: "abc" })).toMatch(/Could not load run abc/);
+    expect(causalChainNote({ kind: "configured", id: "abc" })).toMatch(/Pinned recording abc/);
     expect(causalChainNote({ kind: "looking", label: "Valencia 2024" })).toMatch(/Looking for the newest/);
     expect(causalChainNote({ kind: "none", label: "Valencia 2024" })).toMatch(/^Sample, not a real run/);
   });
