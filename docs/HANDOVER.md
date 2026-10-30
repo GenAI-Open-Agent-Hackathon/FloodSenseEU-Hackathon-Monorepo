@@ -71,8 +71,8 @@ Workflow used: branch, coding agent, independent review agent, review findings a
 - 18 routes across the three desks (the main pages of each) were checked at 375 px with no horizontal scroll; the full navigation has 20 pages.
 
 ### Known bugs and weak spots
+- First load of live pages took 5-10 s because the Zetaris views were cold. The cold latency is server side (a client prefetch did not help). The API now prewarms the views cache at startup and refreshes it in the background (`VIEWS_PREWARM_INTERVAL_S`, default 120 s, floor 30, 0 off). Not reproduced: the cold 5-10 s was not seen because the running API (an older build with the startup fill only) was already warm. Warm numbers only: `/views/gauge_levels` 0.49 s, then 0.06 s and 0.007 s; `/views/eu_watch` 0.005 s. Re-measure the cold case after a clean `up`.
 - Insurer "Now" page is dense.
-- First load of live pages takes 5-10 s (Zetaris views are queried one by one).
 - Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Tavily live call and the hosted Nebius VM kit are unverified (offline tests only).
 - The `py` launcher may be broken on the dev machine; use `python tasks.py ...`.
