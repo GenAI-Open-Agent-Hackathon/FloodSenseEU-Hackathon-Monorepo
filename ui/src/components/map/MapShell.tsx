@@ -2,11 +2,11 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Map as MlMap, MapLayerMouseEvent } from "maplibre-gl";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import "../../styles/map3d.css";
 import { boundsOf } from "../../lib/events";
+import { DIAL_ZOOM, gaugePinEl } from "./gaugePin";
 import {
-  columnsGeoJson,
   failMapMode,
-  flatGeoJson,
   readMapMode,
   writeMapMode,
   type ExtraPoint,
@@ -17,6 +17,13 @@ import {
 export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 /** Free Terrarium elevation tiles (AWS Open Data, no key) for the 3D relief. */
 const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+/** Free vector tiles (OpenFreeMap, OpenMapTiles schema, no key) for the animated rivers and lakes. */
+const WATER_URL = "https://tiles.openfreemap.org/planet";
+/** Dash patterns that, played in order, make a line look like it flows. */
+const FLOW_FRAMES = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+];
 export const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
 
@@ -95,7 +102,7 @@ export function MapShell(props: MapShellProps) {
         )}
         {use3d && (
           <span className="muted small">
-            Column height shows band order, not a measured value. Hover for status
+            Pin colour shows the band; the dial fill shows band order, not a measured value. Zoom in to open the dial. Hover for status
             {props.onSelect ? "; for keyboard access use the point selector or list." : "."}
           </span>
         )}
@@ -160,10 +167,12 @@ const FALLBACK_VIEW: Bounds = [
 ];
 
 function Map3D(props: MapShellProps & { onFail: () => void }) {
-  const { ariaLabel, attribution, fit, fit3d, points3d, extra3d, selectedId, onSelect, columnDeg, onFail } = props;
+  const { ariaLabel, attribution, fit, fit3d, points3d, extra3d, selectedId, onSelect, onFail } = props;
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
+  const markers = useRef<{ remove(): void }[]>([]);
+  const mlRef = useRef<typeof import("maplibre-gl") | null>(null);
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
   const onSelectSet = useRef(!!onSelect);
@@ -177,6 +186,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     let dead = false;
     let map: MlMap | null = null;
     let loaded = false;
+    let cleanup = () => {};
     (async () => {
       try {
         const [ml, worker] = await Promise.all([
@@ -186,64 +196,110 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
         ]);
         // Dev pre-bundling serves the worker with no MIME type; point at the asset URL instead.
         ml.setWorkerUrl(worker.default);
+        mlRef.current = ml;
         const container = ref.current;
         if (dead || !container) return;
         map = new ml.Map({
           container,
           attributionControl: false,
           cooperativeGestures: true,
-          pitch: 55,
+          pitch: 60,
+          maxPitch: 78,
           bearing: -12,
           style: {
             version: 8,
             sources: {
               osm: { type: "raster", tiles: [TILE_URL], tileSize: 256, maxzoom: 18 },
               dem: { type: "raster-dem", tiles: [DEM_URL], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
+              shade: { type: "raster-dem", tiles: [DEM_URL], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
+              ofm: { type: "vector", url: WATER_URL },
             },
             layers: [
               { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.25, "raster-brightness-max": 0.9 } },
               {
                 id: "hills",
                 type: "hillshade",
-                source: "dem",
+                source: "shade",
                 paint: { "hillshade-exaggeration": 0.7, "hillshade-shadow-color": "#1b2b3a", "hillshade-highlight-color": "#ffffff" },
               },
             ],
             terrain: { source: "dem", exaggeration: 1.8 },
+            sky: {
+              "sky-color": "#6fb4ff",
+              "horizon-color": "#d9ecff",
+              "fog-color": "#e8f2fb",
+              "sky-horizon-blend": 0.6,
+              "horizon-fog-blend": 0.7,
+              "fog-ground-blend": 0.35,
+            },
           },
         });
         map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · Terrain: Mapzen / AWS Open Data · ${attribution}` }));
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-left");
         const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), 15000);
-        map.on("error", () => !loaded && !dead && failRef.current());
+        map.on("error", (e) => (e as { sourceId?: string }).sourceId !== "ofm" && !loaded && !dead && failRef.current());
         const popup = new ml.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
         map.on("load", () => {
           if (dead || !map) return;
           const empty = { type: "FeatureCollection" as const, features: [] };
-          map.addSource("columns", { type: "geojson", data: empty });
           map.addSource("extra", { type: "geojson", data: empty });
           map.addLayer({ id: "extra", type: "circle", source: "extra", paint: { "circle-radius": 3, "circle-color": "#3a5a8c", "circle-opacity": 0.8 } });
+          const widths = ["interpolate", ["exponential", 1.4], ["zoom"], 5, 0.8, 9, 2.4, 13, 7, 16, 16] as never;
+          map.addLayer({ id: "lakes", type: "fill", source: "ofm", "source-layer": "water", paint: { "fill-color": "#3f86d6", "fill-opacity": 0.7 } });
           map.addLayer({
-            id: "columns",
-            type: "fill-extrusion",
-            source: "columns",
-            paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "height"], "fill-extrusion-opacity": 0.88 },
+            id: "rivers",
+            type: "line",
+            source: "ofm",
+            "source-layer": "waterway",
+            filter: ["in", ["get", "class"], ["literal", ["river", "canal"]]],
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "#2f7fd0", "line-width": widths, "line-opacity": 0.9 },
           });
-          map.on("click", "columns", (e: MapLayerMouseEvent) => {
-            const id = e.features?.[0]?.properties?.id;
-            if (typeof id === "string") selectRef.current?.(id);
+          map.addLayer({
+            id: "streams",
+            type: "line",
+            source: "ofm",
+            "source-layer": "waterway",
+            minzoom: 11,
+            filter: ["in", ["get", "class"], ["literal", ["stream", "ditch", "drain"]]],
+            paint: { "line-color": "#4d96e0", "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.8, 16, 4] as never, "line-opacity": 0.8 },
           });
-          map.on("mousemove", "columns", () => (map!.getCanvas().style.cursor = onSelectSet.current ? "pointer" : ""));
-          map.on("mouseleave", "columns", () => (map!.getCanvas().style.cursor = ""));
-          map.addSource("flat", { type: "geojson", data: empty });
-          map.addLayer({ id: "flat", type: "circle", source: "flat", paint: { "circle-radius": 4, "circle-color": ["get", "color"], "circle-stroke-width": 1, "circle-stroke-color": "#ffffff" } });
-          for (const layerId of ["columns", "flat", "extra"]) {
-            map.on("mousemove", layerId, (e: MapLayerMouseEvent) => {
-              const label = e.features?.[0]?.properties?.label;
-              if (typeof label === "string") popup.setLngLat(e.lngLat).setText(label).addTo(map!);
-            });
-            map.on("mouseleave", layerId, () => popup.remove());
-          }
+          map.addLayer({
+            id: "flow",
+            type: "line",
+            source: "ofm",
+            "source-layer": "waterway",
+            minzoom: 8,
+            filter: ["in", ["get", "class"], ["literal", ["river", "canal", "stream"]]],
+            paint: {
+              "line-color": "#d4ecff",
+              "line-width": ["interpolate", ["exponential", 1.4], ["zoom"], 8, 0.7, 13, 3, 16, 6] as never,
+              "line-opacity": 0.85,
+              "line-dasharray": FLOW_FRAMES[0],
+            },
+          });
+          map.on("mousemove", "extra", (e: MapLayerMouseEvent) => {
+            const label = e.features?.[0]?.properties?.label;
+            if (typeof label === "string") popup.setLngLat(e.lngLat).setText(label).addTo(map!);
+          });
+          map.on("mouseleave", "extra", () => popup.remove());
+          const near = () => map!.getContainer().classList.toggle("map3d--near", map!.getZoom() >= DIAL_ZOOM);
+          map.on("zoom", near);
+          near();
+          const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+          let step = -1;
+          let raf = 0;
+          const tick = (now: number) => {
+            if (dead || !map) return;
+            const next = Math.floor(now / 90) % FLOW_FRAMES.length;
+            if (!still && next !== step && map.getZoom() >= 8 && !document.hidden) {
+              step = next;
+              map.setPaintProperty("flow", "line-dasharray", FLOW_FRAMES[next]);
+            }
+            raf = requestAnimationFrame(tick);
+          };
+          raf = requestAnimationFrame(tick);
+          cleanup = () => cancelAnimationFrame(raf);
           loaded = true;
           window.clearTimeout(loadTimer);
           mapRef.current = map;
@@ -255,6 +311,7 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
     })();
     return () => {
       dead = true;
+      cleanup();
       setReady(false);
       mapRef.current = null;
       map?.remove();
@@ -264,9 +321,24 @@ function Map3D(props: MapShellProps & { onFail: () => void }) {
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    (map.getSource("columns") as { setData(d: unknown): void } | undefined)?.setData(columnsGeoJson(points3d, selectedId, columnDeg));
-    (map.getSource("flat") as { setData(d: unknown): void } | undefined)?.setData(flatGeoJson(points3d));
-  }, [ready, points3d, selectedId, columnDeg]);
+    for (const m of markers.current) m.remove();
+    const maxRank = Math.max(2, ...points3d.map((p) => p.rank));
+    markers.current = points3d
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+      .slice(0, 300)
+      .map((p) => {
+        const el = gaugePinEl(p, (p.rank + 1) / (maxRank + 1), p.id === selectedId);
+        const act = () => selectRef.current?.(p.id);
+        el.addEventListener("click", act);
+        el.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), act()));
+        el.title = p.rank >= 0 ? p.label : `${p.label} · no reading`;
+        return new mlRef.current!.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
+      });
+    return () => {
+      for (const m of markers.current) m.remove();
+      markers.current = [];
+    };
+  }, [ready, points3d, selectedId]);
 
   useEffect(() => {
     const map = mapRef.current;
