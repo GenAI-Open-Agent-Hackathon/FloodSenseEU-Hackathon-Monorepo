@@ -29,6 +29,14 @@
 			}
 		}
 
+		# ui-eu, the role-based interface (ui-eu/README.md). Plain files, not fingerprinted.
+		redir /eu /eu/ 308
+		handle_path /eu/* {
+			root * /srv-eu
+			header Cache-Control "no-store"
+			file_server
+		}
+
 		# Production UI build baked into the image, SPA fallback to index.html.
 		handle {
 			root * /srv
