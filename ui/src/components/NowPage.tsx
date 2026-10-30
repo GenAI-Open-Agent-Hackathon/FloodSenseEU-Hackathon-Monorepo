@@ -13,6 +13,9 @@ import { ImpactStrip } from "./ImpactStrip";
 import { citizenChips, FACTS, GOALS } from "../lib/impact";
 import { forecastLine } from "../lib/deskForecast";
 import { InsurerNowPage } from "./InsurerNowPage";
+import { useStackData } from "../hooks/useStackData";
+import { AgentsLive } from "./agents/AgentsLive";
+import { WebCheckCard } from "./desk/WebCheck";
 import { DeskCard, DeskHead, DeskPage, EvidenceRow, ForecastCard, HazardLead } from "./desk/DeskPage";
 import { evidenceFor, PlacesToWatch } from "./PlacesToWatch";
 
@@ -36,6 +39,7 @@ export function NowPage() {
  */
 function CitizenNowPage() {
   const { openAsk, openLiveEvidence, placeId, demo } = useConsole();
+  const stack = useStackData();
   const ctx = useCitizenPlace();
   const live = ctx.live;
   const [clock, setClock] = useState(() => Date.now());
@@ -134,7 +138,13 @@ function CitizenNowPage() {
           </DeskCard>
         </>
       }
-      evidence={evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
+      evidence={
+        <>
+          {evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
+          <WebCheckCard stack={stack} desk="citizen" />
+        </>
+      }
+      agents={<AgentsLive stack={stack} compact />}
       actions={
         <div className="card desk-card">
           <PlacesToWatch live={live} onAsk={ask} start={2} exclude={lead?.id ?? null} />

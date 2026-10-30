@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useStackData } from "../hooks/useStackData";
+import { AgentsLive } from "./agents/AgentsLive";
+import { WebCheckCard } from "./desk/WebCheck";
 import { loadForecast, type ForecastLoad } from "../api/operatorForecast";
 import { useConsole } from "../context/ConsoleContext";
 import { useLiveWatch } from "../hooks/useLiveWatch";
@@ -133,7 +136,9 @@ export function OperatorSituation() {
   const langs = languagesFor(focus?.country ?? "DE");
   const activeLang: Lang = langs.includes(lang) ? lang : "en";
 
+  const stack = useStackData();
   const shell: DeskSlots = {
+    agents: <AgentsLive stack={stack} compact />,
     impact: <ImpactStrip goal={GOALS.operator} chips={operatorChips(live.sources, demo ? null : pending)} fact={FACTS.operator} />,
     head: (
       <DeskHead
@@ -237,6 +242,7 @@ export function OperatorSituation() {
   return (
     <FocusBrief
       shell={{ ...shell, health }}
+      web={<WebCheckCard stack={stack} desk="operator" />}
       s={focus}
       group={group}
       outlook={outlook}
@@ -290,6 +296,7 @@ function RiverRow({
 
 function FocusBrief({
   shell,
+  web,
   s,
   group,
   outlook,
@@ -301,6 +308,7 @@ function FocusBrief({
   coverage,
 }: {
   shell: DeskSlots;
+  web: ReactNode;
   coverage: Coverage;
   s: WatchSource;
   group: ReturnType<typeof buildRiverGroups>[number];
@@ -397,6 +405,7 @@ function FocusBrief({
       evidence={
         <>
           <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />
+          {web}
           <DeskCard label="What has happened here before" title="The past, with its source">
             {outlook.state !== "ready" ? (
               <p className="note">{outlook.state === "unavailable" ? "Not available while the outlook is not." : "Loading…"}</p>

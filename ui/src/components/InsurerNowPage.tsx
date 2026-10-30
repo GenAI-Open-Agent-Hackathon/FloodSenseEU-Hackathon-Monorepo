@@ -8,6 +8,9 @@ import { buildSources, fromValencia, valenciaCuts } from "../lib/euWatch";
 import { worstFirst } from "../lib/places";
 import { routeHref } from "../lib/route";
 import { evidenceFor } from "./PlacesToWatch";
+import { useStackData } from "../hooks/useStackData";
+import { AgentsLive } from "./agents/AgentsLive";
+import { WebCheckCard } from "./desk/WebCheck";
 import { DeskCard, DeskHead, DeskPage, EvidenceRow, ForecastCard, HazardLead } from "./desk/DeskPage";
 import { summariseGauges } from "../lib/gauges";
 import { latestPastStamp, relativeTime, sparkSeries, summariseAll, type PointNow, type Trend } from "../lib/now";
@@ -54,6 +57,7 @@ const TREND_TEXT: Record<Trend, { arrow: string; label: string }> = {
  */
 export function InsurerNowPage() {
   const { points, openAsk, openLiveEvidence, demo, reportChecked, exposure } = useConsole();
+  const stack = useStackData();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const gauges = useGaugeLevels(0, demo);
   const lastDemo = useRef(demo);
@@ -205,7 +209,13 @@ export function InsurerNowPage() {
           <EuWatchSection sources={watchSources} model={euWatch} />
         </>
       }
-      evidence={evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
+      evidence={
+        <>
+          {evidence && <EvidenceRow evidence={evidence} onOpen={() => openLiveEvidence(evidence)} />}
+          <WebCheckCard stack={stack} desk="insurer" />
+        </>
+      }
+      agents={<AgentsLive stack={stack} compact />}
       actions={
         <DeskCard label="Exposure and approvals">
           <ul className="impact-chips">
