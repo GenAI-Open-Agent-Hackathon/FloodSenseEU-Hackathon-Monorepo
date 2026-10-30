@@ -1,0 +1,16 @@
+# compose.eu.yaml: the ui-eu interface next to the dev stack, on the same API.
+#   docker compose -f compose.yaml -f compose.eu.yaml up -d
+# Then open http://127.0.0.1:15180. The UI needs no build step.
+
+services:
+  ui-eu:
+    image: caddy:2-alpine
+    volumes:
+      - ./ui-eu/web:/srv:ro
+      - ./ui-eu/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:${FLOODSENSE_EU_UI_PORT:-15180}:8080"
+    depends_on:
+      - api
+    networks:
+      - floodsense

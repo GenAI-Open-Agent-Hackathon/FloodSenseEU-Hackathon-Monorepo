@@ -1,0 +1,17 @@
+# ui-eu: the plain HTML/CSS/JS interface, and the team's API under /api.
+:8080 {
+	encode zstd gzip
+
+	handle_path /api/* {
+		reverse_proxy {$API_UPSTREAM:api:8000} {
+			flush_interval -1
+		}
+	}
+
+	# The files are not fingerprinted, so nothing is cached.
+	handle {
+		root * /srv
+		header Cache-Control "no-store"
+		file_server
+	}
+}
