@@ -11,7 +11,7 @@ Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `m
 ## What the 3D view does and does not show
 
 - Hover labels carry the status word and "not live (stale or seed)" for non-live sources; insured-site circles are labelled "(synthetic)", as in the 2D tooltips.
-- A point with no reading (gauge status unknown, or no discharge value) gets a hollow grey pin labelled "no reading".
+- A point with no reading (gauge status unknown, or no discharge value) gets a faded grey pin with no pulse, labelled "no reading".
 - Pin colour is the band; the dial fill is the band **order** (low, typical, elevated, peak; ok, near, over), never a measured value. The legend and the sentence next to the toggle say so.
 - Colours stay amber for every model band, never red. Gauge "over MHW" uses the dark amber too.
 - Relief is real but exaggerated (1.8x) so mountains and valleys read; the sentence next to the toggle says so. Rivers and lakes are drawn from free OpenFreeMap vector tiles, decoration only, not a hydrological model. If those tiles fail the map keeps working without them.
