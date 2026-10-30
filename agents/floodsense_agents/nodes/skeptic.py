@@ -364,6 +364,24 @@ def _web_prompt(claim: dict, items: list[dict]) -> str:
     return f"CLAIM {claim['claim_id']}: {claim['text']}\n{rows}"
 
 
+_AHR = ("ahr", "ahrtal", "ahrweiler", "altenahr")
+
+
+def _fold(s: str) -> str:
+    import unicodedata
+
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+
+
+def _names_place(place: str, text: str) -> bool:
+    """Whole-word, case/diacritic-insensitive. Unknown (empty) place never matches."""
+    p = _fold(place).strip()
+    if not p:
+        return False
+    names = _AHR if p in _AHR else (p,)
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", _fold(text)) for n in names)
+
+
 def _web_check(deps: Deps, state: FloodState) -> dict | None:
     """Does web context support or contradict ONE alert-timing/status claim? Silent when off.
 
@@ -386,9 +404,15 @@ def _web_check(deps: Deps, state: FloodState) -> dict | None:
     url = str(js.get("url") or "")
     if js.get("verdict") not in ("supports", "contradicts", "neutral") or url not in {i["url"] for i in items}:
         return None
+    verdict = js["verdict"]
+    place = str(((state.get("request") or {}).get("context") or {}).get("place") or "").strip().lower()
+    page = next(i for i in items if i["url"] == url)
+    # Conservative: a page that never names the place cannot support or contradict a claim about it.
+    if verdict != "neutral" and not _names_place(place, f'{page.get("title", "")} {page.get("text", "")}'):
+        verdict = "neutral"
     return {
         "claim_id": claim["claim_id"],
-        "verdict": js["verdict"],
+        "verdict": verdict,
         "url": url,
         "note": str(js.get("note") or "")[:160],
         "label": "Web context, not an official warning",

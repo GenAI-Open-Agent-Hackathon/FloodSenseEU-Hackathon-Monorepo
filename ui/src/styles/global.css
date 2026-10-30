@@ -1172,3 +1172,6 @@ a.button.primary { color: #f4fffc; }
 .impact-goal { margin: 0.25rem 0 0.5rem; font-weight: 600; }
 .impact-chips { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; }
 .impact-why { margin: 0.5rem 0 0; }
+
+/* Map shell: 2D / 3D toggle row above the map */
+.map-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.4rem; }
