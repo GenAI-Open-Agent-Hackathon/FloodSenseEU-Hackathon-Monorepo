@@ -34,8 +34,10 @@ EXCLUDE_DOMAINS = [
     "youtube.com", "reddit.com", "threads.net", "linkedin.com", "pinterest.com",
 ]
 _lock = threading.Lock()
-_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+_cache: dict[tuple[str, str], tuple[float, list[dict], str]] = {}
 _last_call = 0.0
+# Process counters for /config -> /platform/status. Never holds the key.
+_stats = {"calls": 0, "cache_hits": 0, "live_calls": 0, "live_ms": 0, "last_status": None, "last_error": None, "last_at": None}
 
 
 @dataclass
@@ -46,6 +48,7 @@ class WebResult:
     query: str = ""
     latency_ms: int = 0
     cached: bool = False
+    retrieved_at: str = ""  # UTC ISO of the live fetch (kept on cache hits)
 
 
 def _ms(t0: float) -> int:
@@ -56,7 +59,32 @@ def _query(place: str) -> str:
     return f"{place} flood warning current"
 
 
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def stats() -> dict:
+    """Counters since process start: calls, cache hits, avg live latency, last status and error reason."""
+    with _lock:
+        s = dict(_stats)
+    n = s.pop("live_calls")
+    ms = s.pop("live_ms")
+    return {**s, "avg_latency_ms": round(ms / n) if n else None}
+
+
 def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebResult:
+    res = _search(place, transport=transport)
+    with _lock:
+        _stats["calls"] += 1
+        _stats["cache_hits"] += int(res.cached)
+        if not res.cached and res.latency_ms:
+            _stats["live_calls"] += 1
+            _stats["live_ms"] += res.latency_ms
+        _stats.update(last_status=res.status, last_at=_now(), last_error=res.reason or None if res.status == "unavailable" else None)
+    return res
+
+
+def _search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebResult:
     global _last_call
     key = settings.tavily_api_key
     if not key:
@@ -66,7 +94,7 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
     with _lock:
         hit = _cache.get(ck)
         if hit and now - hit[0] < TTL_S:
-            return WebResult("ok" if hit[1] else "empty", hit[1], query=_query(place), cached=True)
+            return WebResult("ok" if hit[1] else "empty", hit[1], query=_query(place), cached=True, retrieved_at=hit[2])
         if now - _last_call < MIN_GAP_S:
             return WebResult("unavailable", reason="rate guard")
         _last_call = now
@@ -91,6 +119,7 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
     except Exception as exc:  # timeout, transport, bad JSON
         log.warning("tavily unavailable: %s", type(exc).__name__)
         return WebResult("unavailable", reason=type(exc).__name__, query=_query(place), latency_ms=_ms(t0))
+    got_at = _now()
     items = [
         {"title": str(x.get("title") or ""), "url": x["url"], "content": str(x.get("content") or "")}
         for x in raw
@@ -99,8 +128,8 @@ def search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebRe
         and str(x.get("content") or "").strip()
     ]
     with _lock:
-        _cache[ck] = (time.monotonic(), items)
-    return WebResult("ok" if items else "empty", items, query=_query(place), latency_ms=_ms(t0))
+        _cache[ck] = (time.monotonic(), items, got_at)
+    return WebResult("ok" if items else "empty", items, query=_query(place), latency_ms=_ms(t0), retrieved_at=got_at)
 
 
 _NUM = re.compile(r"\d[\d.,:/-]*\s*[A-Za-zµ%°]*")
@@ -160,4 +189,27 @@ def tavily_state(res: WebResult) -> dict:
         {"title": clean(i["title"], 80), "url": i["url"], "text": clean(i["content"], 300)}
         for i in res.items
     ]
-    return {"status": res.status, "query": res.query, "latency_ms": res.latency_ms, "cached": res.cached, "items": items}
+    return {
+        "status": res.status,
+        "query": res.query,
+        "latency_ms": res.latency_ms,
+        "cached": res.cached,
+        "retrieved_at": res.retrieved_at or None,
+        "items": items,
+    }
+
+
+def live_check() -> dict:
+    """One tiny search for readiness: {configured, ok, status, n_results, latency_ms, error}. Never the key."""
+    if not settings.tavily_api_key:
+        return {"configured": False, "ok": False, "status": "unavailable", "n_results": 0, "latency_ms": 0, "error": "TAVILY_API_KEY not set"}
+    r = search("Valencia")
+    return {
+        "configured": True,
+        "ok": r.status in ("ok", "empty"),
+        "status": r.status,
+        "n_results": len(r.items),
+        "latency_ms": r.latency_ms,
+        "cached": r.cached,
+        "error": r.reason or None,
+    }

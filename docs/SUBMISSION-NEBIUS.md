@@ -61,7 +61,7 @@ FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANG
 | English description | Section 1. |
 | Feedback on Token Factory / AI Cloud / NVIDIA models | Draft in section 3. |
 | Note on what was updated in the submission period (26 Aug to 30 Oct 2026) | Section 1.5. |
-| Tavily bonus (functional runtime call) | Code on main, default off. Live call: TO VERIFY (no Tavily key configured yet). |
+| Tavily bonus (functional runtime call) | Code on main, default off. Live call verified 30 Oct 2026 through `floodsense_agents.tavily.search`: HTTP 200, 3 results in 2.3 s (Valencia) and 4.9 s (Ahr). Result relevance to the named place was poor in that sample (snippets were about other regions); no full run with Tavily measured yet. |
 
 Nebius's Legal Quick Guide says inputs and outputs "may be stored and used for Speculative Decoding" by default, that "the inputs and outputs retained for Speculative Decoding are stored in Finland (EU)", and that enabling Zero Data Retention in account settings stops this ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. To confirm (not claimed anywhere): EU-only inference on public endpoints (the same docs say the processing region of public endpoints can change), and Nebius AI Cloud hosting details.
 

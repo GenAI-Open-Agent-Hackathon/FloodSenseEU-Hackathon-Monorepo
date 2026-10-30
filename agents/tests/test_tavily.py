@@ -118,6 +118,24 @@ class TavilyTest(unittest.TestCase):
             body = TestClient(service.app).get("/config").json()
         self.assertIs(body["tavily"], True)
         self.assertNotIn("tvly", json.dumps(body))
+    def test_stats_retrieved_at_and_live_check(self):
+        for k in ("calls", "cache_hits", "live_calls", "live_ms"):
+            tavily._stats[k] = 0
+        r = tavily.search("Koeln", transport=mock(lambda q: httpx.Response(200, json=OK)))
+        self.assertRegex(r.retrieved_at, r"^\d{4}-\d\d-\d\dT")
+        c = tavily.search("Koeln")  # cache hit keeps the live fetch time
+        self.assertTrue(c.cached)
+        self.assertEqual(c.retrieved_at, r.retrieved_at)
+        st = tavily.stats()
+        self.assertEqual((st["calls"], st["cache_hits"], st["last_status"]), (2, 1, "ok"))
+        self.assertNotIn("tvly-test", repr(st))
+        self.assertEqual(tavily.tavily_state(r)["retrieved_at"], r.retrieved_at)
+        tavily._cache.clear()
+        tavily._last_call = 0.0
+        tavily.search("Koeln", transport=mock(lambda q: httpx.Response(500)))
+        self.assertEqual(tavily.stats()["last_error"], "HTTP 500")
+        settings.tavily_api_key = None
+        self.assertEqual(tavily.live_check()["configured"], False)
 
     def test_flag_default_off(self):
         self.assertFalse(settings.ff_tavily)

@@ -13,6 +13,16 @@ export interface PlatformStatus {
   lanes: Record<string, string>;
   dataBackend: "zetaris" | "local" | string;
   tavily: boolean;
+  /** Tavily web-evidence counters (agents process); null if the agents are older. Never the key. */
+  tavilyStatus: {
+    enabled: boolean;
+    keyConfigured: boolean;
+    calls: number;
+    cacheHits: number;
+    avgLatencyMs: number | null;
+    lastStatus: "ok" | "empty" | "unavailable" | null;
+    lastError: string | null;
+  } | null;
   latency: Record<string, LaneLatency>;
   cache: { backend: string | null; hits: number; misses: number; hitRate: number | null };
   rateLimit: { inFlight: number; maxConcurrent: number; runsPerMin: number; recent429: number; total429: number };
@@ -38,6 +48,21 @@ function parseCheck(v: unknown): PlatformStatus["llmCheck"] {
     lanes[k] = { ok: o.ok === true, modelId: str(o.model_id), latencyMs: n0(o.latency_ms) };
   }
   return { ok: c.ok === true, lanes };
+}
+
+function parseTavily(v: unknown): PlatformStatus["tavilyStatus"] {
+  const t = obj(v);
+  if (!Object.keys(t).length) return null;
+  const ls = t.last_status;
+  return {
+    enabled: t.enabled === true,
+    keyConfigured: t.key_configured === true,
+    calls: n0(t.calls),
+    cacheHits: n0(t.cache_hits),
+    avgLatencyMs: num(t.avg_latency_ms),
+    lastStatus: ls === "ok" || ls === "empty" || ls === "unavailable" ? ls : null,
+    lastError: str(t.last_error),
+  };
 }
 
 function parseUsage(v: unknown): PlatformStatus["llmUsage"] {
@@ -69,6 +94,7 @@ export function parsePlatformStatus(body: unknown): PlatformStatus | null {
     lanes,
     dataBackend: str(b.data_backend) ?? "zetaris",
     tavily: b.tavily === true,
+    tavilyStatus: parseTavily(b.tavily_status),
     latency,
     cache: { backend: str(cache.backend), hits: n0(cache.hits), misses: n0(cache.misses), hitRate: num(cache.hit_rate) },
     rateLimit: {

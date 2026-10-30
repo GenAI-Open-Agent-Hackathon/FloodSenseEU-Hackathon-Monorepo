@@ -11,6 +11,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
+### Added
+
+- Tavily run data: each run's API answer carries `web_context` (status ok|empty|unavailable, place-only query, n_results, latency_ms, cached, retrieved_at, results url/title/retrieved_at, and the Skeptic `web_check` verdict) in the JSON schema, Python and TS contracts. `/config` and `GET /platform/status` add `tavily_status` (enabled, key_configured boolean, calls, cache_hits, avg_latency_ms, last_status, last_error; never the key). `POST /llm/check` and `python tasks.py check-llm` also run one tiny Tavily search when `FF_TAVILY` is on and report it under `tavily` (not gating).
+
 ### Fixed
 
 - First load of live pages: the API prewarms the views cache (`gauge_levels`, `eu_watch`, `hazard_now` and the other live views) in a background task at startup and re-checks it every `VIEWS_PREWARM_INTERVAL_S` seconds (default 120, floor 30, 0 = no refresh), calling a view only near its TTL (Open-Meteo views about once per 600 s) with a doubling failure backoff (cap 1 h). It uses the cache single flight, keeps stale-if-error, never relabels a copy (original `x-query-id` and age stay), and calls views 5 s apart for the Open-Meteo free tier.
