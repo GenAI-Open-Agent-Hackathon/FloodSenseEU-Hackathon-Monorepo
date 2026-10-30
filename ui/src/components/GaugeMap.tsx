@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
@@ -61,7 +62,7 @@ export function GaugeMap({ load, gauges }: { load: GaugeState; gauges: GaugeSumm
     const map = L.map(container, { zoomSnap: 1, attributionControl: false, scrollWheelZoom: false });
     L.control
       .attribution({ prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' })
-      .addAttribution(`${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) via Zetaris`)
+      .addAttribution(`${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) via ${dataBackendName()}`)
       .addTo(map);
     L.tileLayer(TILE_URL, { maxZoom: 18 }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
@@ -114,7 +115,7 @@ export function GaugeMap({ load, gauges }: { load: GaugeState; gauges: GaugeSumm
       ? { cls: "", text: "Loading…" }
       : !label
         ? { cls: "", text: "No live readings" }
-        : { cls: LOAD_CHIP[label], text: `${label} · via Zetaris` };
+        : { cls: LOAD_CHIP[label], text: `${label} · via ${dataBackendName()}` };
   return (
     <div className="gauge-map">
       <div className="gauge-map__toolbar">

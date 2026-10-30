@@ -28,6 +28,7 @@ flowchart LR
   PG -- rank top-k --> I
   NS[Nightshift<br/>meterless/fast, meterless/deep] --- I
   NS --- J
+  NB[Nebius Token Factory<br/>optional, LLM_BACKEND=nebius] -.-> I
   ENG[Engines: H-MEM, World Model] --- I
   L --> ENG
   API[API: cache, replay, rate limits] --> S
@@ -46,6 +47,10 @@ flowchart LR
 - Three layers: (a) Zetaris data rows with `query_id`, (b) source provenance (`zetaris/migrations/015_create_view_provenance.sql`), (c) document passages. Model: `agents/floodsense_agents/models.py`.
 - Layer (c) quotes carry `content_sha256`. The Judge recomputes the hash of the quote and of the stored passage text and rejects a mismatch: `agents/floodsense_agents/nodes/judge.py`.
 
+## Data backend choice
+
+`DATA_BACKEND=zetaris` (default) reads the views through Zetaris. `DATA_BACKEND=local` reads the same eight views from a Postgres container (`local-db`) that a loader (`local-data`) fills from the repo seed and the public feeds: `agents/floodsense_agents/localdata.py`. Both return the same `Evidence`; the local `query_id` is `local-<hash>` and `Evidence.source` is `local`, so a citation never names Zetaris when Zetaris did not serve it.
+
 ## Zetaris federation
 
 - FILESTORE tables over CSV: `zetaris/migrations/010_seed_sources.sql`, `033_live_feed_tables.sql`.
@@ -60,6 +65,10 @@ flowchart LR
 - Ranking runs in Postgres and returns chunk ids and distances. Text, licence and locator are then read through Zetaris, so every passage has a `query_id`: `agents/floodsense_agents/retrieve_docs.py`.
 - Agents never put `<=>` in Zetaris SQL. Zetaris reads it as null-safe equality (ADR 0009).
 - Embeddings: `agents/floodsense_agents/nim_embed.py`, ingest `scripts/rag_ingest.py`. Behind `FF_RAG_DOCS`.
+
+## Web context (Tavily)
+
+`agents/floodsense_agents/tavily.py` calls `POST https://api.tavily.com/search` (Bearer key, `topic=news`, `time_range=week`, 3 results) behind `FF_TAVILY` (default off, key in `TAVILY_API_KEY`). It has a timeout, a 15 min in-process cache keyed by (place, query), and a one-call-per-second guard; any failure returns "unavailable" and the run goes on. Each snippet becomes a claim `C-web-N` with a layer (c) citation (URL, title, retrieval time, locator `lines: "web snippet"`) over an evidence row `web.tavily`, so the Judge checks the quote hash like any document. The claim text starts "Web context, not an official warning" and carries no `numbers`. The snippet and title pass through `tavily.clean` first (digits and units replaced by `[n]`, control characters, markup, quotes and newlines stripped, length capped) and sit only inside a quoted excerpt, so web text can neither supply a figure the Judge would skip nor act as instructions.
 
 ## Live mode
 

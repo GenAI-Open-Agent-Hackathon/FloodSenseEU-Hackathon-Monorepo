@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { next48hQuestion } from "../api/ask";
 import { fetchEuWatch, type EuWatchLoad } from "../api/euWatch";
@@ -118,9 +119,9 @@ export function InsurerNowPage() {
           <h2 className="now-title">Right now{stamp ? ` · ${localTime(stamp)}` : ""}</h2>
           {load.state === "ready" && (
             <p className="now-meta" aria-live="polite">
-              <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : "Live data · Zetaris"}</span> {demo && <DemoChip />}{demo ? "" : ` Updated ${relativeTime(dataTime(load.data.cache, load.fetchedAt) ?? load.fetchedAt, clock)}`}
+              <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : `Live data · ${dataBackendName()}`}</span> {demo && <DemoChip />}{demo ? "" : ` Updated ${relativeTime(dataTime(load.data.cache, load.fetchedAt) ?? load.fetchedAt, clock)}`}
               {!demo && load.data.cache?.cache === "stale" ? ` · ${staleNote(staleViews([load.data.cache]))}` : ""}
-              {load.data.queryId ? ` · Zetaris query ${load.data.queryId.slice(0, 8)}` : ""}
+              {load.data.queryId ? ` · ${dataBackendName()} query ${load.data.queryId.slice(0, 8)}` : ""}
               {load.data.dropped > 0 ? ` · ${load.data.dropped} rows dropped` : ""}
               {load.data.truncated ? " · truncated" : ""}
             </p>

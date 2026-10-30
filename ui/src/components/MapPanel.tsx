@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -62,7 +63,7 @@ function EventMapPanel({ exposureDefault, fixedEvent }: { exposureDefault: boole
   const origin = ahr
     ? "seed rows (floodsense_seed, Open-Meteo GloFAS)"
     : desk.discharge.origin === "live"
-      ? "Zetaris discharge_daily, replay rows"
+      ? `${dataBackendName()} discharge_daily, replay rows`
       : statusLabel(desk.discharge.origin);
 
   const rowsToday = useMemo(() => rowsOnDate(rows, date), [rows, date]);

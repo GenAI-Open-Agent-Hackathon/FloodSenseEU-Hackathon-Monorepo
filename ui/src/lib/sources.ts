@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import type { ReplayCitation } from "../api/replay";
 import type { Answer, Citation } from "../types/contract";
 import type { MemoryUsed } from "./hitl";
@@ -25,7 +26,7 @@ export interface SourceDetail {
   link: SourceLink | null;
 }
 
-export const SOURCE_LEGEND = "Every sentence links to its source: data via Zetaris, documents, or approved memory.";
+export const SOURCE_LEGEND = "Every sentence links to its source: data from a cited SQL view, documents, or approved memory.";
 
 /** The answer's own event id (EMSR773, EMSR517 or LIVE-EU), or null when the body carries none. Never a fallback. */
 export function answerEventId(answer: Answer): string | null {
@@ -37,7 +38,7 @@ const GLOFAS: SourceLink = { href: "https://open-meteo.com/en/docs/flood-api", l
 
 /** exposure_join rows are the synthetic insurer book joined to OSM sites, not an observed event layer. */
 export const SYNTHETIC_PORTFOLIO: SourceLink = {
-  href: "https://github.com/GenAI-Open-Agent-Hackathon/Hackathon-Monorepo/blob/main/ingestion/prep/synthetic_portfolio.py",
+  href: "https://github.com/GenAI-Open-Agent-Hackathon/FloodSenseEU-Hackathon-Monorepo/blob/main/ingestion/prep/synthetic_portfolio.py",
   label: "Synthetic insurer portfolio (demo data) · OSM sites",
 };
 
@@ -86,7 +87,7 @@ export function sourceFromCitation(c: Citation, eventId?: string | null): Source
     const upstream = upstreamFor(c.title, eventId) ?? safeLink(c.source_url, "Upstream source");
     return {
       kind: "zetaris",
-      heading: "Data via Zetaris",
+      heading: `Data via ${dataBackendName()}`,
       title: c.title,
       facts: [`View ${c.title}`, ...(c.query_id ? [`Query id ${c.query_id}`] : []), ...seedNote(c.title)],
       quote: c.quote ?? null,
@@ -118,7 +119,7 @@ export function sourceFromRun(c: ReplayCitation, eventId?: string | null): Sourc
   if (c.layer === "a") {
     return {
       kind: "zetaris",
-      heading: "Data via Zetaris",
+      heading: `Data via ${dataBackendName()}`,
       title: c.title,
       facts: [`View ${c.title}`, ...(c.queryId ? [`Query id ${c.queryId}`] : []), ...seedNote(c.title)],
       quote: c.quote,

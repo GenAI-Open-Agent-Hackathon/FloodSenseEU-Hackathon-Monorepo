@@ -32,7 +32,7 @@ class Evidence(BaseModel):
     rows_sample: list[dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0
     executed_at_utc: str
-    source: str = "zetaris"  # extra: zetaris | zetaris-fake
+    source: str = "zetaris"  # extra: zetaris | zetaris-fake | local
     error: str | None = None  # extra: a failed query is still evidence of a failed query
 
 

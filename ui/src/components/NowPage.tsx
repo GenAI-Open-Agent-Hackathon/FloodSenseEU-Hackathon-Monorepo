@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useState } from "react";
 import { next48hQuestion } from "../api/ask";
 import { useConsole } from "../context/ConsoleContext";
@@ -52,7 +53,7 @@ function CitizenNowPage() {
         <div>
           <h2 className="now-title">Right now, across our watch</h2>
           <p className="now-meta" aria-live="polite">
-            <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : live.sources.length > 0 ? "Live data · Zetaris" : "Live data unavailable"}</span> {demo && <DemoChip />}
+            <span className="now-live-tag">{demo ? `Demo snapshot ${demoSnapshotText()}` : live.sources.length > 0 ? `Live data · ${dataBackendName()}` : "Live data unavailable"}</span> {demo && <DemoChip />}
             {live.updatedAt ? ` Updated ${relativeTime(live.updatedAt, clock)}${live.health.failed.length > 0 && !live.health.loading ? ` · ${live.health.loaded} of ${live.health.total} sources` : ""}` : ""}
           </p>
         </div>
@@ -120,7 +121,7 @@ function CitizenNowPage() {
         </details>
         <PlacesToWatch live={live} onAsk={ask} start={2} exclude={lead?.id ?? null} />
         <p className="now-source">
-          Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via Zetaris
+          Quelle: WSV, PEGELONLINE (DL-DE-Zero-2.0) · Weather data by Open-Meteo.com (GloFAS, CC BY 4.0) · via {dataBackendName()}
         </p>
       </section>
     </div>

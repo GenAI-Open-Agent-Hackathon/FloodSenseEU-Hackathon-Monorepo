@@ -64,7 +64,9 @@ The diagrams in [docs/architecture/c4.md](docs/architecture/c4.md) are the detai
 
 - **Zetaris: the only SQL path to the data.** Hazard, exposure, gauge, provenance and document metadata are read only through Zetaris views (FILESTORE CSV tables, REST tables that call Open-Meteo, and the pgvector database over JDBC). The numbered migrations in `zetaris/migrations/` (up to `073`) define them; `py tasks.py zetaris-sync` applies and verifies them. Every data citation carries the Zetaris `query_id`. Code: `agents/floodsense_agents/zetaris.py`.
 - **Meterless Nightshift: the gateway for all Nemotron calls, plus H-MEM and the World Model.** All chat completions go through Nightshift on two lanes, `meterless/fast` and `meterless/deep`, with backoff on NVIDIA 429. The Meterless H-MEM (memory of approved findings) and World Model (hypothesis board) engines run in the `engines/` sidecar; memory is written only after a human approves. Code: `agents/floodsense_agents/nightshift.py`, `engines.py`, `nodes/memory.py`.
+- **Nebius Token Factory + NVIDIA Nemotron (selectable backend).** Set `LLM_BACKEND=nebius` and `NEBIUS_API_KEY` to send the same chat calls to the Token Factory OpenAI-compatible API with NVIDIA Nemotron models instead of Nightshift. Nightshift remains the default backend. This path is covered by offline mock-transport tests only; it has not been run against the live API. Code: `NebiusClient` in `agents/floodsense_agents/nightshift.py`.
 - **NVIDIA: Nemotron 3.5 models and NIM embeddings.** Nightshift routes the lanes to NVIDIA Nemotron (`nvidia/nemotron-3.5-lightning-30b-a3b` in every measured call on 27 Oct 2026). Document embeddings come from NVIDIA NIM `nvidia/nemotron-3.5-embed-1b`, the one model call that does not go through Nightshift (ADR 0009). Code: `agents/floodsense_agents/nim_embed.py`, `scripts/rag_ingest.py`.
+- **Tavily: current public web context.** With `FF_TAVILY=true` and `TAVILY_API_KEY` set (default off), the full-lane Investigator makes one Tavily Search call per place and adds up to three snippets as claims labelled "Web context, not an official warning", each cited with its URL and retrieval time. Web text is cleaned (digits and units removed, markup, quotes and newlines stripped, length capped) and shown only as a quoted excerpt, so it carries no numbers into a claim; web claims have no severity and are never red; a failed or empty call is skipped silently. Live Tavily calls are not yet verified against a real key. Code: `agents/floodsense_agents/tavily.py`.
 - **Cursor: see [How we built it](#how-we-built-it).**
 
 Each answer in the UI has a "How this answer was made" panel with one tile per technology. The sponsor details with file references are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
@@ -80,6 +82,18 @@ py tasks.py zetaris-sync
 py tasks.py demo-seed
 Invoke-RestMethod http://127.0.0.1:18000/health
 ```
+
+### No Zetaris: local Postgres backend
+
+No Zetaris install? `DATA_BACKEND=local` serves the same eight views from a small Postgres container that this compose project starts itself. It loads the repo's seed data (the Zetaris migration `VALUES` lists and `ingestion/prep/*.csv`) and then polls PEGELONLINE and Open-Meteo (GloFAS, DWD ICON) into the live `floodsense.*` views. The default stays `DATA_BACKEND=zetaris`.
+
+```powershell
+py tasks.py init-env
+py tasks.py up-local          # = DATA_BACKEND=local docker compose --profile local-data up -d --build api agents engines ui local-db local-data
+Invoke-RestMethod http://127.0.0.1:18000/health
+```
+
+Set `FF_LIVE_DATA=true` in `agents/.env` to read the polled `floodsense.*` views (the first pull takes a minute; until then those views are empty, and the app says so). With it off you read the frozen `floodsense_seed.*` rows. Citations carry `local-<hash>` query ids and the UI names "Local Postgres", never Zetaris. Keep `FF_RAG_DOCS=false` (document layer (c) hydrates through Zetaris JDBC and is not served by the local backend). `up-local` does not start `pegel-poller` (it copies into a Zetaris container); the `local-data` service polls PEGELONLINE itself. You still need Nightshift (`:8088`) for the full lane; the reply, quick and forecast lanes need no model. Details: [agents/README.md](agents/README.md#local-data-backend-data_backendlocal). `py tasks.py down` stops it too.
 
 Then open `http://127.0.0.1:15173/`. On macOS or Linux use `python3 tasks.py ...`. The document corpus (pgvector) needs one more step: [docs/SUBMISSION.md](docs/SUBMISSION.md), "Document corpus for layer (c)". `py tasks.py down` stops the stack. Details, tests and ports are under [Setup details](#setup-details).
 

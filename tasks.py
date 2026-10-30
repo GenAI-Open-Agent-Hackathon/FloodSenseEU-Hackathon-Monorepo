@@ -82,13 +82,26 @@ def up_all_argv(root: Path) -> list[str]:
     )
 
 
+# DATA_BACKEND=local: the app plus its own Postgres, no Zetaris and no pegel-poller
+# (that one copies into a Zetaris container). Env is set by cmd_up_local.
+LOCAL_SERVICES = ("api", "agents", "engines", "ui", "local-db", "local-data")
+
+
+def up_local_argv(root: Path) -> list[str]:
+    return compose_argv(root, "--profile", "local-data", "up", "-d", "--build", *LOCAL_SERVICES)
+
+
 def down_argv(root: Path) -> list[str]:
     # Profiles so optional containers stop too. No -v / --volumes.
-    return compose_argv(root, "--profile", "rag", "--profile", "cache", "down")
+    return compose_argv(
+        root, "--profile", "rag", "--profile", "cache", "--profile", "local-data", "down"
+    )
 
 
 def config_argv(root: Path) -> list[str]:
-    return compose_argv(root, "--profile", "rag", "--profile", "cache", "config")
+    return compose_argv(
+        root, "--profile", "rag", "--profile", "cache", "--profile", "local-data", "config"
+    )
 
 
 def missing_env(root: Path, *, require_pgvector: bool = False) -> list[str]:
@@ -167,6 +180,14 @@ def cmd_up_all(root: Path, runner: Runner) -> int:
     if code != 0:
         return code
     return runner(up_all_argv(root), root)
+
+
+def cmd_up_local(root: Path, runner: Runner) -> int:
+    code = check_env(root, quiet_ok=True)
+    if code != 0:
+        return code
+    os.environ["DATA_BACKEND"] = "local"
+    return runner(up_local_argv(root), root)
 
 
 def cmd_down(root: Path, runner: Runner) -> int:
@@ -579,6 +600,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("init-env", help="Copy each missing .env.example to .env. Never overwrites.")
     sub.add_parser("check-env", help="Exit 1 if api/.env, agents/.env, or ui/.env is missing.")
     sub.add_parser("up", help="Build and start API, agents, and UI. Does not start Zetaris.")
+    sub.add_parser(
+        "up-local",
+        help="up with DATA_BACKEND=local: app plus its own Postgres and pollers. No Zetaris needed.",
+    )
     sub.add_parser("up-all", help="up, plus the rag (pgvector) and cache (Redis) profiles.")
     sub.add_parser("down", help="Stop this project, including optional profiles. Keeps volumes.")
     sub.add_parser("config", help="Render the compose file. Prints secrets if .env is filled.")
@@ -638,6 +663,8 @@ def main(
         return check_env(root)
     if command == "up":
         return cmd_up(root, run)
+    if command == "up-local":
+        return cmd_up_local(root, run)
     if command == "up-all":
         return cmd_up_all(root, run)
     if command == "down":

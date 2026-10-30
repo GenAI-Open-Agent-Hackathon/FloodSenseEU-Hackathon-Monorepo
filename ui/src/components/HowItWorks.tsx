@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchAgentsConfig } from "../api/config";
 import { fetchSystem } from "../api/system";
@@ -71,8 +72,8 @@ export function HowItWorks() {
   const human = humanBox(route);
   const intro =
     route === "citizen"
-      ? "A question goes through a router, a team of agents that read real data through Zetaris, and an independent checker. Dots show what is running right now."
-      : "A question goes through a router, a team of agents that read real data through Zetaris, an independent checker, and a person before anything is sent. Dots show what is running right now.";
+      ? `A question goes through a router, a team of agents that read real data through ${dataBackendName()}, and an independent checker. Dots show what is running right now.`
+      : `A question goes through a router, a team of agents that read real data through ${dataBackendName()}, an independent checker, and a person before anything is sent. Dots show what is running right now.`;
 
   return (
     <div className="view hiw">
@@ -117,7 +118,7 @@ export function HowItWorks() {
         <div className="hiw-grid">
           <Box
             id="zetaris"
-            title="Data via Zetaris"
+            title={`Data via ${dataBackendName()}`}
             line={`Every number comes from a SQL query with an id you can open.${mode ? ` Now: ${mode}.` : ""}`}
             status={status}
             note={zetarisNote}

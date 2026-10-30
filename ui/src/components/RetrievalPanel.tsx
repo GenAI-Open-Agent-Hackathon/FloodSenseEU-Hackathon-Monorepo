@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useMemo, type CSSProperties } from "react";
 import type { RecordedRun } from "../api/replay";
 import { useConsole } from "../context/ConsoleContext";
@@ -68,10 +69,10 @@ export function RetrievalPanel({ run, scope }: { run: RecordedRun; scope?: strin
             <p className="rag-foot">
               {g.queryIds.length > 0 ? (
                 <>
-                  Hydrated by Zetaris query <code>{g.queryIds.join(", ")}</code>
+                  Hydrated by {dataBackendName()} query <code>{g.queryIds.join(", ")}</code>
                 </>
               ) : (
-                "No Zetaris query id recorded for these passages."
+                `No ${dataBackendName()} query id recorded for these passages.`
               )}
             </p>
             <p className={`rag-verdict${g.flagged ? " rag-verdict-flag" : ""}`}>

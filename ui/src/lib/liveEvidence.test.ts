@@ -40,7 +40,7 @@ describe("source drawer content", () => {
   it("explains a gauge reading", () => {
     const e = evidenceForSource(gauge, { queryId: "q-123", executedAt: "2026-10-27T10:05:00Z" });
     expect(e.pipeline.join(" → ")).toBe(
-      "PEGELONLINE REST (WSV) → FloodSense poller every 10 min → Zetaris file store → view floodsense.gauge_levels",
+      "PEGELONLINE REST (WSV) → FloodSense poller every 10 min → Live file table → view floodsense.gauge_levels",
     );
     expect(e.queryId).toBe("q-123");
     expect(e.measuredAt).toBe("2026-10-27T10:00:00Z");
@@ -57,7 +57,7 @@ describe("source drawer content", () => {
   });
   it("explains a GloFAS model point", () => {
     const e = evidenceForSource(model, { queryId: null, fetchedAt: Date.UTC(2026, 9, 27, 10, 0, 0) });
-    expect(e.pipeline.join(" → ")).toBe("Open-Meteo Flood API → Zetaris REST table → view floodsense.eu_watch");
+    expect(e.pipeline.join(" → ")).toBe("Open-Meteo Flood API → Live feed table → view floodsense.eu_watch");
     expect(e.view).toBe("floodsense.eu_watch");
     expect(e.fetchedAt).toBe("2026-10-27T10:00:00Z");
     expect(e.licence).toMatch(/CC BY 4.0/);
@@ -80,7 +80,7 @@ describe("source drawer content", () => {
     expect(e.freshness).toBe("Replay");
     expect(e.notes.join(" ")).toMatch(/The 120 m³\/s line/);
     expect(e.timeLabel).toBe("Modelled");
-    expect(e.pipeline.join(" ")).toMatch(/not from Zetaris/);
+    expect(e.pipeline.join(" ")).toMatch(/not from the data layer/);
   });
 });
 

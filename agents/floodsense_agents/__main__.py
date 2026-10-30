@@ -349,16 +349,18 @@ def ready():
     try:
         probe = rt.deps.zetaris.run_sql("SELECT 1")
     except Exception as e:
-        raise HTTPException(503, f"zetaris unreachable: {type(e).__name__}")
+        raise HTTPException(503, f"{settings.data_backend} data backend unreachable: {type(e).__name__}")
     # run_sql reports a failed read on Evidence.error. It does not raise.
     if probe is None or getattr(probe, "error", None):
         detail = getattr(probe, "error", None) or "no result"
-        raise HTTPException(503, f"zetaris unreachable: {detail}")
+        raise HTTPException(503, f"{settings.data_backend} data backend unreachable: {detail}")
     return _envelope(
         {
             "status": "ready",
             "llm": _dep_name(rt, "llm"),
+            "llm_backend": settings.llm_backend,
             "zetaris": _dep_name(rt, "zetaris"),
+            "data_backend": settings.data_backend,
             "memory": _dep_name(rt, "memory"),
             "world_model": _dep_name(rt, "world"),
         }
@@ -386,9 +388,12 @@ def config():
                 # Router forecast lane (nodes/forecast.py): also part of the fingerprint.
                 "FF_FORECAST_LANE": router.forecast_enabled(),
             },
+            "llm_backend": settings.llm_backend,
             "lanes": {"fast": settings.lane("fast"), "deep": settings.lane("deep")},
             "engines_url": settings.engines_url,
             "schema": settings.schema,
+            # Which backend serves the views: zetaris or local (Postgres). The UI names it.
+            "data_backend": settings.data_backend,
             "checkpointer": settings.checkpointer,
             "skeptic_max_rounds": settings.skeptic_max_rounds,
             "judge_repair_rounds": settings.judge_repair_rounds,

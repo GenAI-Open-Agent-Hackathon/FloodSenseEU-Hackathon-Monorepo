@@ -210,7 +210,7 @@ describe("replay sources and labels", () => {
     expect(
       usableEventRows([{ point_id: "AHR04", ts_utc: "2021-07-14 12:00:00.0", rain_mm: 3, discharge_m3s: 200 }], ev, "AHR"),
     ).toHaveLength(1);
-    expect(ahrFixture().badge).toBe("Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris");
+    expect(ahrFixture().badge).toBe("Bundled modelled data (Open-Meteo, CC BY 4.0), not from the data layer");
   });
 
   it("reads the Ahr replay from floodsense_seed and badges it", async () => {

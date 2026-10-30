@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import { apiBaseUrl } from "../api/config";
 import ahr from "../fixtures/ahr_2021.json";
 import { buildFrames, type DisasterEvent, type ReplayPoint, type ReplayReading } from "./disasterReplay";
@@ -12,7 +13,7 @@ export interface EventRows {
   fromZetaris: boolean;
 }
 
-export const AHR_FIXTURE_BADGE = "Bundled modelled data (Open-Meteo, CC BY 4.0), not from Zetaris";
+export const AHR_FIXTURE_BADGE = "Bundled modelled data (Open-Meteo, CC BY 4.0), not from the data layer";
 
 /** VITE_AHR_SOURCE=fixture forces the bundled rows; anything else tries the API first. The one switch. */
 export function ahrSourceMode(): "auto" | "fixture" {
@@ -51,7 +52,7 @@ const AHR_NAMES: Record<string, string> = {
 
 /** Badge for rows read through `?source=replay`; `schema` is the x-schema header (floodsense_seed for the Ahr). */
 export function replayBadge(schema: string | null): string {
-  return `Replay · Zetaris ${schema || "floodsense_seed"} · not live`;
+  return `Replay · ${dataBackendName()} ${schema || "floodsense_seed"} · not live`;
 }
 
 /** The replay read of one hazard view for an event: the seed views where the real Ahr rows live, not floodsense.* (Valencia only). */
@@ -79,7 +80,7 @@ export async function loadAhrRows(event: DisasterEvent, signal?: AbortSignal): P
         return {
           rows,
           points: ids.map((id) => ({ point_id: id, name: AHR_NAMES[id] ?? id })),
-          source: `Zetaris ${schema ?? "floodsense_seed"}.hazard_timeline (replay), event ${event.eventId}, query id ${r.headers.get("x-query-id") ?? "n/a"}. ERA5 hourly rain, GloFAS daily discharge (modelled).`,
+          source: `${dataBackendName()} ${schema ?? "floodsense_seed"}.hazard_timeline (replay), event ${event.eventId}, query id ${r.headers.get("x-query-id") ?? "n/a"}. ERA5 hourly rain, GloFAS daily discharge (modelled).`,
           badge: replayBadge(schema),
           fromZetaris: true,
         };

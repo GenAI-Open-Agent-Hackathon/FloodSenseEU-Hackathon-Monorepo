@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -82,7 +83,7 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
     L.control
       .attribution({ prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' })
       .addAttribution(
-        `${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) · Model: Open-Meteo.com (GloFAS, CC BY 4.0) via Zetaris`,
+        `${TILE_ATTRIBUTION} · Gauges: PEGELONLINE (WSV, DL-DE-Zero-2.0) · Model: Open-Meteo.com (GloFAS, CC BY 4.0) via ${dataBackendName()}`,
       )
       .addTo(map);
     L.tileLayer(TILE_URL, { maxZoom: 18 }).addTo(map);
@@ -204,7 +205,7 @@ export function EuWatchSection({ sources, model }: { sources: WatchSource[]; mod
         </h3>
         <span className="muted small">
           {gauges} PEGELONLINE gauges · {points} GloFAS points
-          {model.queryId ? ` · Zetaris query ${model.queryId.slice(0, 8)}` : ""}
+          {model.queryId ? ` · ${dataBackendName()} query ${model.queryId.slice(0, 8)}` : ""}
         </span>
       </div>
       <p className="now-note">

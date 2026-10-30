@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useEffect, useMemo, useState } from "react";
 import { useConsole } from "../context/ConsoleContext";
 import { useInsurerWatch } from "../hooks/useInsurerWatch";
@@ -156,8 +157,8 @@ function LiveAlertMonitor() {
         </p>
       )}
       <p className="note">
-        Gauges: PEGELONLINE water level against the station's official MHW (mean high water), via Zetaris gauge_levels. Model points:
-        GloFAS 7-day forecast against each point's own past 30 days, via Zetaris eu_watch, a model and not an official warning. Re-read
+        Gauges: PEGELONLINE water level against the station's official MHW (mean high water), via {dataBackendName()} gauge_levels. Model points:
+        GloFAS 7-day forecast against each point's own past 30 days, via {dataBackendName()} eu_watch, a model and not an official warning. Re-read
         every 5 minutes. Words match the Now page: MHW is the long-term mean high water, not a warning level.
       </p>
     </section>
@@ -185,7 +186,7 @@ function Rehearsal() {
             rows: desk.hazard.rows,
             points: desk.points.map((p) => ({ point_id: p.point_id, name: p.name })),
             source: `hazard_timeline (${desk.hazard.origin})`,
-            badge: desk.hazard.origin === "fixture" ? "Bundled view extract, not from Zetaris" : `Zetaris · hazard_timeline (${desk.hazard.origin})`,
+            badge: desk.hazard.origin === "fixture" ? `Bundled view extract, not from ${dataBackendName()}` : `${dataBackendName()} · hazard_timeline (${desk.hazard.origin})`,
             fromZetaris: desk.hazard.origin !== "fixture",
           },
     [eventId, ahrRows, desk.hazard, desk.points],

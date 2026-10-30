@@ -1,3 +1,4 @@
+import { dataBackendName } from "./backend";
 import { shortModel } from "./liveRun";
 import { providerOf } from "./lanes";
 
@@ -33,7 +34,7 @@ export function modelChip(modelId: string | null | undefined, lane: string | nul
     const laneWord = l === "deep" ? "deep lane" : l === "fast" ? "fast lane" : null;
     return laneWord ? `${name} · Nightshift ${laneWord}` : `${name} · Nightshift`;
   }
-  if (l === "sql") return "SQL · Zetaris";
+  if (l === "sql") return `SQL · ${dataBackendName()}`;
   return "rules";
 }
 

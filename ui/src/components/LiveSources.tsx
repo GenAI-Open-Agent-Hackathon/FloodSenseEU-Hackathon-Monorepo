@@ -1,3 +1,4 @@
+import { dataBackendName } from "../lib/backend";
 import { useConsole } from "../context/ConsoleContext";
 import type { LiveEvidence } from "../lib/liveEvidence";
 import { SafeLink } from "./SafeLink";
@@ -50,7 +51,7 @@ export function LiveEvidenceView({ evidence }: { evidence: LiveEvidence }) {
           <dd>{evidence.view}</dd>
         </div>
         <div>
-          <dt>Zetaris query id</dt>
+          <dt>{dataBackendName()} query id</dt>
           <dd>{evidence.queryId ?? "not sent by the API for this read"}</dd>
         </div>
         {evidence.measuredAt && (
