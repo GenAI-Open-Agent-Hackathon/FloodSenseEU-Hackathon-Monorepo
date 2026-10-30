@@ -9,6 +9,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+- ui-merged: the ui-eu role-based interface with the 3D map (terrain, animated rivers, gauge pins and dials) on the Insurer, Civil protection and Citizen place views, via the `ui/src/embed/map3d.tsx` bundle (`window.FloodMap3D`); falls back to Leaflet. Runs on port 15190 with `compose.merged.yaml`.
+
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
 ### Fixed

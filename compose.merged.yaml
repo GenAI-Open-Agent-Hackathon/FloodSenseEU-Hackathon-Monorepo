@@ -1,0 +1,16 @@
+# The merged UI (ui-eu layout + 3D map) on its own port, next to the running stack.
+#   docker compose -p floodsense-merged -f compose.merged.yaml up -d      -> http://localhost:15190
+#   docker compose -p floodsense-merged -f compose.merged.yaml down
+# It proxies /api to the API already published on the host (18000) and joins no other network.
+name: floodsense-merged
+
+services:
+  ui-merged:
+    image: caddy:2-alpine
+    volumes:
+      - ./ui-merged/web:/srv:ro
+      - ./ui-merged/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:${FLOODSENSE_MERGED_UI_PORT:-15190}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
