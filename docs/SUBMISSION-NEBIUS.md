@@ -24,7 +24,7 @@ Python/LangGraph agents, FastAPI API, React UI, Zetaris as the only data path, p
 
 ### 1.4 Why Nebius and NVIDIA
 
-All agent reasoning calls NVIDIA Nemotron over the Token Factory OpenAI-compatible API: fast lane `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, deep lane `nvidia/Nemotron-3.5-Super-VL` (env defaults on main), one endpoint and one key for both lanes. The model id that answered is recorded per step in the trace and on each Judge score. Tavily adds cited, labelled web context. Measured on 30 Oct 2026 (section 6): a full Ahr 2021 investigation ran end to end in 148 s over 12 Token Factory calls (44,569 tokens), and every model-judged claim scored 1.0 in the Judge.
+All agent reasoning calls NVIDIA Nemotron over the Token Factory OpenAI-compatible API: as measured on 30 Oct 2026, fast lane `nvidia/Nemotron-3_5-Lightning`, deep lane `nvidia/Nemotron-3.5-Super-VL` (the main defaults are Nano for fast; the measured run overrode them by env), one endpoint and one key for both lanes. The model id that answered is recorded per step in the trace and on each Judge score. Tavily adds cited, labelled web context. Measured on 30 Oct 2026 (section 6): a full Ahr 2021 investigation ran end to end in 148 s over 12 Token Factory calls (44,569 tokens), and every model-judged claim scored 1.0 in the Judge.
 
 ### 1.5 What we built during the hackathon
 
@@ -63,7 +63,7 @@ FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANG
 | Note on what was updated in the submission period (26 Aug to 30 Oct 2026) | Section 1.5. |
 | Tavily bonus (functional runtime call) | Code on main, default off. Live call: TO VERIFY (no Tavily key configured yet). |
 
-Nebius documents zero data retention as an organisation-wide setting, and says that without it inputs and outputs are stored in Finland ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. To confirm (not claimed anywhere): EU-only inference on public endpoints (the same docs say the processing region of public endpoints can change), and Nebius AI Cloud hosting details.
+Nebius's Legal Quick Guide says inputs and outputs "may be stored and used for Speculative Decoding" by default, that "the inputs and outputs retained for Speculative Decoding are stored in Finland (EU)", and that enabling Zero Data Retention in account settings stops this ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. To confirm (not claimed anywhere): EU-only inference on public endpoints (the same docs say the processing region of public endpoints can change), and Nebius AI Cloud hosting details.
 
 ## 3. Feedback answer (draft)
 
