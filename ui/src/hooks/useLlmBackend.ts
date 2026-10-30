@@ -3,15 +3,13 @@ import { fetchPlatformStatus } from "../api/platform";
 import { getLlmBackend, setLlmBackend, subscribeLlmBackend } from "../lib/lanes";
 
 /** The live LLM backend ("nebius", "nightshift", ...) or null while unknown. Re-renders when it arrives. */
-export const useLlmBackend = (): string | null => useSyncExternalStore(subscribeLlmBackend, getLlmBackend);
+export const useLlmBackend = (): string | null => useSyncExternalStore(subscribeLlmBackend, getLlmBackend, getLlmBackend);
 
-/** The one GET /platform/status for the shell. A failure leaves the backend unknown (neutral wording). */
+let inflight: Promise<void> | null = null;
+
+/** The one GET /platform/status for the shell (shared across the dev StrictMode double mount). A failure leaves the backend unknown. */
 export function useLoadLlmBackend(): void {
   useEffect(() => {
-    let live = true;
-    void fetchPlatformStatus().then((r) => live && setLlmBackend(r.status?.llmBackend));
-    return () => {
-      live = false;
-    };
+    inflight ??= fetchPlatformStatus().then((r) => setLlmBackend(r.status?.llmBackend));
   }, []);
 }

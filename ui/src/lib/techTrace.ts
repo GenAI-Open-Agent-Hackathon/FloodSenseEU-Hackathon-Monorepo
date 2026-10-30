@@ -1,6 +1,6 @@
 import type { RecordedRun } from "../api/replay";
 import type { MemoryUsed } from "./hitl";
-import { providerOf } from "./lanes";
+import { NEBIUS_NAME, providerLabel } from "./lanes";
 import { formatLatency, parseBoard } from "./pipeline";
 
 /**
@@ -12,7 +12,8 @@ import { formatLatency, parseBoard } from "./pipeline";
 
 export type TileId = "zetaris" | "nightshift" | "tokenfactory" | "hmem" | "world" | "tavily";
 
-export const GLOSSARY: Record<TileId, string> = {
+export const GLOSSARY: Record<TileId | "model", string> = {
+  model: "Language model: the NVIDIA Nemotron models the agents think with (fast and deep lanes). The serving backend is named once it is known.",
   zetaris: "Zetaris: the only SQL path to the data.",
   tokenfactory:
     "Nebius Token Factory: the hosted inference service that serves the agents' model calls (fast and deep lanes) with NVIDIA Nemotron models.",
@@ -145,8 +146,9 @@ const llmIds = (modelId: string | null | undefined): string[] =>
 export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds" | "provider">): { models: ModelUse[]; steps: number; latencyMs: number } {
   const byId = new Map<string, ModelUse>();
   const make = (id: string, explicit: string | null | undefined): ModelUse => {
-    const provider = providerOf(id, explicit ?? run.provider ?? null);
-    return { id, name: modelDisplay(id), provider, nightshift: provider === "Nightshift", lanes: [], steps: 0, latencyMs: 0 };
+    // Explicit provider only: a recorded run without one is not assumed to be the current backend.
+    const provider = providerLabel(id, explicit ?? run.provider ?? null);
+    return { id, name: modelDisplay(id), provider, nightshift: (provider === null && /nemotron/i.test(id)) || provider === "Nightshift" || provider === NEBIUS_NAME, lanes: [], steps: 0, latencyMs: 0 };
   };
   let steps = 0;
   let latencyMs = 0;
@@ -202,8 +204,10 @@ function nightshiftTile(run: RecordedRun, backend?: string | null): Tile {
   const details = [...t.details];
   details.splice(i < 0 ? details.length : i, 0, ...u.before);
   details.push(...u.after);
-  if (backend !== "nebius") return { ...t, details };
-  return { ...t, name: "Nebius Token Factory", glossary: GLOSSARY.tokenfactory, details };
+  // Named after the current backend; neutral until /platform/status is known.
+  if (backend === "nebius") return { ...t, name: NEBIUS_NAME, glossary: GLOSSARY.tokenfactory, details };
+  if (backend === "nightshift") return { ...t, details };
+  return { ...t, name: "Language model", glossary: GLOSSARY.model, details };
 }
 
 function nightshiftBase(run: RecordedRun): Tile {
