@@ -223,6 +223,10 @@ The API caches the views (`x-views-cache` miss, hit or stale; `x-views-age-s`). 
 
 One page under every desk, with one card per technology in `src/components/stack/`: Nebius Token Factory and Nemotron (fast and deep lane calls, tokens, latency counting up), the agent pool (the eight steps lighting up from a run trace, with play/pause, scrub and speed; a running run is followed over SSE), Zetaris (views, rows and query ids flowing to PEGELONLINE, Open-Meteo, Copernicus EMS and seed CSVs), the Meterless engines (H-MEM and World Model counts, memory recalled in the run, the approve-then-remember loop), the Redis cache (hit-rate ring) and rate limiting (run slots, 429 counters). Data comes from `GET /platform/status`, `GET /system`, `GET /runs/past` and `GET /runs/{id}/replay`; the mappers are pure (`src/lib/stack.ts`). Each card carries a LIVE (read from the API now), REPLAY (recorded run) or SAMPLE (bundled recording) badge, or NO DATA with an empty state. Motion is CSS only and stops under `prefers-reduced-motion`.
 
+### Sponsor stack
+
+`SponsorStrip` (under the header, polls `/platform/status` every 30 s) shows one chip per sponsor with an on/off/unavailable dot and links to the Stack page; pure logic in `src/lib/sponsors.ts`. Every desk mounts `<AgentsLive compact/>` and a `WebCheckCard` (Tavily web check of the newest recorded run, from `answer.web_context` or the raw `web`/`web_check` body fields; the citizen variant has no numbers). The Stack page adds a Tavily card, per-lane price, limits and region (needs `llm_usage.pricing` from PR #140; absent fields render as n/a) and a "Why each sponsor" list. Not browser-checked in this change.
+
 ## Fixture and live
 
 On load the screen paints the fixtures, then checks the API.

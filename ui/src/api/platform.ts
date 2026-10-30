@@ -146,8 +146,10 @@ export function parsePlatformStatus(body: unknown): PlatformStatus | null {
 /** GET /platform/status once. A failure is an error string, never a throw. */
 export async function fetchPlatformStatus(
   base = apiBaseUrl(),
+  signal?: AbortSignal,
 ): Promise<{ status: PlatformStatus | null; error: string | null }> {
   const controller = new AbortController();
+  signal?.addEventListener("abort", () => controller.abort(), { once: true });
   const timer = setTimeout(() => controller.abort(), apiTimeoutMs());
   try {
     const r = await fetch(`${base}/platform/status`, { credentials: "same-origin", cache: "no-store", signal: controller.signal });
