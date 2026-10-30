@@ -55,8 +55,23 @@ def _ms(t0: float) -> int:
     return int((time.monotonic() - t0) * 1000)
 
 
+# Region terms per place (country plus native-language words). shortcut: no include_domains,
+# a second narrower call would double latency; official sites are only ranked by the query words.
+_REGIONS = {
+    "ES": "Spain inundaciones aviso AEMET",
+    "DE": "Germany Hochwasser Warnung",
+}
+
+
+def _region(place: str) -> str | None:
+    from floodsense_agents.events import _GERMAN_RE, _VALENCIA_RE
+
+    return "DE" if _GERMAN_RE.search(place) else "ES" if _VALENCIA_RE.search(place) else None
+
+
 def _query(place: str) -> str:
-    return f"{place} flood warning current"
+    r = _region(place)
+    return f"{place} {_REGIONS[r]}" if r else f"{place} flood warning current"
 
 
 def _now() -> str:
@@ -107,8 +122,8 @@ def _search(place: str, *, transport: httpx.BaseTransport | None = None) -> WebR
                 json={
                     "query": _query(place),
                     "topic": "news",
-                    "time_range": "week",
-                    "max_results": 3,
+                    "time_range": "month",
+                    "max_results": 5,
                     "search_depth": "basic",
                     "exclude_domains": EXCLUDE_DOMAINS,
                 },

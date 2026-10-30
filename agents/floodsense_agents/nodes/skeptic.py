@@ -377,9 +377,15 @@ def _web_check(deps: Deps, state: FloodState) -> dict | None:
     url = str(js.get("url") or "")
     if js.get("verdict") not in ("supports", "contradicts", "neutral") or url not in {i["url"] for i in items}:
         return None
+    verdict = js["verdict"]
+    place = str(((state.get("request") or {}).get("context") or {}).get("place") or "").strip().lower()
+    page = next(i for i in items if i["url"] == url)
+    # Conservative: a page that never names the place cannot support or contradict a claim about it.
+    if verdict != "neutral" and place and place not in f'{page.get("title", "")} {page.get("text", "")}'.lower():
+        verdict = "neutral"
     return {
         "claim_id": claim["claim_id"],
-        "verdict": js["verdict"],
+        "verdict": verdict,
         "url": url,
         "note": str(js.get("note") or "")[:160],
         "label": "Web context, not an official warning",

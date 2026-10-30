@@ -118,6 +118,7 @@ class TavilyTest(unittest.TestCase):
             body = TestClient(service.app).get("/config").json()
         self.assertIs(body["tavily"], True)
         self.assertNotIn("tvly", json.dumps(body))
+
     def test_stats_retrieved_at_and_live_check(self):
         for k in ("calls", "cache_hits", "live_calls", "live_ms"):
             tavily._stats[k] = 0
@@ -230,6 +231,42 @@ class TavilyTest(unittest.TestCase):
         self.assertEqual((wc["claim_id"], wc["verdict"], wc["url"]), ("C-1", "contradicts", "https://example.org/a"))
         self.assertIn("not an official warning", wc["label"])
         self.assertIn("untrusted", seen[0][0])
+
+    def test_query_is_regional(self):
+        self.assertEqual(tavily._query("Ahr"), "Ahr Germany Hochwasser Warnung")
+        self.assertEqual(tavily._query("Valencia"), "Valencia Spain inundaciones aviso AEMET")
+        self.assertEqual(tavily._query("Oslo"), "Oslo flood warning current")
+        seen = {}
+
+        def h(req):
+            seen["body"] = json.loads(req.content)
+            return httpx.Response(200, json=OK)
+
+        tavily.search("Ahr", transport=mock(h))
+        self.assertEqual((seen["body"]["topic"], seen["body"]["max_results"]), ("news", 5))
+        self.assertIn("facebook.com", seen["body"]["exclude_domains"])
+
+    def test_skeptic_unrelated_page_is_neutral(self):
+        # The page never names the place: a contradiction is downgraded.
+        import json as _j
+        from unittest import mock as um
+
+        with um.patch.object(settings, "ff_tavily", True):
+            from floodsense_agents.nodes import skeptic as sk
+
+            class L:
+                def complete(self, *a, **k):
+                    return _j.dumps({"verdict": "contradicts", "url": "https://example.org/a"}), "m"
+
+            class D:
+                llm = L()
+
+            st = {
+                "request": {"context": {"place": "Ahr"}},
+                "web": {"items": [{"title": "Spain storms", "url": "https://example.org/a", "text": "alert lifted"}]},
+                "claims": [{"claim_id": "C-1", "text": "The alert was issued early."}],
+            }
+            self.assertEqual(sk._web_check(D(), st)["verdict"], "neutral")
 
     def test_skeptic_web_check_degrades_silently(self):
         self.assertIsNone(self._skeptic({"verdict": "supports", "url": "https://example.org/a"}, flag=False)[0])
