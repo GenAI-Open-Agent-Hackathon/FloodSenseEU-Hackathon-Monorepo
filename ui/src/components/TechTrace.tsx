@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { fetchPastRuns } from "../api/pastRuns";
 import { fetchRunSnapshot } from "../api/liveRun";
+import { fetchPlatformStatus } from "../api/platform";
 import { fetchWatchStatus } from "../api/watch";
 import type { RecordedRun } from "../api/replay";
 import { DOT_TEXT, type BoxId, type DotState } from "../lib/howItWorks";
@@ -43,7 +44,11 @@ function useOpenSet() {
  * `embedded` drops the outer margin when it sits inside another disclosure (the calm answer's "Why").
  */
 export function TechTrace({ run, caption, embedded }: { run: RecordedRun; caption?: string; embedded?: boolean }) {
-  const model = useMemo(() => buildTechTrace(run), [run]);
+  const [backend, setBackend] = useState<string | null>(null);
+  useEffect(() => {
+    void fetchPlatformStatus().then((r) => setBackend(r.status?.llmBackend ?? null));
+  }, []);
+  const model = useMemo(() => buildTechTrace(run, backend), [run, backend]);
   const uid = useId();
   const [open, toggle] = useOpenSet();
   return (
