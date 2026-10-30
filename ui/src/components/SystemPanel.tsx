@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { fetchPlatformStatus, type PlatformStatus } from "../api/platform";
 import { fetchSystem } from "../api/system";
+import { useLlmBackend } from "../hooks/useLlmBackend";
+import { NEBIUS_NAME, setLlmBackend } from "../lib/lanes";
 import { SEEDED_MEMORY_CHIP, seededMemoryNote } from "../lib/hitl";
 import {
   SYSTEM_POLL_MS,
@@ -28,7 +30,10 @@ export function SystemPanel() {
     const tick = async () => {
       const [gotR, platR] = await Promise.allSettled([fetchSystem(undefined, controller.signal), fetchPlatformStatus()]);
       if (controller.signal.aborted) return;
-      if (platR.status === "fulfilled") setPlatform(platR.value);
+      if (platR.status === "fulfilled") {
+        setPlatform(platR.value);
+        if (platR.value.status?.llmBackend) setLlmBackend(platR.value.status.llmBackend); // feeds the shared store; a failed poll never clears it
+      }
       if (gotR.status !== "fulfilled") {
         timer = window.setTimeout(() => void tick(), SYSTEM_POLL_MS);
         return;
@@ -183,6 +188,7 @@ function RateCard({ status }: { status: SystemStatus | null }) {
 
 function ModelsCard({ status }: { status: SystemStatus | null }) {
   const mo = status?.models;
+  const backend = useLlmBackend();
   const e = status?.engines;
   const w = status?.world;
   const rag = status?.rag;
@@ -194,7 +200,7 @@ function ModelsCard({ status }: { status: SystemStatus | null }) {
   return (
     <section className="card system-card" aria-label="Models and engines">
       <p className="section-label">Models &amp; engines</p>
-      <h2>{mo?.ok ? "Nightshift" : "Models"}</h2>
+      <h2>{mo?.ok && backend === "nightshift" ? "Nightshift" : mo?.ok && backend === "nebius" ? NEBIUS_NAME : "Models"}</h2>
       <p className="note">Which language models answer, and whether the memory and World Model engines are up.</p>
       {mo?.ok ? (
         <ul className="system-list">

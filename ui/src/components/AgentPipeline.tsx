@@ -118,13 +118,18 @@ function BoardChips({ board }: { board: WorldBoard | null }) {
   );
 }
 
-/** Pure: "8 agents · 5 min 12 s · Nemotron 3.5 Lightning 30B via Nightshift · Judge 0.90". */
+/** Pure: "8 agents · 5 min 12 s · Nemotron 3.5 Lightning 30B via Nebius Token Factory · Judge 0.90". */
 export function pipelineSummary(run: RecordedRun): string {
   const model = buildPipeline(run);
   const ran = model.nodes.filter((n) => n.status !== "skipped" && n.id !== "approval").length;
   const parts = [`${ran} agent${ran === 1 ? "" : "s"}`];
   if (model.totalLatencyMs > 0) parts.push(formatLatency(model.totalLatencyMs));
-  const m = runModelLine(run.modelIds) ?? runModelLine(run.trace.map((s) => s.modelId ?? ""));
+  // Provider only when the run states it; otherwise the model names alone (a recorded run is not assumed to be the current backend).
+  const usageIds = (run.usage?.models ?? []).map((u) => u.modelId);
+  const m =
+    runModelLine(run.modelIds, run.provider) ??
+    runModelLine(run.trace.map((s) => s.modelId ?? ""), run.provider) ??
+    runModelLine(usageIds, run.provider);
   if (m) parts.push(m);
   if (run.judgeOverall !== null) parts.push(`Judge ${run.judgeOverall.toFixed(2)}`);
   return parts.join(" · ");
