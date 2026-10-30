@@ -34,8 +34,8 @@ export type { Bounds };
 // One shared mode for every map on the page; persisted, 2D by default.
 let mode: MapMode = readMapMode();
 const listeners = new Set<() => void>();
-function resetToTwoD() {
-  mode = failMapMode();
+function resetToTwoD(keep?: boolean) {
+  mode = keep ? "2d" : failMapMode();
 }
 function useMapMode(): [MapMode, (next: MapMode) => void] {
   const current = useSyncExternalStore(
@@ -73,6 +73,9 @@ export interface MapShellProps {
   onSelect?: (id: string) => void;
   /** Column half side in degrees (about 0.0015 for a river reach, 0.08 for Europe). */
   columnDeg: number;
+  /** Embed only: how long 3D may take to load (default 15000 ms), and whether a failure is kept out of storage so the next load retries 3D. */
+  loadTimeoutMs?: number;
+  retry3dOnFail?: boolean;
   /** Overlay inside the map frame, e.g. an empty-state message. */
   children?: ReactNode;
 }
@@ -126,7 +129,7 @@ export function MapShell(props: MapShellProps) {
       {use3d ? <Map3D
           {...shown}
           onFail={() => {
-            resetToTwoD();
+            resetToTwoD(props.retry3dOnFail);
             setFailed(true);
             listeners.forEach((cb) => cb());
           }}
@@ -277,7 +280,7 @@ function Map3D(props: Shown & { onFail: () => void }) {
         });
         map.addControl(new ml.AttributionControl({ customAttribution: `${TILE_ATTRIBUTION} · Terrain: Mapzen / AWS Open Data · ${attribution}` }));
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-left");
-        const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), 15000);
+        const loadTimer = window.setTimeout(() => !loaded && !dead && failRef.current(), props.loadTimeoutMs ?? 15000);
         // Water and relief are extras: a failed water, elevation or hillshade tile must not drop the viewer to 2D.
         map.on("error", (e) => !["ofm", "dem", "shade"].includes((e as { sourceId?: string }).sourceId ?? "") && !loaded && !dead && failRef.current());
         const popup = new ml.Popup({ closeButton: false, closeOnClick: false, offset: 12 });

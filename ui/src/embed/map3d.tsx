@@ -33,13 +33,15 @@ function view(o: Map3dOptions) {
       selectedId={o.selectedId}
       focusIds={o.focusIds}
       onSelect={o.onSelect}
+      loadTimeoutMs={45000}
+      retry3dOnFail
       columnDeg={o.columnDeg ?? 0.05}
       onMap2d={(map) => {
         // 2D fallback: plain circles, same band colours.
         if (!map) return;
         for (const p of o.points) {
           L.circleMarker([p.lat, p.lon], { radius: 6, weight: 1.5, color: p.color, fillColor: p.color, fillOpacity: 0.7 })
-            .bindTooltip(p.label)
+            .bindTooltip(Object.assign(document.createElement("span"), { textContent: p.label }))
             .on("click", () => o.onSelect?.(p.id))
             .addTo(map);
         }

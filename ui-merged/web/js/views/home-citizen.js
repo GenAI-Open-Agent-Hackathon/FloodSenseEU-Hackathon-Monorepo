@@ -1,5 +1,6 @@
 // Citizen home: one question, "is the river near me safe?", answered for one place
 // in plain words, with what to do. No dashboards.
+import { makeMap, tone } from "../map.js";
 import { make3d } from "../map3d.js";
 import { hydrograph } from "../hydro.js";
 import { STATE, bySeverity, loadPlaces } from "../places.js";
@@ -49,7 +50,15 @@ export function homeCitizen(root) {
     if (slot) {
       const made = await make3d(slot, (pin) => [placePin(pin, p)], { ariaLabel: `Map of ${p.place}`, columnDeg: 0.004, attribution: "FloodSense", focusIds: [] });
       if (made && result.contains(slot)) m3 = made; else if (made) made.map.destroy();
-      if (!made) slot.remove();
+      if (!made) {
+        // No WebGL or bundle: the same place on a plain Leaflet map.
+        const m = await makeMap(slot, [[p.lat - 0.05, p.lon - 0.05], [p.lat + 0.05, p.lon + 0.05]]).catch(() => null);
+        if (!m) return slot.remove();
+        if (!result.contains(slot)) return m.map.remove();
+        const c = tone({ normal: "ok", watch: "watch", high: "watch" }[p.state] || "faint");
+        m.L.circleMarker([p.lat, p.lon], { radius: 8, weight: 1.5, color: c, fillColor: c, fillOpacity: 0.7 }).bindTooltip(`${p.place}: ${STATE[p.state].word}`).addTo(m.map);
+        m3 = { map: { destroy: () => m.map.remove() } };
+      }
     }
     result.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
@@ -82,10 +91,10 @@ export function homeCitizen(root) {
   return () => m3?.map.destroy();
 }
 
-// One calm pin: colour = state; red only for a live measured gauge above its high water.
+// One calm pin: colour = state band. The Citizen view never shows the red alert pin.
 function placePin(pin, p) {
   const base = { id: p.place, lat: p.lat, lon: p.lon, label: `${p.place}: ${STATE[p.state].word}, ${p.value}` };
-  if (p.group === "germany") return pin(base, { status: { normal: "ok", watch: "near", high: "over" }[p.state] || "unknown", measured: true });
+  // Calm: always the amber band path, never the red alert pin.
   return pin(base, { band: { normal: "low", watch: "elevated", high: "peak" }[p.state] || null });
 }
 

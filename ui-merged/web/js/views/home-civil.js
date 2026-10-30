@@ -25,7 +25,7 @@ export function homeCivil(root) {
     h("div", { class: "ops-grid" },
       h("section", { class: "card flush" }, mapEl,
         h("div", { class: "map-key" }, ["high", "watch", "normal"].map((k) =>
-          h("span", {}, h("i", { class: `k-${k}` }), STATE[k].word)))),
+          h("span", {}, h("i", { class: `k-${k}` }), STATE[k].word + ({ high: " (measured gauge)", watch: " (or high, river model)" }[k] || ""))))),
       h("div", { class: "ops-side" },
         h("section", { class: "card widget-pair" }, highest, countdown),
         h("section", { class: "card" }, h("div", { class: "section-head" }, h("h2", { text: "Act first" }), h("a", { href: "#/watch", text: "Every place" })), queue),
@@ -86,7 +86,8 @@ export function homeCivil(root) {
     }
     layer.clearLayers();
     for (const p of [...all].filter((p) => p.lat != null).sort((a, b) => STATE[a.state].rank - STATE[b.state].rank)) {
-      const c = tone(COLOUR[p.state]);
+      // Red only for a measured gauge; a model place at "high" stays amber.
+      const c = tone(p.group !== "germany" && p.state === "high" ? "watch" : COLOUR[p.state]);
       L.circleMarker([p.lat, p.lon], { radius: RADIUS[p.state], weight: 1.5, color: c, fillColor: c, fillOpacity: p.state === "normal" ? 0.35 : 0.7 })
         .bindTooltip(`${p.place}, ${p.where}: ${STATE[p.state].word}, ${p.value}`).addTo(layer);
     }

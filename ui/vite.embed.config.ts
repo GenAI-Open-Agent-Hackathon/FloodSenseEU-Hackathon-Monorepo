@@ -11,7 +11,7 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     cssCodeSplit: false,
-    lib: { entry: "src/embed/map3d.tsx", name: "FloodMap3DBundle", formats: ["iife"], fileName: () => "map3d.js", cssFileName: "map3d" },
+    lib: { entry: "src/embed/map3d.tsx", name: "FloodMap3DBundle", formats: ["iife"], fileName: () => "map3d.js" },
     rollupOptions: { output: { inlineDynamicImports: true, assetFileNames: "[name][extname]" } },
   },
 });
