@@ -92,6 +92,8 @@ Entry for the Nebius x NVIDIA Global AI Hackathon, track Best Apps and Agents. F
 - **Run it with your own keys.** In `agents/.env`: `LLM_BACKEND=nebius`, `NEBIUS_API_KEY=<your Token Factory key>`, and optionally `FF_TAVILY=true`, `TAVILY_API_KEY=<your key>`. Then `python tasks.py up` (needs your own Zetaris, see Quick start). Startup fails if the key is missing.
 - **Honest status.** Live Token Factory calls and live Tavily calls are not yet verified in the repo docs (offline mock-transport tests only: `agents/tests/test_nebius.py`). The 27 Oct eval figures were measured on Nightshift, not Token Factory. Nightshift stays the default backend and Zetaris the data layer.
 
+**Under the hood.** The UI page `#/<desk>/stack` shows, with animated cards fed by the live API (platform status, `/system`, a recorded run's trace and usage), how Nebius and Nemotron, the agent pool, Zetaris, H-MEM and the World Model, the Redis cache and the rate limits are used. Every card says whether its data is live, a replay or a bundled sample.
+
 ## Quick start
 
 You need Python 3.10+, Docker Desktop, and your own local Zetaris (UI `:3000`, REST `:8888`, JDBC `:10000`) and Nightshift (`:8088`); this repository starts neither. Fill `agents/.env` and `ingestion/.env` with your own keys after the first command. For the live demo set `FF_LIVE_DATA=true`, `FF_HMEM=true` and `FF_RAG_DOCS=true` in `agents/.env` (the examples ship them off, and with `FF_LIVE_DATA` off every question goes to the full lane). `demo-seed` warms the answer cache only when `FF_SEMANTIC_CACHE=true` is set in `api/.env`.

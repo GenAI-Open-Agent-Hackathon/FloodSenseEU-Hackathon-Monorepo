@@ -84,6 +84,10 @@ flowchart LR
 - Per-client token bucket on `POST /runs` and a cap on live runs in flight. Both answer 429 with `Retry-After`. A cache hit does not take a slot. GET routes are not limited: `api/app/ratelimit.py`.
 - When the live-run cap is full and `FF_CACHED_REPLAY` is on, `POST /runs` first looks for a labelled replay of the same question and returns it with 200. Only if there is none does it answer 429. The per-client token bucket is checked first and always answers 429: `start_run` in `api/app/main.py`.
 
+## Under the hood page
+
+`ui/src/components/stack/` draws one card per technology from real responses: `/platform/status` (backend, lanes, latency, cache, rate limit, usage), `/system` (memory, events, hypotheses, cache keys) and a recorded run (trace for the agent pool, `usage`, `evidence` with `query_id` and `row_count`, `memory_used`). Pure mappers in `ui/src/lib/stack.ts` are unit tested. Each card is badged LIVE, REPLAY or SAMPLE; a missing field is an empty state, never an animated guess. Not verified here: a run streaming over SSE end to end (the follow path reuses `subscribeRunEvents`).
+
 ## Contracts
 
 - One JSON Schema shared by agents, API and UI: `contracts/schemas/floodsense.schema.json`, with Python and TypeScript bindings in `contracts/python` and `contracts/typescript`. Tests: `contracts/tests`. See [ADR 0007](../adr/0007-json-schema-contracts.md).
