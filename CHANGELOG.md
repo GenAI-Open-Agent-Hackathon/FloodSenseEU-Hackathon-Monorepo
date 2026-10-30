@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.9.0`, `v0.12.0`, `v0.13.0`, `v0.14.0`). There is no `v0.MINOR.PATCH` tag and no `v0.x.y` fix tag. A fix on the 0.x line is included in the next minor tag. `v0.4.0` through `v0.8.0` are not tags; those increments shipped inside `v0.2.0`. `v0.10.0` shipped inside `v0.2.0`. `v0.11.0` is the retired name for layer (c) and is not a tag. `v0.13.0` is the demo baseline. `v0.14.0` is RAG layer (c), with `FF_RAG_DOCS` still off. There is no patch ladder between `v0.9.0` and `v0.14.0`. No `v1.0.0-rc.N` tag was created. `v1.0.0` is the release; the team tags it after the release documentation is merged. Tags are annotated and are not moved or deleted. The GitHub wiki is disabled. Notes for a tag are this file and the GitHub Release. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
+### Added
+- Map region focus: `MapShell` `focusIds` flies 2D and 3D (pitch 60) to the gauges of the selected river or place, with a Show full view button; wired in the Europe watch and live sites maps.
+- Gauges measured above MHW are red (faster pulse in 3D, 2D markers, legends); model bands stay amber, never red.
+
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 

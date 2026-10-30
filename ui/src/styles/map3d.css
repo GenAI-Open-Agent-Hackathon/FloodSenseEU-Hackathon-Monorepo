@@ -22,3 +22,11 @@
   .gpin__pin, .gpin__pulse, .gpin__wave { animation: none; }
   .gpin__level { transition: none; }
 }
+
+/* Gauge measured above its MHW is red (model bands never are); the red pin pulses faster. */
+.gpin--over .gpin__pulse { animation-duration: 1.1s; }
+.gpin--over .gpin__pulse--b { animation-delay: .55s; }
+.leaflet-container .map-marker--over { fill: #c0392b; stroke: #c0392b; }
+.map-legend__dot--over { background: #c0392b; }
+.eu-shape--gauge.eu-tone--elevated { background: #c0392b; }
+@media (prefers-reduced-motion: reduce) { .gpin--over .gpin__pulse { animation: none; } }

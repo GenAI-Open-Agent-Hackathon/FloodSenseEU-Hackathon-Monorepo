@@ -13,7 +13,8 @@ Pure logic (mode persistence, band to colour and rank, GeoJSON columns) is in `m
 - Hover labels carry the status word and "not live (stale or seed)" for non-live sources; insured-site circles are labelled "(synthetic)", as in the 2D tooltips.
 - A point with no reading (gauge status unknown, or no discharge value) gets a hollow grey pin labelled "no reading".
 - Pin colour is the band; the dial fill is the band **order** (low, typical, elevated, peak; ok, near, over), never a measured value. The legend and the sentence next to the toggle say so.
-- Colours stay amber for every model band, never red. Gauge "over MHW" uses the dark amber too.
+- Colours stay amber for every model band, never red (a model is not an official warning). Red (`#c0392b`) is only for an official measured gauge above its MHW (`STATUS_STYLE.over`, `statusPoint(..., measured)`); in 3D that pin pulses faster (`gpin--over`). Model sources pass `measured = false` and stay amber. The 2D and 3D legends say so.
+- **Region focus:** `MapShell` takes an optional `focusIds`. When set (and not dismissed with "Show full view"), 2D runs `flyToBounds` and 3D `fitBounds` (pitch 60, maxZoom 14, 1.8 s) to `focusBounds(points, ids)`, which pads a lone or tight group to a 0.03 degree half span so dials show. `riverFocusIds` picks every source on the selected source's river. Wired in `EuWatchMap` and the live sites map from the console `placeId`; the selected pin is highlighted. Clearing the selection flies back to the full view. `MapPanel` (replay) is model discharge, so it keeps amber bands.
 - Relief is real but exaggerated (1.8x) so mountains and valleys read; the sentence next to the toggle says so. Rivers and lakes are drawn from free OpenFreeMap vector tiles, decoration only, not a hydrological model. If those tiles fail the map keeps working without them.
 
 ## 2D vs 3D trade-offs

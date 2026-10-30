@@ -11,7 +11,7 @@ import { statusLabel } from "../lib/origin";
 import { DEMO_BOOK_LINE } from "../lib/nearest";
 import type { ExposureJoinRow } from "../types/views";
 import { MapShell, type Bounds } from "./map/MapShell";
-import { statusPoint } from "./map/shellLogic";
+import { riverFocusIds, statusPoint } from "./map/shellLogic";
 import "../styles/insurer.css";
 
 const EU_VIEW: Bounds = [
@@ -57,7 +57,7 @@ export function LiveSitesPanel() {
           <span className="map-legend__dot map-legend__dot--near" aria-hidden="true" /> Close to mean high water / Watch (model)
         </li>
         <li>
-          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Above mean high water (gauge) · Elevated (model): both amber, never red
+          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Above mean high water (gauge, red) · Elevated (model) is amber, never red
         </li>
         <li>
           <span className="map-legend__dot map-legend__dot--unknown" aria-hidden="true" /> No reading
