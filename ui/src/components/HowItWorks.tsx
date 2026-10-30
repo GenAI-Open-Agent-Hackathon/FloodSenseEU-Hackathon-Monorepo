@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchAgentsConfig } from "../api/config";
 import { fetchSystem } from "../api/system";
+import { fetchPlatformStatus } from "../api/platform";
+import { llmBoxTitle, setLlmBackend } from "../lib/lanes";
 import { fetchGaugeLevels } from "../api/gauges";
 import { TechTraceOverview } from "./TechTrace";
 import { useConsole } from "../context/ConsoleContext";
@@ -63,6 +65,13 @@ export function HowItWorks() {
       if (!controller.signal.aborted && !sys.aborted) setProbes({ config, system: sys.status, systemError: sys.error, gauge: gauges.state });
     });
     return () => controller.abort();
+  }, []);
+  const [backend, setBackend] = useState<string | null>(null);
+  useEffect(() => {
+    void fetchPlatformStatus().then((r) => {
+      setLlmBackend(r.status?.llmBackend);
+      setBackend(r.status?.llmBackend ?? null);
+    });
   }, []);
   const status = probes ? boxStatuses(probes.config, probes.system, probes.gauge) : null;
   const mode = probes ? feedsMode(probes.config) : null;
@@ -131,7 +140,7 @@ export function HowItWorks() {
           </Box>
           <Box
             id="nightshift"
-            title="Nightshift · NVIDIA Nemotron"
+            title={llmBoxTitle(backend)}
             line="The language model the agents think with: a fast lane for quick steps, a deep lane for checking."
             status={status}
           >

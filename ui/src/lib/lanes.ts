@@ -12,7 +12,26 @@ const ANSWERED_BY: Record<string, string> = {
   "nvidia/nemotron-3.5-lightning-30b-a3b": "answered by Nemotron 3.5 Lightning 30B A3B",
 };
 
-const PROVIDER_NAMES: Record<string, string> = { nightshift: "Nightshift" };
+export const NEBIUS_NAME = "Nebius Token Factory";
+const PROVIDER_NAMES: Record<string, string> = { nightshift: "Nightshift", nebius: NEBIUS_NAME };
+
+let llmBackend: string | null = null;
+/** Set once from GET /platform/status (llm_backend). Until known, labels stay as the trace states them. */
+export function setLlmBackend(b: string | null | undefined): void {
+  llmBackend = b ? b.toLowerCase() : null;
+}
+
+/** providerOf, but a Nemotron id with no stated provider is named after the live backend (Nebius, else Nightshift). */
+export function providerLabel(modelId: string, explicit?: string | null): string | null {
+  const p = providerOf(modelId, explicit);
+  return p === "Nightshift" && !(explicit ?? "").trim() && llmBackend === "nebius" ? NEBIUS_NAME : p;
+}
+
+/** Title of the language-model box: names the backend only when known. */
+export function llmBoxTitle(backend: string | null | undefined): string {
+  const b = (backend ?? "").toLowerCase();
+  return b === "nebius" ? `${NEBIUS_NAME} · NVIDIA Nemotron` : b === "nightshift" ? "Nightshift · NVIDIA Nemotron" : "Language model · NVIDIA Nemotron";
+}
 
 /**
  * The one provider rule for model chips, pipeline badges and the live model line. The trace's explicit

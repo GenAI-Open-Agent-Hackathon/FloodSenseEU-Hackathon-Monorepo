@@ -118,7 +118,7 @@ function BoardChips({ board }: { board: WorldBoard | null }) {
   );
 }
 
-/** Pure: "8 agents · 5 min 12 s · Nemotron 3.5 Lightning 30B via Nightshift · Judge 0.90". */
+/** Pure: "8 agents · 5 min 12 s · Nemotron 3.5 Lightning 30B via Nebius Token Factory · Judge 0.90". */
 export function pipelineSummary(run: RecordedRun): string {
   const model = buildPipeline(run);
   const ran = model.nodes.filter((n) => n.status !== "skipped" && n.id !== "approval").length;

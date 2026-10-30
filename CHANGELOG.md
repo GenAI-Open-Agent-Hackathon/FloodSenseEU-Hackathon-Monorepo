@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- UI model wording follows `llm_backend` from `GET /platform/status`: chips, the run model line, pipeline badges and the How it works box say "Nebius Token Factory" when that is the backend and "Nightshift" only when it is. The Control tower shows a plain sentence for a raw upstream HTTP 429 and keeps the raw text in the Technical detail line.
+
 ### Added
 
 - Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.

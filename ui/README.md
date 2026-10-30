@@ -176,7 +176,7 @@ The pipeline is a compact stepper: one line per agent (status icon, name, status
 `src/components/AgentPipeline.tsx` (model: `src/lib/pipeline.ts`) draws any run body (live, cache or replay) as Scope → Watchers → Memory → Investigator ⇄ Skeptic → Exposure → Playbook → Judge → Human approval. Each node shows its status, the summed trace `latency_ms`, its lane, how many times it ran, and the trace summary. The revise loop appears when `revise_rounds` > 0 and the repair loop when `repair_rounds` > 0. Badges:
 
 - "Zetaris · N queryIds" on SQL-lane steps.
-- One provider rule (`providerOf` in `src/lib/lanes.ts`) for badges, chips and the live model line: the trace's explicit provider wins when present; otherwise an `nvidia/…nemotron…` id is "Nightshift · …", and every other id is shown as stored.
+- One provider rule (`providerOf` in `src/lib/lanes.ts`) for badges, chips and the live model line: the trace's explicit provider wins when present; otherwise an `nvidia/…nemotron…` id is named after `llm_backend` from `/platform/status` via `providerLabel` ("Nebius Token Factory", or "Nightshift" when that is the backend or unknown), and every other id is shown as stored.
 - "H-MEM recall · N" only when the memory step recalled at least one finding.
 - "World Model" with the last board (H1 supported / not_supported …).
 - "pgvector + Zetaris JDBC" when layer (c) citations exist.
