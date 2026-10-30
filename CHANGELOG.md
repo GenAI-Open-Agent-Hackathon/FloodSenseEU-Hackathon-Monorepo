@@ -9,6 +9,10 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- Insurer Review no longer paints the bundled Valencia sample while it looks up the newest run; the sample shows only when no real run exists and is labelled "Sample, not a real run". Approvals shows "Loading runs" instead of 0 until /runs/past answers, labels live-data runs "Live" (not the event the console had selected) and shows the Exposure policy total when the site count is unknown (the asset sample is capped at 20 rows). Evidence drawer: a Zetaris view citation shows one "Structured data row, no text quote" line instead of two "missing" notes.
+
 ### Changed
 
 - `LLM_BACKEND` now defaults to `nebius` (Token Factory), with `NEBIUS_MODEL_FAST=nvidia/Nemotron-3_5-Lightning` and `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL`. `LLM_BACKEND=nightshift` is unchanged. Without `NEBIUS_API_KEY`, `/ready` answers 503 naming the fix. The Judge `model_id` allow-list (schema, Python, TypeScript, API copy) also accepts `nvidia/Nemotron-3_5-Lightning`, `nvidia/Nemotron-3-Ultra-550b-a55b` and `nvidia/nemotron-3-super-120b-a12b`. Hosted token caps raised to 6000/8000. Verified live on 30 Oct (lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 148 s, 12 calls, 44,569 tokens; Valencia EMSR773 281 s, 14 calls, 40,370 tokens; every claim judged). Tavily live call still unverified.
