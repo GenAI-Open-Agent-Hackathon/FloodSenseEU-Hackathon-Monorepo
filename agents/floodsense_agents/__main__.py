@@ -346,7 +346,10 @@ def health():
 
 @app.get("/ready")
 def ready():
-    rt = runtime()
+    try:
+        rt = runtime()
+    except RuntimeError as e:  # e.g. LLM_BACKEND=nebius without NEBIUS_API_KEY: say so, no crash loop
+        raise HTTPException(503, str(e))
     try:
         probe = rt.deps.zetaris.run_sql("SELECT 1")
     except Exception as e:

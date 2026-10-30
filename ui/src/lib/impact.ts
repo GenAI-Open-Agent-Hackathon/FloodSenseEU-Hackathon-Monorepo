@@ -18,11 +18,11 @@ export const GOALS = {
 /** Cited facts from docs/DECK-FACTS.md; none of these is on its "sources disagree" list. */
 export const FACTS = {
   citizen: {
-    text: "Turís, Spain, recorded 184.6 mm of rain in one hour on 29 Oct 2024, a new Spanish record.",
+    text: "At 18:00, the town of Turís recorded 42 mm of precipitation in 10 minutes, and set the new Spanish record with 184.6 mm (7.27 in) in one hour.",
     source: "2024 Spanish floods, Wikipedia rev. 1379732613 (docs/DECK-FACTS.md, section 4 paragraph 3)",
   },
   insurer: {
-    text: "Valencia 2024: Munich Re estimates 4.1 billion euros of 10.7 billion euros total damage were insured.",
+    text: "Munich Re estimates the total damage to have been 10.7 billion euros ($11 billion) of which 4.1 billion euros ($4.2 billion) were insured.",
     source: "2024 Spanish floods, Wikipedia rev. 1379732613 (docs/DECK-FACTS.md, section 5 paragraph 4)",
   },
   operator: {
@@ -34,12 +34,20 @@ export const FACTS = {
 const n = (v: number) => v.toLocaleString("en-GB");
 
 export function citizenChips(sources: readonly WatchSource[]): Chip[] {
-  if (sources.length === 0) return [{ label: "Places watched", value: null }, { label: "At Watch or Elevated", value: null }];
+  if (sources.length === 0)
+    return ["Places watched", "Gauges close to or above mean high water", "Model points at Watch or Elevated (model)"].map((label) => ({ label, value: null }));
   const c = headlineCounts(sources);
   return [
     { label: "Places watched", value: n(c.total) },
-    { label: "At Watch or Elevated", value: n(c.gaugesAbove + c.gaugesNear + c.modelElevated + c.modelWatch) },
+    { label: "Gauges close to or above mean high water", value: n(c.gaugesAbove + c.gaugesNear) },
+    { label: "Model points at Watch or Elevated (model)", value: n(c.modelElevated + c.modelWatch) },
   ];
+}
+
+/** Pending-approvals chip text: null when unread or in demo mode, "50+" when the list was capped by the fetch limit. */
+export function pendingLabel(awaiting: number | null, fetched: number, limit: number, demo: boolean): string | null {
+  if (demo || awaiting === null) return null;
+  return fetched >= limit ? `${n(awaiting)}+` : n(awaiting);
 }
 
 export function insurerChips(rows: readonly ExposureJoinRow[], watched: number): Chip[] {
@@ -51,11 +59,12 @@ export function insurerChips(rows: readonly ExposureJoinRow[], watched: number):
   ];
 }
 
-export function operatorChips(sources: readonly WatchSource[], scripts: number, pending: number | null): Chip[] {
-  const attention = sources.length === 0 ? null : sources.filter((s) => s.status === "over" || s.status === "near").length;
+export function operatorChips(sources: readonly WatchSource[], pending: string | null): Chip[] {
+  const has = sources.length > 0;
+  const c = headlineCounts(sources);
   return [
-    { label: "Places needing attention", value: attention === null ? null : n(attention) },
-    { label: "Call scripts available", value: scripts > 0 ? n(scripts) : null },
-    { label: "Approvals pending", value: pending === null ? null : n(pending) },
+    { label: "Gauges close to or above mean high water", value: has ? n(c.gaugesAbove + c.gaugesNear) : null },
+    { label: "Model points at Watch or Elevated (model)", value: has ? n(c.modelElevated + c.modelWatch) : null },
+    { label: "Approvals awaiting a person", value: pending },
   ];
 }

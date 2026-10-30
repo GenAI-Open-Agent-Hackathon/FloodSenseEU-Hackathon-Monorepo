@@ -56,6 +56,7 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 | Citizen | What to do | What do I do? | built-in safety guidance, official warning links | Warning links for the place's country | Same guidance, labelled as part of a replay |
 | Citizen | Evidence | Where does this come from? | live view query ids; provenance and citations in Past | View, query id and fetch time per source | Replay provenance and the reviewed answer's citations |
 | Citizen | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Same |
+| Citizen | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Same |
 | Insurer | Control tower | Is the watch loop running, and what did it find? | /watch/status, /watch/events, live watch | Loop state, event feed, scan now, auto-assess switch | Switch to Live to see this |
 | Insurer | Now | What is happening in the watch right now? | hazard_now, gauge_levels, eu_watch | Valencia cards, gauge map and list, Europe map | Switch to Live to see this |
 | Insurer | Replay | How did a past flood unfold? | hazard_timeline (floodsense_seed), bundled Ahr rows | Choose a flood (switches to Past) | Scrubber, chart and table for the chosen flood |
@@ -66,9 +67,11 @@ One mode for the whole console, in `ConsoleContext` (`mode`, `eventId`, `demo`; 
 | Insurer | Review | Is the evidence solid? | bundled recorded run (Valencia 2024) | Causal chain, Skeptic, Judge of the recorded run | Same recorded run |
 | Insurer | System | Are memory, cache, limits and models healthy? | /system | Counters and status (same in both modes) | Same |
 | Insurer | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Same |
+| Insurer | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Same |
 | Operator | Situation board | Which places need a call, and what do we say? | gauge_levels, eu_watch, hazard_now, forecast lane | Situation board with N of 45 sources, a call script and Escalate to agents | Live only (no past form) |
 | Operator | Approvals | Which of our escalated runs need a decision? | /runs/past (this desk's own runs) | Queue and decision bar for runs started here | Live only (no past form) |
 | Operator | How it works | How does FloodSense work? | /config, /system | Router, agents, data and human approval, with status dots | Live only (no past form) |
+| Operator | Under the hood | Which technology does what, right now? | /platform/status, /system, a recorded run | Animated cards per technology, each labelled live, replay or sample | Live only (no past form) |
 
 (`src/lib/pagePurpose.ts` holds the same rows; `src/lib/mode.test.ts` fails when they drift.)
 
@@ -215,6 +218,10 @@ Every Ask request carries `context` from `screenContext()` in ConsoleContext (ro
 The API caches the views (`x-views-cache` miss, hit or stale; `x-views-age-s`). When a view is served stale the live sources failed and this is the last good copy: `LiveHealthNote` says "Last good reading from HH:MM UTC (live source temporarily unavailable)", the context strip says "Live data · view eu_watch is N min old" and never plain "Live". The headers are read in `src/api/euWatch.ts`, `gauges.ts`, `now.ts`; the logic is in `src/lib/staleness.ts`.
 
 `GET {VITE_API_URL}/views/gauge_levels` (Zetaris `floodsense.gauge_levels`, PEGELONLINE Rhine/Mosel gauges). The browser never calls PEGELONLINE. Numbers sent as strings are coerced. Markers sit at the view's `lat`/`lon` (fallback: `STATION_POSITIONS` in `src/lib/gauges.ts`), coloured by `band` (below, near, above, unknown = No threshold). Cards show level, `trend_cm_h` as rising/steady/falling, MW and MHW, and the measured time. Each row's origin comes from `source`: a seed, fixture or replay stamp is labelled Seed or Fixture (dashed marker), never Live. A row with `is_stale` true (or missing) is labelled Stale. Live appears only for a live-source, fresh row, and the map chip says Live only when every gauge is. The view is re-read every 5 minutes; a failed or empty read is retried, not cached. An empty or unreachable view says "No live gauge readings yet". No sample gauges are drawn. Tiles: OpenStreetMap via Leaflet.
+
+## Under the hood (`#/<desk>/stack`)
+
+One page under every desk, with one card per technology in `src/components/stack/`: Nebius Token Factory and Nemotron (fast and deep lane calls, tokens, latency counting up), the agent pool (the eight steps lighting up from a run trace, with play/pause, scrub and speed; a running run is followed over SSE), Zetaris (views, rows and query ids flowing to PEGELONLINE, Open-Meteo, Copernicus EMS and seed CSVs), the Meterless engines (H-MEM and World Model counts, memory recalled in the run, the approve-then-remember loop), the Redis cache (hit-rate ring) and rate limiting (run slots, 429 counters). Data comes from `GET /platform/status`, `GET /system`, `GET /runs/past` and `GET /runs/{id}/replay`; the mappers are pure (`src/lib/stack.ts`). Each card carries a LIVE (read from the API now), REPLAY (recorded run) or SAMPLE (bundled recording) badge, or NO DATA with an empty state. Motion is CSS only and stops under `prefers-reduced-motion`.
 
 ## Fixture and live
 
