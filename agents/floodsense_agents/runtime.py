@@ -26,7 +26,7 @@ from floodsense_agents.events import route_event, spec
 from floodsense_agents.graph import build_deps, build_graph
 from floodsense_agents.hitl import approval_payload
 from floodsense_agents.models import ApprovalDecision, RunRequest
-from floodsense_agents.nightshift import UsageMeter, run_meter
+from floodsense_agents.nightshift import GLOBAL_USAGE, UsageMeter, run_meter
 from floodsense_agents.state import memory_used, normalise_trace, run_model_ids, trace
 from floodsense_agents.zetaris import now_utc
 
@@ -333,6 +333,7 @@ class Runtime:
                 log.warning("run %s: could not record the failure: %s", run_id, str(e2)[:120])
         finally:
             run_meter.reset(tok)
+            GLOBAL_USAGE.note_answer()
             with self._live_lock:
                 self.live[run_id]["done"] = True
             try:
@@ -368,6 +369,7 @@ class Runtime:
             lane = router.route(req, llm)
         finally:
             run_meter.reset(tok)
+            GLOBAL_USAGE.note_answer()
         router_trace = trace(
             {"run_id": run_id, "trace": []},
             "router",
@@ -406,6 +408,7 @@ class Runtime:
             self.graph.invoke(Command(resume=decision.model_dump()), self.cfg(run_id))
         finally:
             run_meter.reset(tok)
+            GLOBAL_USAGE.note_answer()
         out = self.snapshot(run_id)
         # N1: store used to run here on every approval, FF_HMEM or not. It now
         # runs in the graph's Learn node (nodes/memory.py), behind FF_HMEM, so

@@ -63,7 +63,7 @@ FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANG
 | Note on what was updated in the submission period (26 Aug to 30 Oct 2026) | Section 1.5. |
 | Tavily bonus (functional runtime call) | Code on main, default off. Live call: TO VERIFY (no Tavily key configured yet). |
 
-Nebius's Legal Quick Guide says inputs and outputs "may be stored and used for Speculative Decoding" by default, that "the inputs and outputs retained for Speculative Decoding are stored in Finland (EU)", and that enabling Zero Data Retention in account settings stops this ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. To confirm (not claimed anywhere): EU-only inference on public endpoints (the same docs say the processing region of public endpoints can change), and Nebius AI Cloud hosting details.
+Nebius's Legal Quick Guide says inputs and outputs "may be stored and used for Speculative Decoding" by default, that "the inputs and outputs retained for Speculative Decoding are stored in Finland (EU)", and that enabling Zero Data Retention in account settings stops this ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. Region, measured from the Token Factory model list (`GET /v1/models?verbose=true`, 30 Oct 2026): the fast lane model `nvidia/Nemotron-3_5-Lightning` runs in `eu-north1` (Finland), but the deep lane model `nvidia/Nemotron-3.5-Super-VL` is listed in `us-north1` (US). We therefore do NOT claim EU-only inference. Of the 30 models in the catalog, the only Nemotron models in an EU region are Lightning and `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (both Finland); every other Nemotron model (Super-VL, `nvidia/nemotron-3-super-120b-a12b`, `nvidia/Nemotron-3-Ultra-550b-a55b`) is listed in the US, so no EU Nemotron deep model of Super class exists in the catalog today. An EU-only claim would need the deep lane on an EU model (for example Nano) or a Super variant that Nebius lists in an EU region. The catalog can change, and the same docs say the processing region of public endpoints can change; the agents expose the region per lane in `/platform/status` (`llm_usage.pricing`).
 
 ## 3. Feedback answer (draft)
 
@@ -109,9 +109,9 @@ Live runs on the Nebius Token Factory, 30 Oct 2026. Stack: local Docker, Zetaris
 
 | Run | Backend / models | Wall time | Model calls | Total tokens | Cost per answer |
 | --- | --- | --- | --- | --- | --- |
-| Lane check (one tiny completion each) | Nebius | fast 1,108 ms; deep 30,399 ms (deep is a reasoning model) | 2 | not recorded | TO FILL: price per 1M tokens not configured |
-| Ahr 2021 (EMSR517), full lane | Nebius | 148 s | 12 (deep 3, fast 9) | 44,569 (deep 3,434; fast 41,135) | TO FILL: price per 1M tokens not configured |
-| Valencia 2024 (EMSR773), full lane | Nebius | 281 s, inflated: ran concurrently with the Ahr run | 14 (deep 7, fast 7) | 40,370 (deep 8,556; fast 31,814) | TO FILL: price per 1M tokens not configured |
+| Lane check (one tiny completion each) | Nebius | fast 1,108 ms; deep 30,399 ms (deep is a reasoning model) | 2 | not recorded | not recorded |
+| Ahr 2021 (EMSR517), full lane | Nebius | 148 s | 12 (deep 3, fast 9) | 44,569 (deep 3,434; fast 41,135) | not split into prompt and completion, so bounds only: $0.0035 to $0.0130 at list prices (fast $0.06 in / $0.24 out per 1M, deep $0.30 / $0.90) |
+| Valencia 2024 (EMSR773), full lane | Nebius | 281 s, inflated: ran concurrently with the Ahr run | 14 (deep 7, fast 7) | 40,370 (deep 8,556; fast 31,814) | not split, bounds only: $0.0045 to $0.0153 at the same list prices |
 | Quick lane, earlier 30 Oct | Nightshift (no model writes the answer) | about 0.3 to 9 s | 0 | 0 | n/a |
 | Forecast lane, earlier 30 Oct | Nightshift (no model writes the answer) | about 4 to 10 s | 0 | 0 | n/a |
 | Reference, Nightshift 27 Oct subset | Nemotron 3.5 Lightning | 385 s/item (EMSR773), 346 s/item (EMSR517), from `docs/evals/2026-10-27-nightshift-subset.md` | not recorded | not recorded | not recorded |

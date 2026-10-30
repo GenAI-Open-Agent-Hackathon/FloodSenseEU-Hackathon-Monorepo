@@ -11,6 +11,13 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
 
+### Added
+
+- Token Factory pricing and limits: the agents read per-model price, rpm/tpm limits and region from `GET /v1/models?verbose=true` (cached 1 h, never raises, falls back to "price not configured"). `usage` now has `cost_usd` per model, lane and total, `answers`, `cost_per_answer_usd`, `cached_tokens` and a `pricing` block per lane (price per 1M tokens, rpm/tpm, region, country), all passed through `/platform/status` `llm_usage`. The TS parser in `ui/src/api/platform.ts` reads them.
+
+- Nebius pacer defaults follow the published limits: `NEBIUS_RPM` a quarter of the lowest lane rpm (capped at 300), `NEBIUS_MAX_CONCURRENCY` 8 (were 60 and 4, a guess).
+- Honesty: the fast lane model (Lightning) runs in Finland (`eu-north1`) but the deep lane model (Super-VL) is listed in the US (`us-north1`); docs no longer imply EU-only inference.
+
 ### Fixed
 
 - First load of live pages: the API prewarms the views cache (`gauge_levels`, `eu_watch`, `hazard_now` and the other live views) in a background task at startup and re-checks it every `VIEWS_PREWARM_INTERVAL_S` seconds (default 120, floor 30, 0 = no refresh), calling a view only near its TTL (Open-Meteo views about once per 600 s) with a doubling failure backoff (cap 1 h). It uses the cache single flight, keeps stale-if-error, never relabels a copy (original `x-query-id` and age stay), and calls views 5 s apart for the Open-Meteo free tier.
