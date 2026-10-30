@@ -86,6 +86,9 @@ export function MapShell(props: MapShellProps) {
   const [dismissed, setDismissed] = useState("");
   const focus = focusKey && dismissed !== focusKey ? focusBounds(props.points3d, props.focusIds) : null;
   const shown = { ...props, focus };
+  useEffect(() => {
+    if (!focusKey) setDismissed(""); // picking the same river again flies in again
+  }, [focusKey]);
   return (
     <div className="gauge-map__frame">
       <div className="map-mode" role="group" aria-label="Map view">
@@ -402,7 +405,7 @@ function Map3D(props: Shown & { onFail: () => void }) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!ready || !map) return;
+    if (!ready || !map || focus) return; // an active focus stays
     map.fitBounds(
       [
         [view[0][1], view[0][0]],

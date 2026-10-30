@@ -54,7 +54,7 @@ describe("columns", () => {
     }
   });
   it("unknown status and missing value get no column, only a labelled flat marker", () => {
-    const pts = [statusPoint(base, "unknown"), bandPoint({ ...base, id: "n" }, null), statusPoint({ ...base, id: "ok" }, "ok")];
+    const pts = [statusPoint(base, "unknown", true), bandPoint({ ...base, id: "n" }, null), statusPoint({ ...base, id: "ok" }, "ok", true)];
     expect(columnsGeoJson(pts, undefined, 0.01).features.map((f) => f.properties.id)).toEqual(["ok"]);
     const flat = flatGeoJson(pts).features;
     expect(flat.map((f) => f.properties.id)).toEqual(["a", "n"]);
@@ -74,10 +74,11 @@ describe("3D failure", () => {
 describe("red and focus", () => {
   it("red only for a measured gauge above MHW", () => {
     const p = { id: "a", lat: 1, lon: 2, label: "a" };
-    expect(statusPoint(p, "over").color).toBe("#c0392b");
-    expect(statusPoint(p, "over").alert).toBe(true);
+    expect(statusPoint(p, "over", true).color).toBe("#c0392b");
+    expect(statusPoint(p, "over", true).alert).toBe(true);
     expect(statusPoint(p, "over", false).color).toBe(BAND_STYLE.peak.color);
     expect(statusPoint(p, "over", false).alert).toBeUndefined();
+    for (const s of ["ok", "near", "unknown"] as const) expect(statusPoint(p, s, true).alert).toBeUndefined();
     expect(Object.values(BAND_STYLE).some((b) => b.color === "#c0392b")).toBe(false);
   });
   const pts = [{ id: "a", lat: 50, lon: 7, river: "Rhine" }, { id: "b", lat: 51, lon: 7.5, river: "rhine" }, { id: "c", lat: 48, lon: 2, river: "Seine" }, { id: "d", lat: 40, lon: 0 }];
@@ -85,11 +86,13 @@ describe("red and focus", () => {
     expect(riverFocusIds(pts, "a")).toEqual(["a", "b"]);
     expect(riverFocusIds(pts, "d")).toEqual(["d"]);
     expect(riverFocusIds(pts, "zz")).toEqual([]);
+    expect(riverFocusIds(pts, null)).toEqual([]);
   });
   it("focusBounds fits ids and pads a lone point", () => {
     expect(focusBounds(pts, ["a", "b"])).toEqual([[50, 7], [51, 7.5]]);
     const one = focusBounds(pts, ["c"])!;
     expect(one[1][0] - one[0][0]).toBeCloseTo(0.06);
     expect(focusBounds(pts, [])).toBeNull();
+    expect(focusBounds(pts, ["nope"])).toBeNull();
   });
 });

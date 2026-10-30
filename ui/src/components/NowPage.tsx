@@ -113,7 +113,7 @@ function CitizenNowPage() {
             <p>{line}</p>
           </ForecastCard>
         ) : (
-          <p className="note">No 48 h forecast is stored for this place here. Ask for its outlook instead.</p>
+          <p className="note">We are watching this place; a detailed outlook is not available here yet.</p>
         ))
       }
       map={

@@ -21,7 +21,7 @@ export function gaugePinEl(p: ShellPoint, fill: number, selected: boolean): HTML
   el.setAttribute("aria-label", known ? p.label : `${p.label} · no reading`);
   el.tabIndex = 0;
   el.innerHTML = `
-    <span class="gpin__pulse"></span><span class="gpin__pulse gpin__pulse--b"></span>
+    ${p.alert ? '<span class="gpin__bang" aria-hidden="true">!</span>' : ""}<span class="gpin__pulse"></span><span class="gpin__pulse gpin__pulse--b"></span>
     <svg class="gpin__pin" viewBox="0 0 24 34" aria-hidden="true">
       <path d="M12 33C12 33 2 20 2 12a10 10 0 0 1 20 0c0 8-10 21-10 21z" fill="var(--c)" stroke="#fff" stroke-width="1.6"/>
       <circle cx="12" cy="12" r="4" fill="#fff"/>

@@ -42,7 +42,7 @@ function LegendRow({ kind, statuses }: { kind: WatchSource["kind"]; statuses: Ga
 }
 
 /**
- * Legend in three groups, so a gauge band is never read as a model band. Red is used only for a gauge at or
+ * Legend in three groups, so a gauge band is never read as a model band. Red (with a ring) is used only for a live gauge at or
  * above its long-term mean high water; model bands are amber, the Valencia points amber or neutral.
  */
 export function EuWatchLegend() {
@@ -77,14 +77,14 @@ export function EuWatchMap({ sources }: { sources: WatchSource[] }) {
   const [map, setMap] = useState<L.Map | null>(null);
   const askRef = useRef(openAsk);
   askRef.current = openAsk;
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge")), [sources]);
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge" && s.live)), [sources]);
   const focusIds = useMemo(() => riverFocusIds(sources, placeId), [sources, placeId]);
 
   useEffect(() => {
     if (!map) return;
     const layer = L.layerGroup().addTo(map);
     for (const s of sources) {
-      const cls = `map-marker map-marker--${s.status}${s.live ? "" : " map-marker--sample"}`;
+      const cls = `map-marker map-marker--${s.status}${s.live ? "" : " map-marker--sample"}${s.kind === "gauge" && s.live && s.status === "over" ? " map-marker--alert" : ""}`;
       const marker =
         s.kind === "gauge"
           ? L.circleMarker([s.lat, s.lon], { radius: 6, className: cls, bubblingMouseEvents: false })

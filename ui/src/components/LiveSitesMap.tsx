@@ -57,7 +57,10 @@ export function LiveSitesPanel() {
           <span className="map-legend__dot map-legend__dot--near" aria-hidden="true" /> Close to mean high water / Watch (model)
         </li>
         <li>
-          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Above mean high water (gauge, red) · Elevated (model) is amber, never red
+          <span className="map-legend__dot map-legend__dot--alert" aria-hidden="true" /> Above mean high water (live gauge, red with a ring)
+        </li>
+        <li>
+          <span className="map-legend__dot map-legend__dot--over" aria-hidden="true" /> Elevated (model, amber, never red)
         </li>
         <li>
           <span className="map-legend__dot map-legend__dot--unknown" aria-hidden="true" /> No reading
@@ -80,14 +83,14 @@ const NO_SITES: ExposureJoinRow[] = [];
 function LiveMap({ sources, sites }: { sources: WatchSource[]; sites: readonly ExposureJoinRow[] }) {
   const [map, setMap] = useState<L.Map | null>(null);
   const { placeId } = useConsole();
-  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge")), [sources]);
+  const points3d = useMemo(() => sources.map((s) => statusPoint({ id: s.id, lat: s.lat, lon: s.lon, label: `${s.river ? `${s.river} · ${s.name}` : s.name} · ${statusView(s.kind, s.status).word}${s.live ? "" : " · not live (stale or seed)"}` }, s.status, s.kind === "gauge" && s.live)), [sources]);
   const focusIds = useMemo(() => riverFocusIds(sources, placeId), [sources, placeId]);
 
   useEffect(() => {
     if (!map) return;
     const layer = L.layerGroup().addTo(map);
     for (const s of sources) {
-      const cls = `map-marker map-marker--${s.status}${s.live ? "" : " map-marker--sample"}`;
+      const cls = `map-marker map-marker--${s.status}${s.live ? "" : " map-marker--sample"}${s.kind === "gauge" && s.live && s.status === "over" ? " map-marker--alert" : ""}`;
       const marker =
         s.kind === "gauge"
           ? L.circleMarker([s.lat, s.lon], { radius: 6, className: cls, bubblingMouseEvents: false })

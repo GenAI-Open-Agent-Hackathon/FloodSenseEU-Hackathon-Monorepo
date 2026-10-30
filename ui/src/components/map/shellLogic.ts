@@ -77,8 +77,8 @@ export const STATUS_STYLE: Record<GaugeStatus, { rank: number; color: string }> 
 type Base = { id: string; lat: number; lon: number; label: string };
 /** `null` band = no value for that point: a flat marker, not a column. */
 export const bandPoint = (p: Base, band: DischargeBand | null): ShellPoint => ({ ...p, ...(band ? BAND_STYLE[band] : STATUS_STYLE.unknown) });
-/** `measured` false (model sources): a high status keeps the amber model palette, never red. */
-export const statusPoint = (p: Base, status: GaugeStatus, measured = true): ShellPoint =>
+/** `measured` (true only for a live official gauge reading) is required: false: a high status keeps the amber model palette, never red. */
+export const statusPoint = (p: Base, status: GaugeStatus, measured: boolean): ShellPoint =>
   status === "over" && !measured
     ? { ...p, ...BAND_STYLE.peak }
     : { ...p, ...STATUS_STYLE[status], ...(status === "over" ? { alert: true } : {}) };
