@@ -1185,3 +1185,6 @@ a.button.primary { color: #f4fffc; }
 .desk-card > * { margin-top: 0; margin-bottom: 0; }
 .desk-card__title { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
 .desk-card__title--label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+
+/* Map shell: 2D / 3D toggle row above the map */
+.map-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.4rem; }

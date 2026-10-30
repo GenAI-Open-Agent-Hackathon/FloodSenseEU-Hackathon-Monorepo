@@ -204,6 +204,7 @@ class TraceEvent(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     phase: Literal["started", "finished"] = "finished"  # extra: a trace entry is a finished step
     duration_ms: int | None = None  # extra: same value as latency_ms
+    provider: str | None = None  # extra: backend that served model_id (nightshift | nebius)
 
 
 # A replay clock is a UTC instant and nothing else. Callers compare it and
