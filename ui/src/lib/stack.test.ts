@@ -3,7 +3,10 @@ import sample from "../fixtures/run_f16733274f1c.json";
 import { adoptReplay } from "../api/replay";
 import { initialLiveState, liveReducer } from "./liveRun";
 import {
+  countStart,
   easeCount,
+  judgeChips,
+  nextPollMs,
   hitRateOf,
   loopsAt,
   memoryRecall,
@@ -14,10 +17,8 @@ import {
   slotLights,
   sourceOfView,
   traceFrames,
-  usageOfPlatform,
   usageOfRun,
   viewReads,
-  weakest,
 } from "./stack";
 
 const run = adoptReplay(sample, "run_f16733274f1c")!;
@@ -78,7 +79,6 @@ describe("usage to counters", () => {
     expect(usageOfRun(undefined)).toBeNull();
     expect(usageOfRun(null)).toBeNull();
     expect(usageOfRun({ lanes: {} })).toBeNull();
-    expect(usageOfPlatform(null)).toBeNull();
   });
   it("eases a count between two values", () => {
     expect(easeCount(0, 100, 0)).toBe(0);
@@ -116,9 +116,21 @@ describe("zetaris, memory, cache, limits", () => {
     expect(slotLights(5, 2)).toEqual([true, true]);
     expect(slotLights(0, 999)).toHaveLength(12);
   });
-  it("badge of a mixed card is its weakest source", () => {
-    expect(weakest(["live", "sample"])).toBe("sample");
-    expect(weakest(["live", "replay"])).toBe("replay");
-    expect(weakest([])).toBe("none");
+  it("count-up starts at the value for static data", () => {
+    expect(countStart(null, 42)).toBe(42);
+    expect(countStart(10, 42)).toBe(10);
+  });
+  it("judge chips never show a previous run's scores while another streams", () => {
+    const prev = { runId: "old", judgeOverall: 0.9, judgePasses: true, judgeClaims: [{ score: 1 }] };
+    expect(judgeChips(prev, true, true)).toBeNull();
+    expect(judgeChips(prev, false, false)).toBeNull();
+    expect(judgeChips(prev, false, true)).toMatchObject({ runId: "old", overall: 0.9, scores: [1] });
+    expect(judgeChips(null, false, true)).toBeNull();
+  });
+  it("polling backs off on failures and waits while hidden", () => {
+    expect(nextPollMs(5000, 0, false)).toBe(5000);
+    expect(nextPollMs(5000, 2, false)).toBe(20000);
+    expect(nextPollMs(5000, 9, false)).toBe(60000);
+    expect(nextPollMs(5000, 0, true)).toBe(30000);
   });
 });

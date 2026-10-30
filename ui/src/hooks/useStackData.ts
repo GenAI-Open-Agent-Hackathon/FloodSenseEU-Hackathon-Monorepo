@@ -8,7 +8,7 @@ import { fetchSystem } from "../api/system";
 import { adoptReplay, type RecordedRun } from "../api/replay";
 import { initialLiveState, liveReducer, type LiveRunState } from "../lib/liveRun";
 import { SYSTEM_POLL_MS, type SystemStatus } from "../lib/system";
-import { traceFrames } from "../lib/stack";
+import { nextPollMs, traceFrames } from "../lib/stack";
 
 export interface StackRun {
   raw: unknown;
@@ -53,6 +53,8 @@ export function useStackData(): StackData {
     let streaming: string | null = null;
     let shown: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let failures = 0;
+    let busy = false;
 
     const loadRun = async (id: string, kind: StackRun["kind"]) => {
       const raw = await fetchReplayBody(id, ctl.signal);
@@ -86,9 +88,18 @@ export function useStackData(): StackData {
       );
     };
 
+    const schedule = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      if (!ctl.signal.aborted) timer = setTimeout(() => void tick(), nextPollMs(SYSTEM_POLL_MS, failures, document.visibilityState === "hidden"));
+    };
     const tick = async () => {
+      if (busy) return;
+      if (document.visibilityState === "hidden") return schedule();
+      busy = true;
       const [p, s, past] = await Promise.all([fetchPlatformStatus(), fetchSystem(undefined, ctl.signal), fetchPastRuns(30, ctl.signal)]);
+      busy = false;
       if (ctl.signal.aborted) return;
+      failures = p.status || s.status ? 0 : failures + 1;
       setPlatform({ data: p.status, error: p.error, loading: false });
       setSystem({ data: s.status, error: s.error, loading: false });
       setRunsError(past.ok ? null : past.detail);
@@ -99,10 +110,15 @@ export function useStackData(): StackData {
         else if (recorded && recorded.runId !== shown) await loadRun(recorded.runId, "replay");
       }
       if (!shown && !streaming) setStackRun((cur) => cur ?? sample());
-      if (!ctl.signal.aborted) timer = setTimeout(() => void tick(), SYSTEM_POLL_MS);
+      schedule();
     };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     void tick();
     return () => {
+      document.removeEventListener("visibilitychange", onVisible);
       ctl.abort();
       stopStream?.();
       if (timer !== undefined) clearTimeout(timer);

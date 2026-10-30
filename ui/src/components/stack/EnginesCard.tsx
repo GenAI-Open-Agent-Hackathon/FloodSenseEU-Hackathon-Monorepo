@@ -50,7 +50,7 @@ export function EnginesCard({
       <h3 className="stk-sub">Approve, then remember</h3>
       <ol className="stk-loop" aria-label="Approve then remember loop">
         {LOOP.map((s, i) => (
-          <li key={s} className={i === 2 ? "is-gate" : undefined} style={{ animationDelay: `${i * 0.6}s` }}>
+          <li key={s} className={i === 2 ? "is-gate" : undefined}>
             {s}
           </li>
         ))}

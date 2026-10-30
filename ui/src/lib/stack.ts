@@ -1,5 +1,4 @@
 import type { ReplayStep } from "../api/replay";
-import type { PlatformStatus } from "../api/platform";
 import type { LiveRunState } from "./liveRun";
 
 /**
@@ -14,12 +13,6 @@ const str = (v: unknown): string | null => (typeof v === "string" && v.length > 
 
 /** Where a card's numbers come from. none = nothing to show yet. */
 export type DataKind = "live" | "replay" | "sample" | "none";
-
-/** The badge text for a card fed by several sources: the weakest claim wins (sample < replay < live). */
-export function weakest(kinds: DataKind[]): DataKind {
-  for (const k of ["none", "sample", "replay", "live"] as const) if (kinds.includes(k)) return k;
-  return "none";
-}
 
 /* ---------- agent pool ---------- */
 
@@ -152,19 +145,6 @@ export function usageOfRun(raw: unknown): UsageView | null {
   return usageView(lanes, num(u.cost_usd));
 }
 
-/** GET /platform/status llm_usage (agents process since start), with the lane model ids it reports. */
-export function usageOfPlatform(p: PlatformStatus | null): UsageView | null {
-  if (!p?.llmUsage) return null;
-  const lanes = Object.entries(p.llmUsage.lanes).map(([lane, l]) => ({
-    lane,
-    calls: l.calls,
-    totalTokens: l.totalTokens,
-    avgLatencyMs: l.avgLatencyMs,
-    modelIds: p.lanes[lane] ? [p.lanes[lane]] : [],
-  }));
-  return usageView(lanes, p.llmUsage.costUsd);
-}
-
 /** Eased counter value: t in [0,1]. */
 export function easeCount(from: number, to: number, t: number): number {
   const k = Math.max(0, Math.min(1, t));
@@ -253,4 +233,30 @@ export function ringDash(rate: number | null, r: number): string {
 export function slotLights(inFlight: number, max: number, cap = 12): boolean[] {
   const n = Math.max(0, Math.min(Math.floor(max), cap));
   return Array.from({ length: n }, (_, i) => i < inFlight);
+}
+
+/** CountUp start value: static data starts at its value; only a later change animates from the previous one. */
+export function countStart(prev: number | null, value: number): number {
+  return prev ?? value;
+}
+
+/**
+ * Judge chips belong to the run on screen only. While a live run streams, the recorded run in hand is a
+ * different (previous) run, so nothing is shown. Otherwise they carry that run's id.
+ */
+export function judgeChips(
+  run: { runId: string; judgeOverall: number | null; judgePasses: boolean | null; judgeClaims?: { score: number | null }[] } | null,
+  streamingLive: boolean,
+  finished: boolean,
+): { runId: string; overall: number | null; flagged: boolean; scores: number[] } | null {
+  if (!run || streamingLive || !finished) return null;
+  const scores = (run.judgeClaims ?? []).flatMap((j) => (j.score === null ? [] : [j.score]));
+  if (run.judgeOverall === null && !scores.length) return null;
+  return { runId: run.runId, overall: run.judgeOverall, flagged: run.judgePasses === false, scores };
+}
+
+/** Next poll delay: hidden tabs wait long, consecutive failures back off (x2 per failure, capped at 60 s). */
+export function nextPollMs(base: number, failures: number, hidden: boolean): number {
+  if (hidden) return 30_000;
+  return Math.min(60_000, base * 2 ** Math.max(0, Math.min(failures, 6)));
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { easeCount, type DataKind } from "../../lib/stack";
+import { countStart, easeCount, type DataKind } from "../../lib/stack";
 
 const BADGE_TEXT: Record<DataKind, string> = { live: "LIVE", replay: "REPLAY", sample: "SAMPLE", none: "NO DATA" };
 const BADGE_HELP: Record<DataKind, string> = {
@@ -47,7 +47,7 @@ export function CountUp({ value, ms = 900 }: { value: number; ms?: number }) {
   const [shown, setShown] = useState(value);
   const prev = useRef<number | null>(null);
   useEffect(() => {
-    const from = prev.current ?? 0;
+    const from = countStart(prev.current, value);
     prev.current = value;
     if (reducedMotion() || from === value) {
       setShown(value);

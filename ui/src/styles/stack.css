@@ -29,6 +29,7 @@
 .stk-node.is-lit, .stk-node--src.is-lit { opacity: 1; box-shadow: 0 0 0 2px var(--brand-border); }
 .stk-srcs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.4rem; }
 .stk-wire { position: relative; flex: 1 1 40px; min-width: 40px; height: 2px; background: var(--line); }
+.stk-wire:not(.stk-wire--on) i { display: none; }
 .stk-wire i { position: absolute; top: -2px; left: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: stk-run 2.4s linear infinite; }
 .stk-wire i:nth-child(2) { animation-delay: 0.8s; }
 .stk-wire i:nth-child(3) { animation-delay: 1.6s; }
@@ -78,9 +79,8 @@
 .stk-recall { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; font-size: 0.84rem; }
 .stk-recall li { padding: 0.35rem 0.55rem; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 6px; animation: stk-pulse 2.4s ease-in-out infinite; }
 .stk-loop { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.8rem; }
-.stk-loop li { padding: 0.2rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; animation: stk-lit 3s ease-in-out infinite; }
+.stk-loop li { padding: 0.2rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; }
 .stk-loop li.is-gate { border-color: var(--warn); color: var(--warn); font-weight: 600; }
-@keyframes stk-lit { 0%, 100% { background: transparent; } 20% { background: var(--accent-soft); } }
 
 /* cache + limits */
 .stk-cache { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
@@ -94,7 +94,7 @@
 .stk-slot.is-on { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); animation: stk-pulse 1.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .stk-wire i, .stk-step--active, .stk-recall li, .stk-loop li, .stk-ring, .stk-slot.is-on { animation: none; }
+  .stk-wire i, .stk-step--active, .stk-recall li, .stk-ring, .stk-slot.is-on { animation: none; }
   .stk-wire i { left: 50%; opacity: 1; }
   .stk-wire--v i { left: -2px; top: 50%; }
   .stk-step { transition: none; }

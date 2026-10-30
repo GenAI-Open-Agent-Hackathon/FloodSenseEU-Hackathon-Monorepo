@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import type { RecordedRun } from "../../api/replay";
 import type { LiveRunState } from "../../lib/liveRun";
-import { loopsAt, nodeStatesAt, nodesFromLive, traceFrames, type DataKind, type NodeView } from "../../lib/stack";
+import { judgeChips, loopsAt, nodeStatesAt, nodesFromLive, traceFrames, type DataKind, type NodeView } from "../../lib/stack";
 import { modelDisplay } from "../../lib/techTrace";
 import { Empty, StackCard, ms, reducedMotion } from "./StackBits";
+
+/** Latest value, committed at most once per `gap` ms: keeps a screen-reader region from announcing every event. */
+function useThrottled(value: string, gap: number): string {
+  const [out, setOut] = useState(value);
+  useEffect(() => {
+    if (value === out) return;
+    const t = setTimeout(() => setOut(value), gap);
+    return () => clearTimeout(t);
+  }, [value, out, gap]);
+  return out;
+}
 
 const SPEEDS = [1, 2, 4] as const;
 
@@ -62,7 +73,8 @@ export function PoolCard({
   const loops = isLive ? { revise: live.reviseRounds, repair: live.repairRounds } : loopsAt(frames, played);
   const shownKind: DataKind = isLive ? "live" : run ? kind : "none";
   const done = played >= total;
-  const scores = (run?.judgeClaims ?? []).flatMap((j) => (j.score === null ? [] : [j.score]));
+  const chips = judgeChips(run, isLive, done);
+  const said = useThrottled(isLive ? live.announce : "", 4000);
 
   return (
     <StackCard
@@ -72,10 +84,11 @@ export function PoolCard({
       kind={shownKind}
     >
       {isLive && (
-        <p className="stk-note" role="status">
-          Following run {live.runId} live. {live.announce}
-        </p>
+        <p className="stk-note">Following run {live.runId} live.</p>
       )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {said}
+      </p>
       {!isLive && !run && <Empty>No run with a trace yet. Ask a question to see the agents light up.</Empty>}
       <ol className="stk-steps" aria-label="Agent pipeline">
         {nodes.map((n, i) => (
@@ -101,13 +114,13 @@ export function PoolCard({
       <p className="stk-loops">
         <span className={loops.revise > 0 ? "stk-chip stk-chip--on" : "stk-chip"}>Skeptic ↔ Investigator revise ×{loops.revise}</span>
         <span className={loops.repair > 0 ? "stk-chip stk-chip--on" : "stk-chip"}>Judge repair ×{loops.repair}</span>
-        {run?.judgeOverall != null && (done || isLive) && (
+        {chips && chips.overall !== null && (
           <span className="stk-chip stk-chip--on">
-            Judge overall {run.judgeOverall.toFixed(2)}
-            {run.judgePasses === false ? " (flagged)" : ""}
+            Judge overall {chips.overall.toFixed(2)}
+            {chips.flagged ? " (flagged)" : ""} · run {chips.runId}
           </span>
         )}
-        {scores.length > 0 && (done || isLive) && <span className="stk-chip">claim scores {scores.map((s) => s.toFixed(1)).join(", ")}</span>}
+        {chips && chips.scores.length > 0 && <span className="stk-chip">claim scores {chips.scores.map((x) => x.toFixed(1)).join(", ")}</span>}
       </p>
       {!isLive && total > 0 && (
         <div className="stk-controls" role="group" aria-label="Replay controls">

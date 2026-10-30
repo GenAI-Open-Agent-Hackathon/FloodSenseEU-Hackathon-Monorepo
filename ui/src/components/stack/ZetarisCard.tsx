@@ -15,12 +15,12 @@ export function ZetarisCard({ reads, kind, runId }: { reads: ViewRead[]; kind: D
     >
       <div className="stk-zflow" aria-hidden="true">
         <span className="stk-node">Agents</span>
-        <span className="stk-wire stk-wire--v">
+        <span className={`stk-wire stk-wire--v${reads.length ? " stk-wire--on" : ""}`}>
           <i />
           <i />
         </span>
         <span className={`stk-node stk-node--zet${reads.length ? " is-lit" : ""}`}>Zetaris SQL</span>
-        <span className="stk-wire stk-wire--v">
+        <span className={`stk-wire stk-wire--v${reads.length ? " stk-wire--on" : ""}`}>
           <i />
           <i />
         </span>

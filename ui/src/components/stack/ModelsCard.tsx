@@ -1,7 +1,7 @@
 import type { PlatformStatus } from "../../api/platform";
 import { modelDisplay } from "../../lib/techTrace";
 import type { DataKind, UsageView } from "../../lib/stack";
-import { CountUp, Empty, StackCard, ms } from "./StackBits";
+import { CountUp, DataBadge, Empty, StackCard, ms } from "./StackBits";
 
 export const BACKEND_NAMES: Record<string, string> = {
   nebius: "Nebius Token Factory",
@@ -35,7 +35,8 @@ export function ModelsCard({
   platformKind: DataKind;
 }) {
   const poolUsage = runUsage;
-  const kind: DataKind = poolUsage ? runKind : platform?.llmUsage ? "live" : platformKind;
+  // Card badge: the live platform status when reachable, else what the counters came from. Values carry their own badge below.
+  const kind: DataKind = platform ? "live" : poolUsage ? runKind : platformKind;
   const usage = poolUsage;
   const processUsage = !poolUsage && platform?.llmUsage ? platform.llmUsage : null;
   const backend = platform?.llmBackend ?? null;
@@ -48,7 +49,7 @@ export function ModelsCard({
     >
       <div className="stk-flow" aria-hidden="true">
         <span className="stk-node">Agents</span>
-        <span className="stk-wire">
+        <span className={`stk-wire${usage || processUsage ? " stk-wire--on" : ""}`}>
           <i />
           <i />
           <i />
@@ -66,6 +67,8 @@ export function ModelsCard({
           const pu = processUsage?.lanes[lane] ?? null;
           const modelId = u?.modelIds[0] ?? platform?.lanes[lane] ?? platform?.llmCheck?.lanes[lane]?.modelId ?? null;
           const lat = platform?.latency[lane];
+          const modelFromRun = !!u?.modelIds[0];
+          const countKind: DataKind = u ? runKind : pu ? "live" : "none";
           const calls = u?.calls ?? pu?.calls ?? null;
           const tokens = u?.totalTokens ?? pu?.totalTokens ?? null;
           const avg = u?.avgLatencyMs ?? pu?.avgLatencyMs ?? null;
@@ -75,8 +78,13 @@ export function ModelsCard({
               <p className="stk-model" title={modelId ?? undefined}>
                 {modelId ? modelDisplay(modelId) : "model not reported"}
               </p>
-              <p className="stk-mono">{modelId ?? ""}</p>
+              <p className="stk-mono">
+                {modelId ?? ""} {modelId && <DataBadge kind={modelFromRun ? runKind : "live"} />}
+              </p>
               <p className="stk-note">{LANE_NOTE[lane] ?? "Extra lane"}</p>
+              <p className="stk-note">
+                Counters: <DataBadge kind={countKind} />
+              </p>
               <dl className="stk-kv">
                 <div>
                   <dt>Calls</dt>
