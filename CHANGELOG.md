@@ -9,6 +9,8 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+Draft notes for a possible 2.0.0 (not released, no tag): [docs/RELEASE-NOTES-v2.0.0.md](docs/RELEASE-NOTES-v2.0.0.md).
+
 ### Fixed
 
 - First load of live pages: the API prewarms the views cache (`gauge_levels`, `eu_watch`, `hazard_now` and the other live views) in a background task at startup and re-checks it every `VIEWS_PREWARM_INTERVAL_S` seconds (default 120, floor 30, 0 = no refresh), calling a view only near its TTL (Open-Meteo views about once per 600 s) with a doubling failure backoff (cap 1 h). It uses the cache single flight, keeps stale-if-error, never relabels a copy (original `x-query-id` and age stay), and calls views 5 s apart for the Open-Meteo free tier.
