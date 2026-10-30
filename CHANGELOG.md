@@ -11,6 +11,7 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ### Added
 
+- Docs: real Token Factory measurements from live runs on 30 Oct 2026 in `docs/SUBMISSION-NEBIUS.md` (lane latency, Ahr and Valencia full-lane time, calls and tokens), updated rules checklist and feedback draft. Cost per run still TO FILL (no official prices retrieved).
 - Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.
 - Nebius evidence: `python tasks.py check-llm` / `POST /llm/check` (per-lane ok, model id, Nemotron flag, latency), per-run `usage` (tokens, calls, latency per lane and model; optional cost from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`), `llm_check` and `llm_usage` in `/config` and `/platform/status`, and `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY` for the pacer. Offline-tested only.
 - Docs: README section "Built on Nebius and NVIDIA", Token Factory, Tavily and Nebius AI Cloud in the README and C4 diagrams, and `docs/SUBMISSION-NEBIUS.md` (Devpost text, rules checklist, feedback draft, video script, measurements table with TO MEASURE cells).

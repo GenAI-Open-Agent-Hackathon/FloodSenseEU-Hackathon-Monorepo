@@ -24,18 +24,19 @@ Python/LangGraph agents, FastAPI API, React UI, Zetaris as the only data path, p
 
 ### 1.4 Why Nebius and NVIDIA
 
-All agent reasoning calls NVIDIA Nemotron over the Token Factory OpenAI-compatible API: fast lane `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, deep lane `nvidia/Nemotron-3.5-Super-VL` (env defaults on main), one endpoint and one key for both lanes. The model id that answered is recorded per step in the trace and on each Judge score. Tavily adds cited, labelled web context. TO FILL: concrete benefit seen in live Token Factory runs (none measured yet).
+All agent reasoning calls NVIDIA Nemotron over the Token Factory OpenAI-compatible API: fast lane `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, deep lane `nvidia/Nemotron-3.5-Super-VL` (env defaults on main), one endpoint and one key for both lanes. The model id that answered is recorded per step in the trace and on each Judge score. Tavily adds cited, labelled web context. Measured on 30 Oct 2026 (section 6): a full Ahr 2021 investigation ran end to end in 148 s over 12 Token Factory calls (44,569 tokens), and every model-judged claim scored 1.0 in the Judge.
 
 ### 1.5 What we built during the hackathon
 
-FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANGELOG.md)). New in the submission period: `NebiusClient` and `LLM_BACKEND=nebius`, Tavily web context (`FF_TAVILY`), `GET /platform/status`, and the Apache-2.0 licence file (the code was already public; licence added in this period). TO VERIFY: Nebius AI Cloud hosting kit (in review, not on main). The earlier 22 to 27 Oct work ran on Nightshift; the Nebius port is the main new work.
+FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANGELOG.md)). New in the submission period: `NebiusClient` and `LLM_BACKEND=nebius`, Tavily web context (`FF_TAVILY`), `GET /platform/status`, and the Apache-2.0 licence file (the code was already public; licence added in this period). The Nebius AI Cloud hosting kit is merged (PR #117) but not yet deployed; TO VERIFY before saying "hosted on Nebius". The earlier 22 to 27 Oct work ran on Nightshift; the Nebius port is the main new work.
 
 ### 1.6 Challenges, learnings, next
 
 - Reasoning models spend hidden tokens: on Nightshift, 1,300 to 5,500 completion tokens, and the gateway cut calls at about 45 s; we streamed and split the Investigator into small per-link calls (CHANGELOG 0.x). The full lane takes 5 to 6 minutes on Nightshift (27 Oct runs).
 - Rate limits: a gate plus pacer plus backoff, now shared with the Nebius client.
 - Learning: numbers in claims must be cells of cited rows; web text carries no numbers.
-- Next: TO FILL after live Token Factory runs (verify model ids with `GET /v1/models`, measure lane latency, move hosting to Nebius AI Cloud).
+- On Token Factory (30 Oct 2026): model ids are plain `nvidia/...`; an id with a `nebius/` prefix returned 404. `GET /v1/models` listed 30 models. The deep lane is a reasoning model: one tiny completion took 30,399 ms against 1,108 ms on the fast lane.
+- Next: deploy the hosting kit on Nebius AI Cloud and record the demo URL.
 
 ### 1.7 Testing instructions
 
@@ -52,27 +53,27 @@ FloodSense was built 22 to 27 Oct 2026 (v1.0.0, v1.0.1; see [CHANGELOG](../CHANG
 | Requirement | Status |
 | --- | --- |
 | Track Best Apps and Agents | Entering. |
-| Runtime call to Token Factory with an NVIDIA open model | Code on main (`NebiusClient`). Live call: TO VERIFY (offline tests only). Do a live run and record the model id before submitting. |
-| Public repo, detectable open-source licence | Apache-2.0 `LICENSE` on main. Repo is PUBLIC and GitHub detects Apache-2.0 (`gh repo view`, checked 29 Oct 2026). |
-| README explains Nemotron use, Token Factory help, other Nebius tools | Section written. "Where Token Factory helped" is TO FILL. |
-| Working demo URL | TO FILL. |
-| Video under 3 min on YouTube | Script in section 4. Not recorded. |
+| Runtime call to Token Factory with an NVIDIA open model | VERIFIED on 30 Oct 2026: live calls on both lanes (`nvidia/Nemotron-3_5-Lightning`, `nvidia/Nemotron-3.5-Super-VL`), see section 6. |
+| Public repo, detectable open-source licence | Apache-2.0 `LICENSE` on main. Repo is PUBLIC and GitHub detects Apache-2.0 (`gh repo view`, checked 30 Oct 2026). |
+| README explains Nemotron use, Token Factory help, other Nebius tools | Section written; measured numbers added 30 Oct. Cost per run still TO FILL. |
+| Working demo URL | TO FILL. Hosting kit merged as PR #117, not yet deployed. |
+| Video under 3 min on YouTube | Script in section 4. TO DO (not recorded). |
 | English description | Section 1. |
 | Feedback on Token Factory / AI Cloud / NVIDIA models | Draft in section 3. |
 | Note on what was updated in the submission period (26 Aug to 30 Oct 2026) | Section 1.5. |
-| Tavily bonus (functional runtime call) | Code on main, default off. Live call: TO VERIFY with a real key. |
+| Tavily bonus (functional runtime call) | Code on main, default off. Live call: TO VERIFY (no Tavily key configured yet). |
 
-To confirm (not claimed anywhere): zero-retention of prompts, EU-datacenter inference, Nebius AI Cloud hosting details. Not verified from Nebius public docs.
+Nebius documents zero data retention as an organisation-wide setting, and says that without it inputs and outputs are stored in Finland ([Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide), retrieved 30 Oct 2026). We have not enabled it and do not claim it. To confirm (not claimed anywhere): EU-only inference on public endpoints (the same docs say the processing region of public endpoints can change), and Nebius AI Cloud hosting details.
 
 ## 3. Feedback answer (draft)
 
 Only what the repo shows is stated.
 
 - **Onboarding**: the OpenAI-compatible API meant the existing client needed a base URL, a Bearer key and model ids; the Nebius client reuses the retry, backoff and JSON-mode code. Base URL was taken from docs.tokenfactory.nebius.com/api-reference/introduction (per code comment).
-- **Token Factory**: TO FILL after live runs. Known gaps from docs reading: `response_format: json_object` and a thinking switch are not documented, so we drop the field on a 400 and do not send `enable_thinking`.
+- **Token Factory** (live runs, 30 Oct 2026): model ids are plain `nvidia/...`; a `nebius/` prefix gave 404. `GET /v1/models` listed 30 models. Lane check: fast 1,108 ms, deep 30,399 ms for one tiny completion. Known gaps from docs reading: `response_format: json_object` and a thinking switch are not documented, so we drop the field on a 400 and do not send `enable_thinking`.
 - **AI Cloud**: TO FILL.
-- **NVIDIA models**: Nemotron reasoning tokens count against `max_tokens`; on Nightshift most completion tokens were hidden reasoning. Same behaviour on Token Factory: TO VERIFY.
-- **Three improvements**: (1) TO FILL (candidate: document `response_format` and thinking control per model); (2) TO FILL; (3) TO FILL. Do not submit candidates the team did not experience.
+- **NVIDIA models**: Nemotron reasoning tokens count against `max_tokens`; on Nightshift most completion tokens were hidden reasoning. On Token Factory the deep model returned thinking text and spent tokens on reasoning (observed 30 Oct; the 30,399 ms lane check is a reasoning model).
+- **Three improvements**: (1) document `response_format` / JSON mode and thinking control per model (the code comments in `NebiusClient` record both as undocumented); (2) state the exact model id format in the model catalogue, since the `nebius/` prefix gives 404; (3) separate reasoning text from the answer, and report reasoning tokens in `usage`. All three were experienced in our runs.
 
 ## 4. Video script (2:50, one continuous Valencia replay)
 
@@ -104,8 +105,17 @@ Record with `LLM_BACKEND=nebius`, `FF_TAVILY=true` and a real key, else do not s
 
 ## 6. Measurements
 
-| Run | Backend / models | Wall time | Prompt tokens | Completion tokens | Cost per answer |
+Live runs on the Nebius Token Factory, 30 Oct 2026. Stack: local Docker, Zetaris live data, `LLM_BACKEND=nebius`, fast lane `nvidia/Nemotron-3_5-Lightning`, deep lane `nvidia/Nemotron-3.5-Super-VL` (env overrides of the main defaults).
+
+| Run | Backend / models | Wall time | Model calls | Total tokens | Cost per answer |
 | --- | --- | --- | --- | --- | --- |
-| Valencia (EMSR773) replay, full lane | Nebius | TO MEASURE: | TO MEASURE: | TO MEASURE: | TO MEASURE: |
-| Ahr (EMSR517) replay, full lane | Nebius | TO MEASURE: | TO MEASURE: | TO MEASURE: | TO MEASURE: |
+| Lane check (one tiny completion each) | Nebius | fast 1,108 ms; deep 30,399 ms (deep is a reasoning model) | 2 | not recorded | TO FILL: price per 1M tokens not configured |
+| Ahr 2021 (EMSR517), full lane | Nebius | 148 s | 12 (deep 3, fast 9) | 44,569 (deep 3,434; fast 41,135) | TO FILL: price per 1M tokens not configured |
+| Valencia 2024 (EMSR773), full lane | Nebius | 281 s, inflated: ran concurrently with the Ahr run | 14 (deep 7, fast 7) | 40,370 (deep 8,556; fast 31,814) | TO FILL: price per 1M tokens not configured |
+| Quick lane, earlier 30 Oct | Nightshift (no model writes the answer) | about 0.3 to 9 s | 0 | 0 | n/a |
+| Forecast lane, earlier 30 Oct | Nightshift (no model writes the answer) | about 4 to 10 s | 0 | 0 | n/a |
 | Reference, Nightshift 27 Oct subset | Nemotron 3.5 Lightning | 385 s/item (EMSR773), 346 s/item (EMSR517), from `docs/evals/2026-10-27-nightshift-subset.md` | not recorded | not recorded | not recorded |
+
+Judge: both full runs scored 1.0 on every model-judged claim plus a deterministic score, and stopped awaiting human approval.
+
+Cost: the prompt/completion split was not recorded, so no cost is computed. Nebius's own pricing page (https://tokenfactory.nebius.com/organization/prices, retrieved 30 Oct 2026) did not return prices to our fetch, so no official price is recorded. Third-party aggregators list figures but are not official and are not used. Once both are known: cost = (prompt tokens x input price + completion tokens x output price) / 1,000,000 per model, summed over both lanes.
