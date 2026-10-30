@@ -165,6 +165,7 @@ export function OperatorSituation() {
       <DeskPage
         desk="operator"
         {...shell}
+        evidence={<WebCheckCard stack={stack} desk="operator" />}
         health={
           <p className="now-status" role="status">
             {loading

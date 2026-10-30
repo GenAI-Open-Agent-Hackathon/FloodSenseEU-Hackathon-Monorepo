@@ -8,6 +8,7 @@
 .sponsor-chip--off .sponsor-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
 .sponsor-chip--unavailable .sponsor-dot { background: var(--warn-ink); }
 
+@media (max-width: 640px) { .sponsor-strip { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; box-sizing: border-box; scrollbar-width: thin; } .sponsor-chip { white-space: nowrap; } }
 .webcheck-links { margin: 0.3rem 0; padding-left: 1.1rem; font-size: 0.88rem; overflow-wrap: anywhere; }
 .webcheck-verdict { font-weight: 650; }
 .webcheck-verdict--conflicts { color: var(--warn-ink); }

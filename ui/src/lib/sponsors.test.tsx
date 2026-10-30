@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { PlainAgents } from "../components/agents/AgentsLive";
+import type { AgentsLiveModel } from "../hooks/useAgentsLive";
 import { describe, expect, it, vi } from "vitest";
 import { parsePlatformStatus } from "../api/platform";
 import { adoptRunBody } from "../api/replay";
@@ -81,6 +83,20 @@ describe("web check", () => {
     expect(c).not.toContain("Item 4");
     expect(c).not.toContain("310 ms");
     expect(renderToStaticMarkup(<WebCheckCard stack={stackOf(raw)} desk="insurer" />)).toContain("310 ms");
+  });
+});
+
+describe("citizen plain agents", () => {
+  const model = {
+    kind: "replay", runId: "run_f16733274f1c", handoff: null, loops: { revise: 2, repair: 1 }, servedFrom: "cache", chips: {}, played: 3, total: 8,
+    still: false, watch: [], watchOpen: false, retryLeft: 30, announce: "",
+    nodes: ["scope", "skeptic", "judge"].map((id, i) => ({ id, label: id[0].toUpperCase() + id.slice(1), state: ["done", "active", "idle"][i], runs: 2, latencyMs: 1234, modelId: "m" })),
+  } as unknown as AgentsLiveModel;
+  it("has agent names, status words and the sentence, and no digits", () => {
+    const html = renderToStaticMarkup(<PlainAgents model={model} />);
+    expect(html).toContain("double-checking");
+    expect(html).toContain("a human approves before anything goes out");
+    expect(html.replace(/<[^>]*>/g, " ")).not.toMatch(/\d/);
   });
 });
 

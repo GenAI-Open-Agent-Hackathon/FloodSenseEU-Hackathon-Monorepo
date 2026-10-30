@@ -144,7 +144,7 @@ function CitizenNowPage() {
           <WebCheckCard stack={stack} desk="citizen" />
         </>
       }
-      agents={<AgentsLive stack={stack} compact />}
+      agents={<AgentsLive stack={stack} compact plain />}
       actions={
         <div className="card desk-card">
           <PlacesToWatch live={live} onAsk={ask} start={2} exclude={lead?.id ?? null} />

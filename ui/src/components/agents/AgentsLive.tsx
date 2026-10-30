@@ -19,17 +19,51 @@ const modelText = (id: string | null): string =>
  */
 type WatchIn = { events: WatchEvent[]; open: boolean };
 
-export function AgentsLive({ stack, compact = false, watch }: { stack?: StackData; compact?: boolean; watch?: WatchIn }) {
-  return stack ? <Given stack={stack} compact={compact} watch={watch} /> : <Own compact={compact} watch={watch} />;
+export function AgentsLive({ stack, compact = false, plain = false, watch }: { stack?: StackData; compact?: boolean; plain?: boolean; watch?: WatchIn }) {
+  return stack ? <Given stack={stack} compact={compact} plain={plain} watch={watch} /> : <Own compact={compact} plain={plain} watch={watch} />;
 }
 
-function Own({ compact, watch }: { compact: boolean; watch?: WatchIn }) {
+function Own({ compact, plain, watch }: { compact: boolean; plain: boolean; watch?: WatchIn }) {
   const { model, stack } = useAgentsLive(watch);
-  return <View model={model} stack={stack} compact={compact} />;
+  return plain ? <PlainAgents model={model} /> : <View model={model} stack={stack} compact={compact} />;
 }
 
-function Given({ stack, compact, watch }: { stack: StackData; compact: boolean; watch?: WatchIn }) {
-  return <View model={useAgentsLiveFrom(stack, watch)} stack={stack} compact={compact} />;
+function Given({ stack, compact, plain, watch }: { stack: StackData; compact: boolean; plain: boolean; watch?: WatchIn }) {
+  const model = useAgentsLiveFrom(stack, watch);
+  return plain ? <PlainAgents model={model} /> : <View model={model} stack={stack} compact={compact} />;
+}
+
+/** Citizen variant: agent names, simple status words and one sentence. No durations, tokens, cost, rates, cache or counts. */
+export function PlainAgents({ model: m }: { model: AgentsLiveModel }) {
+  const hid = useId();
+  const word = (id: string, state: string) =>
+    state === "idle" ? "watching" : state === "active" ? (id === "skeptic" || id === "judge" ? "double-checking" : "checking") : "ready";
+  return (
+    <section className="card agl agl--compact agl--plain" aria-labelledby={hid} data-agents-live={m.kind}>
+      <header className="agl-head">
+        <h2 id={hid} className="stk-title">
+          Who checked this
+        </h2>
+        <DataBadge kind={m.kind} />
+      </header>
+      {m.kind === "none" ? (
+        <p className="stk-empty">No answer has been checked yet.</p>
+      ) : (
+        <>
+          <p className="stk-note">{m.kind === "live" ? "Working on it now." : "A recorded example, not happening now."}</p>
+          <ul className="agl-pool" aria-label="Agents">
+            {m.nodes.map((n) => (
+              <li key={n.id} className={`agl-node agl-node--${n.state}`}>
+                <strong>{n.label}</strong>
+                <span className="agl-state">{word(n.id, n.state)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="stk-note">Several AI agents checked this answer; a human approves before anything goes out.</p>
+    </section>
+  );
 }
 
 function View({ model: m, stack, compact }: { model: AgentsLiveModel; stack: StackData; compact: boolean }) {
