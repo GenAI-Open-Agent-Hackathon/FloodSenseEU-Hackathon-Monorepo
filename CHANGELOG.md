@@ -9,12 +9,38 @@ Increment tags are `v0.MINOR.0` only (`v0.0.0`, `v0.1.0`, `v0.2.0`, `v0.3.0`, `v
 
 ## [Unreleased]
 
+### Fixed
+
+- UI model wording follows `llm_backend` from `GET /platform/status`: chips, the run model line, pipeline badges and the How it works box say "Nebius Token Factory" when that is the backend and "Nightshift" only when it is. The Control tower shows a plain sentence for a raw upstream HTTP 429 and keeps the raw text in the Technical detail line. A recorded run that states no provider is shown with its model names only, never with a backend name.
+- Insurer Review no longer paints the bundled Valencia sample while it looks up the newest run; the sample shows only when no real run exists and is labelled "Sample, not a real run". Approvals shows "Loading runs" instead of 0 until /runs/past answers, labels live-data runs "Live" (not the event the console had selected) and shows the Exposure policy total when the site count is unknown (the asset sample is capped at 20 rows). Evidence drawer: a Zetaris view citation shows one "Structured data row, no text quote" line instead of two "missing" notes.
+
+### Changed
+
+- `LLM_BACKEND` now defaults to `nebius` (Token Factory), with `NEBIUS_MODEL_FAST=nvidia/Nemotron-3_5-Lightning` and `NEBIUS_MODEL_DEEP=nvidia/Nemotron-3.5-Super-VL`. `LLM_BACKEND=nightshift` is unchanged. Without `NEBIUS_API_KEY`, `/ready` answers 503 naming the fix. The Judge `model_id` allow-list (schema, Python, TypeScript, API copy) also accepts `nvidia/Nemotron-3_5-Lightning`, `nvidia/Nemotron-3-Ultra-550b-a55b` and `nvidia/nemotron-3-super-120b-a12b`. Hosted token caps raised to 6000/8000. Verified live on 30 Oct (lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 148 s, 12 calls, 44,569 tokens; Valencia EMSR773 281 s, 14 calls, 40,370 tokens; every claim judged). Tavily live call still unverified.
+
 ### Added
 
 - UI: Material UI design system. Complete theme in `ui/src/lib/muiTheme.ts` (palette with Normal/Watch/Elevated status tones, model output never red; typography scale; Card, Chip, Table, Tabs, Button overrides; light/dark parity). Shared components in `ui/src/components/ui/` (PageHeader, StatCard, StatusChip, DataTable, SectionCard, EmptyState, LoadingState) with tests. SideNav is now a MUI Drawer (permanent on desktop, temporary on phones). Citizen Now, Insurer Now and Operator Situation board use the shared components. MapLibre 3D terrain toggle on the gauge map. Other pages are not migrated yet.
+- "Goal and impact" strip (`ImpactStrip`, `lib/impact.ts`) at the top of each desk landing page (Citizen Now, Insurer Now, Operator Situation board): the desk goal, KPI chips from the live hooks ("no data yet" when a source is missing; the insurer book is labelled synthetic) and one cited fact from `docs/DECK-FACTS.md`.
+
+- UI page "Under the hood" (`#/citizen|insurer|operator/stack`): animated cards for Nebius + Nemotron, the agent pool (trace replay with play/pause/speed, SSE follow of a running run), Zetaris, H-MEM + World Model, the Redis cache and rate limiting, each driven by API data and badged LIVE, REPLAY or SAMPLE. CSS-only motion, reduced-motion safe.
+- UI: the How this answer was made Nightshift tile reads Nebius Token Factory when /platform/status reports llm_backend=nebius, and shows per-lane Nemotron ids, calls, tokens and cost (price not configured when unset) from run.usage, or Not recorded for this answer; a Platform strip on the System page (backend, lanes, latency p50/p95, cache, rate limit, llm_check, llm_usage).
+- Docs: real Token Factory measurements from live runs on 30 Oct 2026 in `docs/SUBMISSION-NEBIUS.md` (lane latency, Ahr and Valencia full-lane time, calls and tokens), updated rules checklist and feedback draft. Cost per run still TO FILL (no official prices retrieved).
+- Hosted judge demo kit for a Nebius VM: `compose.hosted.yaml` (ui, api, agents, redis behind a Caddy proxy with basic auth, optional automatic HTTPS, request cap, operator routes blocked), conservative caps (auto-assess off, run rate and concurrency limits, token ceilings), `scripts/hosted_auth.py`, `scripts/smoke_hosted.py` and `docs/DEPLOY-NEBIUS.md` with a cost worksheet (no prices filled in). Runs on the offline Zetaris stand-in (Demo data) with `LLM_BACKEND=nebius`. Validated offline only (compose parse, `caddy validate`); not deployed or run on a real VM.
+- Nebius evidence: `python tasks.py check-llm` / `POST /llm/check` (per-lane ok, model id, Nemotron flag, latency), per-run `usage` (tokens, calls, latency per lane and model; optional cost from `NEBIUS_PRICE_PER_M_INPUT/OUTPUT`), `llm_check` and `llm_usage` in `/config` and `/platform/status`, and `NEBIUS_RPM` / `NEBIUS_MAX_CONCURRENCY` for the pacer. Offline-tested only.
+- Docs: README section "Built on Nebius and NVIDIA", Token Factory, Tavily and Nebius AI Cloud in the README and C4 diagrams, and `docs/SUBMISSION-NEBIUS.md` (Devpost text, rules checklist, feedback draft, video script, measurements table with TO MEASURE cells).
+- `GET /platform/status` (LLM backend, lane models, per-lane p50/p95 latency, cache hit rate, 429 counts, live sources) and `fetchPlatformStatus` in `ui/src/api/platform.ts`.
+- Tavily Search as a cited web-context source in the full-lane Investigator (`FF_TAVILY`, default off; `TAVILY_API_KEY`). Snippets are claims labelled "Web context, not an official warning" with a URL citation; digits, markup and newlines are stripped from web text. Live calls are not yet verified against a real key.
+- Skeptic `web_check` (one alert-timing claim against fenced web snippets, URL cited, never changes a verdict), a `tavily` trace entry, web citations in the evidence drawer and a Tavily tile in "How this answer was made".
 - `LLM_BACKEND=nebius`: optional chat backend on the Nebius Token Factory (OpenAI-compatible API) with NVIDIA Nemotron models, reusing the Nightshift retry, 429 backoff and JSON-mode handling. `nightshift` stays the default. `NEBIUS_API_KEY` is required when selected. `/ready` and `/config` report `llm_backend`. Tested offline with a mock transport only; no live Token Factory call has been made, and the default model ids are unconfirmed against a live `/v1/models`.
 
 - Apache-2.0 `LICENSE` for the FloodSense code (copyright 2026 FloodSense EU contributors). `THIRD_PARTY_NOTICES.md` section 3 updated.
+
+### Fixed
+
+- Pegel poller: `POLL_INTERVAL_S` / `--interval` below 30 s (including 0, which busy-looped) is raised to 30 s with a log line.
+
+- One alert line: the insurer Sites map band moves from 80 to 100 m3/s, read from `SIMULATED_ALERT_M3S`, which Replay and the Watchers anomaly line now share (a test fails if they drift). Overview status wording now says "(daily value)", so "Below the 100 m3/s alert line" on 29 Oct is not read as an hourly claim. Still FloodSense's own line, not an official warning.
 
 ### Changed
 

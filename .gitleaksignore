@@ -20,3 +20,14 @@ d2f3734cd8c6c63733ddf473938ca67ce2d81c4d:scripts/tests/test_zetaris_sync.py:aws-
 # HTML in commit 934bd03. Not a FloodSense credential. The stored snapshot
 # no longer includes that script. This fingerprint matches that commit only.
 934bd034025b6f26f890b5cd5f63edb683b4f3cf:corpus/pdf/easyxlab-s19.html:generic-api-key:229
+
+# Placeholder `curl -u judge:PASSWORD` examples in docs/DEPLOY-NEBIUS.md, in two old commits of the
+# hosting-kit PR (later replaced by `curl --user "$JUDGE_LOGIN"`). "PASSWORD" is a literal placeholder, not a credential.
+42eaf61a86ff3667eb209b9c25297129deea01fd:docs/DEPLOY-NEBIUS.md:curl-auth-user:68
+42eaf61a86ff3667eb209b9c25297129deea01fd:docs/DEPLOY-NEBIUS.md:curl-auth-user:69
+42eaf61a86ff3667eb209b9c25297129deea01fd:docs/DEPLOY-NEBIUS.md:curl-auth-user:70
+6cb4d7a47e89588c2668276ab654c8bb67dd7edd:docs/DEPLOY-NEBIUS.md:curl-auth-user:69
+6cb4d7a47e89588c2668276ab654c8bb67dd7edd:docs/DEPLOY-NEBIUS.md:curl-auth-user:70
+6cb4d7a47e89588c2668276ab654c8bb67dd7edd:docs/DEPLOY-NEBIUS.md:curl-auth-user:71
+6cb4d7a47e89588c2668276ab654c8bb67dd7edd:docs/DEPLOY-NEBIUS.md:curl-auth-user:67
+42eaf61a86ff3667eb209b9c25297129deea01fd:docs/DEPLOY-NEBIUS.md:curl-auth-user:64

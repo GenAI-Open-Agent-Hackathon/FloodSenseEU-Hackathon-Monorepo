@@ -138,7 +138,7 @@ export function shortModel(modelId: string): string {
 
 /** Provider from the model id itself (shared rule in ./lanes). */
 export { providerOf } from "./lanes";
-import { providerOf } from "./lanes";
+import { providerLabel as providerOf } from "./lanes";
 
 /** The model line under a finished node: "nemotron-3.5-lightning · Nightshift", "deterministic", "SQL · Zetaris". */
 export function modelLine(modelId: string | null, lane: string | null): string {

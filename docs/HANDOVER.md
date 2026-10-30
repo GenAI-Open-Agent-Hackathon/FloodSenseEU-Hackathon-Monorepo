@@ -25,8 +25,8 @@ Sponsor tech 10 (Zetaris, Meterless Nightshift / H-MEM / World Model, NVIDIA Nem
 - **Data**: everything is read through **Zetaris** views (`floodsense.gauge_levels`, `eu_watch`, `hazard_now`,
   `weather_forecast`, `exposure_join`, replay seeds). Migrations in `zetaris/migrations` (applied with
   `py tasks.py zetaris-sync`). 45 sources = 26 PEGELONLINE gauges + 11 GloFAS points + 8 Valencia demo points.
-- **LLM**: only through the **Nightshift** gateway (`:8088`, `meterless/fast` and `meterless/deep`), Nemotron models.
-  NVIDIA rate-limits (429): `agents/floodsense_agents/nightshift.py` has backoff, a concurrency cap (3) and a pacer (35 rpm).
+- **LLM**: default `LLM_BACKEND=nebius` (Token Factory, `NEBIUS_API_KEY`; fast `nvidia/Nemotron-3_5-Lightning`, deep `nvidia/Nemotron-3.5-Super-VL`). Verified live on 30 Oct with a real key (lane check and two full-lane replays only; no other path was run): lane check fast 1.1 s, deep 30.4 s; Ahr EMSR517 full lane 148 s, 12 calls, 44,569 tokens; Valencia EMSR773 281 s (concurrent), 14 calls, 40,370 tokens; every claim judged. `LLM_BACKEND=nightshift` keeps the **Nightshift** gateway (`:8088`, `meterless/fast` and `meterless/deep`).
+  Rate limits (429): `agents/floodsense_agents/nightshift.py` has backoff, a concurrency cap and a pacer: 4 and 60 rpm on nebius (`NEBIUS_MAX_CONCURRENCY`, `NEBIUS_RPM`), 3 and 35 rpm on nightshift.
 - **Memory**: H-MEM and World Model in `engines/` (`:8300`). Written only on approval. Demo seeds are labelled `demo-seed`.
 - **RAG**: pgvector + NVIDIA NIM `nemotron-3.5-embed-1b`. 25 documents / 1,859 passages (`corpus/`, `scripts/rag_ingest.py`).
 - **API** (`api/`, `:18000`): Redis cache, rate limits (10/min, 2 concurrent), SSE events, `GET /system`, `/watch/*` (Control tower),
@@ -75,11 +75,8 @@ Workflow used all day: branch, coding agent, independent review agent, review fi
 
 ### Known bugs and weak spots
 - Insurer Approvals queue had 29 old test runs (curated in #90). Insurer "Now" page is dense.
-- Review's Skeptic/Judge tabs are still the bundled Valencia fixture.
-- Overview shows Paiporta "Below the 100 m3/s line" on 29 Oct because the daily value crosses on 30 Oct.
-- Sites map uses an 80 m3/s band while Replay uses 100.
 - First load of live pages takes 5-10 s (Zetaris views are queried one by one).
-- Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only. `POLL_INTERVAL_S=0` busy-loops.
+- Poller container tested only on Docker Desktop for Windows; `docker.sock` mount is dev-only.
 - Open-Meteo free tier is non-commercial; one forecast question is about 45 calls.
 - No flood-history documents/memories for Saar, Ems, Rhone, Ebro, Tisza.
 - Full lane takes minutes and depends on NVIDIA rate limits. Quick/forecast/reply lanes do not.

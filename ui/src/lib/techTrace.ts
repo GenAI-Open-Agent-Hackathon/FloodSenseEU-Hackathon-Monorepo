@@ -1,6 +1,6 @@
 import type { RecordedRun } from "../api/replay";
 import type { MemoryUsed } from "./hitl";
-import { providerOf } from "./lanes";
+import { NEBIUS_NAME, providerLabel } from "./lanes";
 import { formatLatency, parseBoard } from "./pipeline";
 
 /**
@@ -10,14 +10,18 @@ import { formatLatency, parseBoard } from "./pipeline";
  * and a cached or recorded answer says it was not run just now.
  */
 
-export type TileId = "zetaris" | "nightshift" | "hmem" | "world";
+export type TileId = "zetaris" | "nightshift" | "tokenfactory" | "hmem" | "world" | "tavily";
 
-export const GLOSSARY: Record<TileId, string> = {
+export const GLOSSARY: Record<TileId | "model", string> = {
+  model: "Language model: the NVIDIA Nemotron models the agents think with (fast and deep lanes). The serving backend is named once it is known.",
   zetaris: "Zetaris: the only SQL path to the data.",
+  tokenfactory:
+    "Nebius Token Factory: the hosted inference service that serves the agents' model calls (fast and deep lanes) with NVIDIA Nemotron models.",
   nightshift:
     "Meterless Nightshift: the gateway that routes the agents' model calls (meterless/fast and meterless/deep) to NVIDIA Nemotron models.",
   hmem: "Meterless H-MEM: remembers approved findings (and clearly labelled demo seeds).",
   world: "Meterless World Model: tracks which hypotheses the evidence still supports.",
+  tavily: "Tavily: optional web search. Its snippets are cited web context, not an official warning.",
 };
 
 export interface TileDetail {
@@ -142,8 +146,9 @@ const llmIds = (modelId: string | null | undefined): string[] =>
 export function modelUse(run: Pick<RecordedRun, "trace" | "modelIds" | "provider">): { models: ModelUse[]; steps: number; latencyMs: number } {
   const byId = new Map<string, ModelUse>();
   const make = (id: string, explicit: string | null | undefined): ModelUse => {
-    const provider = providerOf(id, explicit ?? run.provider ?? null);
-    return { id, name: modelDisplay(id), provider, nightshift: provider === "Nightshift", lanes: [], steps: 0, latencyMs: 0 };
+    // Explicit provider only: a recorded run without one is not assumed to be the current backend.
+    const provider = providerLabel(id, explicit ?? run.provider ?? null);
+    return { id, name: modelDisplay(id), provider, nightshift: (provider === null && /nemotron/i.test(id)) || provider === "Nightshift" || provider === NEBIUS_NAME, lanes: [], steps: 0, latencyMs: 0 };
   };
   let steps = 0;
   let latencyMs = 0;
@@ -176,7 +181,36 @@ export const RECORDED_NOTE = "Recorded run: replayed from cache, not run just no
 
 const isRecorded = (run: Pick<RecordedRun, "servedFrom">): boolean => run.servedFrom !== "live";
 
-function nightshiftTile(run: RecordedRun): Tile {
+/** Usage rows from run.usage. Absent usage is only reported when the run made model calls; a deterministic run adds nothing. */
+function usageDetails(run: RecordedRun, hadModelCalls: boolean): { before: TileDetail[]; after: TileDetail[] } {
+  const u = run.usage;
+  if (!u) return { before: hadModelCalls ? [{ label: "Usage", value: "Not recorded for this answer (cached, replayed or older run)" }] : [], after: [] };
+  if (u.calls === 0) return { before: [], after: [{ label: "Usage", value: "No model call in this answer" }] };
+  return {
+    before: [],
+    after: [
+      ...u.models.map((m) => ({ label: `${m.lane} lane · ${m.modelId}`, value: `${plural(m.calls, "call")} · ${m.totalTokens} tokens` })),
+      { label: "This run", value: `${plural(u.calls, "model call")} · ${u.totalTokens} tokens${u.avgLatencyMs != null ? ` · avg ${formatLatency(u.avgLatencyMs)}` : ""}` },
+      { label: "Cost", value: u.costUsd == null ? "price not configured" : `$${u.costUsd.toFixed(4)} (${u.priceNote})` },
+    ],
+  };
+}
+
+function nightshiftTile(run: RecordedRun, backend?: string | null): Tile {
+  const t = nightshiftBase(run);
+  const u = usageDetails(run, modelUse(run).models.length > 0);
+  // Keep the "Time in model-assisted steps" row last among the trace rows; unrecorded-usage note goes before it.
+  const i = t.details.findIndex((d) => d.label.startsWith("Time in model"));
+  const details = [...t.details];
+  details.splice(i < 0 ? details.length : i, 0, ...u.before);
+  details.push(...u.after);
+  // Named after the current backend; neutral until /platform/status is known.
+  if (backend === "nebius") return { ...t, name: NEBIUS_NAME, glossary: GLOSSARY.tokenfactory, details };
+  if (backend === "nightshift") return { ...t, details };
+  return { ...t, name: "Language model", glossary: GLOSSARY.model, details };
+}
+
+function nightshiftBase(run: RecordedRun): Tile {
   const use = modelUse(run);
   const recorded: TileDetail[] = isRecorded(run) ? [{ label: "Served from", value: RECORDED_NOTE }] : [];
   const name = "Meterless Nightshift";
@@ -305,6 +339,21 @@ function worldTile(run: RecordedRun): Tile {
   };
 }
 
+/* ---------- Tavily ---------- */
+
+/** Pure: Tavily state from the trace. No "tavily" step means the flag was off (or no place to search). */
+function tavilyTile(run: RecordedRun): Tile {
+  const calls = run.trace.filter((s) => s.node === "tavily");
+  const base = { id: "tavily" as const, name: "Tavily web context", glossary: GLOSSARY.tavily };
+  if (!calls.length) return { ...base, used: false, headline: "Off · no web call in this run", details: [] };
+  const last = calls[calls.length - 1];
+  const details: TileDetail[] = [{ label: "Calls", value: String(calls.length) }, { label: "Call", value: last.summary }];
+  const check = run.trace.map((s) => /web_check (supports|contradicts|neutral) (\S+) (\S+)/.exec(s.summary)).find(Boolean);
+  if (check) details.push({ label: "Skeptic web check", value: `${check[1]} ${check[2]}, ${check[3]}` });
+  const down = /unavailable/i.test(last.summary);
+  return { ...base, used: !down, headline: down ? "Unavailable" : `On · ${plural(calls.length, "call")}`, details };
+}
+
 /* ---------- Router + Judge ---------- */
 
 /** "chose quick: live level question about X" -> "live level question about X". */
@@ -353,10 +402,10 @@ export function pickRunRow<T extends { runId: string; status: string; eventId: s
 }
 
 /** Pure: everything the TechTrace panel draws. */
-export function buildTechTrace(run: RecordedRun): TechTraceModel {
+export function buildTechTrace(run: RecordedRun, backend?: string | null): TechTraceModel {
   return {
     routerLine: routerLine(run),
     judgeLine: judgeLine(run),
-    tiles: [zetarisTile(run), nightshiftTile(run), hmemTile(run), worldTile(run)],
+    tiles: [zetarisTile(run), nightshiftTile(run, backend), hmemTile(run), worldTile(run), tavilyTile(run)],
   };
 }

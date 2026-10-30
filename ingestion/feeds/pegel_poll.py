@@ -41,6 +41,31 @@ SOURCE = "ds_pegelonline"
 # Touched after every successful stage. --health reads its age. Not data, never copied anywhere.
 STATE = os.path.join(OUT, ".last_staged")
 DEFAULT_INTERVAL_S = 600
+MIN_INTERVAL_S = 30  # PEGELONLINE updates every 15 min; faster polling only hammers the API
+
+
+def env_interval() -> float:
+    """POLL_INTERVAL_S as a number; empty means the default, junk means the floor (never a crash)."""
+    raw = (os.environ.get("POLL_INTERVAL_S") or "").strip()
+    if not raw:
+        return DEFAULT_INTERVAL_S
+    try:
+        value = float(raw)
+        if value != value or value in (float("inf"), float("-inf")):  # nan / inf
+            raise ValueError(raw)
+        return value
+    except ValueError:
+        log(f"POLL_INTERVAL_S={raw!r} is not a number; using {MIN_INTERVAL_S}s", err=True)
+        return MIN_INTERVAL_S
+
+
+def clamp_interval(interval: float) -> int:
+    """Floor the poll interval; 0 or a negative value would busy-loop."""
+    interval = int(interval)
+    if interval < MIN_INTERVAL_S:
+        log(f"interval {interval}s is below the {MIN_INTERVAL_S}s floor; using {MIN_INTERVAL_S}s", err=True)
+        return MIN_INTERVAL_S
+    return interval
 BACKOFF_BASE_S = 30
 BACKOFF_CAP_S = 300
 
@@ -349,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     if a.service or a.health:
-        interval = a.interval or int(os.environ.get("POLL_INTERVAL_S") or DEFAULT_INTERVAL_S)
+        interval = clamp_interval(a.interval or env_interval())
         if a.health:
             ok, msg = health(interval)
             print(msg)
@@ -370,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
         if not a.interval:
             return 0 if n else 1
-        time.sleep(a.interval)
+        time.sleep(clamp_interval(a.interval))
 
 
 if __name__ == "__main__":

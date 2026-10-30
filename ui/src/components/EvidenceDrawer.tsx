@@ -3,8 +3,8 @@ import { SafeLink } from "./SafeLink";
 import { LiveEvidenceView } from "./LiveSources";
 import { useConsole } from "../context/ConsoleContext";
 import { useDismiss } from "../hooks/useDismiss";
-import { numberedCitations } from "../lib/citations";
-import { drawerFields, type Reference } from "../lib/references";
+import { numberedCitations, retrievedAt, WEB_LABEL, webCitations } from "../lib/citations";
+import { drawerFields, isStructuredRow, STRUCTURED_ROW_NOTE, type Reference } from "../lib/references";
 import { formatCell, formatDay } from "../lib/format";
 import { glofasDischargeNote, pointById, provenanceForSource, rowAt, sourceExplanation } from "../lib/series";
 import type { Answer, Evidence } from "../types/contract";
@@ -218,6 +218,7 @@ export function EvidenceDrawer() {
             <h3>Citations</h3>
             <CitationList answer={desk.answer} />
           </section>
+          <WebCitations answer={desk.answer} />
           <section>
             <h3>provenance view</h3>
             <p className="note">
@@ -253,14 +254,20 @@ export function ReferenceDetail({ source }: { source: Reference }) {
           </div>
         ))}
       </dl>
-      {source.quote ? <blockquote className="ref-quote">“{source.quote}”</blockquote> : <p className="note">No text quote for this source.</p>}
+      {source.quote ? (
+        <blockquote className="ref-quote">“{source.quote}”</blockquote>
+      ) : isStructuredRow(source) ? (
+        <p className="note">{STRUCTURED_ROW_NOTE}</p>
+      ) : (
+        <p className="note">No text quote for this source.</p>
+      )}
       {source.attribution && <p className="note">{source.attribution}</p>}
       {source.link ? (
         <p>
           <SafeLink href={source.link.href}>{source.link.label} ↗</SafeLink>
         </p>
       ) : (
-        <p className="note">No source link was recorded for this citation.</p>
+        !isStructuredRow(source) && <p className="note">No source link was recorded for this citation.</p>
       )}
     </section>
   );
@@ -287,6 +294,31 @@ export function CitationList({ answer }: { answer: Answer }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Tavily web snippets, if the run used them. Context only, never styled as a warning. */
+export function WebCitations({ answer }: { answer: Answer }) {
+  const items = webCitations(answer);
+  if (items.length === 0) return null;
+  return (
+    <section aria-label="Web citations">
+      <h3>Web citations</h3>
+      <p className="note">{WEB_LABEL}.</p>
+      <ul className="citation-list">
+        {items.map(({ n, citation }) => (
+          <li key={citation.citation_id}>
+            <p className="menu-title">
+              [{n}] {citation.title}
+            </p>
+            <p className="note">
+              <SafeLink href={citation.source_url}>{citation.source_url}</SafeLink>
+              {retrievedAt(citation) ? ` · retrieved ${retrievedAt(citation)}` : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

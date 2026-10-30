@@ -1,0 +1,121 @@
+# compose.hosted.yaml — public judge demo on one VM. Separate project from the dev stack.
+#   docker compose -f compose.hosted.yaml --env-file deploy/hosted/hosted.env -p floodsense-hosted up -d --build
+# Only `proxy` publishes ports. No Zetaris, engines, pgvector or pegel-poller (no Docker socket).
+# Zetaris is replaced by the offline stand-in (ZETARIS_MODE=fake = "Demo data"); chat goes to Nebius.
+# One default network: agents need outbound internet (Nebius, Open-Meteo, PEGELONLINE).
+# See docs/DEPLOY-NEBIUS.md.
+
+name: floodsense-hosted
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  proxy:
+    <<: *restart
+    build:
+      context: ./ui
+      dockerfile: ../deploy/hosted/Dockerfile.proxy
+    # PROXY_MODE picks the Caddyfile: https (default), selfsigned, http (clear-text opt-in).
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.${PROXY_MODE:-https}", "--adapter", "caddyfile"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      JUDGE_USER: ${JUDGE_USER:?set JUDGE_USER in deploy/hosted/hosted.env}
+      JUDGE_HASH: ${JUDGE_HASH:?run scripts/hosted_auth.py and set JUDGE_HASH}
+    volumes:
+      - ./deploy/hosted:/etc/caddy:ro
+      - caddy-data:/data
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80"]  # port probe: works in every PROXY_MODE (no redirect/cert issue)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  api:
+    <<: *restart
+    build: ./api
+    environment:
+      AGENTS_URL: http://agents:8100
+      REDIS_URL: redis://redis:6379/0
+      FF_SEMANTIC_CACHE: "true"
+      FF_CACHED_REPLAY: "true"
+      RATE_LIMIT_RUNS_PER_MIN: ${RATE_LIMIT_RUNS_PER_MIN:-4}
+      RATE_LIMIT_MAX_CONCURRENT_RUNS: ${RATE_LIMIT_MAX_CONCURRENT_RUNS:-2}
+      RATE_LIMIT_CONCURRENCY_RETRY_AFTER_S: "30"
+      # Without this the API's operator-switch guard is open. Same value as the agents.
+      WATCH_ADMIN_TOKEN: ${WATCH_ADMIN_TOKEN:?set WATCH_ADMIN_TOKEN in deploy/hosted/hosted.env}
+    depends_on:
+      agents: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+
+  agents:
+    <<: *restart
+    build: ./agents
+    environment:
+      AGENTS_HOST: 0.0.0.0
+      LLM_BACKEND: nebius
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY:?set NEBIUS_API_KEY in deploy/hosted/hosted.env}
+      NEBIUS_BASE_URL: ${NEBIUS_BASE_URL:-https://api.tokenfactory.nebius.com/v1}
+      NEBIUS_MODEL_FAST: ${NEBIUS_MODEL_FAST:-nvidia/Nemotron-3_5-Lightning}
+      NEBIUS_MODEL_DEEP: ${NEBIUS_MODEL_DEEP:-nvidia/Nemotron-3.5-Super-VL}
+      # Demo data: offline Zetaris stand-in. No Zetaris reachable from the cloud VM.
+      ZETARIS_MODE: fake
+      FF_LIVE_DATA: "false"
+      FF_HMEM: "false"
+      FF_RAG_DOCS: "false"
+      FF_SKEPTIC: "true"
+      FF_HITL: "true"
+      FF_JUDGE: "true"
+      FF_QUICK_LANE: "true"
+      FF_FORECAST_LANE: "true"
+      FF_FRONT_DOOR: "true"
+      FF_SEMANTIC_CACHE: "true"
+      FF_CACHED_REPLAY: "true"
+      FF_TAVILY: ${FF_TAVILY:-false}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Control tower: rule-based scan stays on; auto-assess (model calls) is forced off.
+      FF_WATCH_LOOP: "true"
+      FF_AUTO_ASSESS: "false"
+      WATCH_ADMIN_TOKEN: ${WATCH_ADMIN_TOKEN:?set WATCH_ADMIN_TOKEN in deploy/hosted/hosted.env}
+      WATCH_INTERVAL_S: ${WATCH_INTERVAL_S:-1800}
+      WATCH_AUTO_PER_HOUR: "0"
+      WATCH_AUTO_PER_DAY: "0"
+      NIGHTSHIFT_MAX_CONCURRENCY: ${NIGHTSHIFT_MAX_CONCURRENCY:-2}
+      NIGHTSHIFT_RPM: ${NIGHTSHIFT_RPM:-20}
+      LLM_MAX_TOKENS_FAST: ${LLM_MAX_TOKENS_FAST:-6000}
+      LLM_MAX_TOKENS_DEEP: ${LLM_MAX_TOKENS_DEEP:-8000}
+      SKEPTIC_MAX_ROUNDS: ${SKEPTIC_MAX_ROUNDS:-1}
+      JUDGE_REPAIR_ROUNDS: ${JUDGE_REPAIR_ROUNDS:-0}
+      LLM_TIMEOUT_S: "120"
+    volumes:
+      - checkpoints:/data/checkpoints
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8100/health', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    <<: *restart
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  caddy-data: {}
+  checkpoints: {}

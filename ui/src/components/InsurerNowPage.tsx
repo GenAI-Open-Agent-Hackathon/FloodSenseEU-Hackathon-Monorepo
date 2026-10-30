@@ -16,6 +16,8 @@ import { Sparkline } from "./Sparkline";
 import { LoadingNote, SlowSourceNote } from "./Loading";
 import { DemoChip } from "./ModeSwitch";
 import { DEMO_SNAPSHOT_AT, demoSnapshotText } from "../lib/demo";
+import { insurerChips, FACTS, GOALS } from "../lib/impact";
+import { ImpactStrip } from "./ImpactStrip";
 import { dataTime, staleNote, staleViews } from "../lib/staleness";
 
 const REFRESH_MS = 5 * 60_000;
@@ -49,7 +51,7 @@ const TREND_TEXT: Record<Trend, { arrow: string; label: string }> = {
  * Europe live watch: those gauges plus the GloFAS points of eu_watch on one map, each click pre-filling Ask.
  */
 export function InsurerNowPage() {
-  const { points, openAsk, demo, reportChecked } = useConsole();
+  const { points, openAsk, demo, reportChecked, exposure } = useConsole();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const gauges = useGaugeLevels(0, demo);
   const lastDemo = useRef(demo);
@@ -115,6 +117,7 @@ export function InsurerNowPage() {
 
   return (
     <div className="now-page">
+      <ImpactStrip goal={GOALS.insurer} chips={insurerChips(exposure.rows, watchSources.length)} fact={FACTS.insurer} />
       <PageHeader
         title={`Right now${stamp ? ` · ${localTime(stamp)}` : ""}`}
         subtitle={
